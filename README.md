@@ -4,8 +4,12 @@ One home for the formatting, commit and style rules shared by Orchid, Mosaic, Fe
 bamboo. Fix a rule here, and every project picks it up on its next update instead of needing
 the same edit pasted five times.
 
-Status: **phase 1** — Prettier, commitlint, Stylelint and lint-staged. ESLint is phase 2, the
-`check-*` gates are phase 3. Not published; installed from this folder while it is proved out.
+Status: **phases 1 and 2 done**, phase 3 started — Prettier, commitlint, Stylelint, lint-staged and
+ESLint are here, along with the three helpers every `check-*` gate imports. The gate scripts
+themselves are not, and cannot be moved mechanically; see **Gate helpers** below.
+Not published; installed from this folder while it is proved out.
+**Fern** (Electron) and **Orchid** (full-stack) are migrated and are the worked examples, one per
+family; Quartz, bamboo and Mosaic still use their own files.
 
 ## Using it in a project
 
@@ -13,15 +17,13 @@ Status: **phase 1** — Prettier, commitlint, Stylelint and lint-staged. ESLint 
 npm i -D ../lint-config          # local for now; an npm install once it is published
 ```
 
-**Prettier** — takes no options, so `package.json` can point straight at it and `.prettierrc` goes away:
-
-```json
-{ "prettier": "@larrydarko/lint-config/prettier" }
-```
-
-Everything else is a function, so the project's own file says what it turns on:
+Then `.prettierrc` and the `lint-staged` block in `package.json` go away, replaced by four small
+files that each name only what this project does differently:
 
 ```js
+// prettier.config.js — no options, so it is a straight re-export
+export { default } from '@larrydarko/lint-config/prettier';
+
 // commitlint.config.js
 import { commitlint } from '@larrydarko/lint-config/commitlint';
 export default commitlint({ subjectSingleWhy: true });
@@ -34,6 +36,65 @@ export default stylelint({ spacingUnit: 'rem', mobileFirst: true });
 import { lintStaged } from '@larrydarko/lint-config/lint-staged';
 export default lintStaged({ stylelint: true });
 ```
+
+## ESLint
+
+```js
+// eslint.config.js
+import { larry } from '@larrydarko/lint-config/eslint';
+import { electronStandards, tsSourceSelectors /* … */ } from '@larrydarko/lint-config/eslint/electron';
+
+export default larry({
+    preset: 'electron', // or 'fullstack'
+    rootDir: import.meta.dirname, // required — see below
+    standards: electronStandards({ i18n: { ignoreText: ['Fern'] } }),
+    overrides: [/* this project's own per-area blocks */],
+});
+```
+
+`rootDir` is not optional. It becomes `tsconfigRootDir`, which has to point at **the project** —
+`import.meta.dirname` read from inside this package would point at the package, and every
+type-aware rule would then silently find no tsconfig.
+
+`larry()` owns what every project agreed on: the JS/TS/Vue presets, which globals apply where, the
+strict type rules, the naming convention, the return-type rule, the test relaxations, and Prettier
+last. `preset` picks a family's folder layout (see `presets.js`); `paths` overrides any part of it.
+
+**The per-area wiring stays in the project.** Which selectors apply to `api/src/routes` or to
+`src/main` is genuinely about that project's folders, so it lives in its own config file and is
+passed as `overrides`. What that wiring _composes_ — the selectors, the banned-import lists, the
+function-contracts plugin — is imported from the family module, so the rules are shared even though
+the wiring is not.
+
+| Option             | Default      | What it is for                                                          |
+| ------------------ | ------------ | ----------------------------------------------------------------------- |
+| `preset`           | —            | `'electron'` or `'fullstack'`                                           |
+| `rootDir`          | —            | the project root; **required**                                          |
+| `paths`            | the preset's | override `source`, `tests`, `browser`, `node`, `ignores`, …             |
+| `vue`              | `true`       | load the Vue plugin and parse `.vue` files                              |
+| `importExtensions` | `false`      | enforce import specifiers; `{ nodeRun }` for folders Node runs directly |
+| `testProject`      | none         | a dedicated tsconfig for tests (Fern's `tsconfig.test.json`)            |
+| `testRules`        | `{}`         | one more relaxation for tests                                           |
+| `rules`            | `{}`         | extra rules on typed source                                             |
+| `standards`        | `[]`         | the family's standards blocks                                           |
+| `overrides`        | `[]`         | the project's own blocks, appended last before Prettier                 |
+
+**Block order is the point.** Flat config is last-match-wins, and a block with no `files` matches
+everything. The catch-all block therefore comes _first_, before the strict block it would otherwise
+undo, and the test relaxations come _after_ the standards so they are not re-tightened. Orchid had
+this backwards: `no-explicit-any` and `no-unused-vars` were resolving to `warn` everywhere,
+including inside the block that sets them to `error`. The order here is asserted in
+`test/eslint.test.js` through ESLint's own resolver, not by reading the array.
+
+Prettier is a file rather than a `"prettier"` key in `package.json` because the projects' own
+`pkg:check` gate allows a fixed list of manifest keys, and a config file needs no exception to it.
+
+**The project does not install the plugins.** `stylelint-config-standard-scss`, `stylelint-scss`,
+`stylelint-declaration-strict-value`, `postcss-html`, `postcss-scss` and
+`@commitlint/config-conventional` are dependencies of this package, and it hands Stylelint and
+commitlint resolved absolute paths to them. That is what stops five projects pinning five drifting
+copies — but it also means a project's **first** migration can surface findings its older copies
+missed. Run the linters before and after and read the difference; it is real, not a regression.
 
 `.prettierignore` and the `.husky/` hooks stay in each project: they name paths and commands
 that only that project has.
@@ -48,31 +109,101 @@ that only that project has.
 **stylelint** — the base is what every project already agreed on; each option below exists because
 one project deliberately departs from it.
 
-| Option | Default | Turn it on when |
-| --- | --- | --- |
-| `spacingUnit` | `'em'` | the UI runs at a fixed size next to pixel-drawn content (Quartz) |
-| `tokenProperties` | colour only | the type and radius scales are tokenised too (Orchid, Mosaic) |
-| `ignoreZero` | `false` | `0` is a reset, not a design value waiting to be named |
-| `lowercaseCurrentColor` | `false` | `value-keyword-case` rewrites `currentColor` first |
-| `unknownCustomProperties` | `true` | **off** where tokens are generated by a SCSS loop (Mosaic) |
-| `bem` | `false` | class names are `block__element--modifier` (Mosaic) |
-| `noScssColorFunctions` | `false` | `$color-*` aliases resolve to `var(--color-*)` at runtime |
-| `noScssImport` | `false` | the project is fully on `@use`/`@forward` |
-| `mobileFirst` | `false` | breakpoints only ever layer up with `min-width` |
-| `duplicateFallbacks` | `false` | `100vh` then `100dvh` is a fallback, not a mistake |
-| `variablesOverride` | `false` | `_variables.scss` declares the aliases (Fern) |
-| `referenceFiles` | `[]` | token/theme files must be read for context (Quartz, bamboo) |
-| `vue` | `true` | leave on for `<style>` blocks in SFCs |
-| `rules` / `overrides` | `{}` / `[]` | the escape hatch, merged last |
+| Option                    | Default     | Turn it on when                                                 |
+| ------------------------- | ----------- | --------------------------------------------------------------- |
+| `spacingUnit`             | `'em'`      | the UI runs at a fixed size next to pixel-drawn content (Quartz) |
+| `tokenProperties`         | colour only | the type and radius scales are tokenised too (Orchid, Mosaic)    |
+| `ignoreZero`              | `false`     | `0` is a reset, not a design value waiting to be named          |
+| `lowercaseCurrentColor`   | `false`     | `value-keyword-case` rewrites `currentColor` first              |
+| `unknownCustomProperties` | `true`      | **off** where tokens are generated by a SCSS loop (Mosaic)      |
+| `bem`                     | `false`     | class names are `block__element--modifier` (Mosaic)             |
+| `noScssColorFunctions`    | `false`     | `$color-*` aliases resolve to `var(--color-*)` at runtime       |
+| `noScssImport`            | `false`     | the project is fully on `@use`/`@forward`                       |
+| `mobileFirst`             | `false`     | breakpoints only ever layer up with `min-width`                 |
+| `duplicateFallbacks`      | `false`     | `100vh` then `100dvh` is a fallback, not a mistake              |
+| `variablesOverride`       | `false`     | `_variables.scss` declares the aliases (Fern)                   |
+| `referenceFiles`          | `[]`        | globs for token/theme files read for context (Quartz, bamboo) |
+| `vue`                     | `true`      | leave on for `<style>` blocks in SFCs                           |
+| `rules` / `overrides`     | `{}` / `[]` | the escape hatch, merged last                                   |
+
+## Gate helpers
+
+`repo-root`, `strip-comments` and `import-order` were the three files every `check-*` gate
+imported, and each family carried its own version. The project keeps a one-line shim that names
+its own configuration:
+
+```ts
+// scripts/lib/import-order.ts
+import { createImportOrder } from '@larrydarko/lint-config/gates/import-order';
+
+export const { IMPORT_GROUPS, checkImportsInFile, fixImportsInFile } = createImportOrder({
+    workspaceScope: '@orchid/', // four groups; omit it for a single-package repo
+    localAliases: ['@test-utils'], // tsconfig paths that look like npm packages
+});
+```
+
+Where the two versions disagreed, the superset won and is documented in the file:
+`strip-comments` blanks comments to spaces rather than deleting them, so byte offsets survive and
+a gate can report the position it matched at; `repo-root` walks up for **either** a `workspaces`
+manifest or a `.git` directory, because Orchid's version found nothing in a single-package repo and
+Fern's `../..` was only right while the file stayed two levels down.
+
+**These ship as `.js` with hand-written `.d.ts`, and that is not a style choice.** Node refuses to
+strip TypeScript types from anything under `node_modules`
+(`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`). A `.ts` file in this package works today only
+because a local folder install is a symlink whose realpath is outside `node_modules` — it would
+break the day this is published. Any future gate code added here has to be `.js` too, or the
+package needs a build step.
+
+**The gate scripts themselves are still per-project**, and unlike phases 1 and 2 they cannot just
+be moved: they have genuinely diverged, so merging them is a decision about behaviour, not a copy.
+
+| Gate                | Distinct versions across the 5 | Widest line-count gap |
+| ------------------- | ------------------------------ | --------------------- |
+| `declaration-order` | 3                              | 3                     |
+| `pipeline`          | 2 (of 4 projects)              | 13                    |
+| `audit`             | 5                              | 11                    |
+| `i18n`              | 4 (of 4)                       | 37                    |
+| `duplication`       | 4                              | 56                    |
+| `refactoring`       | 4                              | 57                    |
+| `code-style`        | 5                              | 95                    |
+| `dead-code`         | 4                              | 104                   |
+| `html-standards`    | 5                              | 107                   |
+| `testing`           | 4                              | 113                   |
+| `tsconfigs`         | 4                              | 114                   |
+| `package-json`      | 3                              | 126                   |
+| `error-handling`    | 5                              | 189                   |
+| `scss-standards`    | 5                              | 245                   |
+
+No gate is identical across all five projects. The ones near the top are close enough that one of
+them is simply the newest; the ones at the bottom are different tools that share a name.
 
 ## Checking it
 
 ```bash
-npm test              # each toggle, asserted as a real stylelint run
+npm test              # each toggle, asserted as a real stylelint run / ESLint resolution
 npm run verify        # compares output against the 5 projects' current config files
+npm run snapshot save  ../Quartz src/main/index.ts …   # before migrating its ESLint
+npm run snapshot check ../Quartz                        # after
 ```
 
 `npm run verify` is the one that matters while migrating: it reads each project's real config and
 prints every value this package would produce differently. Zero differences means a project can
 switch over without its lint results changing. The options each project needs live in
 `scripts/verify.js`, which doubles as the migration checklist.
+
+It keeps working after a project migrates: a project marked `migrated` there is read from the files
+that now import this package, so the check becomes "does the live config still equal the options we
+recorded" rather than "does it match the old file".
+
+`npm run snapshot` is the ESLint equivalent, and the one to use when migrating a project's
+`eslint.config.js`. Reading the old and new files side by side proves nothing — flat config is
+last-match-wins, so what matters is the severity ESLint _ends up at_. `save` records that for one
+file per area before the migration, `check` compares after, and every difference it prints is either
+a bug or a change you meant. It found all three of the real problems in the Fern and Orchid
+migrations.
+
+**Expect a handful of new findings per project**, for the same reason as in phase 1: this package
+pins newer versions than the projects did. Migrating Fern and Orchid surfaced nine redundant type
+assertions (`typescript-eslint` 8.70 vs 8.58 narrows better) and one import specifier
+(`eslint-plugin-import-x` 4.17 vs 4.16 stopped exempting deep package imports). All were real.

@@ -25,19 +25,33 @@ const PROJECTS = [
     {
         name: 'Orchid',
         family: 'full-stack',
-        prettier: '.prettierrc',
-        commitlint: { file: 'commitlint.config.ts', options: { subjectSingleWhy: true } },
+        // Migrated: these files now import this package, so the check below reads what the project
+        // actually loads and confirms it still equals the options recorded here.
+        migrated: true,
+        prettier: 'prettier.config.js',
+        commitlint: {
+            file: 'commitlint.config.ts',
+            options: { subjectSingleWhy: true },
+        },
         stylelint: {
             file: 'frontend/.stylelintrc.mjs',
             options: {
-                tokenProperties: ['/color$/', 'fill', 'stroke', 'font-size', 'font-weight', 'font-family', 'border-radius'],
+                tokenProperties: [
+                    '/color$/',
+                    'fill',
+                    'stroke',
+                    'font-size',
+                    'font-weight',
+                    'font-family',
+                    'border-radius',
+                ],
                 ignoreZero: true,
                 noScssColorFunctions: true,
                 noScssImport: true,
                 mobileFirst: true,
             },
         },
-        lintStaged: { options: {} },
+        lintStaged: { file: 'lint-staged.config.js', options: {} },
     },
     {
         name: 'Mosaic',
@@ -46,7 +60,15 @@ const PROJECTS = [
         stylelint: {
             file: 'frontend/.stylelintrc.mjs',
             options: {
-                tokenProperties: ['/color$/', 'fill', 'stroke', 'font-size', 'font-weight', 'font-family', 'border-radius'],
+                tokenProperties: [
+                    '/color$/',
+                    'fill',
+                    'stroke',
+                    'font-size',
+                    'font-weight',
+                    'font-family',
+                    'border-radius',
+                ],
                 ignoreZero: true,
                 noScssColorFunctions: true,
                 noScssImport: true,
@@ -60,25 +82,34 @@ const PROJECTS = [
     {
         name: 'Fern',
         family: 'electron',
-        prettier: '.prettierrc',
-        commitlint: { file: 'commitlint.config.js', options: { subjectSingleWhy: false } },
-        stylelint: { file: '.stylelintrc.mjs', options: { variablesOverride: true } },
-        lintStaged: { options: { stylelint: true } },
+        // Migrated: these files now import this package, so the check below reads what the project
+        // actually loads and confirms it still equals the options recorded here.
+        migrated: true,
+        prettier: 'prettier.config.js',
+        commitlint: {
+            file: 'commitlint.config.js',
+            options: { subjectSingleWhy: false },
+        },
+        stylelint: {
+            file: '.stylelintrc.mjs',
+            options: { variablesOverride: true },
+        },
+        lintStaged: { file: 'lint-staged.config.js', options: { stylelint: true } },
     },
     {
         name: 'Quartz',
         family: 'electron',
         prettier: '.prettierrc',
-        commitlint: { file: 'commitlint.config.js', options: { subjectSingleWhy: false } },
+        commitlint: {
+            file: 'commitlint.config.js',
+            options: { subjectSingleWhy: false },
+        },
         stylelint: {
             file: '.stylelintrc.mjs',
             options: {
                 spacingUnit: 'rem',
                 lowercaseCurrentColor: true,
-                referenceFiles: [
-                    { files: ['src/renderer/styles/_themes.scss'], customSyntax: 'postcss-scss' },
-                    { files: ['src/renderer/styles/_tokens.scss'], customSyntax: 'postcss-scss' },
-                ],
+                referenceFiles: ['src/renderer/styles/_themes.scss', 'src/renderer/styles/_tokens.scss'],
             },
         },
         lintStaged: { options: {} },
@@ -87,23 +118,37 @@ const PROJECTS = [
         name: 'bamboo',
         family: 'electron',
         prettier: '.prettierrc',
-        commitlint: { file: 'commitlint.config.js', options: { subjectSingleWhy: false } },
+        commitlint: {
+            file: 'commitlint.config.js',
+            options: { subjectSingleWhy: false },
+        },
         stylelint: {
             file: '.stylelintrc.mjs',
             options: {
                 lowercaseCurrentColor: true,
-                referenceFiles: [{ files: ['src/renderer/styles/_themes.scss'], customSyntax: 'postcss-scss' }],
+                referenceFiles: ['src/renderer/styles/_themes.scss'],
             },
         },
         lintStaged: { options: {} },
     },
 ];
 
+/**
+ * `/…/node_modules/stylelint-scss/src/index.js` → `stylelint-scss`. This package resolves its
+ * plugins to absolute paths so the projects do not need their own copies; the configs being
+ * compared against still write the bare name, and those two mean the same plugin.
+ */
+const packageName = (value) => {
+    if (typeof value !== 'string' || !value.includes('/node_modules/')) return value;
+    const parts = value.split('/node_modules/').pop().split('/');
+    return parts[0].startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
+};
+
 /** Functions and regexes cannot be compared by value, so compare what they are instead. */
 const describe = (value) => {
     if (typeof value === 'function') return '[function]';
     if (value instanceof RegExp) return `[regexp ${value.source}]`;
-    return value;
+    return packageName(value);
 };
 
 const isPlainObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -125,7 +170,9 @@ const diff = (ours, theirs, at = '') => {
     }
 
     if (JSON.stringify(o) === JSON.stringify(t)) return [];
-    return [`${at || '(root)'}: ours ${JSON.stringify(o) ?? 'undefined'} vs theirs ${JSON.stringify(t) ?? 'undefined'}`];
+    return [
+        `${at || '(root)'}: ours ${JSON.stringify(o) ?? 'undefined'} vs theirs ${JSON.stringify(t) ?? 'undefined'}`,
+    ];
 };
 
 const load = async (projectName, file) => {
@@ -144,7 +191,7 @@ let differences = 0;
 let compared = 0;
 
 for (const project of projects) {
-    console.log(`\n\x1b[1m${project.name}\x1b[0m (${project.family})`);
+    console.log(`\n\x1b[1m${project.name}\x1b[0m (${project.family}${project.migrated ? ', migrated' : ''})`);
 
     const checks = [];
 
@@ -165,7 +212,9 @@ for (const project of projects) {
         checks.push([
             'lint-staged',
             lintStaged(project.lintStaged.options),
-            async () => (await packageJsonOf(project.name))['lint-staged'],
+            project.lintStaged.file
+                ? () => load(project.name, project.lintStaged.file)
+                : async () => (await packageJsonOf(project.name))['lint-staged'],
         ]);
 
     for (const [label, ours, loadTheirs] of checks) {

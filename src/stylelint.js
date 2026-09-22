@@ -3,6 +3,20 @@
  * project deliberately departs (Quartz's rem spacing, Mosaic's generated tokens)
  * is an option rather than a fork of the file.
  */
+import { fileURLToPath } from 'node:url';
+
+/**
+ * Shared configs and plugins are resolved from HERE, as absolute paths.
+ * Stylelint resolves a bare name like `stylelint-scss` next to the config file
+ * that names it — which is the project's, not this one's — so bare names would
+ * force every project to keep its own copy of every plugin installed, which is
+ * the duplication this package exists to remove.
+ *
+ * `import.meta.resolve`, not `require.resolve`: stylelint-config-standard-scss is
+ * ESM-only and its `exports` map has no `require` entry, so the CJS resolver
+ * refuses it.
+ */
+const dep = (name) => fileURLToPath(import.meta.resolve(name));
 
 const SPACING_PROPERTIES = [
     'margin',
@@ -46,8 +60,8 @@ const SCSS_COLOR_FUNCTION_PATTERN =
  *   different values — the CSS fallback idiom (`100vh` then `100dvh`).
  * @param {boolean} [options.variablesOverride=false] Switch `no-unknown-custom-properties` off
  *   inside `**\/styles/_variables.scss`, where the aliases are declared rather than used.
- * @param {Array} [options.referenceFiles=[]] Stylelint `referenceFiles` entries (token/theme files
- *   read for context but not linted directly).
+ * @param {string[]} [options.referenceFiles=[]] Globs for token/theme files that are read for
+ *   context but not linted directly, so the tokens they declare are not reported as unknown.
  * @param {boolean} [options.vue=true] Parse `<style>` blocks in `.vue` files.
  * @param {object} [options.rules={}] Extra rules, merged last — the escape hatch.
  * @param {Array} [options.overrides=[]] Extra overrides, appended last.
@@ -86,9 +100,16 @@ export function stylelint(options = {}) {
     ];
 
     return {
-        extends: ['stylelint-config-standard-scss'],
-        ...(referenceFiles.length ? { referenceFiles } : {}),
-        plugins: ['stylelint-scss', 'stylelint-declaration-strict-value'],
+        extends: [dep('stylelint-config-standard-scss')],
+        ...(referenceFiles.length
+            ? {
+                  referenceFiles: referenceFiles.map((files) => ({
+                      files: [files],
+                      customSyntax: dep('postcss-scss'),
+                  })),
+              }
+            : {}),
+        plugins: [dep('stylelint-scss'), dep('stylelint-declaration-strict-value')],
         rules: {
             // –– COLOR FUNCTIONS –––––––––––––––––––––––––––––––––––––––––––––––
             'color-function-notation': 'modern',
@@ -100,7 +121,9 @@ export function stylelint(options = {}) {
                 ? {
                       'selector-class-pattern': [
                           BEM_PATTERN,
-                          { message: 'Expected class selector to be kebab-case BEM (block__element--modifier)' },
+                          {
+                              message: 'Expected class selector to be kebab-case BEM (block__element--modifier)',
+                          },
                       ],
                   }
                 : {}),
@@ -225,12 +248,17 @@ export function stylelint(options = {}) {
             ...rules,
         },
         overrides: [
-            ...(vue ? [{ files: ['**/*.vue'], customSyntax: 'postcss-html' }] : []),
+            ...(vue ? [{ files: ['**/*.vue'], customSyntax: dep('postcss-html') }] : []),
             // _variables.scss maps every `--token` to a `$variable`, but the `:root` that declares
             // them lives elsewhere, and stylelint resolves custom properties per file — so from
             // here every token looks undeclared. The real three-way check is the scss gate.
             ...(variablesOverride
-                ? [{ files: ['**/styles/_variables.scss'], rules: { 'no-unknown-custom-properties': null } }]
+                ? [
+                      {
+                          files: ['**/styles/_variables.scss'],
+                          rules: { 'no-unknown-custom-properties': null },
+                      },
+                  ]
                 : []),
             ...overrides,
         ],

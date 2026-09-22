@@ -51,12 +51,16 @@ test('noScssColorFunctions catches rgba() on a runtime token', async () => {
     const code = '.a { background: rgba($color-accent, 0.12); }';
 
     assert.ok(!(await rulesFor(code, {})).includes('declaration-property-value-disallowed-list'));
-    assert.ok((await rulesFor(code, { noScssColorFunctions: true })).includes('declaration-property-value-disallowed-list'));
+    assert.ok(
+        (await rulesFor(code, { noScssColorFunctions: true })).includes('declaration-property-value-disallowed-list'),
+    );
 });
 
 test('tokenProperties widens which properties must use a token', async () => {
     const code = '.a { font-size: 0.875rem; }';
-    const strict = { tokenProperties: ['/color$/', 'fill', 'stroke', 'font-size'] };
+    const strict = {
+        tokenProperties: ['/color$/', 'fill', 'stroke', 'font-size'],
+    };
 
     assert.ok(!(await rulesFor(code, {})).includes('scale-unlimited/declaration-strict-value'));
     assert.ok((await rulesFor(code, strict)).includes('scale-unlimited/declaration-strict-value'));
@@ -98,7 +102,10 @@ test('duplicateFallbacks allows the CSS fallback idiom', async () => {
 });
 
 test('rules and overrides stay available as an escape hatch', async () => {
-    const config = stylelint({ rules: { 'declaration-no-important': null }, overrides: [{ files: ['x.scss'] }] });
+    const config = stylelint({
+        rules: { 'declaration-no-important': null },
+        overrides: [{ files: ['x.scss'] }],
+    });
 
     assert.equal(config.rules['declaration-no-important'], null);
     assert.ok(config.overrides.some((o) => o.files.includes('x.scss')));

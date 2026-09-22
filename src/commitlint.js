@@ -2,6 +2,10 @@
  * Commit message rules: conventional commits, with the type list the projects
  * actually use and the two length limits raised for bodies that explain a why.
  */
+import { fileURLToPath } from 'node:url';
+
+/** Resolved from here for the same reason as in stylelint.js: so the project does not need its own copy. */
+const dep = (name) => fileURLToPath(import.meta.resolve(name));
 
 const TYPES = [
     // Core work (most common)
@@ -26,7 +30,14 @@ const TYPES = [
     'revert', // Reverts a previous commit
 ];
 
-const MULTI_WHY = [/ and also /i, / and then /i, / as well as /i, /,\s*(plus|and also)\s/i, / \+ also /i, /;\s*(also|plus)\s/i];
+const MULTI_WHY = [
+    / and also /i,
+    / and then /i,
+    / as well as /i,
+    /,\s*(plus|and also)\s/i,
+    / \+ also /i,
+    /;\s*(also|plus)\s/i,
+];
 
 const singleWhy = ({ subject }) => [
     subject === null || !MULTI_WHY.some((p) => p.test(subject)),
@@ -52,7 +63,7 @@ export function commitlint(options = {}) {
     } = options;
 
     return {
-        extends: ['@commitlint/config-conventional'],
+        extends: [dep('@commitlint/config-conventional')],
         ...(subjectSingleWhy ? { plugins: [{ rules: { 'subject-single-why': singleWhy } }] } : {}),
         rules: {
             'header-max-length': [2, 'always', headerMaxLength],
