@@ -1,0 +1,18 @@
+// Deliberately broken SCSS. Every line below should be reported; it exists so a
+// config change that silently switches a rule OFF shows up as a missing warning.
+@import 'other';
+
+.thing {
+    padding: 12px; // spacing unit
+    color: #ff0000; // untokenised colour
+    font-size: 14px; // font-size must be rem
+    background: rgba($color-accent, 0.12); // SCSS colour function on a runtime token
+    border: 1px solid red !important; // !important
+    background-color: var(--nope-not-declared); // unknown custom property
+}
+
+@media (max-width: 600px) {
+    .thing {
+        padding: 8px;
+    }
+}

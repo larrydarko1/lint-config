@@ -1,0 +1,49 @@
+{
+    "name": "@larrydarko/lint-config",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "description": "Shared formatting, commit and style configuration for Larry's projects.",
+    "license": "UNLICENSED",
+    "engines": {
+        "node": ">=24"
+    },
+    "exports": {
+        ".": "./src/index.js",
+        "./prettier": "./src/prettier.js",
+        "./commitlint": "./src/commitlint.js",
+        "./stylelint": "./src/stylelint.js",
+        "./lint-staged": "./src/lint-staged.js"
+    },
+    "files": [
+        "src"
+    ],
+    "scripts": {
+        "verify": "node scripts/verify.js",
+        "test": "node --test test/*.test.js"
+    },
+    "dependencies": {
+        "@commitlint/config-conventional": "^21.2.2",
+        "postcss-html": "^2.0.0",
+        "stylelint-config-standard-scss": "^17.0.0",
+        "stylelint-declaration-strict-value": "^1.12.1",
+        "stylelint-scss": "^7.2.0"
+    },
+    "peerDependencies": {
+        "@commitlint/cli": "^20.0.0 || ^21.0.0",
+        "prettier": "^3.8.0",
+        "stylelint": "^17.0.0"
+    },
+    "peerDependenciesMeta": {
+        "@commitlint/cli": {
+            "optional": true
+        },
+        "stylelint": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "prettier": "^3.9.8",
+        "stylelint": "^17.15.0"
+    }
+}
