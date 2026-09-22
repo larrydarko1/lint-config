@@ -29,6 +29,10 @@
         "./gates/import-order": {
             "types": "./src/gates/import-order.d.ts",
             "default": "./src/gates/import-order.js"
+        },
+        "./gates/i18n": {
+            "types": "./src/gates/i18n.d.ts",
+            "default": "./src/gates/i18n.js"
         }
     },
     "files": [
