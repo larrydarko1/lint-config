@@ -33,6 +33,26 @@
         "./gates/i18n": {
             "types": "./src/gates/i18n.d.ts",
             "default": "./src/gates/i18n.js"
+        },
+        "./gates/report": {
+            "types": "./src/gates/report.d.ts",
+            "default": "./src/gates/report.js"
+        },
+        "./gates/files": {
+            "types": "./src/gates/files.d.ts",
+            "default": "./src/gates/files.js"
+        },
+        "./gates/swallowed-errors": {
+            "types": "./src/gates/swallowed-errors.d.ts",
+            "default": "./src/gates/swallowed-errors.js"
+        },
+        "./gates/error-handling/electron": {
+            "types": "./src/gates/error-handling/electron.d.ts",
+            "default": "./src/gates/error-handling/electron.js"
+        },
+        "./gates/error-handling/fullstack": {
+            "types": "./src/gates/error-handling/fullstack.d.ts",
+            "default": "./src/gates/error-handling/fullstack.js"
         }
     },
     "files": [
