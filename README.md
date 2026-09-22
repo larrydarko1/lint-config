@@ -4,9 +4,10 @@ One home for the formatting, commit and style rules shared by Orchid, Mosaic, Fe
 bamboo. Fix a rule here, and every project picks it up on its next update instead of needing
 the same edit pasted five times.
 
-Status: **phases 1 and 2 done**, phase 3 started — Prettier, commitlint, Stylelint, lint-staged and
-ESLint are here, along with the three helpers every `check-*` gate imports. The gate scripts
-themselves are not, and cannot be moved mechanically; see **Gate helpers** below.
+Status: **phases 1 and 2 done**, phase 3 in progress — Prettier, commitlint, Stylelint,
+lint-staged and ESLint are here, along with the helpers every `check-*` gate imports and the first
+two gates themselves (`i18n`, `error-handling`). The remaining gates are moving one batch at a
+time, newest-correct copy winning; see **Gate helpers** below.
 Not published; installed from this folder while it is proved out.
 **Fern** (Electron) and **Orchid** (full-stack) are migrated and are the worked examples, one per
 family; Quartz, bamboo and Mosaic still use their own files.
@@ -155,15 +156,46 @@ because a local folder install is a symlink whose realpath is outside `node_modu
 break the day this is published. Any future gate code added here has to be `.js` too, or the
 package needs a build step.
 
-**The gate scripts themselves are still per-project**, and unlike phases 1 and 2 they cannot just
-be moved: they have genuinely diverged, so merging them is a decision about behaviour, not a copy.
+### The gates themselves
+
+Two are moved so far — `i18n` and `error-handling`. Each was ported by the same route: diff the
+five copies, port the superset, cross-check the result against **every** project including the
+ones not yet migrated, then migrate the two reference projects.
+
+Doing that turned up the thing the table below hides. **The divergence is almost entirely BETWEEN
+families, not within one.** `error-handling` is the worst case in the table at 189 lines, and it
+splits cleanly: Orchid and Mosaic differ by 54 lines and Fern/Quartz/bamboo by 10-38 — and not
+one of those lines is logic. They are lists. Which services exist, which codes are parse-level,
+which are security events, which native handles need releasing. So the two family entry points
+below reproduce all five projects' existing output exactly, with the lists passed in as options.
+
+```ts
+// scripts/check/check-error-handling.ts — the whole file
+import { checkElectronErrorHandling } from '@larrydarko/lint-config/gates/error-handling/electron';
+
+checkElectronErrorHandling({
+    cleanupRequired: [['fsService', 'holds the vault fs watcher — …']],
+});
+```
+
+Where two copies genuinely disagreed, the **more correct** one won rather than the newer one, and
+the reason is recorded in the file. The swallowed-failure check now rejects `/* ignore */` because
+Fern's own failure message already said a comment must give a reason; the interceptor check no
+longer insists the i18n key be written inline, because extracting it to a variable is the same
+contract and Orchid's regex would have failed a refactor that changed nothing.
+
+Three things nearly every gate had its own copy of are now shared too: `report` (the
+fail/report/exit block, 15 gates), `files` (the directory walk, 12 gates in six signatures), and
+`swallowed-errors`. `report` groups failures by file, always prints why a rule exists, and uses
+`process.exitCode` rather than `process.exit` so a piped CI log cannot be truncated mid-write.
+
+**The rest are still per-project**, and the table is what is left to decide.
 
 | Gate                | Distinct versions across the 5 | Widest line-count gap |
 | ------------------- | ------------------------------ | --------------------- |
 | `declaration-order` | 3                              | 3                     |
 | `pipeline`          | 2 (of 4 projects)              | 13                    |
 | `audit`             | 5                              | 11                    |
-| `i18n`              | 4 (of 4)                       | 37                    |
 | `duplication`       | 4                              | 56                    |
 | `refactoring`       | 4                              | 57                    |
 | `code-style`        | 5                              | 95                    |
@@ -172,11 +204,12 @@ be moved: they have genuinely diverged, so merging them is a decision about beha
 | `testing`           | 4                              | 113                   |
 | `tsconfigs`         | 4                              | 114                   |
 | `package-json`      | 3                              | 126                   |
-| `error-handling`    | 5                              | 189                   |
 | `scss-standards`    | 5                              | 245                   |
 
-No gate is identical across all five projects. The ones near the top are close enough that one of
-them is simply the newest; the ones at the bottom are different tools that share a name.
+No remaining gate is identical across all five projects. The ones near the top are close enough
+that one of them is simply the newest; the ones at the bottom are different tools that share a
+name — and, on the evidence of `error-handling`, are likely to split by family into two shared
+gates rather than resolve into one.
 
 ## Checking it
 
