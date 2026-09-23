@@ -1,3 +1,6 @@
+/** `3 swallows` / `1 swallow` — a summary that reads "1 swallows" costs a reader's trust in the rest of the number. */
+export declare function plural(n: number, noun: string, plural?: string): string;
+
 export type GateFailure = {
     /** `path` or `path:line`. Null for a finding that belongs to no single file. */
     file: string | null;

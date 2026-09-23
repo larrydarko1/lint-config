@@ -159,9 +159,9 @@ package needs a build step.
 
 ### The gates themselves
 
-Fifteen are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
+Sixteen are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
 `duplication`, `refactoring`, `code-style`, `dead-code`, `html-standards`, `testing`, `tsconfigs`,
-`package-json`, `scss-standards` and `env-drift`.
+`package-json`, `scss-standards`, `env-drift` and `db-drift`.
 Each was ported by the same route: diff the five copies, port the superset, cross-check the result
 against **every** project including the ones not yet migrated, then migrate the two reference
 projects.
@@ -432,12 +432,43 @@ fail/report/exit block, 15 gates), `files` (the directory walk, 12 gates in six 
 `swallowed-errors`. `report` groups failures by file, always prints why a rule exists, and uses
 `process.exitCode` rather than `process.exit` so a piped CI log cannot be truncated mid-write.
 
-**Every gate both families have is now shared.** What is left is family-only: `api-standards`,
-`db-drift`, `env-drift`, `metrics`, `security-drift`, `ws-standards` and `docker` exist only in the
-full-stack projects, and `electron-security` and `ipc-standards` only in the desktop ones. Those do
-not need a drift table — a gate that lives in two or three copies of one family is a different
-problem from one that had to reconcile two families, and none of them has to decide whether it is
-one tool or two.
+`env-drift` and `db-drift` are the first family-only pair, and they behave differently from
+everything above: with only two copies each and both in the same family, the divergence is not a
+family split but plain drift, one copy ahead of the other on each rule. So the port is the union
+and every disagreement is settled once.
+
+Three settlements are worth recording because the losing spelling was not merely older — it was
+**wrong in a way a passing gate hides**. `env-drift`'s gitignore rule read `.gitignore` with a
+regular expression; whether git ignores a path depends on pattern order, negations and every
+nested ignore file in the tree, so the regex could report "`.env` is ignored" about a file git was
+tracking. Asking `git check-ignore` is the only thing that knows. (It also turned up that the
+`!*.env.example` negation one repo carries was never doing anything: `*.env` matches names _ending_
+in `.env`, which `.env.example` does not.) And `db-drift`'s registry is now imported rather than
+regex-parsed, which proves something the regex could not — the bootstrap migration reads that
+module through the migrate-mongo CLI, where there is no bundler and no path aliases, so a runtime
+import added to it breaks `npm run db:migrate` and nothing else.
+
+Four rules came from the standards rather than from either copy, and all four are free in both
+repos today. `process.env` is read nowhere but the config module and the entry file. Every index
+entry carries a `why` — the keys are the what, and TypeScript already shows you that. A TTL index
+carries `expireAfterSeconds`, without which it is an ordinary date index that silently never
+deletes anything. And an unindexed collection is an error with a written exemption rather than a
+warning, because the difference between a decision and an oversight is whether someone wrote it
+down.
+
+Writing the tests found three rules that a **comment, a type declaration or a function declaration**
+was enough to satisfy. `source.includes('SIGTERM')` passed on the prose explaining why the handler
+matters. `/flushdb\(\)/` matched `{ flushdb(): Promise<unknown> }`, an inline client type near the
+top of the file — which would also have passed the flush-before-enqueue ordering check every time,
+whatever the code below did. And `ensureIndexes\s*\(` matched `async function ensureIndexes(db)`,
+so a file that defines the applier and never calls it counted as calling it. All three are the same
+mistake: matching a name instead of a use.
+
+What is left is family-only: `api-standards`, `metrics`, `security-drift`, `ws-standards` and
+`docker` exist only in the full-stack projects, and `electron-security` and `ipc-standards` only in
+the desktop ones. Those do not need a drift table — a gate that lives in two or three copies of one
+family is a different problem from one that had to reconcile two families, and none of them has to
+decide whether it is one tool or two.
 
 ## Checking it
 

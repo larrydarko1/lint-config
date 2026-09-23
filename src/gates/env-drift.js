@@ -150,10 +150,13 @@ function dotenvKeys(source, { commentedCounts }, ignored) {
     /** @type {Set<string>} */
     const keys = new Set();
     for (const raw of source.split('\n')) {
-        const isComment = /^\s*#/.test(raw);
+        const line = raw.trim();
+        const isComment = line.startsWith('#');
+        // One decision, in one place. Uncommenting the line first and then
+        // matching would make `# KEY=` count everywhere, which is right for the
+        // example and wrong for the real env.
         if (isComment && !commentedCounts) continue;
-        const line = commentedCounts ? raw.replace(/^\s*#\s?/, '').trim() : raw.trim();
-        const key = /^([A-Z0-9_]+)=/.exec(line)?.[1];
+        const key = /^([A-Z0-9_]+)=/.exec(isComment ? line.replace(/^#\s*/, '') : line)?.[1];
         if (key !== undefined && !ignored.has(key)) keys.add(key);
     }
     return keys;

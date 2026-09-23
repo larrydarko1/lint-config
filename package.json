@@ -23,6 +23,10 @@
             "types": "./src/gates/code-style.d.ts",
             "default": "./src/gates/code-style.js"
         },
+        "./gates/db-drift": {
+            "types": "./src/gates/db-drift.d.ts",
+            "default": "./src/gates/db-drift.js"
+        },
         "./gates/dead-code": {
             "types": "./src/gates/dead-code.d.ts",
             "default": "./src/gates/dead-code.js"
