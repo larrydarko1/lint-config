@@ -6,7 +6,13 @@
  *    1. builtin    — the runtime itself: `node:fs`, and bare `fs` / `path`
  *    2. external   — npm packages: `vue`, `express`, `electron`, `@vue/test-utils`
  *    3. workspace  — this monorepo's other packages (only where `workspaceScope` is set)
- *    4. local      — this package: `@/…`, `./…`, `../…`, and any `localAliases`
+ *    4. local      — this package: `@/…`, `./…`, `../…`, `#…`, and any `localAliases`
+ *
+ * `#…` is local by language rule, not by convention: Node resolves a specifier
+ * beginning with `#` through the package's own `imports` field, so it can only ever
+ * name a file inside this package. Two of the five projects had it and three did
+ * not, and the three were not using the idiom — so the only repo where the omission
+ * showed was the one whose gate already had the rule.
  *
  * `electron` is external even though it feels like part of the platform: it is a
  * package in node_modules like any other, and the main process imports it next to
@@ -61,7 +67,7 @@ export function createImportOrder(options = {}) {
 
     const groupOf = (spec) => {
         if (spec.startsWith('node:') || BUILTINS.has(spec.split('/')[0] ?? spec)) return 0;
-        if (spec.startsWith('@/') || spec.startsWith('.')) return LOCAL;
+        if (spec.startsWith('@/') || spec.startsWith('.') || spec.startsWith('#')) return LOCAL;
         if (localAliases.some((alias) => spec === alias || spec.startsWith(`${alias}/`))) return LOCAL;
         if (workspaceScope !== undefined && spec.startsWith(workspaceScope)) return 2;
         return 1;

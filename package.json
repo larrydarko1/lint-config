@@ -30,6 +30,10 @@
             "types": "./src/gates/import-order.d.ts",
             "default": "./src/gates/import-order.js"
         },
+        "./gates/declaration-order": {
+            "types": "./src/gates/declaration-order.d.ts",
+            "default": "./src/gates/declaration-order.js"
+        },
         "./gates/i18n": {
             "types": "./src/gates/i18n.d.ts",
             "default": "./src/gates/i18n.js"

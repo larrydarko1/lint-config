@@ -130,16 +130,17 @@ one project deliberately departs from it.
 ## Gate helpers
 
 `repo-root`, `strip-comments` and `import-order` were the three files every `check-*` gate
-imported, and each family carried its own version. The project keeps a one-line shim that names
-its own configuration:
+imported, and each family carried its own version. `repo-root` and `strip-comments` are imported
+directly; `import-order` is configured, and since the declaration-order gate moved here it is the
+only caller, so its options are passed through that gate rather than through a project-side shim:
 
 ```ts
-// scripts/lib/import-order.ts
-import { createImportOrder } from '@larrydarko/lint-config/gates/import-order';
-
-export const { IMPORT_GROUPS, checkImportsInFile, fixImportsInFile } = createImportOrder({
-    workspaceScope: '@orchid/', // four groups; omit it for a single-package repo
-    localAliases: ['@test-utils'], // tsconfig paths that look like npm packages
+checkDeclarationOrder({
+    sourceRoots: ['api/src', 'worker/src', 'frontend/src', 'packages/shared/src'],
+    importOrder: {
+        workspaceScope: '@orchid/', // four groups; omit it for a single-package repo
+        localAliases: ['@test-utils'], // tsconfig paths that look like npm packages
+    },
 });
 ```
 
@@ -158,9 +159,9 @@ package needs a build step.
 
 ### The gates themselves
 
-Two are moved so far — `i18n` and `error-handling`. Each was ported by the same route: diff the
-five copies, port the superset, cross-check the result against **every** project including the
-ones not yet migrated, then migrate the two reference projects.
+Three are moved so far — `i18n`, `error-handling` and `declaration-order`. Each was ported by the
+same route: diff the five copies, port the superset, cross-check the result against **every**
+project including the ones not yet migrated, then migrate the two reference projects.
 
 Doing that turned up the thing the table below hides. **The divergence is almost entirely BETWEEN
 families, not within one.** `error-handling` is the worst case in the table at 189 lines, and it
@@ -184,6 +185,21 @@ Fern's own failure message already said a comment must give a reason; the interc
 longer insists the i18n key be written inline, because extracting it to a variable is the same
 contract and Orchid's regex would have failed a refactor that changed nothing.
 
+`declaration-order` is the first one that was genuinely the same tool in all five projects: its
+whole body — 635 lines in Fern's copy: the category table, the topological sort that computes the one legitimate
+exception to it, the separate table a suite is read against, and the `--fix` pass — moved without a
+family split. Only the scope and the import groups stayed behind. The one rule that differed was
+Fern's `isTestPath`, which also treats a top-level `tests/` tree as suites; it is the superset and
+neither full-stack repo has such a directory under a source root, so it ships and changes nothing
+for the other four.
+
+Cross-checking it against Mosaic paid for itself again. A specifier beginning with `#` is resolved
+by Node through the package's own `imports` field, so it can only ever name a file **inside** this
+package — Mosaic's gate had that rule and the other four did not, because only Mosaic uses the
+idiom. Except that Orchid uses it too, in `packages/shared`, and had been sorting those imports
+into the external group next to `pino`. The rule is a language fact rather than project data, so
+it is unconditional here; `--fix` reordered the eight Orchid files it surfaced.
+
 Three things nearly every gate had its own copy of are now shared too: `report` (the
 fail/report/exit block, 15 gates), `files` (the directory walk, 12 gates in six signatures), and
 `swallowed-errors`. `report` groups failures by file, always prints why a rule exists, and uses
@@ -191,25 +207,24 @@ fail/report/exit block, 15 gates), `files` (the directory walk, 12 gates in six 
 
 **The rest are still per-project**, and the table is what is left to decide.
 
-| Gate                | Distinct versions across the 5 | Widest line-count gap |
-| ------------------- | ------------------------------ | --------------------- |
-| `declaration-order` | 3                              | 3                     |
-| `pipeline`          | 2 (of 4 projects)              | 13                    |
-| `audit`             | 5                              | 11                    |
-| `duplication`       | 4                              | 56                    |
-| `refactoring`       | 4                              | 57                    |
-| `code-style`        | 5                              | 95                    |
-| `dead-code`         | 4                              | 104                   |
-| `html-standards`    | 5                              | 107                   |
-| `testing`           | 4                              | 113                   |
-| `tsconfigs`         | 4                              | 114                   |
-| `package-json`      | 3                              | 126                   |
-| `scss-standards`    | 5                              | 245                   |
+| Gate             | Distinct versions across the 5 | Widest line-count gap |
+| ---------------- | ------------------------------ | --------------------- |
+| `pipeline`       | 2 (of 4 projects)              | 13                    |
+| `audit`          | 5                              | 11                    |
+| `duplication`    | 4                              | 56                    |
+| `refactoring`    | 4                              | 57                    |
+| `code-style`     | 5                              | 95                    |
+| `dead-code`      | 4                              | 104                   |
+| `html-standards` | 5                              | 107                   |
+| `testing`        | 4                              | 113                   |
+| `tsconfigs`      | 4                              | 114                   |
+| `package-json`   | 3                              | 126                   |
+| `scss-standards` | 5                              | 245                   |
 
 No remaining gate is identical across all five projects. The ones near the top are close enough
-that one of them is simply the newest; the ones at the bottom are different tools that share a
-name — and, on the evidence of `error-handling`, are likely to split by family into two shared
-gates rather than resolve into one.
+that one of them is simply the newest — `declaration-order` was, and moved in one piece. The ones
+at the bottom are different tools that share a name, and on the evidence of `error-handling` are
+likely to split by family into two shared gates rather than resolve into one.
 
 ## Checking it
 
