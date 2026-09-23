@@ -22,6 +22,14 @@
             "types": "./src/gates/audit.d.ts",
             "default": "./src/gates/audit.js"
         },
+        "./gates/code-style": {
+            "types": "./src/gates/code-style.d.ts",
+            "default": "./src/gates/code-style.js"
+        },
+        "./gates/dead-code": {
+            "types": "./src/gates/dead-code.d.ts",
+            "default": "./src/gates/dead-code.js"
+        },
         "./gates/declaration-order": {
             "types": "./src/gates/declaration-order.d.ts",
             "default": "./src/gates/declaration-order.js"

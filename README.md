@@ -159,8 +159,8 @@ package needs a build step.
 
 ### The gates themselves
 
-Seven are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
-`duplication` and `refactoring`.
+Nine are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
+`duplication`, `refactoring`, `code-style` and `dead-code`.
 Each was ported by the same route: diff the five copies, port the superset, cross-check the result
 against **every** project including the ones not yet migrated, then migrate the two reference
 projects.
@@ -286,6 +286,52 @@ Which extensions ESLint covers is the one option, and it does the SFC split too:
 vue-eslint-parser keeps the template on a separate AST. A project with no ESLint passes
 `linted: []` and the gate takes all of it, SFC included.
 
+`code-style` looked like the clearest family split of the lot, and was not. The full-stack pair
+names backend modules `kebab-case`; the desktop three name `.ts` `camelCase` and `.vue`
+`PascalCase`. But that is the naming CONVENTION, which is data. The rule is "a filename follows
+the convention for where it sits", and it is the same rule in both — so `casing` is an ordered list
+of `{ files, style, exempt }` and a file no entry matches is deliberately unconstrained. The same
+reading collapsed `headers` into a `{ files, require }` list, where `require: 'none'` is a BAN on a
+file header, and bans are the rules nothing else would ever catch.
+
+Applying the trigger test to the four rules only one family had gave the same answer every time:
+
+- **a composable file must export its own name** (desktop). `useFoo.ts` exporting `useOther` is a
+  filename that lies about its contents while every import site still reads perfectly. Zero
+  findings in the full-stack repos, which have `useDashboardUploads.ts` files of their own.
+- **SFC block order** (Mosaic and desktop). Zero findings in Orchid, which never had the rule.
+- **the two stale-baseline rules** (full-stack). Four real findings: three baseline entries in Fern
+  and one in Quartz name files that shrank back under the cap. `AudioViewer.vue` was baselined at
+  514 and is 305 today, so its entry was licensing 209 lines of regrowth. A ratchet that can only
+  be tightened by hand is one that quietly stops being tight.
+- **`aliasedRoots`** (Mosaic). The only rule that cannot simply be switched on everywhere — and it
+  is self-silencing, because a repo that declares no alias roots never reaches it.
+
+One rule was subtly wrong in the copy that had it. Mosaic's `<script setup lang="ts">` check reads
+the FIRST script block, and an SFC may legitimately open with a plain `<script lang="ts">` — that
+is where a generic component declares the type its setup block is generic over. Orchid has exactly
+one. The shared gate finds the block carrying `setup` wherever it sits and holds the companion to
+TypeScript rather than to `setup`.
+
+`measure` is the one option that is a disagreement rather than data, and it stays an option because
+it is the UNIT the `baseline` numbers are written in. The full-stack copies count non-blank lines
+and drop an SFC's `<style>` block; the desktop copies count what `wc -l` counts. They differ by a
+lot — Fern's `AiMessageList.vue` is 772 lines one way and 490 the other — so switching a project's
+measure means re-measuring every entry it has. Both are defensible, unifying them is a one-time
+sweep, and a shared gate should not make that call behind a default.
+
+`dead-code` was the opposite: the same file five times. With comments stripped, the five copies
+differ in four lines — which knip issue types are left ungated, one environment variable, the path
+in the closing hint, and the glyph in front of the word. Nothing about it is family-shaped, because
+knip reports what it finds and a repo without pnpm catalogs simply has no catalog findings. The
+options are `checksDir`, the footer text, and `budgets`, which is zero everywhere and is the shape
+of a backlog being cleared rather than a dial.
+
+Its two passes are the part worth keeping: knip's default graph counts a test file as a consumer,
+so an export that only its own test imports looks alive — a fully tested owner-role middleware
+mounted on zero routes passed for months. The second pass drops test files from the graph and
+subtracts whatever the first pass already named, so nothing is reported twice.
+
 Three things nearly every gate had its own copy of are now shared too: `report` (the
 fail/report/exit block, 15 gates), `files` (the directory walk, 12 gates in six signatures), and
 `swallowed-errors`. `report` groups failures by file, always prints why a rule exists, and uses
@@ -295,8 +341,6 @@ fail/report/exit block, 15 gates), `files` (the directory walk, 12 gates in six 
 
 | Gate             | Distinct versions across the 5 | Widest line-count gap |
 | ---------------- | ------------------------------ | --------------------- |
-| `code-style`     | 5                              | 95                    |
-| `dead-code`      | 4                              | 104                   |
 | `html-standards` | 5                              | 107                   |
 | `testing`        | 4                              | 113                   |
 | `tsconfigs`      | 4                              | 114                   |
