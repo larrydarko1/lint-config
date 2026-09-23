@@ -159,9 +159,9 @@ package needs a build step.
 
 ### The gates themselves
 
-Fourteen are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
+Fifteen are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
 `duplication`, `refactoring`, `code-style`, `dead-code`, `html-standards`, `testing`, `tsconfigs`,
-`package-json` and `scss-standards`.
+`package-json`, `scss-standards` and `env-drift`.
 Each was ported by the same route: diff the five copies, port the superset, cross-check the result
 against **every** project including the ones not yet migrated, then migrate the two reference
 projects.

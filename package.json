@@ -15,9 +15,6 @@
         "./eslint/electron": "./src/eslint/electron/index.js",
         "./eslint/fullstack": "./src/eslint/fullstack/index.js",
         "./eslint/presets": "./src/eslint/presets.js",
-        "./lint-staged": "./src/lint-staged.js",
-        "./prettier": "./src/prettier.js",
-        "./stylelint": "./src/stylelint.js",
         "./gates/audit": {
             "types": "./src/gates/audit.d.ts",
             "default": "./src/gates/audit.js"
@@ -37,6 +34,10 @@
         "./gates/duplication": {
             "types": "./src/gates/duplication.d.ts",
             "default": "./src/gates/duplication.js"
+        },
+        "./gates/env-drift": {
+            "types": "./src/gates/env-drift.d.ts",
+            "default": "./src/gates/env-drift.js"
         },
         "./gates/error-handling/electron": {
             "types": "./src/gates/error-handling/electron.d.ts",
@@ -101,7 +102,10 @@
         "./gates/tsconfigs": {
             "types": "./src/gates/tsconfigs.d.ts",
             "default": "./src/gates/tsconfigs.js"
-        }
+        },
+        "./lint-staged": "./src/lint-staged.js",
+        "./prettier": "./src/prettier.js",
+        "./stylelint": "./src/stylelint.js"
     },
     "files": [
         "src"
