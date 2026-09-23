@@ -313,12 +313,15 @@ is where a generic component declares the type its setup block is generic over. 
 one. The shared gate finds the block carrying `setup` wherever it sits and holds the companion to
 TypeScript rather than to `setup`.
 
-`measure` is the one option that is a disagreement rather than data, and it stays an option because
-it is the UNIT the `baseline` numbers are written in. The full-stack copies count non-blank lines
-and drop an SFC's `<style>` block; the desktop copies count what `wc -l` counts. They differ by a
-lot — Fern's `AiMessageList.vue` is 772 lines one way and 490 the other — so switching a project's
-measure means re-measuring every entry it has. Both are defensible, unifying them is a one-time
-sweep, and a shared gate should not make that call behind a default.
+The copies also disagreed about the UNIT the `baseline` numbers are written in, which looked at
+first like an option: the full-stack pair count non-blank lines and drop an SFC's `<style>` block,
+the desktop three counted what `wc -l` counts, and the gap is not small — Fern's `AiMessageList.vue`
+is 1098 lines one way and 490 the other. The standard decides it rather than taste: _"files over
+~400 lines (template and script only, style can be ignored)"_, and the SCSS standard says outright
+that no gate counts stylesheet lines and none will. A measure that counts the style block also pays
+a component for moving its CSS out of the file it belongs to. So the desktop measure was drift: the
+baselines were re-measured once (Fern 19 entries → 11, because eight were over the cap only on
+their stylesheets) and the option is gone rather than left as a dial that can put the drift back.
 
 `dead-code` was the opposite: the same file five times. With comments stripped, the five copies
 differ in four lines — which knip issue types are left ungated, one environment variable, the path

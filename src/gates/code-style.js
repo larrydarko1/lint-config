@@ -28,7 +28,7 @@
  * and it is self-silencing: a repo that declares no alias roots never reaches it.
  *
  * WHAT STAYS PER PROJECT is the data — `scan`, `casing`, `headers`, `lineCap`,
- * `baseline`, `measure` and `aliasedRoots`. An entry missing from `casing` or
+ * `baseline` and `aliasedRoots`. An entry missing from `casing` or
  * `headers` means those files are deliberately unconstrained, which is a decision
  * worth writing down rather than a hole.
  *
@@ -41,14 +41,18 @@
  * list only ever grows stale — Fern's `AudioViewer.vue` was baselined at 514 and is
  * 305 today, so its entry was licensing 209 lines of regrowth.
  *
- * `measure` IS THE UNIT THE BASELINE NUMBERS ARE IN, which is why it is an option
- * rather than a resolved disagreement. The full-stack copies count non-blank lines
- * and drop the `<style>` block of an SFC; the desktop copies count what `wc -l`
- * counts. They differ by a lot — Fern's `AiMessageList.vue` is 772 lines one way and
- * 490 the other — so changing a project's measure means re-baselining every entry it
- * has. Both are defensible (Quartz's baseline notes reason explicitly about the size
- * of a style block, so counting it there is deliberate), and unifying them is a
- * one-time sweep, not something a shared gate should do behind a default.
+ * THE UNIT IS NON-BLANK TEMPLATE-AND-SCRIPT LINES, and it is deliberately not an
+ * option. The copies disagreed about it — the full-stack pair skips blank lines and
+ * drops the `<style>` block of an SFC, the desktop three counted what `wc -l`
+ * counts — and the gap is large enough to matter: Fern's `AiMessageList.vue` is 1098
+ * lines one way and 490 the other. The standard settles it rather than taste:
+ * "files over ~400 lines (template and script only, style can be ignored)", and the
+ * SCSS standard says in as many words that no gate counts stylesheet lines and none
+ * will, because a stylesheet's honest size is set by how many things it styles. A
+ * measure that counts the style block also pays a component for moving its CSS out
+ * of the file it belongs to, which is the opposite of what these repos want. So the
+ * desktop measure was drift, its baselines were re-measured once, and the option is
+ * gone rather than left as a dial that can put the drift back.
  *
  * WHAT IS DELIBERATELY NOT CHECKED. Tests: no desktop repo keeps one under its
  * source root, and the full-stack copies exclude them outright, so a shared gate
@@ -102,18 +106,15 @@ const isDeclaration = (rel) => rel.endsWith('.d.ts');
 const lineAt = (source, index) => source.slice(0, index).split('\n').length;
 
 /**
- * The size of a file in the unit its baseline is written in.
+ * The size of a file: non-blank lines, and for an SFC the `<style>` block does not
+ * count. This is the unit the standard's ~400 softcap is written in — "template and
+ * script only, style can be ignored" — and every `baseline` number with it.
  *
  * @param {string} source
  * @param {string} rel
- * @param {'code' | 'lines'} measure
  * @returns {number}
  */
-export function measureFile(source, rel, measure) {
-    if (measure === 'lines') {
-        // wc -l semantics: a trailing newline terminates the last line, it does not start one.
-        return source.replace(/\n$/, '').split('\n').length;
-    }
+export function measureFile(source, rel) {
     const body = rel.endsWith('.vue') ? source.replace(/<style[\s\S]*?<\/style>/g, '') : source;
     return body.split('\n').filter((line) => line.trim() !== '').length;
 }
@@ -140,7 +141,6 @@ export function scriptBlocks(source) {
  * @param {string} input.root
  * @param {string[]} input.scan
  * @param {number} [input.lineCap]
- * @param {'code' | 'lines'} [input.measure]
  * @param {Record<string, number>} [input.baseline]
  * @param {{ files: RegExp, style: 'kebab' | 'camel' | 'pascal', exempt?: RegExp }[]} [input.casing]
  * @param {{ files: RegExp, require: 'jsdoc' | 'comment' | 'none' }[]} [input.headers]
@@ -153,7 +153,6 @@ export function inspectCodeStyle(input) {
         root,
         scan,
         lineCap = 400,
-        measure = 'code',
         baseline = {},
         casing = [],
         headers = [],
@@ -204,7 +203,7 @@ export function inspectCodeStyle(input) {
 
     // ── 3. The line softcap, as a ratchet ───────────────────────────────────
     for (const rel of [...ts, ...vue].sort()) {
-        const size = measureFile(read(rel), rel, measure);
+        const size = measureFile(read(rel), rel);
         const limit = baseline[rel];
         if (limit === undefined) {
             if (size > lineCap) {
@@ -393,7 +392,6 @@ export function inspectCodeStyle(input) {
  * @param {string} [options.root]
  * @param {string[]} options.scan
  * @param {number} [options.lineCap]
- * @param {'code' | 'lines'} [options.measure]
  * @param {Record<string, number>} [options.baseline]
  * @param {{ files: RegExp, style: 'kebab' | 'camel' | 'pascal', exempt?: RegExp }[]} [options.casing]
  * @param {{ files: RegExp, require: 'jsdoc' | 'comment' | 'none' }[]} [options.headers]

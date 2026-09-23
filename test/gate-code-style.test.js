@@ -185,26 +185,28 @@ test('the reported baseline count is the size of the list', (t) => {
 });
 
 // ── measure ─────────────────────────────────────────────────────────────────
-test('`code` skips blank lines, `lines` counts them', () => {
-    const source = 'a\n\n\nb\n';
-    assert.equal(measureFile(source, 'x.ts', 'code'), 2);
-    assert.equal(measureFile(source, 'x.ts', 'lines'), 4);
+test("blank lines do not count towards a file's length", () => {
+    assert.equal(measureFile('a\n\n\nb\n', 'x.ts'), 2);
 });
 
-test('`code` drops an SFC style block, `lines` does not', () => {
-    assert.equal(measureFile(SFC, 'X.vue', 'code'), 6);
-    assert.equal(measureFile(SFC, 'X.vue', 'lines'), 13);
+test("an SFC style block does not count towards the file's length", () => {
+    assert.equal(measureFile(SFC, 'X.vue'), 6);
 });
 
-test('a trailing newline does not start a new line', () => {
-    assert.equal(measureFile('a\nb\n', 'x.ts', 'lines'), 2);
-    assert.equal(measureFile('a\nb', 'x.ts', 'lines'), 2);
+test('a style block is dropped from an SFC only, not from a .ts file', () => {
+    const source = 'const css = `\n<style>\na\nb\nc\n</style>\n`;\n';
+    assert.equal(measureFile(source, 'x.ts'), 7);
 });
 
-test('the measure decides whether a file is over the cap', (t) => {
+test('the blank lines a file is padded with cannot push it over the cap', (t) => {
     const root = tree(t, { 'src/thing.ts': 'export const a = 1;\n\n\n\n\n\n\n\n\n\n\n\n' });
-    assert.deepEqual(run(root, { casing: CAMEL, lineCap: 5, measure: 'code' }).problems, []);
-    assert.equal(run(root, { casing: CAMEL, lineCap: 5, measure: 'lines' }).problems.length, 1);
+    assert.deepEqual(run(root, { casing: CAMEL, lineCap: 5 }).problems, []);
+});
+
+test('a long style block cannot push an SFC over the cap', (t) => {
+    const rule = '.x {\n    color: red;\n}\n';
+    const root = tree(t, { 'src/Thing.vue': SFC.replace(rule, rule.repeat(6)) });
+    assert.deepEqual(run(root, { casing: CAMEL, lineCap: 10 }).problems, []);
 });
 
 // ── 4. Public before private ────────────────────────────────────────────────

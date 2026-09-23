@@ -15,15 +15,11 @@ export type HeaderRule = {
     require: 'jsdoc' | 'comment' | 'none';
 };
 
-/** How a file's length is counted. This is the unit `baseline` numbers are written in. */
-export type Measure = 'code' | 'lines';
-
 export type CodeStyleOptions = {
     root?: string;
     /** Source roots to walk. */
     scan: string[];
     lineCap?: number;
-    measure?: Measure;
     /** Files already over the cap, at the size they were. Lower a number, never raise it. */
     baseline?: Record<string, number>;
     casing?: CasingRule[];
@@ -47,7 +43,8 @@ export type CodeStyleInspection = {
 };
 
 /** The size of a file in the unit its baseline is written in. */
-export declare const measureFile: (source: string, rel: string, measure: Measure) => number;
+/** Non-blank lines; an SFC's `<style>` block does not count. */
+export declare const measureFile: (source: string, rel: string) => number;
 
 /** The `<script>` block carrying `setup`, plus any companion block. */
 export declare const scriptBlocks: (source: string) => { setup: string | null; others: string[] };
