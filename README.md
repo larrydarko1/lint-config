@@ -159,8 +159,8 @@ package needs a build step.
 
 ### The gates themselves
 
-Nine are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
-`duplication`, `refactoring`, `code-style` and `dead-code`.
+Eleven are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
+`duplication`, `refactoring`, `code-style`, `dead-code`, `html-standards` and `testing`.
 Each was ported by the same route: diff the five copies, port the superset, cross-check the result
 against **every** project including the ones not yet migrated, then migrate the two reference
 projects.
@@ -335,6 +335,32 @@ so an export that only its own test imports looks alive — a fully tested owner
 mounted on zero routes passed for months. The second pass drops test files from the graph and
 subtracts whatever the first pass already named, so nothing is reported twice.
 
+`html-standards` is the gate for the one file no linter reads. Its five copies disagreed about
+which tags the shell owes, which is the LIST and not the rule: a web page owes `og:*`, a canonical
+and an icon, and a renderer loading over `file://` owes none of them — the standard says so itself
+("unless the project is exclusively desktop"). So the matchers live in the gate as `HEAD_CHECKS`
+and each project passes the keys it owes, which turns twelve absent tags from a difference nobody
+can see into a decision somebody made. Three rules only one family had cost nothing to switch on
+everywhere: the zoom ban never fires in a document with no viewport tag, the entry-module check
+resolves in all five shells, and no remote subresource was found in either web shell.
+
+Two of its rules needed fixing before they could be shared. The desktop subresource rule matched
+any `<link>` with a remote `href`, which in a web shell is `rel="canonical"` — metadata, and
+pointing it at the live origin is the entire point of the tag; it now reads the `rel` and fires
+only on the ones that make the browser fetch something. And the CSP directives were described as
+"locked to the value given" while the matchers only checked a prefix, so `default-src 'self'
+https:` passed a rule written to stop exactly that. Both fixes are free in all five repos.
+
+`testing` looked the furthest apart of any gate and was not: one family co-locates suites in
+`__tests__/` and runs Playwright out of `e2e/`, the other mirrors `src/` under `tests/` and has
+deliberately NO E2E suite. Underneath, the same three sentences — every suite is where this
+project said suites go, a `.spec` file belongs to the E2E runner so it lives where E2E lives
+(which may be nowhere), and the numbers that define failure only move one way. `layout` and `e2e`
+carry the pattern; the rules are shared. Both one-family rule sets were free again: suite hygiene
+(`.only`, `.skip`, a bare `test()`, a commented-out case, two cases with one title in a `describe`)
+finds nothing across 464 full-stack suites, and the transport-patching rule finds nothing in the
+desktop three. Each family now checks something it never had.
+
 Three things nearly every gate had its own copy of are now shared too: `report` (the
 fail/report/exit block, 15 gates), `files` (the directory walk, 12 gates in six signatures), and
 `swallowed-errors`. `report` groups failures by file, always prints why a rule exists, and uses
@@ -344,8 +370,6 @@ fail/report/exit block, 15 gates), `files` (the directory walk, 12 gates in six 
 
 | Gate             | Distinct versions across the 5 | Widest line-count gap |
 | ---------------- | ------------------------------ | --------------------- |
-| `html-standards` | 5                              | 107                   |
-| `testing`        | 4                              | 113                   |
 | `tsconfigs`      | 4                              | 114                   |
 | `package-json`   | 3                              | 126                   |
 | `scss-standards` | 5                              | 245                   |

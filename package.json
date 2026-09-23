@@ -50,6 +50,10 @@
             "types": "./src/gates/files.d.ts",
             "default": "./src/gates/files.js"
         },
+        "./gates/html-standards": {
+            "types": "./src/gates/html-standards.d.ts",
+            "default": "./src/gates/html-standards.js"
+        },
         "./gates/i18n": {
             "types": "./src/gates/i18n.d.ts",
             "default": "./src/gates/i18n.js"
@@ -81,6 +85,10 @@
         "./gates/swallowed-errors": {
             "types": "./src/gates/swallowed-errors.d.ts",
             "default": "./src/gates/swallowed-errors.js"
+        },
+        "./gates/testing": {
+            "types": "./src/gates/testing.d.ts",
+            "default": "./src/gates/testing.js"
         }
     },
     "files": [
