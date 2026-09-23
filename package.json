@@ -62,6 +62,10 @@
             "types": "./src/gates/import-order.d.ts",
             "default": "./src/gates/import-order.js"
         },
+        "./gates/package-json": {
+            "types": "./src/gates/package-json.d.ts",
+            "default": "./src/gates/package-json.js"
+        },
         "./gates/pipeline": {
             "types": "./src/gates/pipeline.d.ts",
             "default": "./src/gates/pipeline.js"
@@ -89,6 +93,10 @@
         "./gates/testing": {
             "types": "./src/gates/testing.d.ts",
             "default": "./src/gates/testing.js"
+        },
+        "./gates/tsconfigs": {
+            "types": "./src/gates/tsconfigs.d.ts",
+            "default": "./src/gates/tsconfigs.js"
         }
     },
     "files": [

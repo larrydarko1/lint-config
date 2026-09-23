@@ -159,8 +159,9 @@ package needs a build step.
 
 ### The gates themselves
 
-Eleven are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
-`duplication`, `refactoring`, `code-style`, `dead-code`, `html-standards` and `testing`.
+Thirteen are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
+`duplication`, `refactoring`, `code-style`, `dead-code`, `html-standards`, `testing`, `tsconfigs`
+and `package-json`.
 Each was ported by the same route: diff the five copies, port the superset, cross-check the result
 against **every** project including the ones not yet migrated, then migrate the two reference
 projects.
@@ -361,6 +362,34 @@ carry the pattern; the rules are shared. Both one-family rule sets were free aga
 finds nothing across 464 full-stack suites, and the transport-patching rule finds nothing in the
 desktop three. Each family now checks something it never had.
 
+`tsconfigs` and `package-json` were the two closest gates left, and both came apart the same way.
+Nine rules each in `tsconfigs`, eight of them the same rule, and the three lists they are built on
+— nineteen strictness flags, ten environmental settings, eight section dividers — were
+**byte-identical across all five repos**, in two families that never shared a file. The apparent
+split was one rule, and even that was two instances of one shape: "this named project may not do
+X". `package-json` was closer still: the two full-stack copies were byte-identical to each other,
+and the desktop three differed by one comment and one entry of a data list. Its three
+Electron-only rules needed no switch — they fire on a `build` block and an electron-vite config,
+so a web repo never triggers them. What DID need fixing was that the desktop copy read the
+electron-vite config unconditionally, which in a repo without one is a crash rather than a pass.
+
+`tsconfigs` also produced the sharpest finding of the port so far. The desktop copy checked that a
+browser project does not DECLARE `node` in its `types`. Orchid passed that check — and its frontend
+compiles `process.env` anyway, because `packages/shared` does `import type Stripe from 'stripe'`,
+the barrel re-exports it, and the Stripe SDK's typings carry a `/// <reference types="node" />`
+that drags 82 `@types/node` files into a program that asked for `vite/client` only. **The
+declaration is not the effect.** So the gate now also checks the source: no file in a browser tree
+may import a Node builtin or touch a Node global, tests excluded because they run under Vitest in
+Node. That rule is free in all five repos today and is the half that actually holds.
+
+One genuine disagreement in `package-json` was settled by going to the authority rather than
+picking a side: the standard names `sort-package-json` as the canonical field order, and that tool
+puts `packageManager` immediately before `engines`. The full-stack family already did; the desktop
+family did not. The loser's spelling is gone rather than kept as an option, because an option is
+how drift comes back. What is deliberately NOT adopted is that tool's full 111-key order, which
+disagrees with the standard's own written sketch in places that would move a field in every
+manifest in every repo — a question about the standard, not about this gate.
+
 Three things nearly every gate had its own copy of are now shared too: `report` (the
 fail/report/exit block, 15 gates), `files` (the directory walk, 12 gates in six signatures), and
 `swallowed-errors`. `report` groups failures by file, always prints why a rule exists, and uses
@@ -370,8 +399,6 @@ fail/report/exit block, 15 gates), `files` (the directory walk, 12 gates in six 
 
 | Gate             | Distinct versions across the 5 | Widest line-count gap |
 | ---------------- | ------------------------------ | --------------------- |
-| `tsconfigs`      | 4                              | 114                   |
-| `package-json`   | 3                              | 126                   |
 | `scss-standards` | 5                              | 245                   |
 
 No remaining gate is identical across all five projects. The ones near the top are close enough
