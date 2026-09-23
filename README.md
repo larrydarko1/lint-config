@@ -159,9 +159,9 @@ package needs a build step.
 
 ### The gates themselves
 
-Sixteen are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
+Seventeen are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
 `duplication`, `refactoring`, `code-style`, `dead-code`, `html-standards`, `testing`, `tsconfigs`,
-`package-json`, `scss-standards`, `env-drift` and `db-drift`.
+`package-json`, `scss-standards`, `env-drift`, `db-drift` and `security-drift`.
 Each was ported by the same route: diff the five copies, port the superset, cross-check the result
 against **every** project including the ones not yet migrated, then migrate the two reference
 projects.
@@ -464,11 +464,47 @@ whatever the code below did. And `ensureIndexes\s*\(` matched `async function en
 so a file that defines the applier and never calls it counted as calling it. All three are the same
 mistake: matching a name instead of a use.
 
-What is left is family-only: `api-standards`, `metrics`, `security-drift`, `ws-standards` and
-`docker` exist only in the full-stack projects, and `electron-security` and `ipc-standards` only in
-the desktop ones. Those do not need a drift table — a gate that lives in two or three copies of one
-family is a different problem from one that had to reconcile two families, and none of them has to
-decide whether it is one tool or two.
+What is left is family-only: `api-standards`, `metrics`, `ws-standards` and `docker` exist only in
+the full-stack projects, and `electron-security` and `ipc-standards` only in the desktop ones. Those
+do not need a drift table — a gate that lives in two or three copies of one family is a different
+problem from one that had to reconcile two families, and none of them has to decide whether it is
+one tool or two.
+
+### `security-drift`, and a gate that matched a name instead of a use
+
+Two copies, one family, so the port was the union with each disagreement settled once. What differs
+between the two repos is not how a rule works but **whether the repo has the thing the rule is
+about** — one terminates TLS at nginx and Traefik and sends password-reset email, the other does
+neither. So those are optional groups, and the copy that omitted them had already written down why
+in a comment. That is the behaviour worth keeping: an absent group is a recorded decision, and the
+shim states what it leaves out.
+
+**Three rules were satisfied by something that was not the thing.** All three were found by forcing
+a failure in the real repos, not by a unit test:
+
+- `assertLoginAllowed(key)` was graded on the NAME of its argument, against
+  `/^(?:\w*[Ii]ndex|throttleKey)$/`. `const emailIndex = req.body.email` satisfies that exactly, and
+  the raw email then lives in a Redis key that outlives the request. The rule now resolves the
+  argument to its nearest binding and asks whether a credential reaches it without passing through a
+  hash or a blind index.
+- The refresh-cookie rule read from `function setRefreshCookie` **to the end of the file**, and
+  `clearRefreshCookie` sits directly below it setting the same four flags. Weakening the real one to
+  `sameSite: 'lax'` passed. Same shape in the password schema and in `escapeHtml`; all three now read
+  their own braces.
+- A file route was asked whether it calls `isSameOrigin(req)`. Deleting the call left
+  `function isSameOrigin(req)` behind, and the rule reported the control intact.
+
+**Two more read the wrong thing.** HSTS `max-age` was taken from the first `maxAge:` in the entry
+file, which is the HSTS one only by luck of ordering — a session cookie above the helmet call would
+have been graded instead. And the Argon2 parameters were read out of the encoded hash positionally,
+which reports drift on a hash that is entirely correct but written in another order.
+
+**One rule is new, from the standard.** The old rule proved config and the dummy hash AGREE; they
+agree just as well at `memoryCost: 4096`, which is the shape of the change someone makes to speed up
+a slow test suite. It now also has to meet the OWASP floor.
+
+`v-html` went the other way: one copy checked it, and `vue/no-v-html` is already an error in this
+package's ESLint config. A rule with two owners drifts between them, so the gate dropped it.
 
 ## Checking it
 

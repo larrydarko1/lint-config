@@ -91,6 +91,14 @@
             "types": "./src/gates/scss-standards.d.ts",
             "default": "./src/gates/scss-standards.js"
         },
+        "./gates/security-drift": {
+            "types": "./src/gates/security-drift.d.ts",
+            "default": "./src/gates/security-drift.js"
+        },
+        "./gates/source": {
+            "types": "./src/gates/source.d.ts",
+            "default": "./src/gates/source.js"
+        },
         "./gates/strip-comments": {
             "types": "./src/gates/strip-comments.d.ts",
             "default": "./src/gates/strip-comments.js"

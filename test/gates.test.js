@@ -13,6 +13,7 @@ import path from 'node:path';
 import { stripComments } from '../src/gates/strip-comments.js';
 import { createImportOrder } from '../src/gates/import-order.js';
 import { findRepoRoot } from '../src/gates/repo-root.js';
+import { braceBlock, callArgs, catchBodies, evalProduct, fnBody } from '../src/gates/source.js';
 
 test('stripComments blanks comments and keeps every offset', () => {
     const src = 'const a = 1; // note\n/* block */ const b = 2;\n';
@@ -132,4 +133,63 @@ test('findRepoRoot walks up to a workspaces manifest, and to .git without one', 
 
 test('findRepoRoot fails loudly rather than returning the filesystem root', () => {
     assert.throws(() => findRepoRoot('/'), /Could not locate the repository root/);
+});
+
+// ─── source.js — the five helpers both security gates carried a copy of ──────
+
+test('callArgs keeps a nested call whole', () => {
+    const calls = callArgs('jwt.verify(token, secret, { algorithms: fn(a, b) });', 'jwt.verify(');
+    assert.deepEqual(calls, ['token, secret, { algorithms: fn(a, b) }']);
+});
+
+test('callArgs matches the call, not a longer name that starts the same way', () => {
+    assert.deepEqual(callArgs('jwt.verifyAsync(a);', 'jwt.verify('), []);
+});
+
+test('callArgs returns every call in source order', () => {
+    assert.deepEqual(callArgs('f(1); f(2); f(3);', 'f('), ['1', '2', '3']);
+});
+
+test('callArgs stops on an unbalanced call rather than rescanning it forever', () => {
+    assert.deepEqual(callArgs('f(1); f(2', 'f('), ['1']);
+});
+
+test('braceBlock reads past a nested object', () => {
+    const block = braceBlock('hsts: { maxAge: 1, reportTo: { group: "x" }, preload: false }', /hsts:\s*/);
+    assert.match(block, /preload: false/);
+});
+
+test('braceBlock returns empty when nothing matches, so a rule fails rather than passing', () => {
+    assert.equal(braceBlock('const a = 1;', /hsts:\s*/), '');
+});
+
+test('fnBody stops at the next top-level export', () => {
+    const src = 'export function a() {\n  first();\n}\n\nexport function b() {\n  second();\n}\n';
+    assert.match(fnBody(src, 'export function a'), /first\(\)/);
+    assert.ok(!fnBody(src, 'export function a').includes('second()'));
+});
+
+test('fnBody returns empty for a header that is gone', () => {
+    assert.equal(fnBody('export function a() {}', 'export function renamed'), '');
+});
+
+test('catchBodies reads each catch separately, not the function around them', () => {
+    const src = 'try { a(); } catch (e) { log(e); }\nthrow new Error("after");\ntry { b(); } catch { throw e; }';
+    const bodies = catchBodies(src);
+    assert.equal(bodies.length, 2);
+    assert.ok(!bodies[0].includes('throw'), 'a throw after the catch is not a throw inside it');
+    assert.match(bodies[1], /throw e;/);
+});
+
+test('evalProduct multiplies a literal duration', () => {
+    assert.equal(evalProduct('5 * 60 * 1000'), 300000);
+});
+
+test('evalProduct reads numeric separators, which Number() alone does not', () => {
+    assert.equal(evalProduct('60_000'), 60000);
+});
+
+test('evalProduct returns 0 for anything that is not a literal product', () => {
+    assert.equal(evalProduct('config.timeout'), 0);
+    assert.equal(evalProduct(undefined), 0);
 });
