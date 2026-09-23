@@ -30,6 +30,10 @@
             "types": "./src/gates/import-order.d.ts",
             "default": "./src/gates/import-order.js"
         },
+        "./gates/audit": {
+            "types": "./src/gates/audit.d.ts",
+            "default": "./src/gates/audit.js"
+        },
         "./gates/declaration-order": {
             "types": "./src/gates/declaration-order.d.ts",
             "default": "./src/gates/declaration-order.js"
@@ -37,6 +41,10 @@
         "./gates/i18n": {
             "types": "./src/gates/i18n.d.ts",
             "default": "./src/gates/i18n.js"
+        },
+        "./gates/pipeline": {
+            "types": "./src/gates/pipeline.d.ts",
+            "default": "./src/gates/pipeline.js"
         },
         "./gates/report": {
             "types": "./src/gates/report.d.ts",
@@ -86,7 +94,8 @@
         "stylelint-declaration-strict-value": "^1.12.1",
         "stylelint-scss": "^7.2.0",
         "typescript": "~6.0.2",
-        "typescript-eslint": "^8.70.1"
+        "typescript-eslint": "^8.70.1",
+        "yaml": "^2.9.1"
     },
     "peerDependencies": {
         "@commitlint/cli": "^21.2.2",

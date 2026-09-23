@@ -159,9 +159,10 @@ package needs a build step.
 
 ### The gates themselves
 
-Three are moved so far — `i18n`, `error-handling` and `declaration-order`. Each was ported by the
-same route: diff the five copies, port the superset, cross-check the result against **every**
-project including the ones not yet migrated, then migrate the two reference projects.
+Five are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline` and `audit`.
+Each was ported by the same route: diff the five copies, port the superset, cross-check the result
+against **every** project including the ones not yet migrated, then migrate the two reference
+projects.
 
 Doing that turned up the thing the table below hides. **The divergence is almost entirely BETWEEN
 families, not within one.** `error-handling` is the worst case in the table at 189 lines, and it
@@ -200,6 +201,41 @@ idiom. Except that Orchid uses it too, in `packages/shared`, and had been sortin
 into the external group next to `pino`. The rule is a language fact rather than project data, so
 it is unconditional here; `--fix` reordered the eight Orchid files it surfaced.
 
+`pipeline` and `audit` are the two where the families' copies looked most like different tools and
+turned out not to be.
+
+The full-stack pipeline gate carried five rules about containers and self-hosted deploys — image
+tags, BuildKit cache scopes, `packages: write`, scrubbed secret files, checksummed downloads —
+that the desktop one had never needed. But none of the five is Docker-specific in its **trigger**:
+each fires only on the step shape it is about, and is silent in a repository that has none. So the
+shared gate is the plain union of the two, eighteen rules with one option (where the gate scripts
+live), and each family simply exercises a different half of it. Three rules moved the other way,
+and each is strictly more correct than what the full-stack copy had:
+
+- the runner check resolves a matrix `runs-on`, so it stops skipping exactly the jobs that compile
+  native modules — and now reports a computed `runs-on` it cannot resolve, rather than passing it
+  silently;
+- the `workflow_run` gate is followed through `needs:`, so one job can carry the full three-clause
+  condition and the rest depend on it, instead of the same condition being maintained in four
+  places;
+- **Orchid gained rule 18 outright**: nothing was checking that the Node major CI installs matches
+  `engines.node`. It passes, but nothing had been proving it.
+
+`audit` is the one where each family had a different **half** of the same idea. The full-stack copy
+put an expiry on every waiver and only printed a note when one went stale; the desktop copy dropped
+the expiry and made the stale entry fail. Those guard different failures — "you stopped looking"
+against "you no longer need to" — so the shared gate keeps both, plus a third: a waiver missing any
+of its four fields. Both allowlists were empty, so adopting all three cost nothing.
+
+It also carries two corrections from the desktop copy, and the first matters:
+
+- **an `npm audit` that reports an ERROR is now a failure.** The full-stack copy parsed the JSON,
+  found no `vulnerabilities` key and printed a clean audit — so an unreachable registry looked
+  exactly like a green tick. An audit that did not run has verified nothing.
+- a waiver counts as "still reported" at any severity, not only at high or critical. Matching
+  against the filtered rows meant a waiver for an advisory downgraded to moderate was called stale
+  while it was still live.
+
 Three things nearly every gate had its own copy of are now shared too: `report` (the
 fail/report/exit block, 15 gates), `files` (the directory walk, 12 gates in six signatures), and
 `swallowed-errors`. `report` groups failures by file, always prints why a rule exists, and uses
@@ -209,8 +245,6 @@ fail/report/exit block, 15 gates), `files` (the directory walk, 12 gates in six 
 
 | Gate             | Distinct versions across the 5 | Widest line-count gap |
 | ---------------- | ------------------------------ | --------------------- |
-| `pipeline`       | 2 (of 4 projects)              | 13                    |
-| `audit`          | 5                              | 11                    |
 | `duplication`    | 4                              | 56                    |
 | `refactoring`    | 4                              | 57                    |
 | `code-style`     | 5                              | 95                    |
@@ -224,7 +258,8 @@ fail/report/exit block, 15 gates), `files` (the directory walk, 12 gates in six 
 No remaining gate is identical across all five projects. The ones near the top are close enough
 that one of them is simply the newest — `declaration-order` was, and moved in one piece. The ones
 at the bottom are different tools that share a name, and on the evidence of `error-handling` are
-likely to split by family into two shared gates rather than resolve into one.
+likely to split by family into two shared gates rather than resolve into one — though `pipeline`,
+which looked like exactly that case, turned out to be a plain union.
 
 ## Checking it
 
