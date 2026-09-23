@@ -159,9 +159,9 @@ package needs a build step.
 
 ### The gates themselves
 
-Thirteen are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
-`duplication`, `refactoring`, `code-style`, `dead-code`, `html-standards`, `testing`, `tsconfigs`
-and `package-json`.
+Fourteen are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
+`duplication`, `refactoring`, `code-style`, `dead-code`, `html-standards`, `testing`, `tsconfigs`,
+`package-json` and `scss-standards`.
 Each was ported by the same route: diff the five copies, port the superset, cross-check the result
 against **every** project including the ones not yet migrated, then migrate the two reference
 projects.
@@ -390,22 +390,54 @@ how drift comes back. What is deliberately NOT adopted is that tool's full 111-k
 disagrees with the standard's own written sketch in places that would move a field in every
 manifest in every repo — a question about the standard, not about this gate.
 
+`scss-standards` was the hardest, and the only one whose five copies disagreed about **what** they
+were checking rather than how. They agreed on the principles and differed on the spelling, because
+the projects genuinely differ: one ships its themes as JSON files users hand-edit, which is a
+product feature rather than a style preference. What made it one gate was noticing that two roles
+hide behind the word "barrel", and every project has both. The **injected** module is whatever
+`additionalData` prepends to each SFC style block — compiled once per component. The **entry**
+module is what `main.ts` imports, once. Three projects inject the token module and let `index.scss`
+be both barrel and entry; two inject the barrel, which forces the entry into a second file. That is
+not two architectures needing a switch. It is one rule — _whatever is injected must emit nothing,
+transitively_ — reading two different starting points, and the single-file check in the older
+copies is the degenerate case of the graph walk in the newest.
+
+That rule found a real bug. Orchid injects `_variables.scss`, and `_variables.scss` held the five
+`[data-theme='…'] { @include emit-theme(…) }` blocks. Measured on the real build, not argued:
+**every palette appeared 47 times in the production CSS**, once per SFC plus once for the barrel,
+and moving the emission into a partial only the entry reaches took the stylesheet from 286,849
+bytes to 110,002 — 62% of it was duplicated palettes. Four of the five projects already had a rule
+against this. The fifth did not, and it was the one with the bug. Worth recording why: the standard
+says "the mechanism, all in `variables.scss`", and also that `variables.scss` is auto-injected into
+every SFC. Following both sentences literally is what produces 47 copies, so **the standard needs
+the same correction the code just got**.
+
+Three of its rules were settled by the standard rather than by recency. No Sass colour function on
+a `$color-*` token, and no `@extend` inside an SFC, each existed in exactly one copy and are stated
+outright in the standard, so both are in for everyone — and both are free in all five today. The
+font rules are the standard's full set (no CDN, no `@fontsource`, `@font-face` resolving to a
+bundled asset, the upstream `LICENSE` shipped beside the woff2), where one copy checked the first
+two and another the last two. The two that only apply to a project that vendors fonts stay silent
+in one that does not, because a system font stack is not a violation.
+
+The one real switch is `themes.source`, and it earns being a switch: `scss-maps` is what the
+standard describes, `css-blocks` is what a project picks when it wants stylelint's
+`no-unknown-custom-properties` to see the palette (a Sass map is opaque to it, and to this gate),
+and `json-presets` is what a project picks when users edit the themes themselves. All three feed
+the identical comparison — a reference palette, every other palette carrying exactly its key set, a
+fallback layer that matches, and no `var()` naming something nothing declares.
+
 Three things nearly every gate had its own copy of are now shared too: `report` (the
 fail/report/exit block, 15 gates), `files` (the directory walk, 12 gates in six signatures), and
 `swallowed-errors`. `report` groups failures by file, always prints why a rule exists, and uses
 `process.exitCode` rather than `process.exit` so a piped CI log cannot be truncated mid-write.
 
-**The rest are still per-project**, and the table is what is left to decide.
-
-| Gate             | Distinct versions across the 5 | Widest line-count gap |
-| ---------------- | ------------------------------ | --------------------- |
-| `scss-standards` | 5                              | 245                   |
-
-No remaining gate is identical across all five projects. The ones near the top are close enough
-that one of them is simply the newest — `declaration-order` was, and moved in one piece. The ones
-at the bottom are different tools that share a name, and on the evidence of `error-handling` are
-likely to split by family into two shared gates rather than resolve into one — though `pipeline`,
-which looked like exactly that case, turned out to be a plain union.
+**Every gate both families have is now shared.** What is left is family-only: `api-standards`,
+`db-drift`, `env-drift`, `metrics`, `security-drift`, `ws-standards` and `docker` exist only in the
+full-stack projects, and `electron-security` and `ipc-standards` only in the desktop ones. Those do
+not need a drift table — a gate that lives in two or three copies of one family is a different
+problem from one that had to reconcile two families, and none of them has to decide whether it is
+one tool or two.
 
 ## Checking it
 
