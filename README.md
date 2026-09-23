@@ -159,9 +159,9 @@ package needs a build step.
 
 ### The gates themselves
 
-Seventeen are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
+Eighteen are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
 `duplication`, `refactoring`, `code-style`, `dead-code`, `html-standards`, `testing`, `tsconfigs`,
-`package-json`, `scss-standards`, `env-drift`, `db-drift` and `security-drift`.
+`package-json`, `scss-standards`, `env-drift`, `db-drift`, `security-drift` and `metrics`.
 Each was ported by the same route: diff the five copies, port the superset, cross-check the result
 against **every** project including the ones not yet migrated, then migrate the two reference
 projects.
@@ -464,8 +464,8 @@ whatever the code below did. And `ensureIndexes\s*\(` matched `async function en
 so a file that defines the applier and never calls it counted as calling it. All three are the same
 mistake: matching a name instead of a use.
 
-What is left is family-only: `api-standards`, `metrics`, `ws-standards` and `docker` exist only in
-the full-stack projects, and `electron-security` and `ipc-standards` only in the desktop ones. Those
+What is left is family-only: `api-standards`, `ws-standards` and `docker` exist only in the
+full-stack projects, and `electron-security` and `ipc-standards` only in the desktop ones. Those
 do not need a drift table — a gate that lives in two or three copies of one family is a different
 problem from one that had to reconcile two families, and none of them has to decide whether it is
 one tool or two.
@@ -505,6 +505,30 @@ a slow test suite. It now also has to meet the OWASP floor.
 
 `v-html` went the other way: one copy checked it, and `vue/no-v-html` is already an error in this
 package's ESLint config. A rule with two owners drifts between them, so the gate dropped it.
+
+### `metrics`, the one gate with nothing to reconcile
+
+Only one project has Kubernetes manifests, so this is a single copy moved rather than several
+merged. What the move buys is that the rules stop being one repo's private knowledge: the next
+project to grow a `k8s/` directory gets fifteen rules that were each learned from something already
+gone quietly wrong, instead of rediscovering them.
+
+Moving it turned up four things the copy got wrong, none of which its own repo could have shown:
+
+- **A malformed manifest was skipped in silence.** The parser RECOVERS rather than throwing — a bad
+  indent comes back as a document carrying `errors` and whatever it managed to build — so the
+  `try/catch` around it never fired and every rule about that file passed. It reads `errors` now.
+- **A `kind` that parsed as a map crashed the gate** with a TypeError instead of a report.
+- **`podSelector: {}` was read as "no selector".** In Kubernetes it means _every pod in the
+  namespace_, so a NetworkPolicy written that way would have been reported as admitting nothing.
+- **Comments answered for the code.** Nothing was comment-stripped, so a comment naming `req.baseUrl`
+  satisfied the route-label rule and a commented-out `redis.ping()` in `/livez` failed it.
+
+Two rules are new, both from the standard. **A Service that exists only to be scraped must be
+headless** — with a ClusterIP, Prometheus discovers one endpoint and scrapes a randomly chosen pod
+each time, so a three-replica gauge interleaves unrelated series and reads as noise. And **the
+`/healthz` dependency check must carry a timeout**, or a hung dependency holds the probe open until
+kubelet times it out and the pod reports a probe TIMEOUT instead of the 503 it meant to send.
 
 ## Checking it
 

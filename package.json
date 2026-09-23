@@ -67,6 +67,10 @@
             "types": "./src/gates/import-order.d.ts",
             "default": "./src/gates/import-order.js"
         },
+        "./gates/metrics": {
+            "types": "./src/gates/metrics.d.ts",
+            "default": "./src/gates/metrics.js"
+        },
         "./gates/package-json": {
             "types": "./src/gates/package-json.d.ts",
             "default": "./src/gates/package-json.js"
