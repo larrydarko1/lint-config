@@ -159,7 +159,8 @@ package needs a build step.
 
 ### The gates themselves
 
-Five are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline` and `audit`.
+Seven are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
+`duplication` and `refactoring`.
 Each was ported by the same route: diff the five copies, port the superset, cross-check the result
 against **every** project including the ones not yet migrated, then migrate the two reference
 projects.
@@ -236,6 +237,55 @@ It also carries two corrections from the desktop copy, and the first matters:
   against the filtered rows meant a waiver for an advisory downgraded to moderate was called stale
   while it was still live.
 
+`duplication` is the one where the two families' copies read like different gates and are not. The
+full-stack copies check for a block copied between two workspaces and for one exported type name
+declared in two of them; the desktop copies check a per-format ceiling and a cap on any single
+clone. Only the first pair looks family-shaped, and it is shaped by the REPOSITORY rather than by
+the family: both rules compare one scan root against another, so in a repo with one root they have
+nothing to compare and say nothing. The shared gate is the union of all four, with no switch, and a
+single-root project simply never reaches the last two. That is the same trigger test `pipeline`
+needed, applied a second time.
+
+The numbers are the part that stays per project, and an omitted format is a decision rather than a
+gap: the full-stack repos gate `typescript` alone because their SCSS is the same handful of
+declarations inside different SFCs, where `@extend` cannot cross the SFC boundary — de-duplicating
+those means promoting each one to a real global class, which is a design call and not something a
+percentage should force. Two options carry the rest of the disagreement:
+
+- `perRoot` runs the ceilings against each scan root on its own as well as all of them together,
+  which is what stops a small heavily-duplicated workspace being diluted by a large clean one. The
+  full-stack copy did that and the desktop copy did not; it is now a choice, not a fork.
+- `maxCloneTokens` caps any single clone. A percentage is a ratio, so it quietly improves as a
+  codebase grows and a large new copy-paste can land while the number goes DOWN. Only the desktop
+  family had this rule. It is off in the full-stack repos for an honest reason: **Orchid's largest
+  clone is 355 tokens**, so setting the cap today would bless it rather than catch it.
+
+`refactoring` was the same gate everywhere, and the five copies disagreed on exactly one thing that
+mattered: four matched the deferral markers in their shouted form only, one matched
+case-insensitively. Case-sensitive wins, and not by majority. This gate reads locale JSON and
+prose, where `todo` is an ordinary Spanish and Portuguese word — "Copiar Todo", "todo lo que",
+"todo o seu portfólio" — and three of the five repos ship exactly those strings. A
+case-insensitive match flags every one of them, and the only way to make a translation pass is to
+make it wrong. The lowercase case that does matter, `// todo` in code, is ESLint's, whose `terms`
+are lowercase and matched case-insensitively already.
+
+Each family also had a piece the other lacked, and both are now everyone's:
+
+- the desktop copies strip fenced blocks and inline code spans out of Markdown before matching,
+  because a backticked word is being named rather than used — `notes/todo.md` in a contributing
+  guide is a filename. They are replaced with spaces rather than deleted, so every line number
+  after them still points at the real line.
+- the full-stack copies read **every** tracked text file that ESLint cannot parse, rather than an
+  allowlist of extensions. That closed a real gap in the desktop family: the git hooks, `LICENSE`
+  and the ignore files were unscanned in all three, and in bamboo so was the entire Android
+  side — `.gradle`, `.java`, `.xml`, `.properties`.
+
+Which extensions ESLint covers is the one option, and it does the SFC split too: listing `.vue` in
+`linted` means ESLint has the `<script>` half, so the gate reads the `<template>` half — which
+`no-warning-comments` never sees, because it reads `sourceCode.getAllComments()` and
+vue-eslint-parser keeps the template on a separate AST. A project with no ESLint passes
+`linted: []` and the gate takes all of it, SFC included.
+
 Three things nearly every gate had its own copy of are now shared too: `report` (the
 fail/report/exit block, 15 gates), `files` (the directory walk, 12 gates in six signatures), and
 `swallowed-errors`. `report` groups failures by file, always prints why a rule exists, and uses
@@ -245,8 +295,6 @@ fail/report/exit block, 15 gates), `files` (the directory walk, 12 gates in six 
 
 | Gate             | Distinct versions across the 5 | Widest line-count gap |
 | ---------------- | ------------------------------ | --------------------- |
-| `duplication`    | 4                              | 56                    |
-| `refactoring`    | 4                              | 57                    |
 | `code-style`     | 5                              | 95                    |
 | `dead-code`      | 4                              | 104                   |
 | `html-standards` | 5                              | 107                   |

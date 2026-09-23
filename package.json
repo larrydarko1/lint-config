@@ -10,26 +10,14 @@
     },
     "exports": {
         ".": "./src/index.js",
-        "./prettier": "./src/prettier.js",
         "./commitlint": "./src/commitlint.js",
-        "./stylelint": "./src/stylelint.js",
-        "./lint-staged": "./src/lint-staged.js",
         "./eslint": "./src/eslint/index.js",
-        "./eslint/presets": "./src/eslint/presets.js",
         "./eslint/electron": "./src/eslint/electron/index.js",
         "./eslint/fullstack": "./src/eslint/fullstack/index.js",
-        "./gates/repo-root": {
-            "types": "./src/gates/repo-root.d.ts",
-            "default": "./src/gates/repo-root.js"
-        },
-        "./gates/strip-comments": {
-            "types": "./src/gates/strip-comments.d.ts",
-            "default": "./src/gates/strip-comments.js"
-        },
-        "./gates/import-order": {
-            "types": "./src/gates/import-order.d.ts",
-            "default": "./src/gates/import-order.js"
-        },
+        "./eslint/presets": "./src/eslint/presets.js",
+        "./lint-staged": "./src/lint-staged.js",
+        "./prettier": "./src/prettier.js",
+        "./stylelint": "./src/stylelint.js",
         "./gates/audit": {
             "types": "./src/gates/audit.d.ts",
             "default": "./src/gates/audit.js"
@@ -38,25 +26,9 @@
             "types": "./src/gates/declaration-order.d.ts",
             "default": "./src/gates/declaration-order.js"
         },
-        "./gates/i18n": {
-            "types": "./src/gates/i18n.d.ts",
-            "default": "./src/gates/i18n.js"
-        },
-        "./gates/pipeline": {
-            "types": "./src/gates/pipeline.d.ts",
-            "default": "./src/gates/pipeline.js"
-        },
-        "./gates/report": {
-            "types": "./src/gates/report.d.ts",
-            "default": "./src/gates/report.js"
-        },
-        "./gates/files": {
-            "types": "./src/gates/files.d.ts",
-            "default": "./src/gates/files.js"
-        },
-        "./gates/swallowed-errors": {
-            "types": "./src/gates/swallowed-errors.d.ts",
-            "default": "./src/gates/swallowed-errors.js"
+        "./gates/duplication": {
+            "types": "./src/gates/duplication.d.ts",
+            "default": "./src/gates/duplication.js"
         },
         "./gates/error-handling/electron": {
             "types": "./src/gates/error-handling/electron.d.ts",
@@ -65,6 +37,42 @@
         "./gates/error-handling/fullstack": {
             "types": "./src/gates/error-handling/fullstack.d.ts",
             "default": "./src/gates/error-handling/fullstack.js"
+        },
+        "./gates/files": {
+            "types": "./src/gates/files.d.ts",
+            "default": "./src/gates/files.js"
+        },
+        "./gates/i18n": {
+            "types": "./src/gates/i18n.d.ts",
+            "default": "./src/gates/i18n.js"
+        },
+        "./gates/import-order": {
+            "types": "./src/gates/import-order.d.ts",
+            "default": "./src/gates/import-order.js"
+        },
+        "./gates/pipeline": {
+            "types": "./src/gates/pipeline.d.ts",
+            "default": "./src/gates/pipeline.js"
+        },
+        "./gates/refactoring": {
+            "types": "./src/gates/refactoring.d.ts",
+            "default": "./src/gates/refactoring.js"
+        },
+        "./gates/repo-root": {
+            "types": "./src/gates/repo-root.d.ts",
+            "default": "./src/gates/repo-root.js"
+        },
+        "./gates/report": {
+            "types": "./src/gates/report.d.ts",
+            "default": "./src/gates/report.js"
+        },
+        "./gates/strip-comments": {
+            "types": "./src/gates/strip-comments.d.ts",
+            "default": "./src/gates/strip-comments.js"
+        },
+        "./gates/swallowed-errors": {
+            "types": "./src/gates/swallowed-errors.d.ts",
+            "default": "./src/gates/swallowed-errors.js"
         }
     },
     "files": [
