@@ -55,7 +55,7 @@ type-aware rule would then silently find no tsconfig.
 
 `larry()` owns what every project agreed on: the JS/TS/Vue presets, which globals apply where, the
 strict type rules, the naming convention, the return-type rule, the test relaxations, and Prettier
-last. `preset` picks a family's folder layout (see `presets.js`); `paths` overrides any part of it.
+last. `preset` picks a family's folder layout (see `presets.ts`); `paths` overrides any part of it.
 
 **The per-area wiring stays in the project.** Which selectors apply to `api/src/routes` or to
 `src/main` is genuinely about that project's folders, so it lives in its own config file and is
@@ -146,13 +146,6 @@ a gate can report the position it matched at; `repo-root` walks up for **either*
 manifest or a `.git` directory, because Orchid's version found nothing in a single-package repo and
 Fern's `../..` was only right while the file stayed two levels down.
 
-**These ship as `.js` with hand-written `.d.ts`, and that is not a style choice.** Node refuses to
-strip TypeScript types from anything under `node_modules`
-(`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`). A `.ts` file in this package works today only
-because a local folder install is a symlink whose realpath is outside `node_modules` — it would
-break the day this is published. Any future gate code added here has to be `.js` too, or the
-package needs a build step.
-
 ### The gates themselves
 
 All twenty-three are moved — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
@@ -175,6 +168,30 @@ checkElectronErrorHandling({
     cleanupRequired: [['fsService', 'holds the vault fs watcher — …']],
 });
 ```
+
+## Building it
+
+```bash
+npm run build          # src/*.ts → dist/, with declarations
+npm run typecheck      # the sources, held to tsconfig.base.json — the same flags the projects use
+npm run check:package  # packs it, then loads and type-checks every export from a real install
+```
+
+The sources are TypeScript and the package ships a compiled `dist/`. It has to: Node refuses to
+strip types from anything under `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`), so
+a `.ts` export would break the day this is installed from the registry. The tests and scripts run
+the sources directly — outside `node_modules` Node strips the types itself — which is why imports
+inside `src/` name the `.ts` file; the compiler rewrites them to `.js` in `dist/`.
+
+**A project that installs this as a `file:` dependency reads `dist/`**, through a symlink to this
+folder, so rebuild after pulling or editing — `npm run build`, or
+`npx tsc -p tsconfig.build.json --watch` while working on a gate.
+
+`npm run check:package` catches what a linked install cannot see. The packed tarball is unpacked
+under a real `node_modules`, every entry point is imported by Node, and the declarations are
+type-checked with `skipLibCheck` off. With it on, as consumers run, a declaration that fails to
+resolve is not an error: the export just becomes `any`. `prepublishOnly` runs the typecheck, the
+tests and this check.
 
 ## Checking it
 

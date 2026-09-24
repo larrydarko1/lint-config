@@ -2,9 +2,9 @@
     "name": "@larrydarko/lint-config",
     "version": "0.1.0",
     "type": "module",
-    "description": "Shared formatting, commit and style configuration for Larry's projects.",
+    "description": "Shared formatting, commit and style configuration for my projects.",
     "license": "MIT",
-    "author": "Larry",
+    "author": "Lorenzo Mazzola",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/larrydarko1/lint-config.git"
@@ -16,152 +16,185 @@
         "node": ">=24"
     },
     "exports": {
-        ".": "./src/index.js",
-        "./commitlint": "./src/commitlint.js",
-        "./eslint": "./src/eslint/index.js",
-        "./eslint/electron": "./src/eslint/electron/index.js",
-        "./eslint/fullstack": "./src/eslint/fullstack/index.js",
-        "./eslint/presets": "./src/eslint/presets.js",
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        },
+        "./commitlint": {
+            "types": "./dist/commitlint.d.ts",
+            "default": "./dist/commitlint.js"
+        },
+        "./eslint": {
+            "types": "./dist/eslint/index.d.ts",
+            "default": "./dist/eslint/index.js"
+        },
+        "./eslint/electron": {
+            "types": "./dist/eslint/electron/index.d.ts",
+            "default": "./dist/eslint/electron/index.js"
+        },
+        "./eslint/fullstack": {
+            "types": "./dist/eslint/fullstack/index.d.ts",
+            "default": "./dist/eslint/fullstack/index.js"
+        },
+        "./eslint/presets": {
+            "types": "./dist/eslint/presets.d.ts",
+            "default": "./dist/eslint/presets.js"
+        },
         "./gates/api-standards": {
-            "types": "./src/gates/api-standards.d.ts",
-            "default": "./src/gates/api-standards.js"
+            "types": "./dist/gates/api-standards.d.ts",
+            "default": "./dist/gates/api-standards.js"
         },
         "./gates/audit": {
-            "types": "./src/gates/audit.d.ts",
-            "default": "./src/gates/audit.js"
+            "types": "./dist/gates/audit.d.ts",
+            "default": "./dist/gates/audit.js"
         },
         "./gates/code-style": {
-            "types": "./src/gates/code-style.d.ts",
-            "default": "./src/gates/code-style.js"
+            "types": "./dist/gates/code-style.d.ts",
+            "default": "./dist/gates/code-style.js"
         },
         "./gates/db-drift": {
-            "types": "./src/gates/db-drift.d.ts",
-            "default": "./src/gates/db-drift.js"
+            "types": "./dist/gates/db-drift.d.ts",
+            "default": "./dist/gates/db-drift.js"
         },
         "./gates/dead-code": {
-            "types": "./src/gates/dead-code.d.ts",
-            "default": "./src/gates/dead-code.js"
+            "types": "./dist/gates/dead-code.d.ts",
+            "default": "./dist/gates/dead-code.js"
         },
         "./gates/declaration-order": {
-            "types": "./src/gates/declaration-order.d.ts",
-            "default": "./src/gates/declaration-order.js"
+            "types": "./dist/gates/declaration-order.d.ts",
+            "default": "./dist/gates/declaration-order.js"
         },
         "./gates/docker": {
-            "types": "./src/gates/docker.d.ts",
-            "default": "./src/gates/docker.js"
+            "types": "./dist/gates/docker.d.ts",
+            "default": "./dist/gates/docker.js"
         },
         "./gates/duplication": {
-            "types": "./src/gates/duplication.d.ts",
-            "default": "./src/gates/duplication.js"
+            "types": "./dist/gates/duplication.d.ts",
+            "default": "./dist/gates/duplication.js"
         },
         "./gates/electron-security": {
-            "types": "./src/gates/electron-security.d.ts",
-            "default": "./src/gates/electron-security.js"
+            "types": "./dist/gates/electron-security.d.ts",
+            "default": "./dist/gates/electron-security.js"
         },
         "./gates/env-drift": {
-            "types": "./src/gates/env-drift.d.ts",
-            "default": "./src/gates/env-drift.js"
+            "types": "./dist/gates/env-drift.d.ts",
+            "default": "./dist/gates/env-drift.js"
         },
         "./gates/error-handling/electron": {
-            "types": "./src/gates/error-handling/electron.d.ts",
-            "default": "./src/gates/error-handling/electron.js"
+            "types": "./dist/gates/error-handling/electron.d.ts",
+            "default": "./dist/gates/error-handling/electron.js"
         },
         "./gates/error-handling/fullstack": {
-            "types": "./src/gates/error-handling/fullstack.d.ts",
-            "default": "./src/gates/error-handling/fullstack.js"
+            "types": "./dist/gates/error-handling/fullstack.d.ts",
+            "default": "./dist/gates/error-handling/fullstack.js"
         },
         "./gates/files": {
-            "types": "./src/gates/files.d.ts",
-            "default": "./src/gates/files.js"
+            "types": "./dist/gates/files.d.ts",
+            "default": "./dist/gates/files.js"
         },
         "./gates/html-standards": {
-            "types": "./src/gates/html-standards.d.ts",
-            "default": "./src/gates/html-standards.js"
+            "types": "./dist/gates/html-standards.d.ts",
+            "default": "./dist/gates/html-standards.js"
         },
         "./gates/i18n": {
-            "types": "./src/gates/i18n.d.ts",
-            "default": "./src/gates/i18n.js"
+            "types": "./dist/gates/i18n.d.ts",
+            "default": "./dist/gates/i18n.js"
         },
         "./gates/import-order": {
-            "types": "./src/gates/import-order.d.ts",
-            "default": "./src/gates/import-order.js"
+            "types": "./dist/gates/import-order.d.ts",
+            "default": "./dist/gates/import-order.js"
         },
         "./gates/ipc-standards": {
-            "types": "./src/gates/ipc-standards.d.ts",
-            "default": "./src/gates/ipc-standards.js"
+            "types": "./dist/gates/ipc-standards.d.ts",
+            "default": "./dist/gates/ipc-standards.js"
         },
         "./gates/metrics": {
-            "types": "./src/gates/metrics.d.ts",
-            "default": "./src/gates/metrics.js"
+            "types": "./dist/gates/metrics.d.ts",
+            "default": "./dist/gates/metrics.js"
         },
         "./gates/package-json": {
-            "types": "./src/gates/package-json.d.ts",
-            "default": "./src/gates/package-json.js"
+            "types": "./dist/gates/package-json.d.ts",
+            "default": "./dist/gates/package-json.js"
         },
         "./gates/pipeline": {
-            "types": "./src/gates/pipeline.d.ts",
-            "default": "./src/gates/pipeline.js"
+            "types": "./dist/gates/pipeline.d.ts",
+            "default": "./dist/gates/pipeline.js"
         },
         "./gates/refactoring": {
-            "types": "./src/gates/refactoring.d.ts",
-            "default": "./src/gates/refactoring.js"
+            "types": "./dist/gates/refactoring.d.ts",
+            "default": "./dist/gates/refactoring.js"
         },
         "./gates/repo-root": {
-            "types": "./src/gates/repo-root.d.ts",
-            "default": "./src/gates/repo-root.js"
+            "types": "./dist/gates/repo-root.d.ts",
+            "default": "./dist/gates/repo-root.js"
         },
         "./gates/report": {
-            "types": "./src/gates/report.d.ts",
-            "default": "./src/gates/report.js"
+            "types": "./dist/gates/report.d.ts",
+            "default": "./dist/gates/report.js"
         },
         "./gates/scss-standards": {
-            "types": "./src/gates/scss-standards.d.ts",
-            "default": "./src/gates/scss-standards.js"
+            "types": "./dist/gates/scss-standards.d.ts",
+            "default": "./dist/gates/scss-standards.js"
         },
         "./gates/security-drift": {
-            "types": "./src/gates/security-drift.d.ts",
-            "default": "./src/gates/security-drift.js"
+            "types": "./dist/gates/security-drift.d.ts",
+            "default": "./dist/gates/security-drift.js"
         },
         "./gates/source": {
-            "types": "./src/gates/source.d.ts",
-            "default": "./src/gates/source.js"
+            "types": "./dist/gates/source.d.ts",
+            "default": "./dist/gates/source.js"
         },
         "./gates/strip-comments": {
-            "types": "./src/gates/strip-comments.d.ts",
-            "default": "./src/gates/strip-comments.js"
+            "types": "./dist/gates/strip-comments.d.ts",
+            "default": "./dist/gates/strip-comments.js"
         },
         "./gates/swallowed-errors": {
-            "types": "./src/gates/swallowed-errors.d.ts",
-            "default": "./src/gates/swallowed-errors.js"
+            "types": "./dist/gates/swallowed-errors.d.ts",
+            "default": "./dist/gates/swallowed-errors.js"
         },
         "./gates/testing": {
-            "types": "./src/gates/testing.d.ts",
-            "default": "./src/gates/testing.js"
+            "types": "./dist/gates/testing.d.ts",
+            "default": "./dist/gates/testing.js"
         },
         "./gates/tsconfigs": {
-            "types": "./src/gates/tsconfigs.d.ts",
-            "default": "./src/gates/tsconfigs.js"
+            "types": "./dist/gates/tsconfigs.d.ts",
+            "default": "./dist/gates/tsconfigs.js"
         },
         "./gates/ws-standards": {
-            "types": "./src/gates/ws-standards.d.ts",
-            "default": "./src/gates/ws-standards.js"
+            "types": "./dist/gates/ws-standards.d.ts",
+            "default": "./dist/gates/ws-standards.js"
         },
-        "./lint-staged": "./src/lint-staged.js",
-        "./prettier": "./src/prettier.js",
-        "./stylelint": "./src/stylelint.js"
+        "./lint-staged": {
+            "types": "./dist/lint-staged.d.ts",
+            "default": "./dist/lint-staged.js"
+        },
+        "./prettier": {
+            "types": "./dist/prettier.d.ts",
+            "default": "./dist/prettier.js"
+        },
+        "./stylelint": {
+            "types": "./dist/stylelint.d.ts",
+            "default": "./dist/stylelint.js"
+        }
     },
     "files": [
-        "src"
+        "dist"
     ],
     "scripts": {
+        "build": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
+        "typecheck": "tsc -p tsconfig.json",
+        "prepack": "npm run build",
+        "prepublishOnly": "npm run typecheck && npm test && npm run check:package",
         "verify": "node scripts/verify.js",
         "test": "node --test test/*.test.js",
-        "snapshot": "node scripts/eslint-snapshot.js"
+        "snapshot": "node scripts/eslint-snapshot.js",
+        "check:package": "node scripts/check-package.js"
     },
     "dependencies": {
         "@commitlint/config-conventional": "^21.2.2",
         "@eslint/js": "^10.0.1",
         "@intlify/eslint-plugin-vue-i18n": "^4.5.1",
+        "@typescript-eslint/utils": "^8.70.1",
         "@vitest/eslint-plugin": "^1.6.27",
         "@vue/compiler-sfc": "^3.5.43",
         "eslint-config-prettier": "^10.1.8",
@@ -198,6 +231,7 @@
         }
     },
     "devDependencies": {
+        "@types/node": "^24.13.6",
         "eslint": "^10.11.0",
         "prettier": "^3.9.8",
         "stylelint": "^17.15.0"

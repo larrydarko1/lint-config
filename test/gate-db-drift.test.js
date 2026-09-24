@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { inspectDbDrift } from '../src/gates/db-drift.js';
+import { inspectDbDrift } from '../src/gates/db-drift.ts';
 
 /**
  * A temp repo holding exactly the files a case needs.

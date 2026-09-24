@@ -9,7 +9,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { inspectI18n } from '../src/gates/i18n.js';
+import { inspectI18n } from '../src/gates/i18n.ts';
 
 /** A valid createI18n file, so the option checks pass unless a test says otherwise. */
 const GOOD_CONFIG = `
@@ -28,7 +28,7 @@ export const i18n = createI18n({
  * @param {object} [opts]
  * @param {string | null} [opts.config] createI18n source, or null to omit the file.
  * @param {Record<string, string>} [opts.configNotes]
- * @returns {import('../src/gates/i18n.js').I18nGateResult}
+ * @returns {import('../src/gates/i18n.ts').I18nGateResult}
  */
 const run = (locales, opts = {}) => {
     const { config = GOOD_CONFIG, configNotes } = opts;

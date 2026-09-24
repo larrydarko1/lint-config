@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { BASE_FLAGS, ENVIRONMENTAL, SECTIONS, inspectTsconfigs } from '../src/gates/tsconfigs.js';
+import { BASE_FLAGS, ENVIRONMENTAL, SECTIONS, inspectTsconfigs } from '../src/gates/tsconfigs.ts';
 
 /** A temp repo holding exactly the files a case needs. */
 const tree = (t, files) => {

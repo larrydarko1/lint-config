@@ -19,7 +19,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { checkRefactoring } from '../src/gates/refactoring.js';
+import { checkRefactoring } from '../src/gates/refactoring.ts';
 
 /** Runs `fn` with console captured and the exit code restored afterwards. */
 const capture = (fn) => {

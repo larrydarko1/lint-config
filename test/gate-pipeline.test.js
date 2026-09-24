@@ -17,7 +17,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { checkPipeline } from '../src/gates/pipeline.js';
+import { checkPipeline } from '../src/gates/pipeline.ts';
 
 /** Runs `fn` with console captured and the exit code restored afterwards. */
 const capture = (fn) => {

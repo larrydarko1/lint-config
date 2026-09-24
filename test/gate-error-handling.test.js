@@ -12,8 +12,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { checkElectronErrorHandling } from '../src/gates/error-handling/electron.js';
-import { checkFullstackErrorHandling } from '../src/gates/error-handling/fullstack.js';
+import { checkElectronErrorHandling } from '../src/gates/error-handling/electron.ts';
+import { checkFullstackErrorHandling } from '../src/gates/error-handling/fullstack.ts';
 
 /** Runs `fn` with console captured and the exit code restored afterwards. */
 const capture = (fn) => {

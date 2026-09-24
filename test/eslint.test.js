@@ -8,8 +8,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ESLint } from 'eslint';
 
-import { larry } from '../src/eslint/index.js';
-import { PRESETS, resolvePaths } from '../src/eslint/presets.js';
+import { larry } from '../src/eslint/index.ts';
+import { PRESETS, resolvePaths } from '../src/eslint/presets.ts';
 
 const ROOT = '/tmp/lint-config-eslint-test';
 

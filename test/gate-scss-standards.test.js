@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { inspectScssStandards } from '../src/gates/scss-standards.js';
+import { inspectScssStandards } from '../src/gates/scss-standards.ts';
 
 /** A temp repo holding exactly the files a case needs. */
 const tree = (t, files) => {

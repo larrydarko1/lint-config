@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import stylelintApi from 'stylelint';
 
-import { stylelint } from '../src/stylelint.js';
+import { stylelint } from '../src/stylelint.ts';
 
 const CONFIG_BASEDIR = path.resolve(import.meta.dirname, '..');
 

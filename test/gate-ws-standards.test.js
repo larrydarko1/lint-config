@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { inspectWsStandards } from '../src/gates/ws-standards.js';
+import { inspectWsStandards } from '../src/gates/ws-standards.ts';
 
 /** A temp repo holding exactly the files a case needs. */
 const tree = (t, files) => {

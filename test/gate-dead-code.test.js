@@ -15,7 +15,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { CATEGORIES, TEST_ONLY, collectHits, deadCodeProblems, inspectDeadCode } from '../src/gates/dead-code.js';
+import { CATEGORIES, TEST_ONLY, collectHits, deadCodeProblems, inspectDeadCode } from '../src/gates/dead-code.ts';
 
 /** A knip JSON report with the given per-file issue buckets. */
 const report = (...issues) => ({ issues });

@@ -1,0 +1,17 @@
+{
+    "extends": ["./tsconfig.json", "./tsconfig.base.json"],
+    "compilerOptions": {
+        /* Output & Build */
+        /*
+         * The published package is compiled: Node refuses to strip types from anything under
+         * node_modules (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING), so `.ts` cannot ship as is.
+         */
+        "noEmit": false,
+        "outDir": "dist",
+        "rootDir": "src",
+        "declaration": true,
+
+        /* Paths & Types */
+        "types": ["node"]
+    }
+}

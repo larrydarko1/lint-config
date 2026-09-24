@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { inspectCodeStyle, measureFile, scriptBlocks } from '../src/gates/code-style.js';
+import { inspectCodeStyle, measureFile, scriptBlocks } from '../src/gates/code-style.ts';
 
 /** A source tree holding `files`, cleaned up when the test ends. */
 const tree = (t, files) => {

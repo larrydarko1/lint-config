@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { inspectApiStandards } from '../src/gates/api-standards.js';
+import { inspectApiStandards } from '../src/gates/api-standards.ts';
 
 /** A temp repo holding exactly the files a case needs. */
 const tree = (t, files) => {

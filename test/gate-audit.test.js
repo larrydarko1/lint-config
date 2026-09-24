@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { inspectAudit } from '../src/gates/audit.js';
+import { inspectAudit } from '../src/gates/audit.ts';
 
 /** An `npm audit --json` payload with one advisory per entry. */
 const report = (...advisories) => ({

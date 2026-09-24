@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { CANONICAL_ORDER, inspectPackageJson } from '../src/gates/package-json.js';
+import { CANONICAL_ORDER, inspectPackageJson } from '../src/gates/package-json.ts';
 
 /** A temp repo holding exactly the files a case needs. */
 const tree = (t, files) => {

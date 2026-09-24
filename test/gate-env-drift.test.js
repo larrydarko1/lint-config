@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { inspectEnvDrift } from '../src/gates/env-drift.js';
+import { inspectEnvDrift } from '../src/gates/env-drift.ts';
 
 /**
  * A temp repo holding exactly the files a case needs. It is a real git

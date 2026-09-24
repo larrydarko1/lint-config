@@ -9,8 +9,8 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { createGateReport } from '../src/gates/report.js';
-import { findSwallowedErrors, countSwallows } from '../src/gates/swallowed-errors.js';
+import { createGateReport } from '../src/gates/report.ts';
+import { findSwallowedErrors, countSwallows } from '../src/gates/swallowed-errors.ts';
 
 /** Runs `fn` with console captured and process.exitCode restored afterwards. */
 const capture = (fn) => {

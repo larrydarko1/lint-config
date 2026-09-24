@@ -9,7 +9,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { checkIpcStandards, inspectIpcStandards } from '../src/gates/ipc-standards.js';
+import { checkIpcStandards, inspectIpcStandards } from '../src/gates/ipc-standards.ts';
 
 const MAIN = `/**
  * Main process.

@@ -10,7 +10,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { checkElectronSecurity, inspectElectronSecurity } from '../src/gates/electron-security.js';
+import { checkElectronSecurity, inspectElectronSecurity } from '../src/gates/electron-security.ts';
 
 const MAIN = `import { app, BrowserWindow, ipcMain, shell, protocol, net, session } from 'electron';
 

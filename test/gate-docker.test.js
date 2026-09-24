@@ -12,7 +12,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { checkDocker, inspectDocker } from '../src/gates/docker.js';
+import { checkDocker, inspectDocker } from '../src/gates/docker.ts';
 
 const API = `# syntax=docker/dockerfile:1.7
 FROM node:24-alpine AS deps

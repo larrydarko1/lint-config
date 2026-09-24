@@ -13,7 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
 
-import { exportedTypes, inspectDuplication } from '../src/gates/duplication.js';
+import { exportedTypes, inspectDuplication } from '../src/gates/duplication.ts';
 
 const ROOT = '/repo';
 

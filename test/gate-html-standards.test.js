@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { HEAD_CHECKS, entryPath, inspectHtmlStandards } from '../src/gates/html-standards.js';
+import { HEAD_CHECKS, entryPath, inspectHtmlStandards } from '../src/gates/html-standards.ts';
 
 /** A temp repo holding exactly the files a case needs. */
 const tree = (t, files) => {

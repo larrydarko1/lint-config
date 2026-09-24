@@ -19,7 +19,7 @@ import {
     analyzeFile,
     checkDeclarationOrder,
     isTestPath,
-} from '../src/gates/declaration-order.js';
+} from '../src/gates/declaration-order.ts';
 
 /** Runs `fn` with console captured and the exit code restored afterwards. */
 const capture = (fn) => {

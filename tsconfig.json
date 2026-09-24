@@ -1,0 +1,28 @@
+{
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        /* Output & Build */
+        /*
+         * Type-checks the sources, which is also what the tests run: Node strips the types
+         * itself outside node_modules. Emitting is tsconfig.build.json's job.
+         */
+        "noEmit": true,
+
+        /* Target & Environment */
+        "target": "es2024",
+        "lib": ["es2024"],
+
+        /* Paths & Types */
+        "types": ["node"],
+
+        /* Module System */
+        "module": "nodenext",
+        "moduleResolution": "nodenext",
+        /*
+         * Sources import each other as `./x.ts`, the file that exists, so Node can run them
+         * unbuilt; the compiler writes `./x.js` into the emitted files.
+         */
+        "rewriteRelativeImportExtensions": true
+    },
+    "include": ["src"]
+}
