@@ -4,7 +4,7 @@
  * This gate cannot be proved the way the others were. The two families' copies
  * both PASS on their own repos, so running the merged version against all four
  * projects only shows it still passes — it says nothing about whether a rule
- * survived the merge. The eighteen negatives below are the proof: each starts from
+ * survived the merge. The negatives below are the proof: each starts from
  * a repository that passes and breaks exactly one thing.
  *
  * Five of those rules existed only in the full-stack copy and three only in the
@@ -235,6 +235,73 @@ test('9. a workflow_run checkout that is not pinned to head_sha is reported', (t
     );
     assert.equal(failed, true);
     assert.match(err, /job `ship` checks out the default ref/);
+});
+
+// ── 19: workflow_run names resolve ───────────────────────────────────────────
+
+test('19. a workflow_run naming a workflow by its declared name passes', (t) => {
+    const { err, failed } = run(project(t, { '.github/workflows/deploy.yml': WORKFLOW_RUN }));
+    assert.equal(failed, false, err);
+});
+
+test('19. a workflow_run naming a workflow that does not exist is reported', (t) => {
+    const { err, failed } = run(
+        project(t, {
+            '.github/workflows/deploy.yml': WORKFLOW_RUN.replace(
+                'workflows: [CI]',
+                "workflows: ['Build & Push images']",
+            ),
+        }),
+    );
+    assert.equal(failed, true);
+    assert.match(err, /waits on a workflow named 'Build & Push images', which does not exist/);
+    assert.match(err, /Declared names: 'CI', 'Deploy'/);
+});
+
+test('19. the FILENAME is not the name GitHub matches', (t) => {
+    // ci.yml declares `name: CI`; waiting on `ci` never fires.
+    const { err, failed } = run(
+        project(t, { '.github/workflows/deploy.yml': WORKFLOW_RUN.replace('workflows: [CI]', 'workflows: [ci]') }),
+    );
+    assert.equal(failed, true);
+    assert.match(err, /waits on a workflow named 'ci'/);
+});
+
+test('19. an unnamed workflow is named by its path, not its filename', (t) => {
+    const unnamed = CI_YML.replace('name: CI\n', '');
+    const byPath = run(
+        project(t, {
+            '.github/workflows/ci.yml': unnamed,
+            '.github/workflows/deploy.yml': WORKFLOW_RUN.replace(
+                'workflows: [CI]',
+                'workflows: [.github/workflows/ci.yml]',
+            ),
+        }),
+    );
+    assert.equal(byPath.failed, false, byPath.err);
+    const byStem = run(
+        project(t, {
+            '.github/workflows/ci.yml': unnamed,
+            '.github/workflows/deploy.yml': WORKFLOW_RUN.replace('workflows: [CI]', 'workflows: [ci]'),
+        }),
+    );
+    assert.equal(byStem.failed, true);
+    assert.match(byStem.err, /waits on a workflow named 'ci'/);
+});
+
+test('19. a parked workflow declares no name, because it never runs', (t) => {
+    const parkedCi = CI_YML.split('\n')
+        .map((line) => `# ${line}`)
+        .join('\n');
+    const { err, failed } = run(
+        project(t, {
+            '.github/workflows/ci.yml': parkedCi,
+            '.github/workflows/lint.yml': CI_YML.replace('name: CI', 'name: Lint'),
+            '.github/workflows/deploy.yml': WORKFLOW_RUN,
+        }),
+    );
+    assert.equal(failed, true);
+    assert.match(err, /waits on a workflow named 'CI', which does not exist/);
 });
 
 // ── 10-13, 15: the five rules only the full-stack copy had ──────────────────

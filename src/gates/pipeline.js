@@ -57,6 +57,13 @@
  *      a workflow, so the two drift silently: CI proves the app works on the
  *      major IT installs, while `engines` tells contributors and `npm ci` a
  *      different one is enough. Whichever is lower is the one nobody tests.
+ *  19. EVERY workflow_run NAME RESOLVES. GitHub matches a workflow's declared
+ *      `name:`, not its filename, and a name matching nothing is not an error —
+ *      the workflow simply never runs. An image-cleanup workflow waited on
+ *      'Build & Push images' against a workflow named 'Build' and had never
+ *      fired once. This lived in the Docker gate, which meant a repository with
+ *      no Dockerfile never got it; nothing about it is Docker-shaped. A parked
+ *      (fully commented-out) workflow declares no name, because it never runs.
  *
  * WHY THIS IS ONE GATE AND NOT TWO. The two families' copies looked like different
  * tools — the full-stack one carried five Docker and self-hosted-deploy rules
@@ -783,6 +790,24 @@ export function checkPipeline(options = {}) {
                     rel,
                     `installs Node ${major} while \`engines.node\` is "${enginesNode}"`,
                     `Nothing tests Node ${floor}, yet npm lets a contributor install on it — and a native module built against ${major} is the failure they would hit. Raise engines.node to ">=${major}", or pin CI to ${floor}.`,
+                );
+            }
+        }
+    }
+
+    // ── 19. workflow_run names resolve ──────────────────────────────────────
+    // A workflow with no `name:` is named by its path, which is what GitHub
+    // displays and what `workflows:` then has to say.
+    const declaredNames = new Set(workflows.map((w) => (typeof w.doc['name'] === 'string' ? w.doc['name'] : w.rel)));
+    for (const { rel, doc } of workflows) {
+        const waitsOn = triggersOf(doc)['workflow_run']?.workflows;
+        if (!Array.isArray(waitsOn)) continue;
+        for (const name of waitsOn) {
+            if (typeof name !== 'string' || !declaredNames.has(name)) {
+                fail(
+                    rel,
+                    `waits on a workflow named '${String(name)}', which does not exist`,
+                    `GitHub matches the declared \`name:\`, not the filename, and a name matching nothing is not an error — this workflow simply never runs. Declared names: ${[...declaredNames].map((n) => `'${n}'`).join(', ') || 'none'}.`,
                 );
             }
         }

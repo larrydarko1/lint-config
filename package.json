@@ -39,6 +39,10 @@
             "types": "./src/gates/declaration-order.d.ts",
             "default": "./src/gates/declaration-order.js"
         },
+        "./gates/docker": {
+            "types": "./src/gates/docker.d.ts",
+            "default": "./src/gates/docker.js"
+        },
         "./gates/duplication": {
             "types": "./src/gates/duplication.d.ts",
             "default": "./src/gates/duplication.js"

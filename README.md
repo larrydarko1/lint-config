@@ -159,10 +159,10 @@ package needs a build step.
 
 ### The gates themselves
 
-Twenty are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
+Twenty-one are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
 `duplication`, `refactoring`, `code-style`, `dead-code`, `html-standards`, `testing`, `tsconfigs`,
 `package-json`, `scss-standards`, `env-drift`, `db-drift`, `security-drift`, `metrics`,
-`api-standards` and `ws-standards`.
+`api-standards`, `ws-standards` and `docker`.
 Each was ported by the same route: diff the five copies, port the superset, cross-check the result
 against **every** project including the ones not yet migrated, then migrate the two reference
 projects.
@@ -465,8 +465,8 @@ whatever the code below did. And `ensureIndexes\s*\(` matched `async function en
 so a file that defines the applier and never calls it counted as calling it. All three are the same
 mistake: matching a name instead of a use.
 
-What is left is family-only: `docker` exists only in the full-stack projects, and
-`electron-security` and `ipc-standards` only in the desktop ones. Those do not need a drift table —
+What is left is family-only: `electron-security` and `ipc-standards` exist only in the desktop
+projects. Those do not need a drift table —
 a gate that lives in two or three copies of one family is a different problem from one that had to
 reconcile two families, and none of them has to decide whether it is one tool or two.
 
@@ -621,6 +621,42 @@ gateway and the option was removed. The check is also read from the `allowReques
 by bracket counting. It used to accept `config.corsOrigin` anywhere in the 400 characters after the
 key, and the option that most often follows it is `cors: { origin: config.corsOrigin }`, so an
 allow-everything check passed on its neighbour's value.
+
+### `docker`, and two rules that belonged to another gate
+
+One project ships images, so like `metrics` this was a move rather than a merge, and that
+project's lists — which image deploys through which manifest, which must stay on glibc and why —
+are options now.
+
+**Two of its rules were not about images.** It checked the CI `node-version` against
+`engines.node`, which the pipeline gate's rule 18 already does, in both directions. And it checked
+that every `workflow_run.workflows:` name resolves — GitHub matches the declared `name:`, not the
+filename, and a name matching nothing is not an error, so the workflow simply never runs. That rule
+lived in the Docker gate, so a repository with no Dockerfile never got it: the three desktop repos
+each have a `release.yml` waiting on another workflow by name, and nothing was checking any of them.
+It is the pipeline gate's rule 19 now. Mutation testing then found it was subtly wrong in the other
+direction too: a workflow with no `name:` IS named, by its path, and the rule had it as nameless.
+
+**Three rules are new, all stated outright in the standard.** `--ignore-scripts` on every install,
+because lifecycle scripts are arbitrary code from every transitive dependency. No package manager as
+PID 1 — `CMD ["npm", "start"]` is exec form, so the exec-form rule passed it, and npm forwards
+SIGTERM no better than a shell does. And a HEALTHCHECK has to ask the running process something: the
+standard's own two wrong examples, `pgrep` and a fresh `node -e "process.exit(0)"`, both passed,
+and so did `HEALTHCHECK NONE`.
+
+**The parser was right about the three Dockerfiles it had seen and wrong about most others.**
+`FROM --platform=… node:24` read the flag as the image. A global `ARG NODE_MAJOR=24` feeding
+`FROM node:${NODE_MAJOR}` was never substituted — so the one rule that pays for the gate went silent
+on exactly the Dockerfile that parameterised its version to keep it in one place. USER, ENV,
+HEALTHCHECK and EXPOSE are inherited through `FROM <stage>` and were read from the final stage's
+own lines only. `COPY package*.json ./` did not count as copying the manifests. `ENV JWT_SECRET
+value`, the legacy form, was invisible to the secrets rule. A `.dockerignore` entry re-included by a
+later `!` line still counted. And `FROM node AS node` was read as a stage built from itself, so the
+tag rule skipped an untagged image — a stage can only name one declared before it.
+
+A malformed build workflow crashed the gate and a malformed manifest was skipped in silence, because
+the YAML parser recovers rather than throwing. That is the same finding as `metrics`, in the next
+file along.
 
 ## Checking it
 
