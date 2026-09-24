@@ -159,10 +159,10 @@ package needs a build step.
 
 ### The gates themselves
 
-Twenty-one are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
+All twenty-three are moved — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
 `duplication`, `refactoring`, `code-style`, `dead-code`, `html-standards`, `testing`, `tsconfigs`,
 `package-json`, `scss-standards`, `env-drift`, `db-drift`, `security-drift`, `metrics`,
-`api-standards`, `ws-standards` and `docker`.
+`api-standards`, `ws-standards`, `docker`, `electron-security` and `ipc-standards`.
 Each was ported by the same route: diff the five copies, port the superset, cross-check the result
 against **every** project including the ones not yet migrated, then migrate the two reference
 projects.
@@ -465,10 +465,10 @@ whatever the code below did. And `ensureIndexes\s*\(` matched `async function en
 so a file that defines the applier and never calls it counted as calling it. All three are the same
 mistake: matching a name instead of a use.
 
-What is left is family-only: `electron-security` and `ipc-standards` exist only in the desktop
-projects. Those do not need a drift table —
-a gate that lives in two or three copies of one family is a different problem from one that had to
-reconcile two families, and none of them has to decide whether it is one tool or two.
+The last two, `electron-security` and `ipc-standards`, exist only in the desktop projects. Those
+did not need a drift table — a gate that lives in two or three copies of one family is a different
+problem from one that had to reconcile two families, and neither had to decide whether it is one
+tool or two.
 
 ### `security-drift`, and a gate that matched a name instead of a use
 
@@ -657,6 +657,42 @@ tag rule skipped an untagged image — a stage can only name one declared before
 A malformed build workflow crashed the gate and a malformed manifest was skipped in silence, because
 the YAML parser recovers rather than throwing. That is the same finding as `metrics`, in the next
 file along.
+
+### `electron-security` and `ipc-standards`, and the copies that read the wrong code
+
+Three copies of each, identical but for prose (`a note`, `a cell`) and Fern's `v-html` list. So
+nothing needed reconciling, and nearly everything needed re-reading, because **almost every rule
+read a span decided by indentation or by a character count rather than by the code's own
+brackets.** A window, a handler or a privileged-scheme list ended on `\n    })` or `\n])`, so a
+window built one level deeper was "no BrowserWindow found". Everything is bracket-counted now,
+through `source.js`, which gained a function reader (`functionParts`, `declaredFunction`) that
+skips a return type like `): { action: 'deny' } =>` instead of reading it as the body.
+
+**Three wrong-scope reads, one of them hiding a real gap.** The IPC rule "every handler validates
+its arguments" read 2500 characters from the handler's start. In Fern that ran from the four
+`log:*` handlers — which forwarded `...args` to the logger unchecked — into the `clipboard:write`
+handler's `typeof`, and passed. It now reads the handler's own body, asks per ARGUMENT, and follows
+an argument into a function in the same file (Quartz's handlers delegate to a validating `write()`).
+Fern's log handlers moved into a `log` service with a schema, Quartz's design. `openExternal`'s
+scheme guard was accepted anywhere in the 400 characters before the call, including a neighbouring
+function; it must now be in the function that makes the call. And the RegExp rule accepted any
+`.replace(` near a declaration if the escape appeared anywhere in the file.
+
+**`innerHTML` was only checked inside template literals**, so `el.innerHTML = note.title` — the bug
+in its plainest form — passed. Every piece of an assignment must now be a literal, a `const` bound
+to one, or the whole output of a sanitizer; `escapeHtml` and `DOMPurify.sanitize` are built in, and
+a project names any other with its reason (Fern's `renderInline`). **`v-html` exemptions are per
+binding, not per file**, because a file-level entry was precisely the "stale exemption silently
+covers the next binding" the old message warned about.
+
+**Rules tightened to match their own why, all free in the three repos:** `setWindowOpenHandler`
+may not return `allow` for some URLs; the deprecated `register*Protocol` API is refused rather than
+unread; `ignore-certificate-errors` and `rejectUnauthorized: false` are certificate overrides; a
+channel on either side must be a string LITERAL (a template channel was invisible to every rule);
+handlers are found by receiver (`ipcMain`, `webContents.ipc`, anything typed `IpcMain`) rather
+than by the parameter's name, and `once`/`handleOnce`/`sendSync` are part of the surface.
+
+Neither gate had a written standard. It is `7_security/electron.instructions.md` now.
 
 ## Checking it
 

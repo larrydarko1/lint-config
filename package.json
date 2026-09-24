@@ -47,6 +47,10 @@
             "types": "./src/gates/duplication.d.ts",
             "default": "./src/gates/duplication.js"
         },
+        "./gates/electron-security": {
+            "types": "./src/gates/electron-security.d.ts",
+            "default": "./src/gates/electron-security.js"
+        },
         "./gates/env-drift": {
             "types": "./src/gates/env-drift.d.ts",
             "default": "./src/gates/env-drift.js"
@@ -74,6 +78,10 @@
         "./gates/import-order": {
             "types": "./src/gates/import-order.d.ts",
             "default": "./src/gates/import-order.js"
+        },
+        "./gates/ipc-standards": {
+            "types": "./src/gates/ipc-standards.d.ts",
+            "default": "./src/gates/ipc-standards.js"
         },
         "./gates/metrics": {
             "types": "./src/gates/metrics.d.ts",
