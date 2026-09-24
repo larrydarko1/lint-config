@@ -43,8 +43,6 @@ export interface WsStandardsInput {
     authModule?: { file: string; fn: string };
     /** Required here, forbidden there. Defaults to required. */
     redisAdapter?: RedisAdapterRule;
-    /** Require an `allowRequest` origin check on the upgrade. Defaults to false. */
-    upgradeOrigin?: boolean;
     /** How rooms are addressed. */
     rooms: RoomRule;
     /** Require exported `emitX` helpers that nothing awaits. Defaults to false. */

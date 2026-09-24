@@ -46,6 +46,10 @@ export async function initSocket(httpServer) {
             credentials: true,
         },
         path: '/socket.io',
+        allowRequest: (req, callback) => {
+            const origin = req.headers.origin;
+            callback(null, origin === undefined || origin === config.corsOrigin);
+        },
     });
 
     try {
@@ -436,42 +440,82 @@ test('the reason must be in the header, not buried in the body', (t) => {
     assert.ok(whats(root, { redisAdapter: FORBIDDEN }).some((what) => what.includes('no longer explains why')));
 });
 
-// ─── 3. The origin check on the upgrade ──────────────────────────────────────
+// ─── 3. The origin check on the upgrade (standard in every repo) ─────────────
 
-test('a missing allowRequest is reported when the upgrade check is required', (t) => {
-    const root = tree(t, good());
-    assert.ok(whats(root, { upgradeOrigin: true }).some((what) => what === 'no `allowRequest` origin check'));
+const CHECK = `        allowRequest: (req, callback) => {
+            const origin = req.headers.origin;
+            callback(null, origin === undefined || origin === config.corsOrigin);
+        },
+`;
+const WITHOUT_ORIGIN_CHECK = GATEWAY.replace(CHECK, '');
+
+test('a missing allowRequest is reported', (t) => {
+    const root = tree(t, good({ 'api/src/gateway/socket.ts': WITHOUT_ORIGIN_CHECK }));
+    assert.ok(whats(root).some((what) => what === 'no `allowRequest` origin check'));
 });
 
 test('the allowRequest finding explains why cors does not cover the upgrade', (t) => {
-    const root = tree(t, good());
-    assert.ok(whys(root, { upgradeOrigin: true }).some((why) => why.includes('transports: ["websocket"]')));
+    const root = tree(t, good({ 'api/src/gateway/socket.ts': WITHOUT_ORIGIN_CHECK }));
+    assert.ok(whys(root).some((why) => why.includes('transports: ["websocket"]')));
 });
 
 test('an allowRequest that checks the configured origin passes', (t) => {
+    assert.deepEqual(whats(tree(t, good())), []);
+});
+
+test('an expression-bodied allowRequest that checks the configured origin passes', (t) => {
     const checked = GATEWAY.replace(
-        "        path: '/socket.io',",
-        "        path: '/socket.io',\n        allowRequest: (req, callback) => {\n            callback(null, req.headers.origin === config.corsOrigin);\n        },",
+        CHECK,
+        '        allowRequest: (req, callback) => callback(null, req.headers.origin === config.corsOrigin),\n',
     );
-    const root = tree(t, good({ 'api/src/gateway/socket.ts': checked }));
-    assert.deepEqual(whats(root, { upgradeOrigin: true }), []);
+    assert.deepEqual(whats(tree(t, good({ 'api/src/gateway/socket.ts': checked }))), []);
 });
 
 test('an allowRequest that checks something else is reported', (t) => {
-    const checked = GATEWAY.replace(
-        "        path: '/socket.io',",
-        "        path: '/socket.io',\n        allowRequest: (req, callback) => callback(null, true),",
-    );
+    const checked = GATEWAY.replace(CHECK, '        allowRequest: (req, callback) => callback(null, true),\n');
     const root = tree(t, good({ 'api/src/gateway/socket.ts': checked }));
-    assert.ok(
-        whats(root, { upgradeOrigin: true }).some((what) =>
-            what.includes('does not compare against config.corsOrigin'),
-        ),
-    );
+    assert.ok(whats(root).some((what) => what.includes('does not compare against config.corsOrigin')));
 });
 
-test('a repo that does not require the upgrade check is not graded on it', (t) => {
-    assert.deepEqual(whats(tree(t, good())), []);
+test("an allowRequest is not credited with its neighbour's config.corsOrigin", (t) => {
+    // The option that most often follows it names the origin too. A fixed
+    // window after `allowRequest:` read THAT and passed an allow-all check.
+    const checked = WITHOUT_ORIGIN_CHECK.replace(
+        '        cors: {',
+        '        allowRequest: (req, callback) => callback(null, true),\n        cors: {',
+    );
+    const root = tree(t, good({ 'api/src/gateway/socket.ts': checked }));
+    assert.ok(whats(root).some((what) => what.includes('does not compare against config.corsOrigin')));
+});
+
+test('an allowRequest written last, with no trailing comma, is read up to its own brace', (t) => {
+    // Without a comma to end it, the value ends at the options object's `}` —
+    // reading past it reached a later mention of the origin and passed.
+    const checked = WITHOUT_ORIGIN_CHECK.replace(
+        "        path: '/socket.io',\n    });",
+        "        path: '/socket.io',\n        allowRequest: (req, callback) => callback(null, true)\n    });\n    logger.info({ origin: config.corsOrigin }, 'socket ready');",
+    );
+    assert.notEqual(checked, WITHOUT_ORIGIN_CHECK);
+    const root = tree(t, good({ 'api/src/gateway/socket.ts': checked }));
+    assert.ok(whats(root).some((what) => what.includes('does not compare against config.corsOrigin')));
+});
+
+test('a longer key that merely ends in allowRequest is not the origin check', (t) => {
+    const checked = WITHOUT_ORIGIN_CHECK.replace(
+        "        path: '/socket.io',",
+        "        path: '/socket.io',\n        disallowRequest: config.corsOrigin,",
+    );
+    const root = tree(t, good({ 'api/src/gateway/socket.ts': checked }));
+    assert.ok(whats(root).some((what) => what === 'no `allowRequest` origin check'));
+});
+
+test('an allowRequest that is only commented out is reported as missing', (t) => {
+    const checked = WITHOUT_ORIGIN_CHECK.replace(
+        "        path: '/socket.io',",
+        "        path: '/socket.io',\n        // allowRequest: (req, callback) => callback(null, req.headers.origin === config.corsOrigin),",
+    );
+    const root = tree(t, good({ 'api/src/gateway/socket.ts': checked }));
+    assert.ok(whats(root).some((what) => what === 'no `allowRequest` origin check'));
 });
 
 test('a cors option that is not config.corsOrigin is reported', (t) => {

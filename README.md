@@ -613,11 +613,14 @@ event as undocumented. And the adapter's `try`/`catch` was matched by `\{([^}]*)
 at the first closing brace, so one nested object literal inside the `try` hid the adapter install
 from the rule that checks it degrades gracefully.
 
-One gap is recorded rather than closed: **the migrated gateway has no `allowRequest` origin check.**
-CORS does not govern a WebSocket upgrade — the `cors` option covers the polling transport only, so a
-client opening with `transports: ['websocket']` never passes through it. The sibling repo checks it;
-this one does not, so `upgradeOrigin` is off and its shim says why. Turning it on needs a change to
-`socket.ts`, not to the shim.
+The upgrade origin check started as an option and ended as a standard rule. CORS does not govern a
+WebSocket upgrade — the `cors` option covers the polling transport only, so a client opening with
+`transports: ['websocket']` never passes through it. One repo checked the origin in `allowRequest`;
+the other had never added it, which was a gap rather than a decision, so it was closed in that
+gateway and the option was removed. The check is also read from the `allowRequest` value itself,
+by bracket counting. It used to accept `config.corsOrigin` anywhere in the 400 characters after the
+key, and the option that most often follows it is `cors: { origin: config.corsOrigin }`, so an
+allow-everything check passed on its neighbour's value.
 
 ## Checking it
 

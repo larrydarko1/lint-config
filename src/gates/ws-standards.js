@@ -61,6 +61,12 @@
  *     caller the ability to drop a socket the rest of the app is reading from.
  *     The rule is that the teardown EXISTS and is REACHED, which both satisfy.
  *
+ * THE UPGRADE ORIGIN CHECK IS A STANDARD RULE, not an option. CORS does not
+ * govern a WebSocket upgrade, so one repo checked the origin in `allowRequest`
+ * and the other had simply never added it. That was a gap rather than a
+ * decision, and it was closed in the gateway, so there is nothing left to opt
+ * out of.
+ *
  * THE HEADER CONTRACT IS READ IN BOTH DIRECTIONS, the newer copy's version. An
  * event the gateway handles is as much of a contract as one it sends, and a
  * push-only socket documents its empty inbound list explicitly — that empty
@@ -77,6 +83,35 @@ import { stripComments } from './strip-comments.js';
 
 /** Socket.IO's own events. A listener for one of these is not an app contract. */
 const LIFECYCLE = new Set(['connect', 'connection', 'disconnect', 'disconnecting', 'connect_error', 'error']);
+
+/**
+ * The source of one object property's value: from after `key:` to the comma or
+ * closing brace that ends it at depth zero. `null` when the key is absent.
+ *
+ * Bracket counting rather than a fixed window: the rule used to accept
+ * `config.corsOrigin` anywhere in the 400 characters after `allowRequest:`, and
+ * the option that most often FOLLOWS it is `cors: { origin: config.corsOrigin }`
+ * — so a check that let every origin through passed on its neighbour's value.
+ *
+ * @param {string} source
+ * @param {string} key
+ * @returns {string | null}
+ */
+function propertyValue(source, key) {
+    const match = new RegExp(String.raw`\b${key}\s*:`).exec(source);
+    if (match === null) return null;
+    const start = match.index + match[0].length;
+    let depth = 0;
+    for (let j = start; j < source.length; j++) {
+        const ch = source[j];
+        if (ch === '(' || ch === '{' || ch === '[') depth++;
+        else if (ch === ')' || ch === '}' || ch === ']') {
+            if (depth === 0) return source.slice(start, j);
+            depth--;
+        } else if (ch === ',' && depth === 0) return source.slice(start, j);
+    }
+    return source.slice(start);
+}
 
 /**
  * The brace-balanced body of whatever declares `name` in this file — a function
@@ -145,7 +180,6 @@ export function inspectWsStandards(input) {
         clientDirs,
         authModule,
         redisAdapter = { mode: 'required' },
-        upgradeOrigin = false,
         rooms,
         emitHelpers = false,
         connectionKey = 'rl:ws:conn:',
@@ -264,20 +298,19 @@ export function inspectWsStandards(input) {
     }
 
     // ── 3. The origin check on the upgrade ──────────────────────────────────
-    if (upgradeOrigin) {
-        if (!/allowRequest:/.test(body)) {
-            fail(
-                gateway,
-                'no `allowRequest` origin check',
-                'CORS does not govern a WebSocket upgrade. The `cors` option covers the polling transport only, so a client that opens with `transports: ["websocket"]` skips it entirely and any origin can hold a socket.',
-            );
-        } else if (!/allowRequest:[\s\S]{0,400}?config\.corsOrigin/.test(body)) {
-            fail(
-                gateway,
-                '`allowRequest` does not compare against config.corsOrigin',
-                'The same single allowed origin as REST, from the same Zod-validated env value. Two sources for one origin is one that will disagree.',
-            );
-        }
+    const originCheck = propertyValue(body, 'allowRequest');
+    if (originCheck === null) {
+        fail(
+            gateway,
+            'no `allowRequest` origin check',
+            'CORS does not govern a WebSocket upgrade. The `cors` option covers the polling transport only, so a client that opens with `transports: ["websocket"]` skips it entirely and any origin can hold a socket.',
+        );
+    } else if (!originCheck.includes('config.corsOrigin')) {
+        fail(
+            gateway,
+            '`allowRequest` does not compare against config.corsOrigin',
+            'The same single allowed origin as REST, from the same Zod-validated env value. Two sources for one origin is one that will disagree.',
+        );
     }
     if (!/cors:\s*\{[\s\S]{0,200}?origin:\s*config\.corsOrigin/.test(body)) {
         fail(
@@ -676,7 +709,7 @@ export function checkWsStandards({ root = REPO_ROOT, standard, ...rest }) {
     report.done({
         summary:
             `WebSocket architecture OK — one server on the existing HTTP listener, ${adapter}, ` +
-            `handshake auth pinned and the rate limit ahead of it, hop count mirrored, emits confined to the gateway; ` +
+            `upgrade origin checked, handshake auth pinned and the rate limit ahead of it, hop count mirrored, emits confined to the gateway; ` +
             `${plural(counts.outbound, 'outbound event')} and ${plural(counts.inbound, 'inbound event')} all matching the header contract, ` +
             `frontend on one client module with every listener cleaned up.`,
         notMachineChecked:
