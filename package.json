@@ -1,10 +1,17 @@
 {
     "name": "@larrydarko/lint-config",
     "version": "0.1.0",
-    "private": true,
     "type": "module",
     "description": "Shared formatting, commit and style configuration for Larry's projects.",
-    "license": "UNLICENSED",
+    "license": "MIT",
+    "author": "Larry",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/larrydarko1/lint-config.git"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
     "engines": {
         "node": ">=24"
     },
