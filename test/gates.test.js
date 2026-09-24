@@ -13,7 +13,19 @@ import path from 'node:path';
 import { stripComments } from '../src/gates/strip-comments.js';
 import { createImportOrder } from '../src/gates/import-order.js';
 import { findRepoRoot } from '../src/gates/repo-root.js';
-import { braceBlock, callArgs, callSites, catchBodies, evalProduct, fnBody } from '../src/gates/source.js';
+import {
+    braceBlock,
+    callArgs,
+    callSites,
+    catchBodies,
+    declaredBody,
+    declaredFunction,
+    evalProduct,
+    fnBody,
+    functionParts,
+    propertyValue,
+    splitTopLevel,
+} from '../src/gates/source.js';
 
 test('stripComments blanks comments and keeps every offset', () => {
     const src = 'const a = 1; // note\n/* block */ const b = 2;\n';
@@ -135,7 +147,7 @@ test('findRepoRoot fails loudly rather than returning the filesystem root', () =
     assert.throws(() => findRepoRoot('/'), /Could not locate the repository root/);
 });
 
-// ─── source.js — the five helpers both security gates carried a copy of ──────
+// ─── source.js — the helpers several gates carried copies of ─────────────────
 
 test('callSites reports where each call starts and ends', () => {
     const source = 'io.use(a);\nio.use(b);\n';
@@ -221,4 +233,126 @@ test('evalProduct reads numeric separators, which Number() alone does not', () =
 test('evalProduct returns 0 for anything that is not a literal product', () => {
     assert.equal(evalProduct('config.timeout'), 0);
     assert.equal(evalProduct(undefined), 0);
+});
+
+// ─── source.js: propertyValue ────────────────────────────────────────────────
+
+test('propertyValue reads one value up to its own comma', () => {
+    assert.equal(propertyValue('a: 1, b: 2', 'a')?.trim(), '1');
+});
+
+test('propertyValue reads through nesting and stops at the closing brace', () => {
+    assert.equal(propertyValue('x: { y: [1, 2], z: f(a, b) } }', 'x')?.trim(), '{ y: [1, 2], z: f(a, b) }');
+});
+
+test('propertyValue does not match a longer key or a member access', () => {
+    assert.equal(propertyValue('nodeIntegrationInWorker: true', 'nodeIntegration'), null);
+    assert.equal(propertyValue('prefs.sandbox: true', 'sandbox'), null);
+    assert.equal(propertyValue('disallowRequest: f', 'allowRequest'), null);
+});
+
+test('propertyValue is null when the key is absent', () => {
+    assert.equal(propertyValue('a: 1', 'b'), null);
+});
+
+// ─── source.js: splitTopLevel ────────────────────────────────────────────────
+
+test('splitTopLevel keeps generics, calls and strings whole', () => {
+    assert.deepEqual(splitTopLevel("a: Record<string, number>, f(x, y), 'p,q', `r,${s}`", ','), [
+        'a: Record<string, number>',
+        'f(x, y)',
+        "'p,q'",
+        '`r,${s}`',
+    ]);
+});
+
+test('splitTopLevel does not read an arrow as a closing angle bracket', () => {
+    assert.deepEqual(splitTopLevel('(a) => a, b', ','), ['(a) => a', 'b']);
+});
+
+test('splitTopLevel: an arrow inside a call does not close the call', () => {
+    assert.deepEqual(splitTopLevel('f(a => a, b), c', ','), ['f(a => a, b)', 'c']);
+});
+
+test('splitTopLevel: a template inside an interpolation does not end the outer one', () => {
+    assert.deepEqual(splitTopLevel('`x ${`y,z`} w`, v', ','), ['`x ${`y,z`} w`', 'v']);
+});
+
+// ─── source.js: functionParts ────────────────────────────────────────────────
+
+test('an arrow with a block body', () => {
+    assert.deepEqual(functionParts('(a, b) => { return a + b; }, next'), {
+        params: ['a', 'b'],
+        body: ' return a + b; ',
+    });
+});
+
+test('an expression-bodied arrow ends at its own comma or paren', () => {
+    assert.deepEqual(functionParts('(e, url) => open(url, e), other)'), { params: ['e', 'url'], body: 'open(url, e)' });
+});
+
+test('an async arrow with a single bare parameter', () => {
+    assert.deepEqual(functionParts('async x => x * 2;'), { params: ['x'], body: 'x * 2' });
+});
+
+test('THE RETURN-TYPE TRAP: a brace in the return type is not the body', () => {
+    const handler = "({ url }): { action: 'deny' } => { return { action: 'deny' }; }";
+    assert.deepEqual(functionParts(handler), { params: ['url'], body: " return { action: 'deny' }; " });
+    const promised = 'async (_e, id: unknown): Promise<{ success: boolean; error?: string }> => { check(id); }';
+    assert.equal(functionParts(promised)?.body, ' check(id); ');
+});
+
+test('an arrow INSIDE the return type is not the arrow of the function', () => {
+    assert.deepEqual(functionParts('(): Promise<(x: number) => void> => { run(); }'), { params: [], body: ' run(); ' });
+});
+
+test('a function expression, typed and async', () => {
+    assert.deepEqual(functionParts('async function (a: string, b = 2): Promise<void> { go(); }'), {
+        params: ['a', 'b'],
+        body: ' go(); ',
+    });
+});
+
+test('rest, optional, defaulted and destructured parameters are reduced to names', () => {
+    assert.deepEqual(functionParts('(_event, ...args: unknown[]) => 0')?.params, ['_event', 'args']);
+    assert.deepEqual(functionParts('(a?: string, { b, c: d }: T = {}) => 0')?.params, ['a', 'b', 'd']);
+});
+
+test('a string holding a brace does not end the body', () => {
+    assert.equal(functionParts("() => { log('}'); done(); }")?.body, " log('}'); done(); ");
+});
+
+test('anything that is not a function expression is null', () => {
+    assert.equal(functionParts('handlers.open'), null);
+    assert.equal(functionParts("'a string'"), null);
+});
+
+// ─── source.js: declaredFunction / declaredBody ──────────────────────────────
+
+test('a function declaration is found by name', () => {
+    const source =
+        'export async function write(level: string, entry: unknown): Promise<void> {\n    parse(entry);\n}\n';
+    assert.deepEqual(declaredFunction(source, 'write'), { params: ['level', 'entry'], body: '\n    parse(entry);\n' });
+});
+
+test('a const arrow is found by name', () => {
+    assert.deepEqual(declaredFunction('const write = (entry) => { parse(entry); };', 'write'), {
+        params: ['entry'],
+        body: ' parse(entry); ',
+    });
+});
+
+test('THE NEXT-BRACE TRAP: an expression-bodied const does not borrow the next block', () => {
+    const source = 'const write = (entry) => log(entry);\nfunction other() { safeParse(entry); }\n';
+    assert.equal(declaredBody(source, 'write'), 'log(entry)');
+});
+
+test('a member or a longer name is not the declaration', () => {
+    assert.equal(declaredFunction('function rewrite(a) { x(a); }', 'write'), null);
+    assert.equal(declaredFunction('obj.write = (a) => a;', 'write'), null);
+});
+
+test('a name that is not an identifier is refused, not turned into a regex', () => {
+    assert.equal(declaredFunction('function a() {}', 'a|b'), null);
+    assert.equal(declaredBody('function a() {}', '('), '');
 });

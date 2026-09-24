@@ -78,56 +78,11 @@ import path from 'node:path';
 import { walkFiles } from './files.js';
 import { createGateReport, plural } from './report.js';
 import { REPO_ROOT } from './repo-root.js';
-import { braceBlock, callSites } from './source.js';
+import { braceBlock, callSites, declaredBody, propertyValue } from './source.js';
 import { stripComments } from './strip-comments.js';
 
 /** Socket.IO's own events. A listener for one of these is not an app contract. */
 const LIFECYCLE = new Set(['connect', 'connection', 'disconnect', 'disconnecting', 'connect_error', 'error']);
-
-/**
- * The source of one object property's value: from after `key:` to the comma or
- * closing brace that ends it at depth zero. `null` when the key is absent.
- *
- * Bracket counting rather than a fixed window: the rule used to accept
- * `config.corsOrigin` anywhere in the 400 characters after `allowRequest:`, and
- * the option that most often FOLLOWS it is `cors: { origin: config.corsOrigin }`
- * — so a check that let every origin through passed on its neighbour's value.
- *
- * @param {string} source
- * @param {string} key
- * @returns {string | null}
- */
-function propertyValue(source, key) {
-    const match = new RegExp(String.raw`\b${key}\s*:`).exec(source);
-    if (match === null) return null;
-    const start = match.index + match[0].length;
-    let depth = 0;
-    for (let j = start; j < source.length; j++) {
-        const ch = source[j];
-        if (ch === '(' || ch === '{' || ch === '[') depth++;
-        else if (ch === ')' || ch === '}' || ch === ']') {
-            if (depth === 0) return source.slice(start, j);
-            depth--;
-        } else if (ch === ',' && depth === 0) return source.slice(start, j);
-    }
-    return source.slice(start);
-}
-
-/**
- * The brace-balanced body of whatever declares `name` in this file — a function
- * declaration or a `const` bound to an arrow. `''` when nothing declares it,
- * which every caller reads as "cannot confirm", never as "fine".
- *
- * @param {string} source
- * @param {string} name
- * @returns {string}
- */
-function declaredBody(source, name) {
-    if (!/^[A-Za-z_$][\w$]*$/.test(name)) return '';
-    const declaration = braceBlock(source, new RegExp(String.raw`function\s+${name}\s*\(`));
-    if (declaration !== '') return declaration;
-    return braceBlock(source, new RegExp(String.raw`\b(?:const|let|var)\s+${name}\s*=`));
-}
 
 /**
  * Every `try { … } catch { … }` pair in a file, brace-balanced.
