@@ -159,9 +159,10 @@ package needs a build step.
 
 ### The gates themselves
 
-Eighteen are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
+Twenty are moved so far — `i18n`, `error-handling`, `declaration-order`, `pipeline`, `audit`,
 `duplication`, `refactoring`, `code-style`, `dead-code`, `html-standards`, `testing`, `tsconfigs`,
-`package-json`, `scss-standards`, `env-drift`, `db-drift`, `security-drift` and `metrics`.
+`package-json`, `scss-standards`, `env-drift`, `db-drift`, `security-drift`, `metrics`,
+`api-standards` and `ws-standards`.
 Each was ported by the same route: diff the five copies, port the superset, cross-check the result
 against **every** project including the ones not yet migrated, then migrate the two reference
 projects.
@@ -464,11 +465,10 @@ whatever the code below did. And `ensureIndexes\s*\(` matched `async function en
 so a file that defines the applier and never calls it counted as calling it. All three are the same
 mistake: matching a name instead of a use.
 
-What is left is family-only: `api-standards`, `ws-standards` and `docker` exist only in the
-full-stack projects, and `electron-security` and `ipc-standards` only in the desktop ones. Those
-do not need a drift table — a gate that lives in two or three copies of one family is a different
-problem from one that had to reconcile two families, and none of them has to decide whether it is
-one tool or two.
+What is left is family-only: `docker` exists only in the full-stack projects, and
+`electron-security` and `ipc-standards` only in the desktop ones. Those do not need a drift table —
+a gate that lives in two or three copies of one family is a different problem from one that had to
+reconcile two families, and none of them has to decide whether it is one tool or two.
 
 ### `security-drift`, and a gate that matched a name instead of a use
 
@@ -529,6 +529,95 @@ headless** — with a ClusterIP, Prometheus discovers one endpoint and scrapes a
 each time, so a three-replica gauge interleaves unrelated series and reads as noise. And **the
 `/healthz` dependency check must carry a timeout**, or a hung dependency holds the probe open until
 kubelet times it out and the pod reports a probe TIMEOUT instead of the 503 it meant to send.
+
+### `api-standards`, and the copies that had not drifted
+
+Two copies, and almost no disagreement — which is itself the finding, because the security pair in
+the same two repos had drifted badly. Three differences, all settled the same way:
+
+- **The tier list.** Three tiers in one repo, four in the other. That is an inventory, not a rule,
+  so `tiers` is an option; the rule — every mount carries one of them — is identical.
+- **Reading the pagination cap.** One copy tolerated whitespace after the paren and one did not, so
+  the same schema passed in one repo and would have failed in the other the moment Prettier
+  reflowed it. A gate a formatter can flip is not a gate.
+- **Resolving the `express.json()` alias.** The newer copy resolves `const parseJson =
+express.json(…)` to the `app.use()` that CALLS it, because the ordering rules are about what runs
+  first and a factory call is not a registration. The older one matched the factory, which sits at
+  the top of the module — so it read the body parser as registered before CORS in a file where it
+  is not.
+
+No position is read from indentation any more. The older copy located helmet with
+`indexOf('app.use(\n    helmet(')` — four spaces of that day's Prettier config written into a
+security rule. Positions come from bracket counting now.
+
+**Four rules are new**, all from the standard rather than from either copy, and all of the kind no
+type or lint rule can see. No `express-rate-limit` or `rate-limiter-flexible`, because both are
+fixed-window counters and one installed beside the token bucket is a second, weaker limiter with
+its own opinion. `optionalAuth` registered ahead of the rate-limited mounts, because the limiters
+key on `req.userId` and fall back to the IP — registered after them the resolve happens too late,
+every signed-in client is limited as its address, and everyone behind one NAT shares a bucket. No
+raw `parseInt` on `req.query`, which bypasses the Zod schema and with it the cap it declares. And
+no `{ ok: true, data }` envelope on success.
+
+Two things the port found in the real repos:
+
+- **A mount stated in a header and ending a sentence stopped being stripped.** `mounted at
+/api/reports.` captured the full stop, which matches no route — so the mount was not removed from
+  the documented paths and EVERY route in that file would have been reported twice, once as
+  undocumented and once as phantom, with the finding blaming the routes. Latent in both copies.
+- **The credential setting was read from the file, not from the client.** Both repos also pass
+  `{ withCredentials: true }` explicitly on the one refresh call that needs it, thirty lines below
+  the `axios.create(`. A file-wide search finds THAT and passes — so a client whose shared instance
+  had lost the setting entirely, and which therefore drops the refresh cookie on every other
+  request in the app, read as correct. Found by deleting the line in the live repo and watching the
+  gate say nothing.
+
+### `ws-standards`, and the rule that inverts between repos
+
+This is the one gate where the two repos do not merely differ, they contradict. **One must have the
+Redis adapter and the other must not.** The standard says it is mandatory in multi-pod because each
+pod holds only its own sockets. The second gateway already gives every pod its own `psubscribe`, so
+each pod holds every bucket its own sockets need and the adapter would republish each message
+across the cluster for every other pod to discard. Following the standard there is the regression.
+
+So `redisAdapter.mode` is `'required'` or `'forbidden'`, and `'forbidden'` additionally requires the
+ARGUMENT to still be in the gateway header. A departure nobody can find the reason for is one the
+next person who knows the standard — and not this file — quietly puts back.
+
+**Finding the rate limit without matching a name** was the hard part, and it is the same trap as in
+`security-drift` wearing a new coat. The rule is about ORDER: the connection limit runs as the first
+`io.use()`, ahead of the JWT verify. One copy located the limiter by searching the whole file for
+the bucket key `rl:ws:conn:`. In the other repo that key is not in the middleware at all — the
+middleware calls `consumeConnectionToken(clientIp(socket))`, and the key lives inside that helper,
+declared at the BOTTOM of the file, hundreds of bytes AFTER the verify. Merged naively, the rule
+would have reported "the rate limit does not run before JWT verification" about a gateway where it
+provably does. The limiter is recognised by what it DOES now, resolved one level deep: the key
+inside the first middleware's own span, or a call in that span to a function declared in the same
+file whose body carries it.
+
+**Three rules were merged as a union** rather than chosen between, because each copy was right
+about its own repo. Inbound payloads may be validated inline in the listener or through a schema
+named after the event, for gateways whose listeners delegate. The teardown hook may be
+`onScopeDispose` — the right one in a composable, since it fires for a manual `effectScope` too,
+where `onUnmounted` never runs — or `onUnmounted` in a component. And the sign-out teardown may be
+exported and called from the logout path, or deliberately unexported and registered with a session
+hook; the rule is that it exists and is reached.
+
+The header contract is read in both directions now, the newer copy's version: an event the gateway
+HANDLES is as much of a contract as one it sends, and a push-only socket documenting its empty
+inbound list explicitly is precisely what justifies having no per-message rate limit.
+
+Two smaller things the port fixed. The contract used to be found by `^\s*\*\s{5}` — exactly five
+spaces, so reindenting the header by one would have emptied the contract and reported every live
+event as undocumented. And the adapter's `try`/`catch` was matched by `\{([^}]*)\}`, which stops
+at the first closing brace, so one nested object literal inside the `try` hid the adapter install
+from the rule that checks it degrades gracefully.
+
+One gap is recorded rather than closed: **the migrated gateway has no `allowRequest` origin check.**
+CORS does not govern a WebSocket upgrade — the `cors` option covers the polling transport only, so a
+client opening with `transports: ['websocket']` never passes through it. The sibling repo checks it;
+this one does not, so `upgradeOrigin` is off and its shim says why. Turning it on needs a change to
+`socket.ts`, not to the shim.
 
 ## Checking it
 

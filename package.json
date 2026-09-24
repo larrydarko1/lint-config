@@ -15,6 +15,10 @@
         "./eslint/electron": "./src/eslint/electron/index.js",
         "./eslint/fullstack": "./src/eslint/fullstack/index.js",
         "./eslint/presets": "./src/eslint/presets.js",
+        "./gates/api-standards": {
+            "types": "./src/gates/api-standards.d.ts",
+            "default": "./src/gates/api-standards.js"
+        },
         "./gates/audit": {
             "types": "./src/gates/audit.d.ts",
             "default": "./src/gates/audit.js"
@@ -118,6 +122,10 @@
         "./gates/tsconfigs": {
             "types": "./src/gates/tsconfigs.d.ts",
             "default": "./src/gates/tsconfigs.js"
+        },
+        "./gates/ws-standards": {
+            "types": "./src/gates/ws-standards.d.ts",
+            "default": "./src/gates/ws-standards.js"
         },
         "./lint-staged": "./src/lint-staged.js",
         "./prettier": "./src/prettier.js",

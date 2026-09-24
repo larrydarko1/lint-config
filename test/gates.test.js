@@ -13,7 +13,7 @@ import path from 'node:path';
 import { stripComments } from '../src/gates/strip-comments.js';
 import { createImportOrder } from '../src/gates/import-order.js';
 import { findRepoRoot } from '../src/gates/repo-root.js';
-import { braceBlock, callArgs, catchBodies, evalProduct, fnBody } from '../src/gates/source.js';
+import { braceBlock, callArgs, callSites, catchBodies, evalProduct, fnBody } from '../src/gates/source.js';
 
 test('stripComments blanks comments and keeps every offset', () => {
     const src = 'const a = 1; // note\n/* block */ const b = 2;\n';
@@ -136,6 +136,35 @@ test('findRepoRoot fails loudly rather than returning the filesystem root', () =
 });
 
 // ─── source.js — the five helpers both security gates carried a copy of ──────
+
+test('callSites reports where each call starts and ends', () => {
+    const source = 'io.use(a);\nio.use(b);\n';
+    assert.deepEqual(
+        callSites(source, 'io.use(').map((site) => [site.index, site.end, site.args]),
+        [
+            [0, 8, 'a'],
+            [11, 19, 'b'],
+        ],
+    );
+});
+
+test('callSites spans the whole call when the arguments nest', () => {
+    const source = 'io.use((socket, next) => { check({ a: (1) }); next(); });';
+    const [site] = callSites(source, 'io.use(');
+    assert.equal(site.end, source.length - 2);
+});
+
+test('callSites is what lets an order rule survive a reformat', () => {
+    // Anchoring on a closing `\n    });` instead would encode one day's
+    // indentation as the contract.
+    const oneLine = callSites('io.use(a);io.use(b);', 'io.use(').map((site) => site.index);
+    const wrapped = callSites('io.use(\n    a,\n);\nio.use(\n    b,\n);', 'io.use(').map((site) => site.index);
+    assert.equal(oneLine.length, wrapped.length);
+});
+
+test('callSites returns nothing for an unbalanced call rather than looping', () => {
+    assert.deepEqual(callSites('io.use((a, b', 'io.use('), []);
+});
 
 test('callArgs keeps a nested call whole', () => {
     const calls = callArgs('jwt.verify(token, secret, { algorithms: fn(a, b) });', 'jwt.verify(');

@@ -1,10 +1,13 @@
 /**
  * Reading structure out of source text without parsing it.
  *
- * The two full-stack security gates each carried byte-identical copies of these
- * five helpers, and the api and websocket gates carry three of them again. They
- * are here once because a gate that hand-rolls its own "find the arguments of
- * this call" is a gate that gets the nesting wrong in its own way.
+ * The two full-stack security gates each carried byte-identical copies of five
+ * of these, and the api and websocket gates carried their own span finders on
+ * top. They are here once because a gate that hand-rolls its own "find the
+ * arguments of this call" is a gate that gets the nesting wrong in its own way —
+ * and each of those copies did, differently: one stopped at the first `}` inside
+ * a `try`, another ended a middleware on `\n    });` and so encoded that day's
+ * indentation as the contract.
  *
  * WHY NOT A REAL PARSER. Everything here is asked of source that is TypeScript,
  * sometimes a `.vue` SFC, sometimes nginx configuration. A gate must keep
@@ -21,19 +24,34 @@
  */
 
 /**
- * The argument text of every `token(…)` call, bracket-balanced, so a nested call
- * or an object literal inside the arguments does not truncate the answer.
+ * @typedef {object} CallSite
+ * @property {number} index Byte offset of the first character of `token`.
+ * @property {number} end Byte offset of the matching `)`.
+ * @property {string} args The argument text between the parens.
+ */
+
+/**
+ * Every `token(…)` call in a file, with its position and its bracket-balanced
+ * argument text.
  *
- * `token` ends in the opening paren — `callArgs(src, 'jwt.verify(')` — which is
+ * `token` ends in the opening paren — `callSites(src, 'jwt.verify(')` — which is
  * what keeps `jwt.verifySomething(` from matching.
+ *
+ * THE POSITION IS THE POINT. Half the rules in the api and websocket gates are
+ * about ORDER — helmet before the first route, the rate limit before the JWT
+ * verify — and order is a byte offset. Both gates had grown their own span
+ * finder for it, and the websocket one carried a comment explaining that its
+ * first attempt anchored on a closing `\n    });` and so encoded that day's
+ * indentation as the contract. Counting brackets is the only version of this
+ * that survives a reformat.
  *
  * @param {string} source
  * @param {string} token A call prefix ending in `(`.
- * @returns {string[]} One entry per call, in source order; `[]` when there are none.
+ * @returns {CallSite[]} One entry per call, in source order; `[]` when there are none.
  */
-export function callArgs(source, token) {
-    /** @type {string[]} */
-    const calls = [];
+export function callSites(source, token) {
+    /** @type {CallSite[]} */
+    const sites = [];
     let i = 0;
 
     while ((i = source.indexOf(token, i)) !== -1) {
@@ -45,7 +63,7 @@ export function callArgs(source, token) {
             else if (source[j] === ')') {
                 depth -= 1;
                 if (depth === 0) {
-                    calls.push(source.slice(open + 1, j));
+                    sites.push({ index: i, end: j, args: source.slice(open + 1, j) });
                     i = j + 1;
                     closed = true;
                     break;
@@ -56,7 +74,19 @@ export function callArgs(source, token) {
         if (!closed) break;
     }
 
-    return calls;
+    return sites;
+}
+
+/**
+ * The argument text of every `token(…)` call, bracket-balanced, so a nested call
+ * or an object literal inside the arguments does not truncate the answer.
+ *
+ * @param {string} source
+ * @param {string} token A call prefix ending in `(`.
+ * @returns {string[]} One entry per call, in source order; `[]` when there are none.
+ */
+export function callArgs(source, token) {
+    return callSites(source, token).map((site) => site.args);
 }
 
 /**

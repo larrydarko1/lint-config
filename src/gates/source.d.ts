@@ -1,5 +1,17 @@
 /** Reading structure out of source text without parsing it. See source.js. */
 
+export interface CallSite {
+    /** Byte offset of the first character of the call. */
+    index: number;
+    /** Byte offset of the matching `)`. */
+    end: number;
+    /** The argument text between the parens. */
+    args: string;
+}
+
+/** Every `token(…)` call with its position and bracket-balanced arguments. `token` ends in `(`. */
+export declare function callSites(source: string, token: string): CallSite[];
+
 /** The argument text of every `token(…)` call, bracket-balanced. `token` ends in `(`. */
 export declare function callArgs(source: string, token: string): string[];
 
