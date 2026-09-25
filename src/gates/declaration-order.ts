@@ -65,9 +65,9 @@
  * reviewable.
  *
  * WHAT WAS DECIDED HERE. Five copies existed and the only differences were the
- * source roots, the import groups, and one rule: Fern's `isTestPath` also treats a
+ * source roots, the import groups, and one rule: one copy's `isTestPath` also treats a
  * top-level `tests/` directory as suites, where the full-stack copies matched only
- * colocated `__tests__`. Fern's is the superset and neither full-stack repo has a
+ * colocated `__tests__`. That one is the superset and neither full-stack repo has a
  * `tests/` directory under a source root, so it is the one that ships — the other
  * four projects' output is unchanged by it.
  */
@@ -150,8 +150,8 @@ export const TEST_CATEGORIES: string[] = ['imports', 'types', 'mocks', 'constant
  *      `type X = z.infer<typeof XSchema>`. Binning the schema as state would rule
  *      that pairing a violation and make a schemas/ directory unfixable without
  *      making it worse to read.
- *   2. SCREAMING_SNAKE IS CONFIG EVEN WHEN COMPUTED. `const FERN_HOME =
- *      path.join(os.homedir(), '.fern')` is configuration; the call in the
+ *   2. SCREAMING_SNAKE IS CONFIG EVEN WHEN COMPUTED. `const APP_HOME =
+ *      path.join(os.homedir(), '.app')` is configuration; the call in the
  *      initializer does not make it mutable state. The naming convention is the
  *      only signal that separates the two, so it is the one used.
  */
@@ -281,7 +281,7 @@ function classify(stmt: ts.Statement): string {
         ]);
         if (decls.some((d) => REACTIVE.has(callName(d.initializer) ?? ''))) return 'state';
         // SCREAMING_SNAKE is the repo's marker for config, even when it is computed
-        // (`const FERN_HOME = path.join(os.homedir(), '.fern')` is configuration, not state).
+        // (`const APP_HOME = path.join(os.homedir(), '.app')` is configuration, not state).
         const allShouty = decls.every((d) => ts.isIdentifier(d.name) && /^[A-Z][A-Z0-9_]*$/.test(d.name.text));
         if (allShouty) return 'constants';
         if (decls.every((d) => isConstantInit(d.initializer))) return 'constants';

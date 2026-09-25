@@ -32,7 +32,7 @@
  * Every handler containing its own failures (try/catch, `{ success, error }`)
  * is error-handling's rule, not this gate's.
  *
- * THREE COPIES, ONE GATE. Fern, Quartz and bamboo carried byte-identical
+ * THREE COPIES, ONE GATE. The three desktop apps carried byte-identical
  * copies but for one example in one message. Nothing needed reconciling; the
  * paths are options because they are paths.
  *

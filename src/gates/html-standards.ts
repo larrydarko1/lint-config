@@ -20,7 +20,7 @@
  * THREE RULES ONLY ONE FAMILY HAD, AND ALL THREE ARE FREE:
  *   - the zoom ban (full-stack) fires on `user-scalable=no` / `maximum-scale=1`,
  *     and a document with no viewport tag at all never reaches it;
- *   - the entry-module check (Mosaic alone) fires on the `<script type="module"
+ *   - the entry-module check (one full-stack copy alone) fires on the `<script type="module"
  *     src>` every one of these shells has, and all five resolve;
  *   - no remote subresources (desktop) found nothing in either web shell.
  *

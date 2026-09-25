@@ -1,6 +1,6 @@
 /**
  * SCSS/Vue style rules. The base is what every project agrees on; every place a
- * project deliberately departs (Quartz's rem spacing, Mosaic's generated tokens)
+ * project deliberately departs (rem spacing, generated tokens)
  * is an option rather than a fork of the file.
  */
 import { fileURLToPath } from 'node:url';

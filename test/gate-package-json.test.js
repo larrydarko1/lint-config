@@ -318,3 +318,86 @@ test('os and build targets in agreement pass', (t) => {
     });
     assert.equal(result.problems.length, 0, whats(result));
 });
+
+// ── 7. The lint toolchain comes from this package ───────────────────────────
+const SELF = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+const PROVIDED = { 'eslint': '10.11.0', 'eslint-plugin-vue': '10.11.0' };
+const USES_SELF = { ...GOOD, devDependencies: { [SELF.name]: 'file:../lint-config' } };
+const hoisted = (name, version) => ({ [`node_modules/${name}/package.json`]: { name, version } });
+
+test('a project that does not depend on this package is not held to rule 7', (t) => {
+    const result = run(
+        t,
+        { 'package.json': manifest({ ...GOOD, devDependencies: { eslint: '^10.0.0' } }) },
+        { provided: PROVIDED },
+    );
+    assert.equal(result.problems.length, 0, whats(result));
+});
+
+test('a CLI at the pinned version at the top of node_modules passes', (t) => {
+    const result = run(
+        t,
+        { 'package.json': manifest(USES_SELF), ...hoisted('eslint', '10.11.0') },
+        { provided: PROVIDED },
+    );
+    assert.equal(result.problems.length, 0, whats(result));
+});
+
+test('listing a package this one installs fails, in a workspace too', (t) => {
+    const result = run(
+        t,
+        {
+            'package.json': manifest({
+                ...USES_SELF,
+                devDependencies: { ...USES_SELF.devDependencies, eslint: '^10.0.0' },
+                workspaces: ['web'],
+            }),
+            'web/package.json': manifest({
+                name: 'web',
+                private: true,
+                devDependencies: { 'eslint-plugin-vue': '^10.0.0' },
+            }),
+            ...hoisted('eslint', '10.11.0'),
+        },
+        { provided: PROVIDED },
+    );
+    assert.match(whats(result), /devDependencies\.eslint is installed by @larrydarko\/lint-config/);
+    assert.equal(result.problems.find((p) => /eslint-plugin-vue/.test(p.what))?.file, 'web/package.json');
+});
+
+test('a CLI missing from the top of node_modules fails and names install-links', (t) => {
+    const result = run(t, { 'package.json': manifest(USES_SELF) }, { provided: PROVIDED });
+    assert.match(whats(result), /`eslint` is not installed at the top of node_modules/);
+    assert.match(result.problems[0].why, /install-links=true/);
+});
+
+test('a CLI at a different version from the pin fails', (t) => {
+    const result = run(
+        t,
+        { 'package.json': manifest(USES_SELF), ...hoisted('eslint', '10.0.3') },
+        { provided: PROVIDED },
+    );
+    assert.match(whats(result), /`eslint` resolves to 10\.0\.3, but @larrydarko\/lint-config pins 10\.11\.0/);
+});
+
+test('a provided package that is not a CLI need not be at the top level', (t) => {
+    const result = run(
+        t,
+        { 'package.json': manifest(USES_SELF), ...hoisted('eslint', '10.11.0') },
+        { provided: { ...PROVIDED, 'stylelint-scss': '7.3.0' } },
+    );
+    assert.equal(result.problems.length, 0, whats(result));
+});
+
+test('by default, what is provided is read from this package: typescript stays the project’s', (t) => {
+    const clis = ['eslint', 'prettier', 'stylelint', '@commitlint/cli', 'lint-staged', 'husky'];
+    const tree = Object.assign({}, ...clis.map((name) => hoisted(name, SELF.dependencies[name])));
+    const pkg = { ...GOOD, devDependencies: { ...USES_SELF.devDependencies, typescript: '~6.0.2' } };
+    const tildeAllowed = { typescript: 'the compiler' };
+    const clean = run(t, { 'package.json': manifest(pkg), ...tree }, { tildeAllowed });
+    assert.equal(clean.problems.length, 0, whats(clean));
+
+    pkg.devDependencies.prettier = '^3.0.0';
+    const listed = run(t, { 'package.json': manifest(pkg), ...tree }, { tildeAllowed });
+    assert.match(whats(listed), /devDependencies\.prettier is installed by/);
+});

@@ -13,7 +13,7 @@
  *
  * A directory that does not exist is skipped rather than throwing, because that is
  * what makes one options object work for a family whose members have different
- * services — Orchid walks `api` and `worker`, Mosaic walks those and `ingestor`.
+ * services — one walks `api` and `worker`, another adds a third.
  */
 import fs from 'node:fs';
 import path from 'node:path';

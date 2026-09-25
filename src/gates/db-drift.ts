@@ -139,7 +139,7 @@ export type DbDriftInput = {
     root: string;
     /** The index manifest — the one definition site. Imported, not parsed. */
     manifest: string;
-    /** How the bootstrap migration imports it, e.g. `@orchid/shared/db/indexes`. */
+    /** How the bootstrap migration imports it, e.g. `@acme/shared/db/indexes`. */
     manifestSpecifier: string;
     /** The export holding the collection list. Default: `COLLECTIONS`. */
     collectionsExport?: string;

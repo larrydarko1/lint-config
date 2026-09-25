@@ -31,6 +31,13 @@
  *     being total: a field nobody placed sorts nowhere and is checked by
  *     nothing. Placing it costs one line.
  *
+ * THE TOOLCHAIN RULE (7) is about this package itself: a project that depends
+ * on it lists none of what it installs, and the CLIs it runs resolve to the
+ * versions it pins. Those pins are exact, which rule 2 would fail in a project —
+ * and rightly, since a project's lockfile pins its tree. A published package's
+ * lockfile is read by nobody who installs it, so an exact pin is the only way
+ * it can hold every project to one version of each linter.
+ *
  * NOT DECIDED HERE. `CANONICAL_ORDER` is the list both families already agreed
  * on, with one genuine disagreement resolved against `sort-package-json`
  * itself, which the standard names as the authority: `packageManager` comes
@@ -42,6 +49,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { PROJECT_CLIS, SELF_NAME, providedPackages } from '../toolchain.ts';
 import { REPO_ROOT } from './repo-root.ts';
 import { createGateReport } from './report.ts';
 
@@ -73,6 +81,11 @@ export type PackageJsonOptions = {
     tildeAllowed?: Record<string, string>;
     /** Where the electron-vite config lives. Absent means the Electron rules stay silent. */
     electronViteConfig?: string;
+    /**
+     * What this package installs so the project does not, name → the exact version it
+     * pins. Defaults to its own manifest; only consulted when the project depends on it.
+     */
+    provided?: Record<string, string>;
 };
 
 export type PackageJsonInput = Omit<PackageJsonOptions, 'standard' | 'root'> & { root: string };
@@ -167,6 +180,7 @@ export function inspectPackageJson({
     canonicalOrder = CANONICAL_ORDER,
     tildeAllowed = {},
     electronViteConfig = 'electron.vite.config.ts',
+    provided = providedPackages(),
 }: PackageJsonInput): PackageJsonInspection {
     const problems: PackageJsonProblem[] = [];
     const fail = (file: string, what: string, why: string): void => {
@@ -374,6 +388,57 @@ export function inspectPackageJson({
         }
     }
 
+    // ── 7. The lint toolchain comes from this package ───────────────────────
+    // Only in a project that depends on it. A second copy in the project is not
+    // a harmless duplicate: the project's copy is the one npm puts at the top of
+    // node_modules, so scripts, hooks and the editor run it — not the version the
+    // configs were written against — and five projects drift onto five versions.
+    const dependsOnSelf = [rootPkg.dependencies, rootPkg.devDependencies].some(
+        (deps) => deps !== undefined && Object.hasOwn(deps, SELF_NAME),
+    );
+
+    if (dependsOnSelf) {
+        for (const { file, pkg } of manifests) {
+            for (const field of ['dependencies', 'devDependencies'] as const) {
+                for (const name of Object.keys(pkg[field] ?? {})) {
+                    if (Object.hasOwn(provided, name)) {
+                        fail(
+                            file,
+                            `${field}.${name} is installed by ${SELF_NAME}`,
+                            'Remove it. The project copy is the one scripts, git hooks and the editor would run, and version bumps belong in one place.',
+                        );
+                    }
+                }
+            }
+        }
+
+        // The CLIs have to reach the top level for anything to find them, and
+        // npm only hoists them there from a registry or tarball install. A `file:`
+        // dependency is a symlink, and a symlinked package's dependencies stay
+        // inside it.
+        for (const name of Object.keys(PROJECT_CLIS)) {
+            const pinned = provided[name];
+            if (pinned === undefined) continue;
+            const manifest = path.join('node_modules', name, 'package.json');
+            if (!fs.existsSync(path.join(root, manifest))) {
+                fail(
+                    manifest,
+                    `\`${name}\` is not installed at the top of node_modules`,
+                    `Scripts, git hooks and editors look for it there. If ${SELF_NAME} is a \`file:\` dependency, set \`install-links=true\` in .npmrc so npm installs it as a copy rather than a symlink, then reinstall.`,
+                );
+                continue;
+            }
+            const { version } = read(manifest);
+            if (version !== pinned) {
+                fail(
+                    manifest,
+                    `\`${name}\` resolves to ${String(version)}, but ${SELF_NAME} pins ${pinned}`,
+                    `Another package put its own copy at the top of node_modules, so that is the one scripts, hooks and editors run. \`npm explain ${name}\` names it.`,
+                );
+            }
+        }
+    }
+
     return { problems, manifests: manifests.map((m) => m.file) };
 }
 
@@ -387,7 +452,7 @@ export function checkPackageJson({ root = REPO_ROOT, standard, ...rest }: Packag
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
     report.done({
-        summary: `${manifests.length} manifest(s): required metadata, semver ranges, canonical field order${fs.existsSync(path.join(root, rest.electronViteConfig ?? 'electron.vite.config.ts')) ? ', Electron entry point and packaging' : ''}.`,
+        summary: `${manifests.length} manifest(s): required metadata, semver ranges, canonical field order, the lint toolchain${fs.existsSync(path.join(root, rest.electronViteConfig ?? 'electron.vite.config.ts')) ? ', Electron entry point and packaging' : ''}.`,
         notMachineChecked:
             'Dependency CATEGORY grouping — JSON has no comments, so the groups the standard asks for cannot be read back out of the file. Review that by hand.',
     });

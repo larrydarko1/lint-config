@@ -15,10 +15,10 @@
  * the same answer every time, and four rules that only one family had turned out to
  * cost nothing anywhere:
  *   - a composable file exporting its own name (desktop): zero findings in either
- *     full-stack repo, which has `useDashboardUploads.ts` files of its own;
- *   - SFC block order (Mosaic + desktop): zero findings in Orchid;
- *   - the stale-baseline rules (full-stack): three real findings in Fern and one in
- *     Quartz, which is exactly the point of them.
+ *     full-stack repo, which has `use*.ts` files of its own;
+ *   - SFC block order (one full-stack copy + desktop): zero findings in the other;
+ *   - the stale-baseline rules (full-stack): four real findings across the desktop
+ *     repos, which is exactly the point of them.
  * A fifth, the full-stack habit of reading `.scss` partials as well as SFC style
  * blocks, is carried over but is a no-op in every repo today: both families write
  * `//` line comments in a standalone partial and reserve `/* ... *\/` for the style
@@ -38,13 +38,13 @@
  * when a new file crosses the line or a listed one grows. Three rules keep the list
  * honest in the other direction: a baselined file back under the cap must lose its
  * entry, and an entry naming a file that no longer exists is rot. Without them the
- * list only ever grows stale — Fern's `AudioViewer.vue` was baselined at 514 and is
- * 305 today, so its entry was licensing 209 lines of regrowth.
+ * list only ever grows stale — one component was baselined at 514 lines and had
+ * shrunk to 305, so its entry was licensing 209 lines of regrowth.
  *
  * THE UNIT IS NON-BLANK TEMPLATE-AND-SCRIPT LINES, and it is deliberately not an
  * option. The copies disagreed about it — the full-stack pair skips blank lines and
  * drops the `<style>` block of an SFC, the desktop three counted what `wc -l`
- * counts — and the gap is large enough to matter: Fern's `AiMessageList.vue` is 1098
+ * counts — and the gap is large enough to matter: one real component is 1098
  * lines one way and 490 the other. The standard settles it rather than taste:
  * "files over ~400 lines (template and script only, style can be ignored)", and the
  * SCSS standard says in as many words that no gate counts stylesheet lines and none

@@ -164,6 +164,10 @@
             "types": "./dist/gates/ws-standards.d.ts",
             "default": "./dist/gates/ws-standards.js"
         },
+        "./knip": {
+            "types": "./dist/knip.d.ts",
+            "default": "./dist/knip.js"
+        },
         "./lint-staged": {
             "types": "./dist/lint-staged.d.ts",
             "default": "./dist/lint-staged.js"
@@ -191,51 +195,37 @@
         "check:package": "node scripts/check-package.js"
     },
     "dependencies": {
-        "@commitlint/config-conventional": "^21.2.2",
-        "@eslint/js": "^10.0.1",
-        "@intlify/eslint-plugin-vue-i18n": "^4.5.1",
-        "@typescript-eslint/utils": "^8.70.1",
-        "@vitest/eslint-plugin": "^1.6.27",
-        "@vue/compiler-sfc": "^3.5.43",
-        "eslint-config-prettier": "^10.1.8",
-        "eslint-import-resolver-typescript": "^4.4.5",
-        "eslint-plugin-import-x": "^4.17.1",
-        "eslint-plugin-vue": "^10.11.0",
-        "eslint-plugin-vuejs-accessibility": "^2.6.0",
-        "globals": "^17.12.0",
+        "@commitlint/cli": "21.2.3",
+        "@commitlint/config-conventional": "21.2.3",
+        "@eslint/js": "10.0.1",
+        "@intlify/eslint-plugin-vue-i18n": "4.5.1",
+        "@typescript-eslint/utils": "8.70.1",
+        "@vitest/eslint-plugin": "1.6.27",
+        "@vue/compiler-sfc": "3.5.43",
+        "eslint": "10.11.0",
+        "eslint-config-prettier": "10.1.8",
+        "eslint-import-resolver-typescript": "4.4.5",
+        "eslint-plugin-import-x": "4.17.1",
+        "eslint-plugin-vue": "10.11.0",
+        "eslint-plugin-vuejs-accessibility": "2.6.0",
+        "globals": "17.12.0",
+        "husky": "9.1.7",
         "jscpd": "5.3.2",
-        "jsonc-eslint-parser": "^3.3.0",
-        "knip": "^6.38.0",
-        "postcss-html": "^2.0.0",
-        "postcss-scss": "^4.0.9",
-        "stylelint-config-standard-scss": "^17.0.0",
-        "stylelint-declaration-strict-value": "^1.12.1",
-        "stylelint-scss": "^7.2.0",
+        "jsonc-eslint-parser": "3.3.0",
+        "knip": "6.38.0",
+        "lint-staged": "17.5.1",
+        "postcss-html": "2.0.0",
+        "postcss-scss": "4.0.9",
+        "prettier": "3.9.9",
+        "stylelint": "17.15.0",
+        "stylelint-config-standard-scss": "17.0.0",
+        "stylelint-declaration-strict-value": "1.12.1",
+        "stylelint-scss": "7.3.0",
         "typescript": "~6.0.2",
-        "typescript-eslint": "^8.70.1",
-        "yaml": "^2.9.1"
-    },
-    "peerDependencies": {
-        "@commitlint/cli": "^21.2.2",
-        "eslint": "^10.0.0",
-        "prettier": "^3.8.0",
-        "stylelint": "^17.0.0"
-    },
-    "peerDependenciesMeta": {
-        "@commitlint/cli": {
-            "optional": true
-        },
-        "stylelint": {
-            "optional": true
-        },
-        "eslint": {
-            "optional": true
-        }
+        "typescript-eslint": "8.70.1",
+        "yaml": "2.9.1"
     },
     "devDependencies": {
-        "@types/node": "^24.13.6",
-        "eslint": "^10.11.0",
-        "prettier": "^3.9.8",
-        "stylelint": "^17.15.0"
+        "@types/node": "^24.13.6"
     }
 }

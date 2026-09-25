@@ -40,7 +40,7 @@
  *   - `cycles`. A cycle is a design smell about direction, not a claim that anything
  *     is unreachable — every file in one is very much alive. It wants its own check.
  *   - `catalog` / `catalogReferences`. pnpm catalogs, in npm-workspace repos.
- * Also out of scope, in knip.json rather than here: SCSS. knip does not follow
+ * Also out of scope, in the knip config rather than here: SCSS. knip does not follow
  * `@use`, so every partial imported by `index.scss` came back unused. Eleven false
  * positives is how a gate teaches you to ignore it; stylelint owns those files.
  *
@@ -125,7 +125,7 @@ export const CATEGORIES: Record<string, DeadCodeCategory> = {
     },
     dependencies: {
         label: 'Unused dependencies',
-        fix: 'Declared in this package.json, imported nowhere in that workspace. Uninstall it — it costs install time, image size and audit surface for nothing. If the code that needs it lives in another workspace, move the declaration there rather than relying on npm hoisting. If it is loaded indirectly (a native backend, a builder hook), list it under `ignoreDependencies` in knip.json with a reason.',
+        fix: 'Declared in this package.json, imported nowhere in that workspace. Uninstall it — it costs install time, image size and audit surface for nothing. If the code that needs it lives in another workspace, move the declaration there rather than relying on npm hoisting. If it is loaded indirectly (a native backend, a builder hook), list it under `ignoreDependencies` in the knip config with a reason.',
     },
     devDependencies: {
         label: 'Unused devDependencies',

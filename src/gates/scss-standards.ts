@@ -9,7 +9,7 @@
  * WHY THIS ONE WAS THE HARDEST. Five copies, 191 to 436 lines, and unlike every
  * gate before it the copies did not agree on WHAT they were checking. They
  * agreed on the principles and disagreed on the spelling, because the projects
- * themselves genuinely differ — Fern ships themes as JSON files users hand-edit,
+ * themselves genuinely differ — one ships themes as JSON files users hand-edit,
  * which is a product feature, not a style preference.
  *
  * THE FINDING THAT MADE IT TRACTABLE. Two roles hide behind the word "barrel",
@@ -26,7 +26,7 @@
  * different starting points. The one-file check in the desktop copy is the
  * degenerate case of the graph walk in the newest copy.
  *
- * AND IT CAUGHT A REAL BUG. Orchid injects `_variables.scss`, and
+ * AND IT CAUGHT A REAL BUG. One project injected `_variables.scss`, and
  * `_variables.scss` held the five `[data-theme='…'] { @include emit-theme(…) }`
  * blocks. Measured on the real build: every palette appeared 47 times in the
  * production CSS — once per SFC plus once for the barrel — and moving the

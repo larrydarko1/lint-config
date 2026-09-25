@@ -13,9 +13,9 @@
  * identically whether the author reasoned about it or never thought about it at
  * all, which makes it worse than no comment, because it silences the check.
  *
- * Orchid enforced the comment's CONTENT and Fern only its presence — while Fern's
- * own failure message said "it cannot ask for the reason. Write it." Orchid's
- * implementation is what both were describing, so it is the one that ships.
+ * One copy enforced the comment's CONTENT and the other only its presence — while
+ * the other's own failure message said "it cannot ask for the reason. Write it."
+ * The first is what both were describing, so it is the one that ships.
  */
 import fs from 'node:fs';
 import path from 'node:path';

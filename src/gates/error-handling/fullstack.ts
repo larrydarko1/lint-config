@@ -29,7 +29,7 @@
  *       interceptor translates them and falls back for the ones it does not know.
  *   9.  SWALLOWS STATE A REASON — shared with every family, in ../swallowed-errors.ts.
  *
- * Orchid and Mosaic differed by 54 lines and not one was logic: which services
+ * The two full-stack copies differed by 54 lines and not one was logic: which services
  * exist, which codes are parse-level, which are security events, and whether the
  * handler has a Multer branch. Those are the options below; everything else is
  * shared.

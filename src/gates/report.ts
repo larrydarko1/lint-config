@@ -12,10 +12,10 @@
  * of unexplained "invalid" lines: a gate whose failures cannot be justified in a
  * sentence is a gate that will be switched off the first time it is inconvenient.
  *
- * TWO CHOICES MERGED. Failures are grouped by file (Fern's format — it reads far
- * better when one file has twenty problems), and a passing run prints the
- * `Not machine-checked` footer (Orchid's convention, used by 13 of its 21 gates
- * against Fern's 4 of 16). The footer is the more useful half of a gate's output:
+ * TWO CHOICES MERGED. Failures are grouped by file (the desktop family's format —
+ * it reads far better when one file has twenty problems), and a passing run prints
+ * the `Not machine-checked` footer (the full-stack family's convention). The
+ * footer is the more useful half of a gate's output:
  * it says what a green tick does NOT prove, so nobody mistakes the gate for the
  * standard.
  */

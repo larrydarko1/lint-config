@@ -58,7 +58,7 @@ export type ImportAnalysis = {
 };
 
 export type ImportOrderOptions = {
-    /** The npm scope this monorepo's own packages use, e.g. `'@orchid/'`. */
+    /** The npm scope this monorepo's own packages use, e.g. `'@acme/'`. */
     workspaceScope?: string;
     /** tsconfig `paths` entries that look like packages but point into this repo. */
     localAliases?: string[];
@@ -83,7 +83,7 @@ const BUILTINS = new Set(builtinModules);
 
 /**
  * @param [options.workspaceScope] The npm scope this monorepo's own packages use
- *   (`'@orchid/'`). Set it and those imports get their own group between external and local;
+ *   (`'@acme/'`). Set it and those imports get their own group between external and local;
  *   leave it out and there are three groups, which is what a single-package repo wants.
  * @param [options.localAliases=[]] tsconfig `paths` entries that look like npm
  *   packages but point into this repo (`'@test-utils'`), so they sort as local.

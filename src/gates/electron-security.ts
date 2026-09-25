@@ -35,10 +35,6 @@
  *  13.  NO REGEXP BUILT FROM UNESCAPED INPUT.
  *  14.  NO TLS OR CERTIFICATE OVERRIDES.
  *
- * THREE COPIES, ONE GATE. Fern, Quartz and bamboo carried the same 400 lines,
- * differing only in prose ("a note", "a cell") and in the `v-html` allowlist.
- * The prose is now generic and the allowlist is the one option that matters.
- *
  * EVERY RULE NOW READS ITS OWN CODE AND NOTHING ELSE. The copies ended each
  * window, handler and privileged-scheme list on `\n    })` or `\n])` — four
  * spaces, or none, of that day's indentation — so a window built one level

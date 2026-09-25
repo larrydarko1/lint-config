@@ -1,7 +1,7 @@
 /**
  * The full-stack family's standards: the rules that assume workspaces for frontend,
- * api, worker and shared, a database behind the api, and a websocket gateway. Orchid
- * and Mosaic kept their own copies of all of these.
+ * api, worker and shared, a database behind the api, and a websocket gateway. Each
+ * full-stack project used to keep its own copy of all of these.
  *
  * `fullstackStandards()` returns the blocks in the order they have always been
  * applied. The selectors the project composes into its own per-area

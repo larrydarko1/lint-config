@@ -24,7 +24,7 @@
  *   5.   A SWALLOWED FAILURE STATES ITS REASON — shared with every other family,
  *        so it lives in ../swallowed-errors.ts.
  *
- * Across Fern, Quartz and bamboo this gate differed by 10–38 lines and not one
+ * Across the three desktop apps this gate differed by 10–38 lines and not one
  * of them was logic: `cleanupRequired` and the handler counts quoted in the
  * comments. So everything below is shared, and that list is the only option.
  */

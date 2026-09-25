@@ -47,7 +47,7 @@ export type LarryOptions = {
      */
     importExtensions?: boolean | ImportExtensionsOptions;
     /**
-     * A dedicated tsconfig for tests (Fern's `./tsconfig.test.json`). Without it tests use the
+     * A dedicated tsconfig for tests (e.g. `./tsconfig.test.json`). Without it tests use the
      * project service like everything else.
      */
     testProject?: string;

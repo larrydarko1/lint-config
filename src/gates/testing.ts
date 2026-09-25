@@ -25,9 +25,9 @@
  * somewhere else.
  *
  * TWO IMPROVEMENTS TAKEN FROM ONE COPY EACH, because they are fixes rather than
- * preferences: a Playwright config is demanded only once a spec exists (Mosaic) —
+ * preferences: a Playwright config is demanded only once a spec exists —
  * a gate that fails for something nobody has written teaches people to switch gates
- * off; and `git ls-files` output is filtered through `existsSync` (Quartz), because
+ * off; and `git ls-files` output is filtered through `existsSync`, because
  * `--cached` still lists a file whose deletion has not been committed, and reading
  * one crashes the gate on a tree that is merely mid-refactor.
  *

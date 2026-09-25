@@ -41,7 +41,7 @@ const noEnvFallbackInScripts = {
 const noUntypedCollection = {
     selector: "CallExpression[callee.property.name='collection'][arguments.0.type='Literal']:not([typeArguments])",
     message:
-        "Give every collection its document type: `db.collection<MediaDoc>('Media')`, with the Doc types from @orchid/shared/db/collections. Untyped, every read is `any`-shaped and a write with a misspelt or wrong-typed field compiles fine — which is how the worker never used MediaDoc.",
+        "Give every collection its document type: `db.collection<MediaDoc>('Media')`, with the Doc types from the shared package's db/collections. Untyped, every read is `any`-shaped and a write with a misspelt or wrong-typed field compiles fine — which is how the worker never used MediaDoc.",
 };
 
 const noExtraMongoClient = {

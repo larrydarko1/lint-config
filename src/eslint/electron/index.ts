@@ -1,6 +1,6 @@
 /**
  * The Electron family's standards: the rules that assume a main / preload / renderer
- * split, a sandboxed window and IPC as the only way across. Fern, Quartz and bamboo
+ * split, a sandboxed window and IPC as the only way across. The desktop apps
  * kept byte-identical copies of every one of these files, which is the duplication
  * this package exists to end.
  *
@@ -32,7 +32,7 @@ export type ElectronStandardsOptions = {
     security?: Parameters<typeof securityStandards>[0];
     /** See html.ts — `globalStylesheet`. */
     html?: Parameters<typeof htmlStandards>[0];
-    /** See i18n.ts. Pass `false` for a single-language app (Quartz). */
+    /** See i18n.ts. Pass `false` for a single-language app. */
     i18n?: Parameters<typeof i18nStandards>[0] | false;
 };
 

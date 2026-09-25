@@ -6,9 +6,9 @@
  * it to whatever folder happens to be open. Resolving it from the filesystem makes
  * the answer the same in all three.
  *
- * The two families had two different answers, and neither generalises. Orchid walked
- * up for a `package.json` declaring `workspaces`, which finds nothing in a
- * single-package repo like Fern. Fern used `../..` from its own file, which is
+ * The two families had two different answers, and neither generalises. The full-stack
+ * copy walked up for a `package.json` declaring `workspaces`, which finds nothing in a
+ * single-package repo. The desktop copy used `../..` from its own file, which is
  * correct only while the file stays exactly two levels down. This walks up for the
  * markers in priority order, so both layouts land on the same directory they always
  * did — and a file that moves does not silently change the answer.
