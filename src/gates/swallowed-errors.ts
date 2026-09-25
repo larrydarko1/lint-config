@@ -102,5 +102,3 @@ export function countSwallows(options: SwallowScanOptions): number {
     }
     return total;
 }
-
-export default findSwallowedErrors;

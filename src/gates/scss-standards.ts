@@ -928,5 +928,3 @@ export function checkScssStandards({ root = REPO_ROOT, standard, ...rest }: Scss
             'Whether a token is the RIGHT token, whether a palette is legible, whether a pattern had earned promotion to a partial, grid-vs-flex, line-height judgement. stylelint owns BEM, unit allow-lists and declaration-strict-value.',
     });
 }
-
-export default checkScssStandards;

@@ -6,10 +6,11 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { packageBin } from '../src/gates/bin.ts';
 import { stripComments } from '../src/gates/strip-comments.ts';
 import { createImportOrder } from '../src/gates/import-order.ts';
 import { findRepoRoot } from '../src/gates/repo-root.ts';
@@ -355,4 +356,13 @@ test('a member or a longer name is not the declaration', () => {
 test('a name that is not an identifier is refused, not turned into a regex', () => {
     assert.equal(declaredFunction('function a() {}', 'a|b'), null);
     assert.equal(declaredBody('function a() {}', '('), '');
+});
+
+test('packageBin finds the knip and jscpd this package depends on, not a project copy', () => {
+    for (const pkg of ['knip', 'jscpd']) {
+        const bin = packageBin(pkg);
+        assert.ok(existsSync(bin), `${pkg}: ${bin} does not exist`);
+        assert.ok(bin.startsWith(path.resolve(import.meta.dirname, '..')), `${pkg} resolved outside this package`);
+    }
+    assert.throws(() => packageBin('knip', 'nope'), /no `nope` binary/);
 });

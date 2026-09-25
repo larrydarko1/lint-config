@@ -4,7 +4,7 @@ import a11y from 'eslint-plugin-vuejs-accessibility';
  * @param [options.globalStylesheet=['src/renderer/App.vue']] Components that host the
  *   app-wide stylesheet, where a `<style>` block must NOT be scoped.
  */
-export const html = (options: { globalStylesheet?: string[] } = {}) => {
+export const htmlStandards = (options: { globalStylesheet?: string[] } = {}) => {
     const { globalStylesheet = ['src/renderer/App.vue'] } = options;
 
     return [
@@ -49,5 +49,3 @@ export const html = (options: { globalStylesheet?: string[] } = {}) => {
             : []),
     ];
 };
-
-export default html;

@@ -1,6 +1,6 @@
 import vitest from '@vitest/eslint-plugin';
 
-export default [
+export const testingStandards = [
     {
         files: ['tests/**/*.ts', '**/*.test.ts', '**/*.spec.ts'],
         plugins: { vitest },

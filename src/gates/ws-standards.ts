@@ -722,5 +722,3 @@ export function checkWsStandards({ root = REPO_ROOT, standard, ...rest }: WsStan
             'Whether a given feature should be a socket at all rather than REST, whether a payload is small enough to push, whether the connection bucket’s capacity is the right number, or whether a reconnect resubscribes to everything it was watching.',
     });
 }
-
-export default checkWsStandards;

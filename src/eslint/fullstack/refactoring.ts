@@ -2,7 +2,7 @@
  * @param [options.markerFiles=['eslint.config.js']] Files that QUOTE the deferral
  *   markers — the config and the gate that enforce them — so the ban must not fire on themselves.
  */
-export const refactoring = (options: { markerFiles?: string[] } = {}) => {
+export const refactoringStandards = (options: { markerFiles?: string[] } = {}) => {
     const { markerFiles = ['eslint.config.js'] } = options;
 
     return [
@@ -44,5 +44,3 @@ export const refactoring = (options: { markerFiles?: string[] } = {}) => {
         { files: markerFiles, rules: { 'no-warning-comments': 'off' } },
     ];
 };
-
-export default refactoring;

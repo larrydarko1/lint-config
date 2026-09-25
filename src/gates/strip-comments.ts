@@ -47,5 +47,3 @@ export function stripComments(source: string): string {
 
     return out;
 }
-
-export default stripComments;

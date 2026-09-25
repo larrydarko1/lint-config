@@ -1,6 +1,6 @@
 import a11y from 'eslint-plugin-vuejs-accessibility';
 
-export default [
+export const htmlStandards = [
     {
         files: ['frontend/src/**/*.vue'],
         plugins: { a11y },

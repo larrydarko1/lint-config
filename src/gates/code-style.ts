@@ -427,5 +427,3 @@ export function checkCodeStyle(options: CodeStyleOptions): void {
             'whether a comment explains WHY rather than what, whether a header earns its place, whether a file really is one concern, whether a name means anything beyond being long enough.',
     });
 }
-
-export default checkCodeStyle;

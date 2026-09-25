@@ -835,5 +835,3 @@ export function checkElectronSecurity({ root = REPO_ROOT, standard, ...rest }: E
             'Whether a v-html or sanitizer reason is still true, whether a permission allowlist grants the right permission, whether a guard before openExternal covers the path the call actually takes, whether a boundary check is correct (its unit tests own that), and anything only observable at runtime — a window a library opens, or a navigation Chromium starts itself.',
     });
 }
-
-export default checkElectronSecurity;

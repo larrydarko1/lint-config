@@ -8,15 +8,15 @@
  * The selectors the project composes into its own per-area `no-restricted-syntax`
  * blocks are re-exported individually below.
  */
-import env from './env.ts';
-import html from './html.ts';
-import i18n from './i18n.ts';
-import logging from './logging.ts';
-import refactoring from './refactoring.ts';
-import security from './security.ts';
-import testing from './testing.ts';
-import typescriptStandards from './typescript.ts';
-import vueStandards from './vue.ts';
+import { envStandards } from './env.ts';
+import { htmlStandards } from './html.ts';
+import { i18nStandards } from './i18n.ts';
+import { loggingStandards } from './logging.ts';
+import { refactoringStandards } from './refactoring.ts';
+import { securityStandards } from './security.ts';
+import { testingStandards } from './testing.ts';
+import { typescriptStandards } from './typescript.ts';
+import { vueStandards } from './vue.ts';
 
 export { bannedCryptoModules } from './security.ts';
 export { loggerCallSelectors } from './logging.ts';
@@ -29,27 +29,25 @@ export { functionContractsPlugin } from './function-contracts.ts';
 
 export type ElectronStandardsOptions = {
     /** See security.ts — `vHtmlAllowed`. */
-    security?: Parameters<typeof security>[0];
+    security?: Parameters<typeof securityStandards>[0];
     /** See html.ts — `globalStylesheet`. */
-    html?: Parameters<typeof html>[0];
+    html?: Parameters<typeof htmlStandards>[0];
     /** See i18n.ts. Pass `false` for a single-language app (Quartz). */
-    i18n?: Parameters<typeof i18n>[0] | false;
+    i18n?: Parameters<typeof i18nStandards>[0] | false;
 };
 
 export function electronStandards(options: ElectronStandardsOptions = {}) {
     const { security: securityOptions, html: htmlOptions, i18n: i18nOptions } = options;
 
     return [
-        ...security(securityOptions),
-        ...logging,
+        ...securityStandards(securityOptions),
+        ...loggingStandards,
         ...typescriptStandards,
-        ...env,
-        ...html(htmlOptions),
+        ...envStandards,
+        ...htmlStandards(htmlOptions),
         ...vueStandards,
-        ...(i18nOptions === false ? [] : i18n(i18nOptions)),
-        ...refactoring,
-        ...testing,
+        ...(i18nOptions === false ? [] : i18nStandards(i18nOptions)),
+        ...refactoringStandards,
+        ...testingStandards,
     ];
 }
-
-export default electronStandards;

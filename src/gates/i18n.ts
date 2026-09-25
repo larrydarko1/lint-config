@@ -260,5 +260,3 @@ export function checkI18n(options: I18nGateOptions): void {
             `plural/placeholder/array shapes consistent, createI18n options intact.`,
     );
 }
-
-export default checkI18n;

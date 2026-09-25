@@ -255,5 +255,3 @@ export function createImportOrder(options: ImportOrderOptions = {}): ImportOrder
 
     return { IMPORT_GROUPS, checkImportsInFile, fixImportsInFile };
 }
-
-export default createImportOrder;

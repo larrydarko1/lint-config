@@ -13,7 +13,7 @@ export const loggerCallSelectors = [
     },
 ];
 
-export default [
+export const loggingStandards = [
     {
         files: ['src/**/*.{ts,vue}'],
         rules: { 'no-console': 'error' },

@@ -128,7 +128,7 @@ export const apiBannedImports = [
 /** Frontend selectors — the client side of the same wire contract. */
 export const frontendSelectors = [noApiErrorsFieldType, noApiErrorsRender];
 
-export default [
+export const apiStandards = [
     {
         files: ['api/src/**/*.ts'],
         ignores: ['**/__tests__/**', '**/lib/config.ts'],

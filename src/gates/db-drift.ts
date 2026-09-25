@@ -1040,5 +1040,3 @@ export async function checkDbDrift({ root = REPO_ROOT, standard, ...rest }: DbDr
 
     if (report.count === 0) for (const warning of warnings) console.warn(`\n⚠ ${warning}`);
 }
-
-export default checkDbDrift;

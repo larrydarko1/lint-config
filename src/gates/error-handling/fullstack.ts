@@ -623,5 +623,3 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
             'for the UI to act on.',
     });
 }
-
-export default checkFullstackErrorHandling;

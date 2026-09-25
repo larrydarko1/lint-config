@@ -769,5 +769,3 @@ export function checkDocker({ root = REPO_ROOT, standard, ...rest }: DockerOptio
             "Whether a layer is ordered as cheaply as it could be, whether the base image is the right one for the workload, or whether an image is as small as it should be. `docker build --check` runs BuildKit's own linter over each image where a Docker daemon exists.",
     });
 }
-
-export default checkDocker;

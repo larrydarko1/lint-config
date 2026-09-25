@@ -21,7 +21,7 @@ export const sharedPackageBannedImports = {
     ],
 };
 
-export default [
+export const typescriptStandards = [
     {
         files: [
             'api/src/**/*.ts',

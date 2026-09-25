@@ -60,5 +60,3 @@ export function walkFiles(root: string, dirs: string | string[], options: WalkOp
     for (const dir of Array.isArray(dirs) ? dirs : [dirs]) visit(dir);
     return out.sort();
 }
-
-export default walkFiles;

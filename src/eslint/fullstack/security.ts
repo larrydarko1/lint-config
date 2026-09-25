@@ -25,7 +25,7 @@ export const bannedCryptoModules = [
  * @param [options.vHtmlAllowed=[]] Views allowed to use `v-html` — long-form static
  *   copy the project authors itself, never anything a user submitted.
  */
-export const security = (options: { vHtmlAllowed?: string[] } = {}) => {
+export const securityStandards = (options: { vHtmlAllowed?: string[] } = {}) => {
     const { vHtmlAllowed = [] } = options;
 
     return [
@@ -49,5 +49,3 @@ export const security = (options: { vHtmlAllowed?: string[] } = {}) => {
         ...(vHtmlAllowed.length ? [{ files: vHtmlAllowed, rules: { 'vue/no-v-html': 'off' } }] : []),
     ];
 };
-
-export default security;

@@ -259,5 +259,3 @@ export function checkElectronErrorHandling(options: ElectronErrorHandlingOptions
             'response to it, or whether a service that holds no native handle today still holds none.',
     });
 }
-
-export default checkElectronErrorHandling;

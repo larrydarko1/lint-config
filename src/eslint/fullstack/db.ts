@@ -79,7 +79,7 @@ export const dbDbTsSelectors = [noDropIndexInApi, noUntypedCollection];
 /** worker/src/index.ts — the worker singleton (new MongoClient is its job). */
 export const dbWorkerIndexSelectors = [noCreateIndexInApi, noDropIndexInApi, noUntypedCollection];
 
-export default [
+export const dbStandards = [
     {
         files: ['db/migrations/**/*.js'],
         rules: {

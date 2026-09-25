@@ -1,4 +1,4 @@
-export default [
+export const refactoringStandards = [
     {
         files: ['src/**/*.{ts,vue}', 'tests/**/*.ts'],
         rules: {

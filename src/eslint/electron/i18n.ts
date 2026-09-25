@@ -11,7 +11,7 @@ import * as jsoncParser from 'jsonc-eslint-parser';
  *   calls `t()` for them: a locale's own endonym read as a plain property, for instance.
  * @param [options.usageSrc='src/renderer'] The tree the unused-key scan reads.
  */
-export const i18n = (
+export const i18nStandards = (
     options: {
         localeDir?: string;
         localeFiles?: string;
@@ -93,5 +93,3 @@ export const i18n = (
         },
     ];
 };
-
-export default i18n;

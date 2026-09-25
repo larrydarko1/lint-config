@@ -19,7 +19,7 @@ export const noImportMetaEnv = {
         'Do not read `import.meta.env` here. Validate it once with Zod in a single renderer config module and import the typed value — every VITE_* var is inlined into the shipped bundle, so this is also the boundary that keeps a secret out of the packaged app.',
 };
 
-export default [
+export const envStandards = [
     {
         rules: { 'no-process-env': 'error' },
     },

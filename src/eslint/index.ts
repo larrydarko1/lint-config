@@ -306,4 +306,3 @@ export function larry(options: LarryOptions): Linter.Config[] {
 
 export { PRESETS, resolvePaths } from './presets.ts';
 export { NAMING_CONVENTION } from './rules/naming.ts';
-export default larry;

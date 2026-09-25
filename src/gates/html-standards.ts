@@ -419,5 +419,3 @@ export function checkHtmlStandards(options: HtmlStandardsOptions): void {
     // noise, and the gate that failed is the thing to read first.
     if (report.count === 0) for (const warning of warnings) console.warn(`\n⚠ ${warning}`);
 }
-
-export default checkHtmlStandards;

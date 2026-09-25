@@ -169,6 +169,17 @@ checkElectronErrorHandling({
 });
 ```
 
+**The project does not install knip or jscpd either.** `dead-code` and `duplication` parse their
+JSON reports, so they run the copies this package depends on, never one from the project's
+`node_modules`. jscpd is pinned exactly, because its patch releases change what it finds: 5.3.2 finds
+fourteen clones in Orchid that 5.2.0 did not. Bump it on purpose, and read the difference.
+
+Each project keeps only its `knip.json` and `.jscpd.json`, which name its own entry points and
+paths. In `.jscpd.json`, list `vue` and the template markup is reported as `html` on its own —
+`html` is not a format jscpd accepts in `format`, and since 5.2.1 naming it is an error rather than
+a silent no-op. Run either gate with `--all` to get the tool's own full report instead of the
+pass/fail line.
+
 ## Building it
 
 ```bash

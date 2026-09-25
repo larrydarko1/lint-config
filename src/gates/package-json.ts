@@ -392,5 +392,3 @@ export function checkPackageJson({ root = REPO_ROOT, standard, ...rest }: Packag
             'Dependency CATEGORY grouping — JSON has no comments, so the groups the standard asks for cannot be read back out of the file. Review that by hand.',
     });
 }
-
-export default checkPackageJson;

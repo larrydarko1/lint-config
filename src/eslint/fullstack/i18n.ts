@@ -13,7 +13,7 @@ import * as jsoncParser from 'jsonc-eslint-parser';
  *   Each entry is genuinely unguarded, so keep the list short and keep each one justified.
  * @param [options.usageSrc='frontend/src'] The tree the unused-key scan reads.
  */
-export const i18n = (
+export const i18nStandards = (
     options: {
         localeDir?: string;
         localeFiles?: string;
@@ -98,5 +98,3 @@ export const i18n = (
         },
     ];
 };
-
-export default i18n;

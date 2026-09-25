@@ -9,7 +9,7 @@ import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 
-import prettierConfig from '../src/prettier.ts';
+import { prettierConfig } from '../src/prettier.ts';
 import { commitlint } from '../src/commitlint.ts';
 import { stylelint } from '../src/stylelint.ts';
 import { lintStaged } from '../src/lint-staged.ts';

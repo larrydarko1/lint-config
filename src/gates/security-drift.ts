@@ -1120,5 +1120,3 @@ export function checkSecurityDrift({ root = REPO_ROOT, standard, ...rest }: Secu
             'Whether the values are the RIGHT values for this deployment, whether a route that should require auth does, whether the secrets in production are the ones you think, and everything only observable at runtime — the contract tests own that half.',
     });
 }
-
-export default checkSecurityDrift;

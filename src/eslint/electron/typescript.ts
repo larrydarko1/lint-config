@@ -53,7 +53,7 @@ export const mainBannedImports = {
     ],
 };
 
-export default [
+export const typescriptStandards = [
     {
         files: ['src/**/*.{ts,vue}'],
         // The `*.vue` module shim has to `export default` — the ban is for our own modules.

@@ -522,5 +522,3 @@ export function checkTesting(options: TestingOptions): void {
             'highest-priority one, whether a component test would survive a refactor.',
     });
 }
-
-export default checkTesting;

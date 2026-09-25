@@ -531,5 +531,3 @@ export function checkApiStandards({ root = REPO_ROOT, standard, ...rest }: ApiSt
             'Whether a status code is the RIGHT one, whether independent awaits were parallelised, cache TTL judgement, or whether a given POST is idempotent. Nor whether a route header describes what the route actually does — only that the two lists match.',
     });
 }
-
-export default checkApiStandards;

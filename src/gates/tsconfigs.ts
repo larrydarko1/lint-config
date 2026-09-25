@@ -636,5 +636,3 @@ export function checkTsconfigs({ root = REPO_ROOT, standard, ...rest }: Tsconfig
             'Whether a target is the right one for its runtime, whether an override is still needed, or whether the browser floor the bundler enforces matches what the frontend typechecks against.',
     });
 }
-
-export default checkTsconfigs;

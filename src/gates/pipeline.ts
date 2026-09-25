@@ -859,5 +859,3 @@ export function checkPipeline(options: PipelineOptions = {}): void {
             'not in the tree.',
     });
 }
-
-export default checkPipeline;

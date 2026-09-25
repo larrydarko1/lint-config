@@ -669,5 +669,3 @@ export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
             `${importsChecked} imports grouped and sorted.`,
     );
 }
-
-export default checkDeclarationOrder;

@@ -14,7 +14,7 @@ export const aliasOnlyImportPatterns = [
     },
 ];
 
-export default [
+export const vueStandards = [
     {
         files: ['src/renderer/**/*.vue'],
         rules: {

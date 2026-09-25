@@ -27,7 +27,7 @@
  * de-duplicating means promoting each one to a real global class. That is a design
  * call about what deserves to be shared, not something a percentage should force.
  * A format with no entry in `ceilings` is therefore not a gap — it is a recorded
- * decision, and `npm run lint:dup` still prints its number.
+ * decision, and `--all` still prints its number.
  *
  * WHY A PERCENTAGE IS NOT ENOUGH BY ITSELF. A ratio quietly improves as a codebase
  * grows: a large new copy-paste can land while the number goes DOWN. `maxCloneTokens`
@@ -52,6 +52,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { packageBin } from './bin.ts';
 import { walkFiles } from './files.ts';
 import { REPO_ROOT } from './repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './report.ts';
@@ -139,31 +140,16 @@ const DEFAULT_IGNORE_DIRS = ['__tests__', 'tests', 'node_modules', 'dist'];
  */
 const relative = (root: string, file: string): string => path.relative(root, file.replace(/:[a-z]+$/, ''));
 
-/**
- * Run jscpd over `paths` and read its JSON report.
- *
- * jscpd is resolved out of `node_modules/.bin` rather than imported, because it is a
- * CLI. knip cannot see a binary reached that way — a path built at runtime is just a
- * string — so what keeps the dependency visible is the `lint:dup` script in
- * package.json, which names `jscpd` directly. That script is the console-reporter
- * version of this gate, for reading the clones rather than being told the total, and
- * it shares the same config file, so the two can never disagree about what counts as
- * a clone.
- */
+/** Run jscpd over `paths` and read its JSON report. */
 function runJscpd(root: string, paths: string[], config: string): JscpdReport {
-    const bin = path.resolve(root, 'node_modules/.bin/jscpd');
-    if (!fs.existsSync(bin)) {
-        console.error('✗ Duplication check: jscpd is not installed. Run `npm ci`.');
-        process.exitCode = 1;
-        return { duplicates: [], statistics: { formats: {}, total: { clones: 0 } } };
-    }
-
+    const bin = packageBin('jscpd');
     const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jscpd-'));
     try {
-        execFileSync(bin, [...paths, '--config', config, '--absolute', '--reporters', 'json', '--output', outDir], {
-            cwd: root,
-            stdio: 'ignore',
-        });
+        execFileSync(
+            process.execPath,
+            [bin, ...paths, '--config', config, '--absolute', '--reporters', 'json', '--output', outDir],
+            { cwd: root, stdio: 'ignore' },
+        );
     } catch {
         /* jscpd exits non-zero on its own thresholds and on its own errors; either way the report is written. */
     }
@@ -171,9 +157,7 @@ function runJscpd(root: string, paths: string[], config: string): JscpdReport {
     const reportPath = path.join(outDir, 'jscpd-report.json');
     if (!fs.existsSync(reportPath)) {
         fs.rmSync(outDir, { recursive: true, force: true });
-        console.error('✗ Duplication check: jscpd produced no report.');
-        process.exitCode = 1;
-        return { duplicates: [], statistics: { formats: {}, total: { clones: 0 } } };
+        throw new Error(`jscpd produced no report for ${paths.join(', ')}. Run it with \`--all\` to see why.`);
     }
 
     const parsed = JSON.parse(fs.readFileSync(reportPath, 'utf8')) as JscpdReport;
@@ -362,12 +346,35 @@ export function checkDuplication(options: DuplicationOptions): void {
         ignoreDirs = DEFAULT_IGNORE_DIRS,
     } = options;
 
+    // `--all` is the human-facing view: jscpd's own console report over the same roots
+    // and the same config, so the clones can be read rather than counted, formats this
+    // gate does not gate included. No ceilings are applied.
+    if (process.argv.includes('--all')) {
+        const bin = packageBin('jscpd');
+        try {
+            execFileSync(process.execPath, [bin, ...scan, '--config', config, '--reporters', 'console'], {
+                cwd: root,
+                stdio: 'inherit',
+            });
+        } catch {
+            /* jscpd exits non-zero on its own thresholds; in this mode we are only reporting. */
+        }
+        return;
+    }
+
     const report = createGateReport({ name: 'Duplication', standard: 'refactoring.instructions.md' });
 
-    const full = runJscpd(root, scan, config);
+    let full: JscpdReport;
     const perRootReports: Record<string, JscpdReport> = {};
-    if (perRoot) {
-        for (const scanRoot of scan) perRootReports[scanRoot] = runJscpd(root, [scanRoot], config);
+    try {
+        full = runJscpd(root, scan, config);
+        if (perRoot) {
+            for (const scanRoot of scan) perRootReports[scanRoot] = runJscpd(root, [scanRoot], config);
+        }
+    } catch (error) {
+        console.error(`✗ Duplication check failed — ${error instanceof Error ? error.message : String(error)}`);
+        process.exitCode = 1;
+        return;
     }
 
     const { problems, types } = inspectDuplication({
@@ -404,8 +411,6 @@ export function checkDuplication(options: DuplicationOptions): void {
                 : '') +
             '.',
         notMachineChecked:
-            'whether two identical blocks mean the same thing. jscpd matches tokens, not intent — a false positive is answered by raising the ceiling with a comment, not by contorting the code. The full report, including formats this gate does not gate, is `npm run lint:dup`.',
+            'whether two identical blocks mean the same thing. jscpd matches tokens, not intent — a false positive is answered by raising the ceiling with a comment, not by contorting the code. The full report, including formats this gate does not gate, is this gate run with `--all`.',
     });
 }
-
-export default checkDuplication;

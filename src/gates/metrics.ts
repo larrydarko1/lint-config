@@ -900,5 +900,3 @@ export function checkMetrics({ root = REPO_ROOT, standard, ...rest }: MetricsOpt
             'Whether a metric is worth collecting, whether the histogram buckets suit the real latency distribution, or whether an alert threshold is the right one. Nor whether Prometheus is deployed at all — this proves the chain is wired, not that anything is listening at the far end of it.',
     });
 }
-
-export default checkMetrics;

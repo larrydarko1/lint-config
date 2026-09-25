@@ -506,5 +506,3 @@ export function checkIpcStandards({ root = REPO_ROOT, standard, ...rest }: IpcSt
             'Whether a schema checks the RIGHT thing (a `z.string()` on a path is still a traversal parameter), whether a handler should exist at all, and whether the renderer uses the result the way the contract says.',
     });
 }
-
-export default checkIpcStandards;

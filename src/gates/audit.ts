@@ -265,5 +265,3 @@ export function checkAudit(options: AuditOptions = {}): void {
             'tool ships whatever it likes, and this gate never looked at it.',
     });
 }
-
-export default checkAudit;

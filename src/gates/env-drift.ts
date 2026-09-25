@@ -519,5 +519,3 @@ export function checkEnvDrift({ root = REPO_ROOT, standard, ...rest }: EnvDriftO
     // set an exit code — see the header on why the local .env cannot gate a build.
     if (report.count === 0) for (const warning of warnings) console.warn(`\n⚠ ${warning}`);
 }
-
-export default checkEnvDrift;

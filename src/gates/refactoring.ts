@@ -229,5 +229,3 @@ export function checkRefactoring(options: RefactoringOptions = {}): void {
             'whether a change was in scope, whether a drive-by belonged in its own commit, whether a file was split by concern or by line count, and whether something deferred should have been fixed on the spot.',
     });
 }
-
-export default checkRefactoring;

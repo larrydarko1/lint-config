@@ -50,8 +50,8 @@
  * through by hand, one decision each. Never raise one to land a change.
  */
 import { execFileSync } from 'node:child_process';
-import path from 'node:path';
 
+import { packageBin } from './bin.ts';
 import { REPO_ROOT } from './repo-root.ts';
 import { createGateReport } from './report.ts';
 
@@ -67,7 +67,7 @@ export type KnipReport = { issues?: ({ file: string } & Record<string, unknown>)
 
 export type KnipRunInput = {
     root: string;
-    /** Absolute path to the knip binary. */
+    /** Absolute path to knip's bin script, run with `process.execPath`. */
     bin: string;
     include: string[];
     extra?: string[] | undefined;
@@ -175,7 +175,7 @@ export function runKnip(input: KnipRunInput): Record<string, DeadCodeHit[]> {
 
     let raw: string;
     try {
-        raw = execFileSync(bin, args, {
+        raw = execFileSync(process.execPath, [bin, ...args], {
             cwd: root,
             encoding: 'utf8',
             maxBuffer: 32 * 1024 * 1024,
@@ -190,7 +190,7 @@ export function runKnip(input: KnipRunInput): Record<string, DeadCodeHit[]> {
         raw = stdout ?? '';
         if (raw.trim() === '') {
             const detail = stderr === undefined ? '' : `\n${stderr.toString().trim()}`;
-            throw new Error(`knip produced no output. Is \`knip\` installed?${detail}`);
+            throw new Error(`knip produced no output.${detail}`);
         }
     }
 
@@ -285,18 +285,19 @@ export function checkDeadCode(options: DeadCodeOptions = {}): void {
     } = options;
 
     const report = createGateReport({ name: 'Dead code' });
-    const bin = path.resolve(root, 'node_modules/.bin/knip');
     const gated = Object.keys(CATEGORIES);
 
     // `--all` is the human-facing view, not a stricter gate: hand the terminal straight
     // to knip so you get every category it knows about — including the ones this gate
     // deliberately does not fail on — in its own formatting, with no budgets applied.
     if (process.argv.includes('--all')) {
+        const bin = packageBin('knip');
         try {
-            execFileSync(bin, ['--no-progress', '--tags=-public', '--include', [...gated, ...UNGATED].join(',')], {
-                cwd: root,
-                stdio: 'inherit',
-            });
+            execFileSync(
+                process.execPath,
+                [bin, '--no-progress', '--tags=-public', '--include', [...gated, ...UNGATED].join(',')],
+                { cwd: root, stdio: 'inherit' },
+            );
         } catch {
             /* Findings make knip exit non-zero; in this mode we are only reporting. */
         }
@@ -305,6 +306,7 @@ export function checkDeadCode(options: DeadCodeOptions = {}): void {
 
     let found;
     try {
+        const bin = packageBin('knip');
         found = inspectDeadCode((include, extra) => runKnip({ root, bin, include, extra }));
     } catch (error) {
         console.error(`✗ Dead code check failed — ${error instanceof Error ? error.message : String(error)}`);
@@ -319,5 +321,3 @@ export function checkDeadCode(options: DeadCodeOptions = {}): void {
         notMachineChecked,
     });
 }
-
-export default checkDeadCode;

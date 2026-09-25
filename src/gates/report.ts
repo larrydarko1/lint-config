@@ -127,5 +127,3 @@ export function createGateReport(options: GateReportOptions): GateReport {
         },
     };
 }
-
-export default createGateReport;

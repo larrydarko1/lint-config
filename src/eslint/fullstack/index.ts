@@ -7,17 +7,17 @@
  * applied. The selectors the project composes into its own per-area
  * `no-restricted-syntax` blocks are re-exported individually below.
  */
-import apiStandards from './api.ts';
-import dbStandards from './db.ts';
-import env from './env.ts';
-import html from './html.ts';
-import i18n from './i18n.ts';
-import logging from './logging.ts';
-import refactoring from './refactoring.ts';
-import security from './security.ts';
-import testing from './testing.ts';
-import typescriptStandards from './typescript.ts';
-import vueStandards from './vue.ts';
+import { apiStandards } from './api.ts';
+import { dbStandards } from './db.ts';
+import { envStandards } from './env.ts';
+import { htmlStandards } from './html.ts';
+import { i18nStandards } from './i18n.ts';
+import { loggingStandards } from './logging.ts';
+import { refactoringStandards } from './refactoring.ts';
+import { securityStandards } from './security.ts';
+import { testingStandards } from './testing.ts';
+import { typescriptStandards } from './typescript.ts';
+import { vueStandards } from './vue.ts';
 
 export {
     apiSourceSelectors,
@@ -44,13 +44,13 @@ export { functionContractsPlugin } from './function-contracts.ts';
 
 export type FullstackStandardsOptions = {
     /** See security.ts — `vHtmlAllowed`. */
-    security?: Parameters<typeof security>[0];
+    security?: Parameters<typeof securityStandards>[0];
     /** See logging.ts — `consoleAllowed`. */
-    logging?: Parameters<typeof logging>[0];
+    logging?: Parameters<typeof loggingStandards>[0];
     /** See refactoring.ts — `markerFiles`. */
-    refactoring?: Parameters<typeof refactoring>[0];
+    refactoring?: Parameters<typeof refactoringStandards>[0];
     /** See i18n.ts. Pass `false` for a single-language app. */
-    i18n?: Parameters<typeof i18n>[0] | false;
+    i18n?: Parameters<typeof i18nStandards>[0] | false;
 };
 
 export function fullstackStandards(options: FullstackStandardsOptions = {}) {
@@ -64,16 +64,14 @@ export function fullstackStandards(options: FullstackStandardsOptions = {}) {
     return [
         ...apiStandards,
         ...dbStandards,
-        ...security(securityOptions),
-        ...logging(loggingOptions),
+        ...securityStandards(securityOptions),
+        ...loggingStandards(loggingOptions),
         ...typescriptStandards,
-        ...env,
-        ...(i18nOptions === false ? [] : i18n(i18nOptions)),
+        ...envStandards,
+        ...(i18nOptions === false ? [] : i18nStandards(i18nOptions)),
         ...vueStandards,
-        ...html,
-        ...refactoring(refactoringOptions),
-        ...testing,
+        ...htmlStandards,
+        ...refactoringStandards(refactoringOptions),
+        ...testingStandards,
     ];
 }
-
-export default fullstackStandards;

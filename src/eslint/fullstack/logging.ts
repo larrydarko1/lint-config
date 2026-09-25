@@ -26,7 +26,7 @@ export const loggerCallSelectors = [
  * @param [options.consoleAllowed=[]] Files where `console` is the point — the app shell
  *   reporting a boot failure it cannot yet log any other way.
  */
-export const logging = (options: { consoleAllowed?: string[] } = {}) => {
+export const loggingStandards = (options: { consoleAllowed?: string[] } = {}) => {
     const { consoleAllowed = [] } = options;
 
     return [
@@ -47,5 +47,3 @@ export const logging = (options: { consoleAllowed?: string[] } = {}) => {
         ...(consoleAllowed.length ? [{ files: consoleAllowed, rules: { 'no-console': 'off' } }] : []),
     ];
 };
-
-export default logging;

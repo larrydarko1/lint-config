@@ -26,7 +26,7 @@ export const bannedCryptoModules = [
  *   deliberate exception — the markup is either sanitised on the way in or static and internal —
  *   so they are named per project here instead of switching the rule off everywhere.
  */
-export const security = (options: { vHtmlAllowed?: string[] } = {}) => {
+export const securityStandards = (options: { vHtmlAllowed?: string[] } = {}) => {
     const { vHtmlAllowed = [] } = options;
 
     return [
@@ -45,5 +45,3 @@ export const security = (options: { vHtmlAllowed?: string[] } = {}) => {
         ...(vHtmlAllowed.length ? [{ files: vHtmlAllowed, rules: { 'vue/no-v-html': 'off' } }] : []),
     ];
 };
-
-export default security;
