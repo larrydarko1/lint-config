@@ -1,26 +1,9 @@
 /**
- * Reading structure out of source text without parsing it.
+ * Reading structure out of source text by counting brackets, not parsing: gates must
+ * survive briefly unparseable files and read `.vue` and nginx config too. Each helper
+ * returns an empty result rather than a wrong one.
  *
- * The two full-stack security gates each carried byte-identical copies of five
- * of these, and the api and websocket gates carried their own span finders on
- * top. They are here once because a gate that hand-rolls its own "find the
- * arguments of this call" is a gate that gets the nesting wrong in its own way —
- * and each of those copies did, differently: one stopped at the first `}` inside
- * a `try`, another ended a middleware on `\n    });` and so encoded that day's
- * indentation as the contract.
- *
- * WHY NOT A REAL PARSER. Everything here is asked of source that is TypeScript,
- * sometimes a `.vue` SFC, sometimes nginx configuration. A gate must keep
- * working when a file it reads is briefly unparseable, and must not pull a
- * TypeScript compiler into a check that runs on every commit. What these do
- * instead is count brackets, which is enough for "what is inside this call" and
- * honest about the cases it cannot answer: each returns an empty result rather
- * than a wrong one, and every caller here treats empty as a failure.
- *
- * THE ONE RULE FOR CALLERS. Pass source that has been through `stripComments`
- * whenever the question is "does the code do X", or the prose explaining why X
- * matters will answer for it. See the security gate's header: a comment naming
- * `SIGTERM` once satisfied a rule about handling it.
+ * Pass source through `stripComments` first when asking "does the code do X".
  */
 
 export interface CallSite {
@@ -40,19 +23,9 @@ export interface FunctionParts {
 }
 
 /**
- * Every `token(…)` call in a file, with its position and its bracket-balanced
- * argument text.
- *
- * `token` ends in the opening paren — `callSites(src, 'jwt.verify(')` — which is
- * what keeps `jwt.verifySomething(` from matching.
- *
- * THE POSITION IS THE POINT. Half the rules in the api and websocket gates are
- * about ORDER — helmet before the first route, the rate limit before the JWT
- * verify — and order is a byte offset. Both gates had grown their own span
- * finder for it, and the websocket one carried a comment explaining that its
- * first attempt anchored on a closing `\n    });` and so encoded that day's
- * indentation as the contract. Counting brackets is the only version of this
- * that survives a reformat.
+ * Every `token(…)` call in a file, with its position (for ordering rules) and its
+ * bracket-balanced argument text. `token` ends in `(` so `jwt.verify(` does not
+ * match `jwt.verifySomething(`.
  *
  * @param token A call prefix ending in `(`.
  * @returns One entry per call, in source order; `[]` when there are none.
@@ -99,10 +72,6 @@ export function callArgs(source: string, token: string): string[] {
  * The body of the first block whose opening `{` follows a match of `opener`,
  * brace-balanced.
  *
- * Both copies of the security gate reached for `/…\{([^}]*)\}/` instead, which
- * stops at the first `}` — so a block holding one nested object is read
- * truncated, and whatever came after the nesting is invisible to the rule.
- *
  * @returns The text between the braces, or `''` when there is no match.
  */
 export function braceBlock(source: string, opener: RegExp): string {
@@ -123,14 +92,6 @@ export function braceBlock(source: string, opener: RegExp): string {
 /**
  * The source of one object property's value: from after `key:` to the comma or
  * closing bracket that ends it at depth zero. `null` when the key is absent.
- *
- * Bracket counting rather than a fixed window. The websocket gate used to
- * accept `config.corsOrigin` anywhere in the 400 characters after
- * `allowRequest:`, and the option that most often FOLLOWS it is
- * `cors: { origin: config.corsOrigin }` — so a check that let every origin
- * through passed on its neighbour's value. The Electron gate read
- * webPreferences out of a window block that ended on `\n    })`, four spaces of
- * that day's indentation.
  */
 export function propertyValue(source: string, key: string): string | null {
     const match = new RegExp(String.raw`(?<![\w$.])${key}\s*:`).exec(source);
@@ -153,9 +114,7 @@ export function propertyValue(source: string, key: string): string | null {
  * outside a string, so `a: Record<string, number>, b` is two parameters and
  * not three, and `'a,b', c` is two arguments.
  *
- * Angle brackets count as brackets only where they open a generic, which is
- * the one place a comma can hide inside a type: `x < y, z` in an expression is
- * rare enough in parameter lists that the simpler rule wins.
+ * Angle brackets count only where they open a generic.
  *
  * @param separator A single character.
  * @returns The trimmed parts, empty ones dropped.
@@ -211,20 +170,11 @@ function skipString(text: string, start: number): number {
 }
 
 /**
- * Read the function expression that `text` STARTS with: an arrow, a
- * `function (…) {…}`, either optionally `async`. `null` when `text` starts with
- * anything else — a bare identifier naming a function declared elsewhere is the
- * caller's to resolve, with `declaredFunction`.
- *
- * WHY THE BODY IS BOUNDED. Every rule that asks "does this handler validate its
- * argument" used to read a fixed 2500 characters from the handler's start, and
- * a handler that validated nothing passed on the `typeof` check of the next
- * handler down. The body ends where its own braces close, or — for an
- * expression-bodied arrow — at the first top-level `,` `;` or unmatched `)`.
- *
- * THE RETURN TYPE IS SKIPPED, not read as the body. Handlers are annotated
- * `): Promise<{ success: boolean }> => {` and `): { action: 'deny' } => {`, so
- * "the first `{` after the parameters" is a type literal in both.
+ * Read the function expression that `text` starts with: an arrow or a
+ * `function (…) {…}`, optionally `async`. `null` for anything else; resolve a bare
+ * identifier with `declaredFunction`. The body ends where its braces close (or, for
+ * an expression body, at the first top-level `,` `;` or unmatched `)`), and an inline
+ * return type is skipped.
  */
 export function functionParts(text: string): FunctionParts | null {
     const head = /^\s*(?:async\s+)?(?:function\b\s*\*?\s*[\w$]*\s*(?:<[^>(]*>)?\s*(?=\()|(?=\())/.exec(text);
@@ -282,9 +232,7 @@ export function functionParts(text: string): FunctionParts | null {
 
 /**
  * The function `name` is declared as in this file — `function name(…)`, or a
- * `const`/`let`/`var` bound to an arrow or function expression. `null` when
- * nothing here declares it, which every caller reads as "cannot confirm",
- * never as "fine".
+ * `const`/`let`/`var` bound to a function. `null` means "cannot confirm", never "fine".
  */
 export function declaredFunction(source: string, name: string): FunctionParts | null {
     if (!/^[A-Za-z_$][\w$]*$/.test(name)) return null;
@@ -300,9 +248,7 @@ export function declaredFunction(source: string, name: string): FunctionParts | 
     return functionParts(source.slice(binding.index + binding[0].length));
 }
 
-/**
- * The body of whatever declares `name` in this file, `''` when nothing does.
- */
+/** The body of whatever declares `name` in this file, `''` when nothing does. */
 export function declaredBody(source: string, name: string): string {
     return declaredFunction(source, name)?.body ?? '';
 }
@@ -340,9 +286,7 @@ function expressionAt(text: string, start: number): string {
     return text.slice(start).trim();
 }
 
-/**
- * `_event, ...args: unknown[], { a, b }: T = {}` → `['_event', 'args', 'a', 'b']`.
- */
+/** `_event, ...args: unknown[], { a, b }: T = {}` → `['_event', 'args', 'a', 'b']`. */
 function paramNames(list: string): string[] {
     return splitTopLevel(list, ',').flatMap((param) => {
         const bare = param.replace(/^\.\.\./, '');
@@ -360,12 +304,7 @@ function paramNames(list: string): string[] {
 
 /**
  * A source file sliced from a function header to the next top-level `export`.
- *
- * Deliberately coarse: it is used to ask "does THIS function do X" of files
- * whose functions are separated by exports, which is every service module in
- * both families. `''` when the header is absent — a rule that silently examined
- * an empty string would pass for the one reason that should fail it loudest,
- * the function having been renamed out from under the gate.
+ * `''` when the header is absent; callers must treat that as a failure.
  *
  * @param header The exact text the function starts with.
  */
@@ -376,14 +315,7 @@ export function fnBody(source: string, header: string): string {
     return source.slice(start, next === -1 ? source.length : next);
 }
 
-/**
- * The body text of every `catch (…) { … }` block, brace-balanced.
- *
- * The distinction this exists for: whether a control fails open is a property of
- * its CATCH, not of its function. A throttle legitimately throws 429 after the
- * catch, on a lock it really read, so "does this function throw" cannot tell a
- * working control from one that denies every request the moment Redis blinks.
- */
+/** The body text of every `catch (…) { … }` block, brace-balanced, for fail-open checks. */
 export function catchBodies(source: string): string[] {
     const bodies: string[] = [];
     const re = /catch\s*(?:\([^)]*\))?\s*\{/g;
@@ -409,12 +341,9 @@ export function catchBodies(source: string): string[] {
 }
 
 /**
- * Evaluate a literal product like `2 * 60 * 60 * 1000`, the way durations are
- * written in config so the units stay readable. Underscore separators are
- * stripped first: `60_000` is sixty thousand, and `Number('60_000')` is NaN.
+ * Evaluate a literal product like `2 * 60 * 60 * 1000`, with `_` separators allowed.
  *
- * @returns `0` for anything that is not a literal product, which every
- *   caller reads as "not set" — the same verdict as an absent value.
+ * @returns `0` (read as "not set") for anything that is not a literal product.
  */
 export function evalProduct(expression: string | undefined): number {
     if (expression === undefined) return 0;

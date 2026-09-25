@@ -7,10 +7,8 @@ import * as jsoncParser from 'jsonc-eslint-parser';
  * @param [options.messageSyntaxVersion='^11.0.0'] The vue-i18n message syntax to validate.
  * @param [options.ignoreText=[]] Literals that are not translatable copy — the app's own
  *   name, usually, since a brand name reads the same in every locale.
- * @param [options.unscannedKeys=[]] Namespaces addressed by a COMPUTED key, which
- *   `no-unused-keys` cannot follow. Without them the rule reports only false positives; with them
- *   it still polices every namespace that IS statically addressed, which is why it earns its place.
- *   Each entry is genuinely unguarded, so keep the list short and keep each one justified.
+ * @param [options.unscannedKeys=[]] Namespaces addressed by a computed key, which
+ *   `no-unused-keys` cannot follow. Each entry goes unchecked, so keep the list short.
  * @param [options.usageSrc='frontend/src'] The tree the unused-key scan reads.
  */
 export const i18nStandards = (

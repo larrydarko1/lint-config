@@ -1,56 +1,16 @@
 /**
- * Document-level HTML standards gate — the one file no linter reads.
+ * The document shell (`index.html`), which no linter reads:
  *
- * ESLint's Vue parser never opens `index.html`, so nothing else in the toolchain
- * can assert that the document shell still has a `lang`, a charset, the mount point
- * the app calls `.mount()` on, or the metadata a crawler reads. Stylelint has the
- * same blind spot one level down: it can police how a rule is written, but not that
- * a rule still EXISTS, so deleting the global reduced-motion override is invisible
- * in review and silent at runtime.
+ *   1. The head tags this kind of document owes (`head` picks keys from HEAD_CHECKS),
+ *      plus the zoom ban.
+ *   2. The entry module resolves.
+ *   3. A meta-tag CSP, where `csp` is set: a renderer over `file://` has no server
+ *      to send the header.
+ *   4. No remote subresources: only `<link>` rels that fetch count.
+ *   5. The global reduced-motion override exists, at top level, with `!important`.
+ *   6. A pre-launch origin, as a warning.
  *
- * WHAT IS DATA AND WHAT IS A RULE. The five copies looked like two gates because
- * their head requirements differ — a web page owes `og:*`, `canonical`, a viewport
- * and an icon; a packaged renderer loading over `file://` owes none of them, and
- * the standard says so itself ("unless the project is exclusively desktop"). But
- * that is the LIST, not the rule. The rule is "the shell carries the tags this kind
- * of document owes", so the matchers live here in `HEAD_CHECKS` and each project
- * passes the keys it owes. A desktop shell asking for `title` is then a decision
- * someone made, not a difference nobody can see.
- *
- * THREE RULES ONLY ONE FAMILY HAD, AND ALL THREE ARE FREE:
- *   - the zoom ban (full-stack) fires on `user-scalable=no` / `maximum-scale=1`,
- *     and a document with no viewport tag at all never reaches it;
- *   - the entry-module check (one full-stack copy alone) fires on the `<script type="module"
- *     src>` every one of these shells has, and all five resolve;
- *   - no remote subresources (desktop) found nothing in either web shell.
- *
- * THE SUBRESOURCE RULE NEEDED FIXING BEFORE IT COULD BE SHARED. The desktop copies
- * matched any `<link>` with a remote `href`, which in a web shell is `<link
- * rel="canonical" href="https://…">` — metadata, not a subresource, and pointing it
- * at the live origin is the entire point of the tag. So the rule now reads the
- * `rel`: it fires on the rels that make the browser FETCH something (stylesheet,
- * preload, icon, manifest, a preconnect) and ignores the ones that only describe
- * the document. That is the difference the original rule was reaching for.
- *
- * THE REDUCED-MOTION CHECK IS THE STRICTER HALF OF EACH COPY. The desktop copies
- * scoped the search to the block and accepted any neutralising declaration; the
- * full-stack copies demanded `!important` on both durations but read from the first
- * `prefers-reduced-motion` in the file to EOF, so a declaration outside the block
- * would have satisfied them. Here the block is found first and then held to
- * `!important`, which is what makes a global override beat the scoped SFC rules it
- * exists to beat. All five repos already pass it.
- *
- * `csp` IS THE ONE REAL SWITCH. In a packaged build the renderer loads over
- * `file://`, where there is no server to send a header, so the meta tag IS the
- * policy — and a CSP degrades silently, because a directive someone widened still
- * parses and still loads the app. A served web app sends the header instead, and
- * that header is a different gate's business, so checking for a meta tag there
- * would fail a correct document.
- *
- * WHAT IS DELIBERATELY NOT CHECKED: semantic element choice, ARIA appropriateness,
- * alt-text quality, heading order. All of it is in the standard, none of it is
- * decidable from a regex over the shell, and a gate that pretended otherwise would
- * teach people to write markup that passes rather than markup that reads.
+ * Not checked: semantics, ARIA, alt-text quality, heading order.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -66,7 +26,7 @@ export type HeadCheck = {
     why: string;
 };
 
-/** Every head requirement any of the shells had. A project passes the keys it owes. */
+/** A project passes the keys it owes. */
 export type HeadRequirement =
     | 'lang'
     | 'charset'
@@ -114,10 +74,7 @@ export type HtmlStandardsInspection = {
     required: number;
 };
 
-/**
- * Every head requirement any of the five documents had, as a matcher per key. A
- * project passes the keys it owes; a key it does not pass is a tag it does not owe.
- */
+/** A matcher per head requirement. A project passes the keys it owes. */
 export const HEAD_CHECKS: Record<HeadRequirement, HeadCheck> = {
     lang: {
         what: '<html lang="…">',
@@ -249,9 +206,7 @@ export function entryPath(src: string, indexHtml: string): string {
     return path.posix.join(path.posix.dirname(indexHtml), src.replace(/^\//, './'));
 }
 
-/**
- * Every problem in one document shell, without printing anything.
- */
+/** Every problem in one document shell, without printing anything. */
 export function inspectHtmlStandards(input: HtmlStandardsInput): HtmlStandardsInspection {
     const { root, indexHtml, baseScss, require: required = [], csp = false, placeholderOrigin } = input;
 
@@ -269,8 +224,7 @@ export function inspectHtmlStandards(input: HtmlStandardsInput): HtmlStandardsIn
         if (!check.re.test(html)) fail(indexHtml, `is missing ${check.what}`, check.why);
     }
 
-    // Zoom is an accessibility feature — blocking it fails WCAG 1.4.4. Silent in a
-    // document with no viewport tag, which is why it needs no switch.
+    // Blocking zoom fails WCAG 1.4.4.
     if (/user-scalable\s*=\s*no|maximum-scale\s*=\s*1/i.test(html)) {
         fail(
             indexHtml,
@@ -289,8 +243,7 @@ export function inspectHtmlStandards(input: HtmlStandardsInput): HtmlStandardsIn
         );
     } else {
         const rel = entryPath(src, indexHtml);
-        // The bundler resolves the specifier, not the file name, so a `.js` src for a
-        // `.ts` module happens to work and is still a lie about the tree.
+        // A `.js` src for a `.ts` module works through the bundler but misnames the file.
         const found = [rel, rel.replace(/\.js$/, '.ts')].find((c) => fs.existsSync(path.join(root, c)));
         if (found === undefined) {
             fail(
@@ -342,8 +295,6 @@ export function inspectHtmlStandards(input: HtmlStandardsInput): HtmlStandardsIn
         const markup = tag[0];
         if (!/\b(?:src|href)="(?:https?:)?\/\//i.test(markup)) continue;
         const rel = /\brel="([^"]+)"/i.exec(markup)?.[1];
-        // A <link> that only describes the document — canonical, alternate, an og:url
-        // sibling — names a remote URL on purpose. Only the rels that fetch count.
         if (tag[1]?.toLowerCase() === 'link' && !FETCHING_REL.test(rel ?? '')) continue;
         fail(
             indexHtml,
@@ -355,8 +306,7 @@ export function inspectHtmlStandards(input: HtmlStandardsInput): HtmlStandardsIn
     // ── 5. The reduced-motion escape hatch ──────────────────────────────────
     if (baseScss !== undefined) {
         const scss = fs.readFileSync(path.join(root, baseScss), 'utf8');
-        // Anchored at column 0: a block nested inside a selector only reaches the
-        // elements that selector matches, which is not what "global override" means.
+        // Column 0: a nested block is not a global override.
         const blocks = [
             ...scss.matchAll(/^@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)\s*\{([\s\S]*?)\n\}/gm),
         ];
@@ -415,7 +365,6 @@ export function checkHtmlStandards(options: HtmlStandardsOptions): void {
             'the standard and none of it is decidable from the shell.',
     });
 
-    // After the report, and only when it passed: a launch checklist under a red X is
-    // noise, and the gate that failed is the thing to read first.
+    // Only after a pass, so it does not bury the failures.
     if (report.count === 0) for (const warning of warnings) console.warn(`\n⚠ ${warning}`);
 }

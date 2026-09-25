@@ -80,11 +80,7 @@ export const apiSourceSelectors = [
 /** Additional selectors for api routes only (success envelope, raw query). */
 export const apiRoutesOnlySelectors = [noOkEnvelope, noRawReqQuery];
 
-/**
- * The outbound-timeout rule, on its own — the worker makes outbound calls too
- * and hangs the same way, but owns none of the other api selectors (it serves
- * no client HTTP). eslint.config.js adds this to the worker blocks.
- */
+/** The outbound-timeout rule on its own, for the worker, which makes outbound calls but serves no HTTP. */
 export const outboundCallSelectors = [noUntimedFetch];
 
 export const apiBannedImports = [

@@ -5,10 +5,6 @@
     "description": "Shared formatting, commit and style configuration for my projects.",
     "license": "MIT",
     "author": "Lorenzo Mazzola",
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/larrydarko1/lint-config.git"
-    },
     "publishConfig": {
         "access": "public"
     },

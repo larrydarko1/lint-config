@@ -1,7 +1,4 @@
-/**
- * Commit message rules: conventional commits, with the type list the projects
- * actually use and the two length limits raised for bodies that explain a why.
- */
+/** Conventional commits, with a narrowed type list and raised body length limits. */
 import { fileURLToPath } from 'node:url';
 
 /** Resolved from here for the same reason as in stylelint.ts: so the project does not need its own copy. */
@@ -46,8 +43,8 @@ const singleWhy = ({ subject }: { subject: string | null }): [boolean, string] =
 
 export type CommitlintOptions = {
     /**
-     * Warn when a subject line describes two pieces of work ("fix X and also Y"). Severity 1 —
-     * it never blocks a commit. Defaults to true.
+     * Warn (never block) when a subject describes two pieces of work ("fix X and also Y").
+     * Defaults to true.
      */
     subjectSingleWhy?: boolean;
     /** Replace the allowed type list outright. */

@@ -1,38 +1,16 @@
 /**
  * Error handling across a full-stack app's boundaries.
  *
- *   1.  EVERY THROW OBEYS THE STATUS POLICY. A status picked per call site is how
- *       a 404 and a 403 end up meaning the same thing to the client. 400 is a
- *       request that never parsed; a well-formed request carrying invalid data is
- *       422, and the difference is the whole reason the frontend can tell "you
- *       sent nonsense" from "that value is not allowed".
- *   1b. A CODE MEANS ONE THING. The status belongs to the code, not to the place
- *       it is thrown from — the frontend switches on the code.
- *   2.  ONE AppError, WITH ITS DOCUMENTED FIELDS. The five fields are the contract
- *       with the error handler; a missing one silently stops being logged or sent.
- *   3.  ONE BOUNDARY, MOUNTED LAST. Express identifies an error handler purely by
- *       arity, so a 4-arg middleware registered before a route simply never runs.
- *       Nothing fails; errors just become unhandled 500s.
- *   4.  THE CODE CONTRACT. A code with no translation reaches a user as SCREAMING_
- *       SNAKE. This covers the directions the locale-parity gate cannot see:
- *       orphaned translations, unused codes, casing.
- *   5.  WHICH FAILURES ARE SECURITY EVENTS. `securityEvent` is an explicit flag
- *       precisely because status cannot imply it — which also means forgetting it
- *       is invisible: a brute-forced recovery code logs like an expired session.
- *   6.  WHAT `params` MAY CARRY. `params` ride on the wire next to the code, so
- *       user input in them is a reflected-XSS vector; the same input in `message`
- *       is fine. Same type, opposite rules — position is the contract.
- *   7.  THE NON-HTTP SERVICES. Nothing catches for a queue consumer or a socket:
- *       there is no middleware out there, and `AppError` (a status code and an
- *       Express handler) means nothing to them.
- *   8.  THE FRONTEND END. Bare codes on the wire are only safe because exactly one
- *       interceptor translates them and falls back for the ones it does not know.
- *   9.  SWALLOWS STATE A REASON — shared with every family, in ../swallowed-errors.ts.
- *
- * The two full-stack copies differed by 54 lines and not one was logic: which services
- * exist, which codes are parse-level, which are security events, and whether the
- * handler has a Multer branch. Those are the options below; everything else is
- * shared.
+ *   1.  Every throw obeys the status policy (400 never parsed, 422 invalid data).
+ *   1b. A code means one status everywhere.
+ *   2.  One AppError class with its documented fields.
+ *   3.  One four-argument error handler, mounted last.
+ *   4.  The code contract: every code translated, no orphans or unused codes, casing.
+ *   5.  Credential failures carry `securityEvent: true`.
+ *   6.  `params` (sent to the client) carry no request input; `message` (logged) may.
+ *   7.  Non-HTTP services do not use AppError.
+ *   8.  Exactly one frontend interceptor translates codes, with a fallback.
+ *   9.  A swallowed failure states its reason (../swallowed-errors.ts).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -48,10 +26,7 @@ export type FullstackErrorHandlingOptions = {
     root?: string;
     /** The HTTP service's sources. Defaults to `api/src`. */
     apiDir?: string;
-    /**
-     * This app's own services that run outside the request cycle. Scanned for swallowed
-     * failures like the API, and barred from the HTTP error type. Defaults to `worker/src`.
-     */
+    /** Services outside the request cycle: scanned for swallows, barred from AppError. Defaults to `worker/src`. */
     serviceDirs?: string[];
     /** Further directories barred from AppError but not scanned for swallows — a shared package. */
     appErrorBanDirs?: string[];
@@ -84,18 +59,8 @@ export type FullstackErrorHandlingOptions = {
 };
 
 /**
- * Codes that must carry `securityEvent: true`, by SHAPE rather than by name.
- *
- * Patterns rather than a list, because a list only knows about the codes that
- * already exist. That is not hypothetical: the first version of this gate was a
- * hand-written list, and `INVALID_AUTH_CODE` — flagged correctly in source since
- * the day it was written — was missing from it. The gate was green, and would
- * have stayed green if someone had dropped the flag. Anything shaped like a
- * credential check now enrols itself the moment it is named.
- *
- * Expiry is deliberately absent: an expired session, reset link or verification
- * link is routine, and the flag exists so routine 401/403s do NOT collect
- * ip/user-agent.
+ * Codes that must carry `securityEvent: true`, by pattern so new codes enrol
+ * themselves. Expiry is deliberately absent: it is routine.
  */
 const SECURITY_EVENT_PATTERNS = [
     /^INCORRECT_/,
@@ -106,16 +71,7 @@ const SECURITY_EVENT_PATTERNS = [
 
 const DEFAULT_ALLOWED_STATUS = [400, 401, 403, 404, 409, 413, 422, 429, 500];
 
-/**
- * Split the arguments of the call whose opening paren is at `open`.
- *
- * Needed because three sections read three different argument POSITIONS of the
- * same `new AppError(...)` call, and position is the whole contract: argument 3 is
- * logged, argument 4 is served to the client, and a field inside argument 4
- * decides whether the log collects PII. A regex cannot split them — the option
- * arguments are object literals with commas inside, and the message is often a
- * template string with a comma in the prose.
- */
+/** Split the arguments of the call whose opening paren is at `open`. */
 function callArguments(src: string, open: number): string[] | null {
     let depth = 0;
     let start = open + 1;
@@ -140,9 +96,7 @@ function callArguments(src: string, open: number): string[] | null {
     return null;
 }
 
-/**
- * One named field out of the `options` argument of a `new AppError(...)` call.
- */
+/** One named field out of the `options` argument of a `new AppError(...)` call. */
 function optionField(args: string[], name: string): string | null {
     const options = args[3]?.trim();
     if (options === undefined || !options.startsWith('{')) return null;
@@ -158,26 +112,15 @@ function optionField(args: string[], name: string): string | null {
 /**
  * @param [options.root] Repository root.
  * @param [options.apiDir='api/src'] The HTTP service's sources.
- * @param [options.serviceDirs=['worker/src']] Sources of this app's own
- *   services that run outside the request cycle. Scanned for swallowed failures like
- *   the API, and held to the rule that they may not reach for the HTTP error type.
- * @param [options.appErrorBanDirs=[]] Further directories that may not use
- *   AppError but are NOT this app's services — a shared package, say. Held to the
- *   AppError rule only: a shared package's swallows belong to whoever owns it.
+ * @param [options.serviceDirs=['worker/src']] Services outside the request cycle.
+ * @param [options.appErrorBanDirs=[]] Further directories barred from AppError only.
  * @param [options.allowedStatus] The status policy table.
- * @param [options.parseLevel400=[]] Codes that legitimately answer 400 — a
- *   request that never parsed. Empty means every malformed request is caught by the
- *   validator and answered 422.
+ * @param [options.parseLevel400=[]] Codes that legitimately answer 400.
  * @param [options.handlerBranches=['AppError','ZodError','MulterError']] The typed
- *   failures the handler must map, in order, before falling through to 500.
- * @param [options.securityEventCodes=[]] Security events whose names carry no
- *   signal, so no pattern can reach them. Keep it short: a name that has to be listed
- *   here is usually a name that could say what it means instead.
- * @param [options.notSecurityEvents=[]] Escape hatch for a code that matches a
- *   pattern but is genuinely routine.
- * @param [options.directCodeEmitters=[]] The files allowed to emit a code without
- *   throwing AppError. The error handler is added automatically — it is the response
- *   boundary itself, so "does not throw AppError" is its whole job.
+ *   failures the handler must map, in order, before 500.
+ * @param [options.securityEventCodes=[]] Security events no pattern reaches.
+ * @param [options.notSecurityEvents=[]] Codes matching a pattern that are routine.
+ * @param [options.directCodeEmitters=[]] Files allowed to emit a code without AppError.
  */
 export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptions = {}): void {
     const {
@@ -568,9 +511,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
     // ── 8. The frontend end of the contract ──────────────────────────────────
     {
         const src = code(client);
-        // Two halves rather than one regex over `te(`errors.${…}`)`: building the key
-        // into a variable first is the same contract, and a gate that insists on the
-        // inline form fails a refactor that changed nothing.
+        // Two checks, not one regex, so the key may be built in a variable first.
         if (!/errors\.\$\{/.test(src) || !/i18n\.global\.te\(/.test(src)) {
             report.fail(
                 client,

@@ -1,58 +1,21 @@
 /**
  * IPC architecture gate — the channel surface between main and renderer.
  *
- *   1. CHANNEL DOCUMENTATION PARITY. The main entry opens with an "IPC handler
- *      ownership:" table mapping each service to the channels it owns. A stale
- *      table is worse than none — a map that confidently points the wrong way —
- *      so it is checked in both directions: an undocumented channel AND a
- *      documented pattern that matches nothing.
- *   2. EVERY CHANNEL THE PRELOAD CALLS HAS A HANDLER. A channel name is a string
- *      in two files. Rename one side and `invoke` rejects with "No handler
- *      registered" the first time a user touches the feature — not at build
- *      time, not in a type check, not in any test that mocks the bridge.
- *   3. EVERY EVENT THE PRELOAD LISTENS FOR IS SENT. A listener for a channel no
- *      `webContents.send` writes simply never fires; the feature hangs with no
- *      error anywhere.
- *   4. NO UNREACHABLE HANDLERS, NO UNRECEIVED EVENTS. A handler the preload
- *      never calls is dead code that is still live attack surface, and knip
- *      cannot see it, because the channel is a string.
- *   5. NO GENERIC PASSTHROUGH, AND EVERY CHANNEL IS A LITERAL. The preload may
- *      not expose `ipcRenderer`, and no channel on either side may be a
- *      variable or a template. A channel the renderer chooses turns the
- *      explicit API into "call anything"; a channel assembled from a template is
- *      one every rule above silently stops seeing.
- *   6. ONE BRIDGE, TYPED AGAINST THE SHARED CONTRACT. A single
- *      `exposeInMainWorld`, whose object is annotated (or `satisfies`) the
- *      contract type, which the contract file declares.
- *   7. EVERY HANDLER VALIDATES EVERY ARGUMENT. TypeScript types are erased at
- *      runtime, so a declared `string` is whatever came over the wire.
- *   8. CHANNEL NAMING: `domain:action`, both camelCase, and no action that
- *      merely repeats its domain.
+ *   1. The main entry's "IPC handler ownership:" table matches the handlers, both ways.
+ *   2. Every channel the preload invokes has a handler.
+ *   3. Every event the preload listens for is sent.
+ *   4. No handler the preload never calls, no event nobody receives.
+ *   5. No `ipcRenderer` passthrough; every channel is a string literal.
+ *   6. One `exposeInMainWorld`, typed against the shared contract.
+ *   7. Every handler validates every argument.
+ *   8. Channels are `domain:action`, both camelCase, the action not repeating the domain.
  *
- * Every handler containing its own failures (try/catch, `{ success, error }`)
- * is error-handling's rule, not this gate's.
+ * Rule 7 reads each handler's own body, per argument (`safeParse`/`parse`/`typeof`/
+ * `instanceof`/`Array.isArray`/`Number.is*`/`.test`), following an argument into a
+ * helper declared in the same file. Handlers are found by receiver: `ipcMain`,
+ * `webContents.ipc` and anything typed `IpcMain`, including `handleOnce`/`once`/`sendSync`.
  *
- * THREE COPIES, ONE GATE. The three desktop apps carried byte-identical
- * copies but for one example in one message. Nothing needed reconciling; the
- * paths are options because they are paths.
- *
- * RULE 7 READ THE WRONG CODE, IN BOTH DIRECTIONS. It asked for a `typeof` or
- * `safeParse` anywhere in the 2500 characters after `ipc.handle(`. That window
- * runs straight into the NEXT handler, so four handlers that forward
- * `...args` to the logger unchecked passed on a neighbour's `typeof` — and a
- * handler that delegates to a validating helper declared at the bottom of the
- * file passed only when the helper happened to be close enough. It now reads
- * the handler's own body, asks the question per ARGUMENT (named in a
- * `safeParse`/`parse`/`typeof`/`instanceof`/`Array.isArray`/`Number.is*`/
- * `.test`), and follows an argument into a function declared in the same file,
- * checking that function's matching parameter the same way.
- *
- * THE SURFACE IS FOUND BY RECEIVER, NOT BY NAME. The copies matched
- * `(ipcMain|ipc).handle(` — the name one parameter happened to have — and any
- * `.send('` at all. Handlers are now read off `ipcMain`, `webContents.ipc` and
- * anything this file types as `IpcMain`; events off `webContents.send(`; and
- * `handleOnce`, `once` and `sendSync` are part of the surface rather than
- * invisible to it.
+ * Handlers containing their own failures is error-handling's rule.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -108,9 +71,7 @@ const VALIDATORS = [
 
 const lineAt = (code: string, index: number): number => code.slice(0, index).split('\n').length;
 
-/**
- * `'fs:read'` → `fs:read`; `null` for anything but a plain string literal.
- */
+/** `'fs:read'` → `fs:read`; `null` for anything but a plain string literal. */
 function literal(arg: string): string | null {
     const m = /^\s*(['"])([^'"\\]*)\1\s*$/.exec(arg);
     return m === null ? null : (m[2] ?? '');
@@ -194,8 +155,7 @@ export function inspectIpcStandards({
 
     for (const rel of mainFiles) {
         const source = code.get(rel) ?? '';
-        // `webContents.ipc` is Electron's per-window handler registry: a handler
-        // registered there is as reachable from that renderer as one on ipcMain.
+        // `webContents.ipc` is the per-window handler registry, as reachable as ipcMain.
         const receivers = new Set(['ipcMain', 'webContents.ipc']);
         for (const m of source.matchAll(/([A-Za-z_$][\w$]*)\s*\??\s*:\s*(?:Electron\.)?IpcMain\b/g))
             receivers.add(m[1] ?? '');

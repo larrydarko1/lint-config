@@ -1,51 +1,15 @@
 /**
- * Duplication (DRY) gate.
+ * Duplication, via one jscpd run over every scan root:
  *
- * The failure this exists for is the one refactoring keeps producing: a module is
- * split by concern, the same guard or the same mapping is pasted into each half, and
- * every subsequent fix lands in one copy. It is invisible in review because no single
- * diff contains both halves.
+ *   1. Per-format token-percentage ceilings. A format with no entry is not gated;
+ *      `--all` still prints it.
+ *   2. No single clone over `maxCloneTokens`, which a shrinking ratio cannot hide.
+ *   3. No block copied between scan roots, except allowed composition roots.
+ *   4. No exported type name declared in two roots.
  *
- * FOUR RULES, AND TWO OF THEM ARE SELF-SILENCING. The two families looked like
- * different gates — the full-stack copies check cross-workspace copies and duplicated
- * type names, the desktop copies check per-format ceilings and a cap on any single
- * clone — but only the first pair is family-shaped, and it is shaped by the repo, not
- * by the family: both rules compare one scan root against another, so in a repo with
- * ONE root they have nothing to compare and say nothing. So this is the union, with
- * no switch, and a single-root project simply never reaches rules 3 and 4.
- *
- * WHY THE CEILINGS ARE PER FORMAT AND WHY AN OMITTED FORMAT IS NOT GATED. One blended
- * percentage hides all three of the things it averages:
- *   - `typescript` is LOGIC. Two copies of a branch is the case that costs a bug.
- *   - `scss` is presentation. Repetition there is real debt, but a stale copy makes
- *     something look wrong rather than behave wrong.
- *   - `html` is SFC template markup, where structural repetition is often the correct
- *     answer and extracting a component would cost more than it saves.
- * One family gates all three; the other gates typescript alone and says so in its
- * config — its SCSS sits near 8% and most of it is the same handful of declarations
- * inside different SFCs, where `@extend` cannot cross the SFC boundary, so
- * de-duplicating means promoting each one to a real global class. That is a design
- * call about what deserves to be shared, not something a percentage should force.
- * A format with no entry in `ceilings` is therefore not a gap — it is a recorded
- * decision, and `--all` still prints its number.
- *
- * WHY A PERCENTAGE IS NOT ENOUGH BY ITSELF. A ratio quietly improves as a codebase
- * grows: a large new copy-paste can land while the number goes DOWN. `maxCloneTokens`
- * is the rule that catches that, independently of size. It is optional because the
- * number is a ratchet set just above where a repo sits today, and a repo that has
- * never had one has no number to set.
- *
- * WHY ONE jscpd RUN OVER EVERY ROOT. The clones that matter most cross a root
- * boundary — a DTO restated in the frontend against the service that produces it, or
- * a connection bootstrap pasted into each service instead of living in shared. A
- * per-root run cannot see either. `perRoot` adds the per-root runs BACK, for projects
- * that also want each root held to the ceiling on its own so a small duplicated
- * workspace is not diluted by a large clean one; it is a superset, not a replacement.
- *
- * WHAT THIS CANNOT JUDGE: jscpd matches tokens, not intent. Two blocks that look
- * identical and mean different things are a false positive, and the honest response is
- * to raise the relevant ceiling with a comment rather than contort the code. Every
- * number a project passes in is a judgement, not a measurement.
+ * Rules 3 and 4 say nothing in a single-root repo. `perRoot` also holds each root
+ * to the ceilings on its own. jscpd matches tokens, not intent: raise a ceiling with
+ * a reason rather than contort the code.
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -134,10 +98,7 @@ export type DuplicationInspection = {
 /** Directories whose contents are not this repo's own source. */
 const DEFAULT_IGNORE_DIRS = ['__tests__', 'tests', 'node_modules', 'dist'];
 
-/**
- * jscpd reports an SFC's script block as `Foo.vue:typescript`. Stripping the suffix is
- * what lets a path be compared against an allowlist entry or printed for a human.
- */
+/** jscpd reports an SFC's script block as `Foo.vue:typescript`; strip the suffix. */
 const relative = (root: string, file: string): string => path.relative(root, file.replace(/:[a-z]+$/, ''));
 
 /** Run jscpd over `paths` and read its JSON report. */
@@ -165,14 +126,7 @@ function runJscpd(root: string, paths: string[], config: string): JscpdReport {
     return parsed;
 }
 
-/**
- * Every exported type and interface name, and where it was declared.
- *
- * A regex rather than the TypeScript AST on purpose: the question is only "does this
- * NAME appear as an export in two roots", and a name is the one thing a regex reads
- * without ambiguity. Being wrong here costs a false positive on a name, not a wrong
- * program.
- */
+/** Every exported type and interface name, and where it was declared. */
 export function exportedTypes(
     root: string,
     scan: string[],
@@ -202,16 +156,7 @@ export function exportedTypes(
     return declarations;
 }
 
-/**
- * Every rule, decided from a jscpd report and a map of declarations — no filesystem,
- * no child process.
- *
- * Split out for the same reason the audit gate is: the alternative way to test rule 2
- * is to check a 141-token clone into a fixture repo and run the real jscpd over it,
- * which makes the suite depend on a binary, on that binary's tokenizer, and on nobody
- * ever reformatting the fixture. Here the crafted report IS the contract, and the
- * runner's only job is to produce one.
- */
+/** Every rule, decided from a jscpd report and a map of declarations, so it is testable without jscpd. */
 export function inspectDuplication(input: DuplicationInput): DuplicationInspection {
     const {
         root,
@@ -225,7 +170,6 @@ export function inspectDuplication(input: DuplicationInput): DuplicationInspecti
     } = input;
 
     const problems: GateFailure[] = [];
-    /** @param file @param {string} what @param {string} why */
     const fail = (file: string | null, what: string, why: string) => problems.push({ file, what, why });
 
     const ceilingOf = (entry: number | Ceiling) =>
@@ -235,11 +179,7 @@ export function inspectDuplication(input: DuplicationInput): DuplicationInspecti
 
     const clones = report.duplicates.slice().sort((a, b) => b.tokens - a.tokens);
 
-    /**
-     * Record a clone under the file it starts in, so the reporter groups it there and an
-     * editor can jump straight to it. Both originals printed the two paths as unanchored
-     * indented lines under a bullet, which is two clicks further away from the code.
-     */
+    /** Record a clone under the file it starts in, so an editor can jump to it. */
     const failClone = (clone: Clone, why: string) => {
         fail(loc(clone.firstFile), `${plural(clone.tokens, 'token')} duplicated at ${loc(clone.secondFile)}`, why);
     };
@@ -346,9 +286,7 @@ export function checkDuplication(options: DuplicationOptions): void {
         ignoreDirs = DEFAULT_IGNORE_DIRS,
     } = options;
 
-    // `--all` is the human-facing view: jscpd's own console report over the same roots
-    // and the same config, so the clones can be read rather than counted, formats this
-    // gate does not gate included. No ceilings are applied.
+    // `--all`: jscpd's own console report, every format, no ceilings.
     if (process.argv.includes('--all')) {
         const bin = packageBin('jscpd');
         try {

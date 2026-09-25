@@ -1,76 +1,19 @@
 /**
- * WebSocket / real-time architecture gate — one server, one client, and the
- * order of the handshake.
+ * WebSocket architecture: one server, one client, and the order of the handshake.
  *
- * Every rule here is about something that keeps working while being wrong. A
- * gateway with no Redis adapter serves a single pod perfectly and drops every
- * cross-pod notification the moment there are two. A rate limit registered
- * behind the JWT verify still limits — after making each flood attempt pay for
- * a signature verification first, which is the cost the limit existed to avoid.
- * A listener a composable never removes keeps firing into dead state and
- * re-registers on every remount. None of it throws.
- *
- * THE ONE INVERTED RULE. The two repos disagree about the Redis adapter, and
- * not by drift: one MUST have it and the other must NOT. The standard says the
- * adapter is mandatory in multi-pod because each pod holds only its own
- * sockets. The second gateway already gives every pod its own `psubscribe`, so
- * each pod holds every bucket its own sockets need, and the adapter would
- * republish each message across the cluster for every other pod to discard.
- * That is the rare case where following the standard is the regression — so
- * `redisAdapter.mode` is `'required'` or `'forbidden'`, and `'forbidden'`
- * additionally requires the ARGUMENT to be written in the gateway header. A
- * departure nobody can find the reason for is a departure that gets "fixed"
- * back by the next person who knows the standard and not this file.
- *
- * FINDING THE RATE LIMIT WITHOUT MATCHING A NAME. Rule 5 is an ORDER rule: the
- * connection limit runs as the first `io.use()`, ahead of the JWT verify. One
- * copy located the limiter by searching the whole file for the bucket key
- * `rl:ws:conn:`. In the other repo that key is not in the middleware at all —
- * the middleware calls `consumeConnectionToken(clientIp(socket))` and the key
- * lives inside that helper, declared at the BOTTOM of the file, hundreds of
- * bytes AFTER the JWT verify. Merged naively, the rule would have reported
- * "the rate limit does not run before JWT verification" about a gateway where
- * it provably does. So the limiter is recognised by what it DOES, one level of
- * indirection deep: the bucket key inside the first middleware's own span, or a
- * call in that span to a function declared in the same file whose body carries
- * the key. Same shape as the security gate's binding resolver, and the same
- * lesson — a name is not a use.
- *
- * WHERE `jwt.verify` IS ALLOWED TO LIVE. One gateway verifies inline; the other
- * calls the REST API's `verifyAccessToken`, which additionally refuses the 2FA
- * challenge token that shares the secret — a stricter check, not a weaker one.
- * So `authModule` names where the verify really happens, and the secret and
- * algorithm rules are applied to THAT function's body rather than to whichever
- * file the call appears in.
- *
- * THREE RULES WERE MERGED AS A UNION rather than chosen between, because each
- * copy was right about its own repo and neither was wrong:
- *
- *   • INBOUND VALIDATION. One checked for a `.parse()` in the 800 bytes after
- *     the listener; the other, whose listeners delegate to named handlers, for
- *     a schema named after the event. Either satisfies the rule now.
- *
- *   • THE TEARDOWN HOOK. `onScopeDispose` is the right one in a composable —
- *     it fires for a manual `effectScope` too, where `onUnmounted` never runs
- *     because there is no component instance. `onUnmounted` is right in a
- *     component. Either is accepted; neither is.
- *
- *   • DROPPING THE SOCKET ON SIGN-OUT. One repo exports `disconnectSocket` and
- *     calls it from the logout path; the other deliberately does not export it
- *     and registers it with `onSessionCleared`, because exporting it hands any
- *     caller the ability to drop a socket the rest of the app is reading from.
- *     The rule is that the teardown EXISTS and is REACHED, which both satisfy.
- *
- * THE UPGRADE ORIGIN CHECK IS A STANDARD RULE, not an option. CORS does not
- * govern a WebSocket upgrade, so one repo checked the origin in `allowRequest`
- * and the other had simply never added it. That was a gap rather than a
- * decision, and it was closed in the gateway, so there is nothing left to opt
- * out of.
- *
- * THE HEADER CONTRACT IS READ IN BOTH DIRECTIONS, the newer copy's version. An
- * event the gateway handles is as much of a contract as one it sends, and a
- * push-only socket documents its empty inbound list explicitly — that empty
- * list is precisely what justifies having no per-message rate limit.
+ *   1. One Socket.IO server, on the existing HTTP listener.
+ *   2. The Redis adapter, `required` or `forbidden` (see RedisAdapter).
+ *   3. The origin is checked on the upgrade (CORS does not cover it).
+ *   4. Handshake auth inside io.use(), checked in `authModule` when the verify is not inline.
+ *   5. The connection rate limit is the first io.use(), recognised by its bucket key
+ *      in the middleware or in a same-file function it calls.
+ *   6. The client IP mirrors the Express hop count.
+ *   7. Rooms, and emits confined to the gateway.
+ *   8. The gateway header lists the events, both directions.
+ *   9. Inbound events are validated (a parse in the listener, or a schema named
+ *      after the event) and rate limited.
+ *  10. The frontend: one client, listeners torn down (`onScopeDispose` or
+ *      `onUnmounted`), the socket dropped on sign-out.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -88,11 +31,8 @@ export interface WsProblem {
 }
 
 /**
- * The Redis adapter is the one rule that inverts between repos: mandatory where
- * a pod holds only its own sockets, a regression where every pod already
- * subscribes to every bucket. `'forbidden'` also requires the argument to stay
- * in the gateway header, because a departure nobody can find the reason for is
- * one the next person "fixes" back.
+ * Mandatory where a pod holds only its own sockets; a regression where every pod
+ * already subscribes to every bucket. `'forbidden'` requires the reason in the gateway header.
  */
 export type RedisAdapterRule =
     | { mode: 'required' }
@@ -154,15 +94,7 @@ export interface WsStandardsOptions extends Omit<WsStandardsInput, 'root'> {
 /** Socket.IO's own events. A listener for one of these is not an app contract. */
 const LIFECYCLE = new Set(['connect', 'connection', 'disconnect', 'disconnecting', 'connect_error', 'error']);
 
-/**
- * Every `try { … } catch { … }` pair in a file, brace-balanced.
- *
- * Whether a control degrades gracefully is a property of the PAIR: the attempt
- * says what was guarded and the recovery says what happens when it fails. The
- * copy this replaces matched `/try\s*\{([\s\S]*?)\}\s*catch[\s\S]*?\{([\s\S]*?)\n {4}\}/`,
- * which stops at the first `}` and ends on four spaces of today's indentation —
- * so one nested object inside the try hid the rest of it.
- */
+/** Every `try { … } catch { … }` pair in a file, brace-balanced. */
 function tryCatchPairs(source: string): { attempt: string; recovery: string }[] {
     const pairs: { attempt: string; recovery: string }[] = [];
 
@@ -173,8 +105,7 @@ function tryCatchPairs(source: string): { attempt: string; recovery: string }[] 
             if (source[j] === '{') depth++;
             else if (source[j] === '}' && --depth === 0) {
                 const rest = source.slice(j + 1);
-                // Only a catch that IMMEDIATELY follows belongs to this try; the
-                // next one down the file belongs to something else entirely.
+                // Only a catch that immediately follows belongs to this try.
                 const recovery = /^\s*catch\b/.test(rest) ? braceBlock(rest, /catch\s*(?:\([^)]*\))?\s*\{/) : '';
                 pairs.push({ attempt: source.slice(open + 1, j), recovery });
                 break;
@@ -185,9 +116,7 @@ function tryCatchPairs(source: string): { attempt: string; recovery: string }[] 
     return pairs;
 }
 
-/**
- * Every real-time relationship this repo can be asked about, as a list of problems.
- */
+/** Every problem found, without printing. */
 export function inspectWsStandards(input: WsStandardsInput): WsStandardsInspection {
     const {
         root = REPO_ROOT,
@@ -218,9 +147,7 @@ export function inspectWsStandards(input: WsStandardsInput): WsStandardsInspecti
 
     const source = read(gateway);
     const header = /^\/\*\*[\s\S]*?\*\//.exec(source)?.[0] ?? '';
-    // The header is prose and the body is code. Splitting them is what lets the
-    // contract rule compare what is WRITTEN against what the code DOES, instead
-    // of finding the documented event name in the documentation.
+    // Split header from body so documented events are not found in the documentation.
     const body = stripComments(source.slice(header.length));
 
     const serverFiles = walkFiles(root, serverDirs, {
@@ -268,10 +195,7 @@ export function inspectWsStandards(input: WsStandardsInput): WsStandardsInspecti
                 'Mandatory for multi-pod: each pod holds only its own sockets, so without the adapter an emit raised on one pod never reaches a user connected to another. It is invisible in single-pod dev, which is exactly where it gets written.',
             );
         }
-        // The install must be inside a try/catch that WARNS: a gateway that dies
-        // because Redis was slow to accept a connection is worse than one running
-        // on the in-memory adapter, and a silent fallback looks identical to a
-        // working cluster until the day there are two pods.
+        // The install must be in a try/catch that warns: neither crash nor silent fallback.
         const guarded = tryCatchPairs(body).find((pair) => /io\.adapter\(/.test(pair.attempt));
 
         if (guarded === undefined) {
@@ -333,8 +257,6 @@ export function inspectWsStandards(input: WsStandardsInput): WsStandardsInspecti
     const inlineVerifyAt = body.indexOf('jwt.verify');
     const delegateAt = authModule === undefined ? -1 : body.indexOf(`${authModule.fn}(`);
     const verifyAt = inlineVerifyAt !== -1 ? inlineVerifyAt : delegateAt;
-    // The secret and the algorithm are properties of the function that calls
-    // jwt.verify, not of the file the call site happens to sit in.
     const verifySource =
         inlineVerifyAt !== -1
             ? body
@@ -385,9 +307,7 @@ export function inspectWsStandards(input: WsStandardsInput): WsStandardsInspecti
     {
         const first = uses[0];
         const span = first === undefined ? '' : body.slice(first.index, first.end);
-        // The limiter is recognised by what it does, resolved one level deep —
-        // see the header. A call in the span to a local function whose body
-        // carries the bucket key counts as the limiter running in that span.
+        // A call to a local function carrying the bucket key counts as the limiter.
         const keyInSpan = span.includes(connectionKey);
         const viaHelper = [...span.matchAll(/\b([A-Za-z_$][\w$]*)\s*\(/g)].some((call) =>
             declaredBody(body, call[1] ?? '').includes(connectionKey),
@@ -525,9 +445,7 @@ export function inspectWsStandards(input: WsStandardsInput): WsStandardsInspecti
         .map((match) => match[1] ?? '')
         .filter((event) => !LIFECYCLE.has(event));
     const onTheWire = new Set([...outbound, ...inbound]);
-    // An event line in the header is a `resource:action` token that OPENS its
-    // line. Anchoring on a fixed indent instead would encode today's formatting
-    // as the contract, and prose mentioning an event would satisfy the rule.
+    // An event line is a `resource:action` token that opens its line, so prose does not count.
     const documented = new Set(
         [...header.matchAll(/^\s*\*\s+([a-z][a-z0-9-]*:[a-z][a-z0-9-]*)\b/gm)].map((match) => match[1] ?? ''),
     );
@@ -569,9 +487,7 @@ export function inspectWsStandards(input: WsStandardsInput): WsStandardsInspecti
     for (const event of inbound) {
         const at = body.indexOf(`socket.on('${event}'`);
         const handler = body.slice(at, at + 800);
-        // Either shape counts: a parse in the listener itself, or — when the
-        // listener delegates to a named handler — a parse of the schema named
-        // after the event (`candle:watch` → `candleWatchSchema`).
+        // A parse in the listener, or of the schema named after the event (`candle:watch` → `candleWatchSchema`).
         const camel = event.replace(/:(.)/g, (_match, letter) => String(letter).toUpperCase());
         const validated =
             /\.(parse|safeParse)\(/.test(handler) ||
@@ -671,9 +587,7 @@ export function inspectWsStandards(input: WsStandardsInput): WsStandardsInspecti
         const listeners = [...src.matchAll(/socket\.on\(\s*'([^']+)'/g)].map((match) => match[1] ?? '');
         if (listeners.length === 0) continue;
 
-        // Either teardown hook. `onScopeDispose` is the right one in a composable:
-        // it fires for a manual effectScope too, where `onUnmounted` never runs
-        // because there is no component instance to unmount.
+        // Either hook; `onScopeDispose` also fires for a manual effectScope.
         const hooks = [src.indexOf('onScopeDispose('), src.indexOf('onUnmounted(')].filter((at) => at !== -1);
         if (hooks.length === 0) {
             fail(
@@ -698,9 +612,7 @@ export function inspectWsStandards(input: WsStandardsInput): WsStandardsInspecti
     return { problems, counts: { outbound: outbound.size, inbound: inbound.length, documented: documented.size } };
 }
 
-/**
- * Run the gate and print.
- */
+/** Run the gate and print. */
 export function checkWsStandards({ root = REPO_ROOT, standard, ...rest }: WsStandardsOptions): void {
     const report = createGateReport({ name: 'WebSocket standards', ...(standard === undefined ? {} : { standard }) });
     const { problems, counts } = inspectWsStandards({ root, ...rest });

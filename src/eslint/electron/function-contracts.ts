@@ -1,7 +1,6 @@
 /**
- * Function contract gate. Deliberately not checked: `record*`/`save*`/`update*`/`delete*`
- * (the standard allows any receipt shape), `is*`/`has*`/`can*` doing synchronous I/O
- * (only `await` is visible from here), and whether a name is *accurate* — that is review's job.
+ * Function contracts. Not checked: `record*`/`save*`/`update*`/`delete*` return shapes,
+ * synchronous I/O in `is*`/`has*`/`can*`, and whether a name is accurate.
  */
 
 import type { TSESLint, TSESTree } from '@typescript-eslint/utils';
@@ -130,8 +129,7 @@ const nameContract: TSESLint.RuleModule<
             const declared = node.returnType.typeAnnotation;
             const isAsync = node.async === true || frame?.hasAwait === true;
 
-            // A predicate or assertion signature is checked before unwrapping —
-            // `asserts x is T` is not a value type and has no Promise to unwrap.
+            // Before unwrapping: `asserts x is T` has no Promise to unwrap.
             if (isPredicate(declared)) {
                 if (['is', 'has', 'can'].includes(prefix) && declared.asserts !== true) return;
                 if (['assert', 'require', 'ensure'].includes(prefix)) return;
@@ -239,10 +237,7 @@ const nameContract: TSESLint.RuleModule<
     },
 };
 
-/**
- * Rule 2. One failure channel. `T | null | undefined` is two channels for the
- * same answer, and every call site has to guess which one it is getting.
- */
+/** Rule 2. One failure channel: not `T | null | undefined`. */
 const oneFailureChannel: TSESLint.RuleModule<'bothNullAndUndefined'> = {
     meta: {
         type: 'problem',
@@ -276,12 +271,7 @@ const oneFailureChannel: TSESLint.RuleModule<'bothNullAndUndefined'> = {
     },
 };
 
-/**
- * Rule 5. Two optionals in a row is the shape that forces `f(a, undefined, c)`
- * at the call site — the exact drift that put six positional arguments on
- * AppError. One options object instead, and every optional is named where it
- * is passed.
- */
+/** Rule 5. Two optionals in a row force `f(a, undefined, c)`; use one options object. */
 const noUndefinedHole: TSESLint.RuleModule<'undefinedHole'> = {
     meta: {
         type: 'problem',
@@ -317,9 +307,8 @@ const noUndefinedHole: TSESLint.RuleModule<'undefinedHole'> = {
 };
 
 /**
- * Rule 5. `archive(id, true)` is unreadable at the call site. A lone boolean
- * parameter is a setter and fine (`setMuted(muted: boolean)`); a boolean
- * *alongside other arguments* is a mode switch wearing a value's clothes.
+ * Rule 5. `archive(id, true)` is unreadable at the call site. A lone boolean is a
+ * setter and fine; a boolean alongside other arguments is a mode switch.
  */
 const noBooleanFlag: TSESLint.RuleModule<'booleanFlag'> = {
     meta: {

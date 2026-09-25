@@ -1,43 +1,17 @@
 /**
- * Import order — layer 1 of the declaration table, sorted from the inside.
+ * Import order. Imports are grouped by how far away the code lives, farthest first:
  *
- * Imports are grouped by how far away the imported code lives, farthest first:
- *
- *    1. builtin    — the runtime itself: `node:fs`, and bare `fs` / `path`
- *    2. external   — npm packages: `vue`, `express`, `electron`, `@vue/test-utils`
+ *    1. builtin    — `node:fs`, and bare `fs` / `path`
+ *    2. external   — npm packages, `electron` included
  *    3. workspace  — this monorepo's other packages (only where `workspaceScope` is set)
- *    4. local      — this package: `@/…`, `./…`, `../…`, `#…`, and any `localAliases`
+ *    4. local      — `@/…`, `./…`, `../…`, `#…`, and any `localAliases`
  *
- * `#…` is local by language rule, not by convention: Node resolves a specifier
- * beginning with `#` through the package's own `imports` field, so it can only ever
- * name a file inside this package. Two of the five projects had it and three did
- * not, and the three were not using the idiom — so the only repo where the omission
- * showed was the one whose gate already had the rule.
+ * One blank line between groups, none inside one, alphabetical by specifier
+ * (case-insensitive) within a group. Groups are by source, not kind: inline type
+ * imports share a statement with values.
  *
- * `electron` is external even though it feels like part of the platform: it is a
- * package in node_modules like any other, and the main process imports it next to
- * `electron-log`, not next to `node:fs`.
- *
- * One blank line between groups, none inside one, and inside a group the lines are
- * alphabetical by specifier (case-insensitive). That last part is deliberately
- * mechanical: "the order the components appear on the page" feels natural to the
- * author and is unguessable to everyone else, while alphabetical by path clusters a
- * folder's imports together on its own.
- *
- * WHAT IS GROUPED BY SOURCE, NOT BY KIND. There is no "types" group and no
- * "composables" group. `consistent-type-imports` with `inline-type-imports` puts a
- * type and a value from the same module into ONE statement, so a type-only group
- * could not hold that line; and `@/composables/…` sorts next to its neighbours
- * without a rule saying so.
- *
- * THE EXCEPTION IS COMPUTED, NOT LISTED. A side-effect import (`import 'x'`) runs
- * for what it does, and `import 'dotenv/config'` has to run before anything that
- * reads `process.env` at import time. So side-effect imports never move, and they
- * split the import run into segments that are sorted independently. The blank lines
- * on either side of one are left to the author.
- *
- * Only the leading run of imports is checked. An import below a non-import statement
- * is the declaration-order pass's problem, not this one's.
+ * Side-effect imports (`import 'dotenv/config'`) never move; they split the run into
+ * segments sorted independently. Only the leading run of imports is checked.
  */
 import fs from 'node:fs';
 import { builtinModules } from 'node:module';
@@ -64,10 +38,7 @@ export type ImportOrderOptions = {
     localAliases?: string[];
 };
 
-/**
- * Declared as properties holding functions, not as methods: these are plain closures with
- * no `this`, and a method signature makes `unbound-method` flag every destructuring of them.
- */
+/** Function-valued properties, not methods, so destructuring does not trip `unbound-method`. */
 export type ImportOrder = {
     IMPORT_GROUPS: string[];
     /** `null` when the file is an SFC with no script block. */
@@ -116,10 +87,8 @@ export function createImportOrder(options: ImportOrderOptions = {}): ImportOrder
     };
 
     /**
-     * The leading run of imports. Each item's text runs from its first attached comment
-     * to the end of its last line, so a `// why` above an import or after it moves with
-     * it. The first import's leading comment is left alone: that is the file header, not
-     * a note about the first import.
+     * The leading run of imports. Attached comments move with their import, except the
+     * first import's leading comment, which is the file header.
      */
     const collect = (code: string, sf: ts.SourceFile): ImportItem[] => {
         const items: ImportItem[] = [];
@@ -208,8 +177,7 @@ export function createImportOrder(options: ImportOrderOptions = {}): ImportOrder
 
             const first = seg[0];
             const last = seg[seg.length - 1];
-            // A comment floating between two imports belongs to neither, so a rewrite
-            // would drop it. Report the segment, but leave it for a human to fix.
+            // A floating comment belongs to neither import; report but do not rewrite.
             const floating = seg.some(
                 (item, idx) => idx > 0 && code.slice(seg[idx - 1]?.end, item.start).trim() !== '',
             );

@@ -1,32 +1,12 @@
 /**
- * Error handling at an Electron app's boundaries.
+ * Error handling at an Electron app's boundaries:
  *
- * An Electron main process has no middleware and no request/response cycle, so the
- * places a failure can escape are different from a server's, and there are only
- * four of them:
- *
- *   1/2. EVERY IPC HANDLER CONTAINS ITS OWN FAILURES. A throw crossing the IPC
- *        bridge arrives in the renderer as a flattened string prefixed "Error
- *        invoking remote method" — no type, no stack, no fields. There is no
- *        boundary above `ipcMain.handle` to catch it, so each handler is its own
- *        boundary. This is the rule that keeps the NEXT handler honest, which is
- *        why it is worth machine-checking when every existing one already complies.
- *   3.   PROCESS-LEVEL BACKSTOPS. Startup and shutdown are `void`ed promise
- *        chains: a rejection in either has no catch and no console the user will
- *        ever see. In Node's default configuration an unhandled rejection
- *        terminates the process, and the entire diagnostic is that the app closed.
- *   4.   SHUTDOWN RELEASES WHAT CLOSING THE WINDOW DOES NOT. `before-quit` is the
- *        only hook that runs while the services still exist. A process that has
- *        closed its window but not exited presents to the user as the app failing
- *        to quit, and to the next launch as a lock already taken. A project with
- *        no native handles today still needs the hook: the first service that
- *        needs releasing should find somewhere to be released from.
- *   5.   A SWALLOWED FAILURE STATES ITS REASON — shared with every other family,
- *        so it lives in ../swallowed-errors.ts.
- *
- * Across the three desktop apps this gate differed by 10–38 lines and not one
- * of them was logic: `cleanupRequired` and the handler counts quoted in the
- * comments. So everything below is shared, and that list is the only option.
+ *   1/2. Every IPC handler contains its own failures. A throw crossing the bridge
+ *        reaches the renderer as a flattened string, with no boundary above it.
+ *   3.   Process-level backstops for unhandled rejections and exceptions.
+ *   4.   `before-quit` releases what closing the window does not. The hook is
+ *        required even when nothing needs releasing yet.
+ *   5.   A swallowed failure states its reason (../swallowed-errors.ts).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -46,25 +26,15 @@ export type ElectronErrorHandlingOptions = {
     rendererDir?: string;
     /** Where the app lifecycle is wired. Defaults to `src/main/index.ts`. */
     mainIndex?: string;
-    /**
-     * Services holding a resource the OS does not reclaim when the window closes; each
-     * must be released in `before-quit`. Empty is a legitimate answer — the hook is
-     * still required, so the first service that needs releasing has somewhere to go.
-     */
+    /** Services holding a resource the OS does not reclaim on window close; each must be released in `before-quit`. */
     cleanupRequired?: [service: string, why: string][];
 };
 
 /**
- * From `start`, the body of the callback that follows.
+ * From `start`, the body of the callback that follows. Located from the `=>`, since the
+ * first `{` may belong to an inline return type.
  *
- * The body has to be located from the `=>`, not from the first `{`: these handlers
- * annotate their return type inline (`Promise<{ success: boolean }>`), so the first
- * brace after the channel name belongs to the TYPE. Reading from there yields the
- * annotation and then spills into the next handler, which makes every check
- * downstream quietly wrong.
- *
- * @returns `expression: true` for a concise
- *   arrow body (`() => getStatus()`), which has no statements and so no try block.
+ * @returns `expression: true` for a concise arrow body, which has no try block.
  */
 function callbackBody(source: string, start: number): { body: string; expression: boolean } {
     const arrow = source.indexOf('=>', start);
@@ -123,8 +93,7 @@ function outsideTry(body: string): string {
             }
         }
 
-        // Consume the trailing catch/finally blocks too, or the `catch` keyword
-        // would be left behind and read as unguarded code on the next pass.
+        // Consume the trailing catch/finally blocks too, or `catch` reads as unguarded code.
         const tail = /^\s*(?:catch\s*(?:\([^)]*\))?\s*\{|finally\s*\{)/.exec(out.slice(end));
         if (tail === null) {
             out = out.slice(0, at) + out.slice(end);
@@ -161,9 +130,7 @@ const BACKSTOPS: [event: string, why: string][] = [
 /**
  * @param [options.root] Repository root.
  * @param [options.mainIndex='src/main/index.ts'] Where the app lifecycle is wired.
- * @param [options.cleanupRequired=[]] Services holding a
- *   resource the OS does not reclaim when the window closes. Each must be released in
- *   `before-quit`. Empty is a legitimate answer — the hook is still required.
+ * @param [options.cleanupRequired=[]] Services that must be released in `before-quit`.
  */
 export function checkElectronErrorHandling(options: ElectronErrorHandlingOptions = {}): void {
     const {
@@ -194,9 +161,7 @@ export function checkElectronErrorHandling(options: ElectronErrorHandlingOptions
             const guarded = /try\s*\{/.test(body);
             const envelope = /success:\s*false/.test(body);
 
-            // Only a handler that can actually fail owes containment. A concise
-            // synchronous getter (`() => getStatus()`) reads state already in
-            // memory: wrapping it would add a branch no test could ever reach.
+            // A concise synchronous getter reads in-memory state and cannot fail.
             const fallible = !expression && /\bawait\b|\bthrow\b|\bfs\.|readFile|writeFile|existsSync/.test(body);
 
             if (fallible && !guarded && !envelope) {

@@ -1,63 +1,10 @@
 /**
- * Security-standards drift gate.
+ * Security controls whose failure is silent: the app boots and the suite stays
+ * green. Rules are numbered in the body. Groups a repo does not have (reset flow,
+ * reverse proxy, TLS config, …) are omitted, and the shim says why.
  *
- * Every rule here is a control whose failure is SILENT. Nothing on this list
- * throws, fails a test or shows up in a diff review as anything other than a
- * plausible line: `trust proxy` set to `true` instead of a hop count, an HSTS
- * max-age that lost a zero, a throttle counter keyed by the raw email, a
- * rotation that mints a fresh expiry. The app boots, the suite is green, and the
- * control is gone. That is the whole reason this gate exists rather than a
- * checklist.
- *
- * WHY THIS IS ONE GATE WITH OPTIONAL GROUPS AND NO FAMILY SWITCH. Both copies
- * are full-stack; there is no second architecture to reconcile. What differs is
- * not how a rule works but whether the repo has the thing the rule is about —
- * one repo terminates TLS at nginx and Traefik and sends password-reset email,
- * the other does neither. So those rules are groups you state or leave out, and
- * the copy that left them out had already written down WHY in a comment, which
- * is the behaviour worth keeping: an absent group should be a recorded decision,
- * not an oversight. The shim says what it omits and why.
- *
- * WHAT WAS TAKEN FROM WHICH COPY, and the two that were wrong rather than older:
- *
- *   • THE THROTTLE-KEY RULE FOLLOWED A NAME. One copy allowed any argument
- *     whose identifier matched `/^(?:\w*[Ii]ndex|throttleKey)$/`. `const
- *     emailIndex = req.body.email` satisfies that perfectly, and the raw email
- *     then lands in a Redis key where it outlives the request and an operator
- *     can read it. The rule now resolves the argument to its binding and asks
- *     whether a credential reaches it without passing through a derivation —
- *     the use, not the name.
- *
- *   • THE HSTS MAX-AGE WAS READ FROM THE WHOLE FILE. `src.match(/maxAge:
- *     \s*(\d+)/)` takes the FIRST max-age in the entry file, which is the HSTS
- *     one only by luck of ordering: add a session cookie above the helmet call
- *     and the rule starts grading the cookie. It is now read out of the
- *     brace-balanced `strictTransportSecurity` block, and so is `preload`.
- *
- *   • ARGON2 PARAMETERS are read from the encoded hash BY NAME (`m=`, `t=`,
- *     `p=`), not by position. The other copy's positional pattern reports drift
- *     on a hash that is entirely correct but written in another order.
- *
- *   • THE SANITIZER RULE is the union: `$`-prefixed keys, the prototype keys
- *     (`__proto__`, `constructor`, `prototype`) and dotted keys. Both repos'
- *     sanitizers already strip all three; only one gate checked the second and
- *     neither checked the third, and a dotted key is a Mongo path — `{"a.b":
- *     1}` reaches into a subdocument the handler never meant to expose.
- *
- *   • `v-html` IS NOT CHECKED HERE, although one copy checked it. `vue/no-v-html`
- *     is an error in the shared ESLint config for both families, and the
- *     standard names ESLint as its owner. A rule with two owners drifts between
- *     them, and the ESLint one reports the line.
- *
- *   • COMMENTS ARE BLANKED before any rule asks whether the code does
- *     something. Neither copy did this for the raw-HTML sink scan, so a comment
- *     reading "never assign to .innerHTML" failed the gate.
- *
- * ONE RULE IS NEW, from the standard rather than from either copy: the Argon2
- * parameters must still meet the OWASP floor (`memoryCost` ≥ 64 MB, `timeCost`
- * ≥ 3). The existing rule only proved config and the dummy hash AGREE — they
- * agree just as well at `memoryCost: 4096`, which is the shape of the change
- * someone makes to speed up a slow test suite.
+ * Comments are blanked before any rule asks what the code does, and definitions
+ * are blanked where a rule asks whether something is called. `v-html` is ESLint's.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -182,24 +129,14 @@ const DERIVATIONS = ['emailBlindIndex', 'blindIndex', 'throttleKey', 'createHash
 const THROTTLE_FNS = ['assertLoginAllowed', 'recordLoginFailure', 'clearLoginFailures'];
 
 /**
- * True when a CSP `script-src` list carries neither unsafe token.
- *
- * Reads the directive rather than the file: `unsafe-inline` is a documented,
- * accepted exception on `style-src` (Vue's `:style` bindings render as inline
- * style attributes, which no nonce or hash can cover), so a file-wide search
- * would fail every correct config in both families.
+ * True when a CSP `script-src` list carries neither unsafe token. Per directive:
+ * `unsafe-inline` is accepted on `style-src` for Vue's `:style`.
  *
  * @param directives The `scriptSrc: [...]` array body or an nginx `script-src …` run.
  */
 const scriptSrcClean = (directives: string): boolean => !/unsafe-inline|unsafe-eval/.test(directives);
 
-/**
- * `{ m, t, p }` out of an encoded Argon2 hash, read by NAME.
- *
- * The encoding is `$argon2id$v=19$m=65536,t=3,p=4$…`. Reading the three numbers
- * positionally — as one copy of this gate did — reports drift on a hash that is
- * entirely correct but whose parameters were written in another order.
- */
+/** `{ m, t, p }` out of an encoded Argon2 hash (`$argon2id$v=19$m=65536,t=3,p=4$…`), by name. */
 function encodedArgonParams(source: string): Record<string, number> {
     const encoded = /\$argon2id\$v=\d+\$([^$]+)\$/.exec(source)?.[1] ?? '';
     return Object.fromEntries([...encoded.matchAll(/([mtp])=(\d+)/g)].map((f) => [f[1] ?? '', Number(f[2])]));
@@ -237,24 +174,12 @@ function nginxLocations(source: string): { name: string; body: string }[] {
     return blocks;
 }
 
-/**
- * Source with every `function name(` blanked, so a rule asking whether something
- * is CALLED cannot be answered by the line that DEFINES it.
- *
- * This is the trap that cost the most in this port and the last one. A file
- * route was asked whether it calls `isSameOrigin(req)`; deleting the call left
- * `function isSameOrigin(req)` behind, and the rule reported the control intact
- * on a route that had stopped checking anything.
- */
+/** Source with every `function name(` blanked, so a definition cannot answer for a call. */
 const callsOnly = (source: string): string => source.replace(/\bfunction\s+(\w+)\s*\(/g, (m) => ' '.repeat(m.length));
 
 /**
- * The expression a local `const name = …` was last bound to before `before`.
- *
- * Nearest-preceding rather than first-in-file, because the same short name
- * (`key`) is legitimately rebound once per function in these modules, and
- * grading a call against a binding from three functions above it is how a rule
- * ends up right for the wrong reason.
+ * The expression a local `const name = …` was last bound to before `before`
+ * (nearest, since short names are rebound per function).
  *
  * @param before Offset of the call site.
  * @returns The right-hand side, or null when nothing binds it here.
@@ -277,12 +202,7 @@ function bindingBefore(source: string, name: string, before: number): string | n
     return found;
 }
 
-/**
- * Every security invariant this repo can be asked about, as a list of problems.
- *
- * Pure: it reads files and returns findings. The printing runner is
- * `checkSecurityDrift`, so the rules can be tested without capturing stdout.
- */
+/** Every problem found, without printing; `checkSecurityDrift` prints. */
 export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftInspection {
     const {
         root,
@@ -309,12 +229,10 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     const abs = (rel: string) => path.join(root, rel);
     const exists = (rel: string) => fs.existsSync(abs(rel));
     const read = (rel: string) => fs.readFileSync(abs(rel), 'utf8');
-    /** Source with every comment blanked — see the header on why this is not optional. */
+    /** Source with every comment blanked. */
     const code = (rel: string) => stripComments(read(rel));
 
-    /**
-     * Every file under `dirs` that is shipped rather than tested.
-     */
+    /** Every file under `dirs` that is shipped rather than tested. */
     const sources = (dirs: string[], match: RegExp): string[] => {
         const out: string[] = [];
         const visit = (rel: string) => {
@@ -330,11 +248,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     };
 
     // ── Anchors ──────────────────────────────────────────────────────────────
-    // Every rule below finds its subject by a landmark inside a named file. When
-    // one moves, the rule that depends on it stops testing anything and PASSES —
-    // the single most dangerous failure mode a security gate has, because the
-    // output is indistinguishable from the control being intact. So the
-    // landmarks are asserted first and a missing one is a hard stop.
+    // A missing landmark is a hard stop, so no rule passes on nothing.
     const anchors: { file: string; contains: string[] }[] = [
         { file: entry, contains: ['helmet(', 'cors(', 'strictTransportSecurity'] },
         { file: config, contains: ['argon2:', 'memoryCost'] },
@@ -392,9 +306,6 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     const counts = { backend: backend.length, frontend: frontend.length, locations: 0, throttleCalls: 0 };
 
     // ── 1. JWT: verify pins the algorithm, sign sets an expiry ────────────────
-    // An unpinned verify accepts whatever the TOKEN says it was signed with, and
-    // `alg: none` is a token anyone can mint. A sign with no expiry is a
-    // credential that never stops working.
     for (const rel of backend) {
         const source = code(rel);
         for (const args of callArgs(source, 'jwt.verify(')) {
@@ -451,8 +362,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     }
 
     // ── 4. HSTS + Permissions-Policy ─────────────────────────────────────────
-    // The block is read brace-balanced, not by a file-wide `maxAge:` search: the
-    // first max-age in an entry file is the HSTS one only by luck of ordering.
+    // Read from the brace-balanced block, not the first `maxAge:` in the file.
     const hsts = braceBlock(entrySource, /strictTransportSecurity\s*:\s*\{/);
     const maxAge = Number((/maxAge:\s*([\d_]+)/.exec(hsts)?.[1] ?? '0').replace(/_/g, ''));
 
@@ -531,8 +441,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     }
 
     // ── 8. Protocol-attack timeouts ──────────────────────────────────────────
-    // Absent and `= 0` are read apart on purpose: both leave the socket
-    // unbounded, but only one of them is somebody having decided to.
+    // Absent and `= 0` are reported separately.
     const headersExpr = /server\.headersTimeout\s*=\s*([\d_*\s]+);/.exec(entrySource)?.[1];
     const requestExpr = /server\.requestTimeout\s*=\s*([\d_*\s]+);/.exec(entrySource)?.[1];
     const headersTimeout = evalProduct(headersExpr);
@@ -556,10 +465,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     }
 
     // ── 9. Argon2: config matches the dummy hash, and both meet the floor ────
-    // Two separate failures. Disagreement reopens the timing oracle the dummy
-    // hash exists to close; agreement at a lowered cost is a password store that
-    // is cheap to crack, and the two gates that checked the first never checked
-    // the second.
+    // Disagreement reopens the timing oracle; agreement below the floor is cheap to crack.
     const memoryCost = evalProduct(/memoryCost:\s*([\d*\s]+?)\s*,/.exec(configSource)?.[1]);
     const timeCost = Number(/timeCost:\s*(\d+)/.exec(configSource)?.[1] ?? 0);
     const parallelism = Number(/parallelism:\s*(\d+)/.exec(configSource)?.[1] ?? 0);
@@ -582,8 +488,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
 
     // ── 10. Password schema ──────────────────────────────────────────────────
     const passwordSource = code(auth.schemasFile);
-    // Bounded at the next export. Slicing to end of file — which both copies did
-    // — lets any OTHER schema below satisfy the character classes.
+    // Bounded at the next export, so another schema cannot satisfy it.
     const passwordFn = fnBody(passwordSource, auth.passwordSchema ?? 'passwordSchema');
     const classes = [
         { what: 'a minimum length of 8', re: /length\s*<\s*8/ },
@@ -604,9 +509,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
 
     // ── 11. Refresh cookie flags ─────────────────────────────────────────────
     const cookieSource = code(auth.cookieFile);
-    // The function's OWN braces. Both copies sliced to end of file, and the
-    // `clearRefreshCookie` that sits directly below sets the same four flags —
-    // so weakening the real one to `sameSite: 'lax'` passed the gate silently.
+    // The function's own braces, so `clearRefreshCookie` below cannot satisfy it.
     const cookieHeader = auth.cookieFn ?? 'function setRefreshCookie';
     const cookieFn = braceBlock(cookieSource, new RegExp(cookieHeader.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     const cookiePath = auth.cookiePath ?? '/api/auth';
@@ -693,10 +596,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     }
 
     // ── 14. The login throttle fails OPEN ────────────────────────────────────
-    // Checked on the CATCH BODIES, not on the function. A throttle legitimately
-    // throws 429 after the catch, on a lock it actually read, so "does this
-    // function throw" cannot tell a working control from one that denies every
-    // login the moment Redis blinks.
+    // On the catch bodies: the function legitimately throws 429 elsewhere.
     const throttleSource = code(auth.throttleFile);
     for (const name of THROTTLE_FNS) {
         const body = fnBody(throttleSource, `export async function ${name}`);
@@ -736,16 +636,12 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     }
 
     // ── 15. Throttle counters are keyed by a DERIVED identifier ──────────────
-    // The rule one copy of this gate shipped allowed any argument whose NAME
-    // matched `/\w*[Ii]ndex|throttleKey/`, which `const emailIndex =
-    // req.body.email` satisfies exactly. This follows the binding instead: a
-    // credential may reach the key, but only through a hash or a blind index.
+    // Follows the binding, not the name: a credential may reach the key only through a hash or blind index.
     const credentialWord = new RegExp(String.raw`\b(?:${credentials.join('|')})\b`, 'i');
     const derivationCall = new RegExp(String.raw`\b(?:${derivations.join('|')})\s*\(`);
 
     for (const rel of backend) {
-        // The module that DEFINES them takes the key as a parameter; there is no
-        // binding to follow and nothing to prove.
+        // The defining module takes the key as a parameter.
         if (rel === auth.throttleFile) continue;
         const source = callsOnly(code(rel));
 
@@ -759,10 +655,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
                 if (trimmed === '') continue;
 
                 counts.throttleCalls += 1;
-                // An identifier is graded on what it was bound to; anything else
-                // on itself. A bare parameter name has no binding, so it falls
-                // back to its own text — which is how `assertLoginAllowed(email)`
-                // is reported as the credential it is rather than as unresolvable.
+                // An identifier is graded on its binding, or on its own name when it has none.
                 const isIdentifier = /^[A-Za-z_$][\w$]*$/.test(trimmed);
                 const binding = isIdentifier ? bindingBefore(source, trimmed, at) : null;
                 const expression = binding ?? trimmed;
@@ -842,12 +735,9 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
         );
     }
 
-    // `sha256(rawToken)` is blanked before the search — the raw name legitimately
-    // appears INSIDE the hash call, and a plain scan reads that as storing it.
+    // Blank `sha256(rawToken)` first: the raw name legitimately appears inside it.
     const hashedOnly = tokensSource.replace(/(?:sha256|createHash)\([\s\S]{0,200}?\)/g, 'HASHED');
-    // `tokenHash` is written both ways — `tokenHash: sha256(raw)` inline, and
-    // `const tokenHash = crypto.createHash(…)` then shorthand into the insert —
-    // so the rule asks what produced it rather than where it was written.
+    // Checks what produced `tokenHash`, inline or via a binding.
     const hashedAtRest = /tokenHash\s*[:=]\s*[\w.]*(?:sha256|createHash)\s*\(/.test(tokensSource);
     if (!hashedAtRest || /insertOne\(\s*\{[^}]*\braw[A-Z]\w*\b/.test(hashedOnly)) {
         fail(
@@ -914,9 +804,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     }
 
     // ── 20. escapeHtml, where the server renders HTML ────────────────────────
-    // Optional: a repo with no email, no template and no server-rendered page
-    // has nothing to escape, and gating a function it does not have would only
-    // teach people to add an empty one.
+    // Optional: only where the server renders HTML.
     if (auth.escapeHtmlFile !== undefined) {
         const source = code(auth.escapeHtmlFile);
         const escapeFn = braceBlock(source, /function escapeHtml/);
@@ -933,8 +821,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     }
 
     // ── 21. Password-reset tokens ───────────────────────────────────────────
-    // Optional: one of the two repos has no email address on an account at all,
-    // so recovery is a single-use code gated by the refresh-token rules above.
+    // Optional: only where there is a reset flow.
     if (auth.passwordReset !== undefined) {
         const resetSource = code(auth.passwordReset.file);
         const forgot = fnBody(resetSource, 'export async function forgotPassword');
@@ -972,8 +859,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     }
 
     // ── 22. The reverse proxy repeats every header ──────────────────────────
-    // Optional: a repo with no deployment manifest has nowhere to put this, and
-    // the rule returns with the manifest when one lands.
+    // Optional: only where the repo ships a proxy config.
     if (nginx !== undefined) {
         const source = read(nginx).replace(/^\s*#.*$/gm, '');
         const blocks = nginxLocations(source);
@@ -1020,9 +906,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     }
 
     // ── 24. Only the named mounts are unauthenticated ───────────────────────
-    // Optional: it only means anything where auth is applied AT the mount. Where
-    // each router applies it internally, every mount looks unauthenticated here
-    // and the rule would report the whole API.
+    // Optional: only where auth is applied at the mount.
     if (unauthenticatedMounts !== undefined) {
         const mounted = [...entrySource.matchAll(/app\.use\(\s*['"](\/[^'"]*)['"][^\n]*\)/g)]
             .filter((match) => !match[0].includes(auth.requireAuth ?? 'requireAuth'))
@@ -1065,16 +949,12 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
                 re: /dotfiles:\s*['"]deny['"]/,
                 why: 'without it the route serves `.env` and `.git/config` from inside that root',
             },
-            // Named, not inferred. An earlier draft also accepted "the word
-            // `origin` near `config.`", which the route's own isSameOrigin
-            // DEFINITION satisfies — so deleting the call left the rule green.
             {
                 what: 'checks the request origin',
                 re: route.originCheck ?? /isSameOrigin\s*\(/,
                 why: 'an <img> carries no token, so the origin is the only thing distinguishing the app from a scraper',
             },
-            // Two tokens, not one pattern: the policy string is normally a named
-            // constant declared far from the setHeader call that sends it.
+            // Two tokens: the policy string is usually a constant declared elsewhere.
             {
                 what: 'sets a Content-Security-Policy on the response',
                 re: /Content-Security-Policy/,
@@ -1101,9 +981,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     return { problems, counts };
 }
 
-/**
- * Run the gate and print.
- */
+/** Run the gate and print. */
 export function checkSecurityDrift({ root = REPO_ROOT, standard, ...rest }: SecurityDriftOptions): void {
     const report = createGateReport({ name: 'Security drift', ...(standard === undefined ? {} : { standard }) });
     const { problems, counts } = inspectSecurityDrift({ root, ...rest });

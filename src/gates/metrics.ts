@@ -1,42 +1,21 @@
 /**
- * Observability gate — the scrape chain, the probes, and metric cardinality.
+ * Observability: the scrape chain, the probes and metric cardinality. Each of
+ * these breaks while the manifests stay valid and nothing errors.
  *
- * Every rule here fails the same way: the manifests stay schema-valid, the app
- * stays healthy, `kubectl apply` succeeds, and the number you go looking for in
- * six months is not there. A ServiceMonitor whose label selector matches no
- * Service scrapes nothing and says nothing. A NetworkPolicy with no rule for the
- * monitoring namespace DROPS the scrape — no refusal, no log, no event — while
- * the Service and the ServiceMonitor both look perfectly correct. A gauge
- * refreshed every 30 seconds and scraped every 60 discards half its samples and
- * errors nowhere.
- *
- * WHY THIS ONE HAD NO DRIFT TO SETTLE. Only one project has Kubernetes
- * manifests, so unlike every other gate in this package this is a single copy
- * moved rather than several reconciled. What the move buys is that the rules stop
- * being one repo's private knowledge: the next project to grow a `k8s/` directory
- * gets fifteen rules that were each learned from something that had already gone
- * quietly wrong, instead of rediscovering them.
- *
- * WHAT WAS PARAMETERISED, and what deliberately was not. Paths, namespaces,
- * workload name patterns and the metric modules are options — they are this
- * repo's answers, not rules. The THRESHOLDS are not: `/livez` and `/healthz` are
- * fixed names because the whole point of rule 8 is that two endpoints answering
- * opposite questions must not become one, and a project free to name them
- * whatever it likes is a project free to point both probes at the same handler.
- *
- * TWO RULES ARE NEW, and both come from the standard rather than from the copy:
- *
- *   • A SERVICE THAT EXISTS ONLY TO BE SCRAPED MUST BE HEADLESS. With a
- *     ClusterIP, Prometheus discovers ONE endpoint and scrapes a randomly
- *     chosen pod each time. Nothing fails. The queue-depth graph for a
- *     three-replica worker simply jumps between three unrelated series and
- *     reads as noise, which is indistinguishable from a busy queue.
- *
- *   • THE `/healthz` DEPENDENCY CHECK MUST BE BOUNDED BY A TIMEOUT. An
- *     unbounded `ping` against a hung Mongo holds the probe open until
- *     kubelet's own timeout fires, so the pod reports a probe TIMEOUT instead
- *     of the 503 it meant to send — slower to react, and a different thing on
- *     every dashboard that counts readiness failures.
+ *   1–3. ServiceMonitor → Service → pods all select each other.
+ *   4.   The NetworkPolicy admits the monitoring namespace.
+ *   5.   A scrape-only Service is headless (else Prometheus scrapes a random pod).
+ *   6.   The scrape interval equals the gauge refresh.
+ *   7.   Every process that registers metrics serves them.
+ *   8–9, 12. Probe shape, on the fixed `/livez` and `/healthz` paths.
+ *   10.  `/livez` touches no dependency.
+ *   11.  The `/healthz` dependency check is bounded by a timeout.
+ *   13.  The listener starts before slow initialisation.
+ *   14.  Queue consumers have no readiness probe.
+ *   15.  Every kube-linter exclusion carries a reason.
+ *   16.  No unbounded metric label.
+ *   17.  The route label is a template, never the requested URL.
+ *   18.  CI knows about every CRD the manifests use.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -186,12 +165,7 @@ const CORE_KINDS = new Set([
 /** Kustomize's own kinds never reach the API server, so CI never installs them. */
 const KUSTOMIZE_KINDS = new Set(['Kustomization', 'Component']);
 
-/**
- * Label names with one value per record. Prometheus holds one time series per
- * distinct label combination, in memory, forever — so these do not degrade the
- * server, they take it down. The identifier belongs in a log line, where it is
- * queryable and costs nothing.
- */
+/** Label names with one value per record: one time series each. They belong in logs. */
 const UNBOUNDED_LABELS = [
     'id',
     'userId',
@@ -210,30 +184,21 @@ const UNBOUNDED_LABELS = [
 /** Anything in a /livez handler that reaches outside this process. */
 const DEPENDENCY_CALLS = /\b(?:getDb|mongo|redis|Redis|queue|Queue|fetch|ping)\b/;
 
-/** The two probe paths. Fixed on purpose — see the header. */
+/** Fixed, so the two probes cannot be pointed at one handler. */
 const LIVENESS_PATH = '/livez';
 const READINESS_PATH = '/healthz';
 
 /**
- * True when every key of `selector` is present in `labels` with the same value.
- *
- * Both sides are stringified: YAML reads `version: 2` as a number and
- * `version: "2"` as a string, and a selector differing only in that matches in
- * the cluster but would not match here.
- *
- * An EMPTY selector matches everything, which is Kubernetes' own rule for a
- * NetworkPolicy `podSelector: {}` ("every pod in the namespace"). A Service's
- * empty selector means the opposite — it selects nothing — so that case is
- * reported where the Service is read, not bent into this helper.
+ * True when every key of `selector` is in `labels` with the same (stringified) value.
+ * An empty selector matches everything, as a NetworkPolicy's does; a Service's
+ * empty selector is handled where the Service is read.
  */
 const matches = (selector: Record<string, unknown> | undefined, labels: Record<string, string> | undefined): boolean =>
     selector !== undefined &&
     labels !== undefined &&
     Object.entries(selector).every(([key, value]) => String(labels[key]) === String(value));
 
-/**
- * Every metric relationship this repo can be asked about, as a list of problems.
- */
+/** Every problem found, without printing. */
 export function inspectMetrics(input: MetricsInput): MetricsInspection {
     const {
         root,
@@ -261,14 +226,9 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
     const abs = (rel: string) => path.join(root, rel);
     const exists = (rel: string) => fs.existsSync(abs(rel));
     const read = (rel: string) => fs.readFileSync(abs(rel), 'utf8');
-    /**
-     * Source with every comment blanked, for the rules that ask what the CODE
-     * does. Offsets survive, so the handler patterns still match. The kube-linter
-     * config is read raw and never through this — there the comments ARE the rule.
-     */
+    /** Source with comments blanked. Not for the kube-linter config, where comments are the rule. */
     const code = (rel: string) => stripComments(read(rel));
 
-    /** @param rel @returns {string[]} */
     const walk = (rel: string): string[] => {
         if (!exists(rel)) return [];
         return fs.readdirSync(abs(rel), { withFileTypes: true }).flatMap((entry) => {
@@ -280,9 +240,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
     // ── Parse every manifest once ────────────────────────────────────────────
     const resources: Resource[] = [];
     const files = walk(manifestDir)
-        // kustomization.yaml is the build tool's INPUT, never a cluster
-        // resource, so it is not graded here — `kustomize build` fails loudly on
-        // its own file and needs no second opinion.
+        // kustomization.yaml is build input, not a cluster resource.
         .filter((rel) => /\.ya?ml$/.test(rel) && path.basename(rel) !== 'kustomization.yaml')
         .sort();
 
@@ -299,11 +257,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
             continue;
         }
         for (const document of documents) {
-            // The parser RECOVERS rather than throwing: a manifest with a bad
-            // indent comes back as a document carrying errors, and whatever it
-            // managed to build. The copy this came from only had the try/catch,
-            // so a malformed file was skipped in silence and every rule about it
-            // passed. Read `errors` instead.
+            // The parser recovers rather than throws, so read `errors`.
             if (document.errors.length > 0) {
                 fail(
                     rel,
@@ -313,9 +267,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
                 continue;
             }
             const object = document.toJS() as K8sDoc | null;
-            // `typeof`, not `!== undefined`: a file that parses but whose `kind`
-            // comes back as a map or a number crashed the copy this came from,
-            // with a TypeError instead of the report the reader needed.
+            // `typeof`: `kind` may parse as a map or a number.
             if (typeof object?.kind !== 'string' || object.kind === '') continue;
             resources.push({ rel, kind: object.kind, name: object.metadata?.name ?? '<unnamed>', doc: object });
         }
@@ -340,9 +292,6 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
     const containersOf = (deployment: Resource) => deployment.doc.spec?.template?.spec?.containers ?? [];
 
     // ── 1-3. ServiceMonitor → Service → pods ────────────────────────────────
-    // Three links, each of which stays schema-valid when it breaks. The only
-    // symptom of any of them is a Prometheus target that sits at DOWN, which
-    // nobody is looking at until they need the metric.
     const scraped: ScrapeTarget[] = [];
 
     if (monitors.length === 0) {
@@ -438,10 +387,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
 
     // ── 4. The NetworkPolicy admits the monitoring namespace ────────────────
     for (const { deployment, podLabels, port } of scraped) {
-        // `podSelector: {}` is Kubernetes' way of saying "every pod in this
-        // namespace", and it arrives here with no `matchLabels` at all — so an
-        // absent matchLabels under a PRESENT podSelector is the empty selector,
-        // not a missing one.
+        // `podSelector: {}` (no matchLabels) selects every pod in the namespace.
         const applicable = policies.filter((policy) => {
             const podSelector = policy.doc.spec?.podSelector;
             return podSelector !== undefined && matches(podSelector.matchLabels ?? {}, podLabels);
@@ -467,9 +413,6 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
     }
 
     // ── 5. A scrape-only Service is headless ────────────────────────────────
-    // New, from the standard. With a ClusterIP, Prometheus discovers one
-    // endpoint and scrapes a RANDOMLY CHOSEN pod each time, so a three-replica
-    // workload's gauge jumps between three unrelated series and reads as noise.
     for (const name of headlessServices) {
         const service = services.find((candidate) => candidate.name === name);
         if (service === undefined) {
@@ -663,9 +606,6 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
     }
 
     // ── 11. The readiness check is bounded ──────────────────────────────────
-    // New, from the standard. An unbounded ping against a hung Mongo holds the
-    // probe open until kubelet's own timeout fires, so the pod reports a probe
-    // TIMEOUT instead of the 503 it meant to send.
     for (const handler of healthzHandlers) {
         if (!exists(handler.file)) {
             fail(
@@ -697,10 +637,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
 
     // ── 13. The listener starts before slow init ────────────────────────────
     if (listenBeforeInit !== undefined && exists(listenBeforeInit.file)) {
-        // Function DECLARATIONS are blanked first. Where the listener is defined
-        // in the same file it starts, `function startMetricsServer(` sits above
-        // everything and would be found as the earliest "call" — so the rule
-        // would pass on an ordering it never looked at.
+        // Blank function declarations first, or a same-file definition reads as the earliest call.
         const body = code(listenBeforeInit.file).replace(/\bfunction\s+(\w+)\s*\(/g, (match) =>
             ' '.repeat(match.length),
         );
@@ -752,9 +689,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
                 const entry = /^\s*-\s*'?([a-z0-9-]+)'?\s*$/.exec(lines[i] ?? '');
                 if (entry === null) continue;
 
-                // Walk back over the sibling entries of this list: one comment
-                // above a run of exclusions justifies the run, which is how they
-                // are actually written.
+                // One comment above a run of exclusions justifies the run.
                 let j = i - 1;
                 let justified = false;
                 while (j >= 0) {
@@ -881,9 +816,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
     };
 }
 
-/**
- * Run the gate and print.
- */
+/** Run the gate and print. */
 export function checkMetrics({ root = REPO_ROOT, standard, ...rest }: MetricsOptions): void {
     const report = createGateReport({ name: 'Metrics', ...(standard === undefined ? {} : { standard }) });
     const { problems, counts } = inspectMetrics({ root, ...rest });

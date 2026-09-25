@@ -1,16 +1,7 @@
 /**
- * Blank out comments before scanning source for structure.
- *
- * Gates that look for a shape — a function declaration, an `ipcMain.handle` call —
- * must not find it inside a comment. A commented-out handler, or an example in a
- * JSDoc block, reads identically to the real thing under a regex, and that false
- * positive is the kind that gets a gate switched off.
- *
- * Comments are replaced by spaces rather than removed, so every byte offset, line
- * and column survives: a gate can report the position it matched at and have it
- * point at the real file. String and template literals are left alone — a `//`
- * inside a URL is not a comment, and dropping it would corrupt the very line a
- * gate is reading.
+ * Blank out comments so a regex scan cannot match commented-out code. Comments become
+ * spaces, so offsets, lines and columns still point at the real file; string and
+ * template literals are left alone.
  *
  * @returns The same length as `source`, with comment bytes blanked.
  */

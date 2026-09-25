@@ -1,8 +1,4 @@
-/**
- * What this package installs so a project does not. Read from its own manifest,
- * so the list cannot drift from what is actually installed: add a dependency
- * there and the package-json gate and the knip config both know about it.
- */
+/** What this package installs so a project does not, read from its own manifest so it cannot drift. */
 import fs from 'node:fs';
 
 /** `src/` and `dist/` are both one level below the manifest. */
@@ -13,12 +9,7 @@ const SELF = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.u
 
 export const SELF_NAME = SELF.name;
 
-/**
- * Dependencies of this package that a project may still list, because its own code
- * uses them: TypeScript is the compiler it builds with, and the other two are
- * libraries an app can import for reasons of its own. Everything else here exists
- * only to lint, and a project's second copy of it is drift.
- */
+/** Dependencies a project may still list because its own code uses them; everything else is lint-only. */
 const ALSO_THE_PROJECTS = new Set(['typescript', 'yaml', '@vue/compiler-sfc']);
 
 /** Every package this one provides, mapped to the exact version it pins. */
@@ -26,11 +17,8 @@ export const providedPackages = (): Record<string, string> =>
     Object.fromEntries(Object.entries(SELF.dependencies).filter(([name]) => !ALSO_THE_PROJECTS.has(name)));
 
 /**
- * The CLIs a project runs by name — from its scripts, its git hooks and its
- * editor — mapped from package to binary. All three look in the project's own
- * `node_modules`, so these have to land at its top level; everything else is
- * resolved from inside this package and can sit anywhere. knip names its plugin
- * for each after the binary.
+ * Package → binary for the CLIs a project runs by name (scripts, hooks, editor).
+ * These must land in the project's top-level `node_modules`.
  */
 export const PROJECT_CLIS: Record<string, string> = {
     'eslint': 'eslint',

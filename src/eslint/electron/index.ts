@@ -1,12 +1,7 @@
 /**
- * The Electron family's standards: the rules that assume a main / preload / renderer
- * split, a sandboxed window and IPC as the only way across. The desktop apps
- * kept byte-identical copies of every one of these files, which is the duplication
- * this package exists to end.
- *
- * `electronStandards()` returns the blocks in the order they have always been applied.
- * The selectors the project composes into its own per-area `no-restricted-syntax`
- * blocks are re-exported individually below.
+ * The Electron family: rules that assume a main / preload / renderer split, a sandboxed
+ * window and IPC as the only way across. The selectors a project composes into its own
+ * `no-restricted-syntax` blocks are re-exported individually below.
  */
 import { envStandards } from './env.ts';
 import { htmlStandards } from './html.ts';

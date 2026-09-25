@@ -1,15 +1,7 @@
 /**
- * A CLI this package depends on, resolved from this package rather than from the
- * project running the gate.
- *
- * knip and jscpd are dependencies here so every project runs the version the gates
- * were written against. The gates parse their JSON reports, so a project pinning its
- * own copy is not a style choice, it is a second report format to be wrong about.
- * Resolving `node_modules/.bin` under the project root would quietly undo that — it
- * finds whichever copy the project happens to have, or none.
- *
- * Walked by hand through Node's own lookup paths because `require.resolve` honours
- * `exports`, and knip's does not expose `package.json` or `bin/`.
+ * Resolves a CLI from this package, not the project, so the gates always parse the
+ * report format of the version they pin. Walks Node's lookup paths by hand because
+ * knip's `exports` hides `package.json` and `bin/` from `require.resolve`.
  */
 import fs from 'node:fs';
 import { createRequire } from 'node:module';

@@ -1,39 +1,11 @@
 /**
- * Dependency audit gate with a reviewed allowlist.
+ * `npm audit` with a reviewed allowlist. High and critical advisories fail unless
+ * their GHSA is waived with a reason and a review date. The build also fails on:
  *
- * `npm audit` has no ignore mechanism, so a single upstream-blocked advisory turns
- * CI permanently red — and the usual reaction, dropping `--audit-level` to
- * critical, silently swallows every future high finding too. This wraps the audit
- * instead: high and critical advisories fail unless their GHSA is listed in
- * `allowlist`, with a reason and a review date.
- *
- * THE ALLOWLIST IS DELIBERATELY AWKWARD TO MAINTAIN. An entry must say why the
- * advisory cannot be fixed from here and why it is unreachable in this app's code,
- * and name the date to look again. Three things then fail the build on their own:
- *
- *   - an entry past its review date, so a "temporary" waiver cannot quietly
- *     become permanent while the advisory is still open;
- *   - an entry npm no longer reports at all, because upstream shipped the fix and
- *     the waiver — plus any workaround it describes — is now stale;
- *   - an entry missing any of its four fields, because a waiver nobody can read
- *     is a waiver nobody reviewed.
- *
- * TWO COPIES, TWO DIFFERENT HALVES OF THE SAME IDEA. The full-stack gate had the
- * expiry and only PRINTED a note about a stale entry; the desktop gate dropped the
- * expiry and made the stale entry fail. The two guard different failures — one is
- * "you stopped looking", the other is "you no longer need to" — so the superset
- * keeps both, and both allowlists were empty, so it cost nothing to adopt.
- *
- * TWO CORRECTNESS FIXES TAKEN FROM THE DESKTOP COPY:
- *
- *   - `npm audit` reporting an ERROR is now a gate failure. The other copy parsed
- *     the JSON and carried on with no vulnerabilities, so a registry that was
- *     unreachable printed a clean audit. An audit that did not run has verified
- *     nothing, and must not look identical to one that found nothing.
- *   - A waiver is "still reported" if it appears at ANY severity, not only at
- *     high or critical. Matching against the filtered rows meant a waiver for an
- *     advisory downgraded to moderate was reported as stale while it was still
- *     live.
+ *   - a waiver past its review date;
+ *   - a waiver npm no longer reports at any severity (the fix shipped);
+ *   - a waiver missing any of its four fields;
+ *   - an audit that did not run (e.g. the registry was unreachable).
  */
 import { execFileSync } from 'node:child_process';
 
@@ -100,13 +72,7 @@ type Finding = {
     severity: string;
 };
 
-/**
- * Flatten npm's vulnerability tree into one row per (package, advisory).
- *
- * `via` holds advisory objects for a direct hit and plain package-name strings
- * where the package is only a carrier for a dependency's advisory. Carriers would
- * double-count, so only the objects are collected.
- */
+/** One row per (package, advisory). String `via` entries are carriers and would double-count. */
 function findings(report: NpmAuditReport): Finding[] {
     const rows: Finding[] = [];
     for (const [name, vuln] of Object.entries(report.vulnerabilities ?? {})) {
@@ -137,11 +103,8 @@ function runAudit(root: string, omit: string[]): string {
 }
 
 /**
- * The whole decision, separated from running `npm audit` and printing.
- *
- * Split out so the rules can be tested against the JSON npm actually emits,
- * rather than by installing a vulnerable package and hoping the advisory is still
- * open on the day the suite runs.
+ * The whole decision, separated from running `npm audit` and printing so it can be
+ * tested against recorded JSON.
  *
  * @param [input.report] Parsed `npm audit --json`. Omit it to mean "the audit did not run".
  * @param [input.auditError] Why the audit did not run, when it did not.
@@ -168,8 +131,7 @@ export function inspectAudit(input: {
     const problems: AuditProblem[] = [];
     const blocks = new Set(failSeverities);
 
-    // A malformed waiver is checked first: it is a problem with the gate's own
-    // configuration, and saying so needs no audit at all.
+    // Malformed waivers need no audit to report.
     for (const [i, entry] of allowlist.entries()) {
         const missing = ['id', 'package', 'reason', 'expires'].filter((k) => {
             const value = (entry as Record<string, unknown>)[k];
@@ -193,8 +155,6 @@ export function inspectAudit(input: {
         problems.push({
             file: null,
             what: `npm audit could not complete: ${detail}`,
-            // An audit that did not RUN has verified nothing, and must not be
-            // reportable as an audit that found nothing.
             why: 'This is an audit failure, not an audit finding. Nothing has been verified, so a green tick here would be a lie.',
         });
         return { problems, waived: 0, ran: false };
@@ -223,8 +183,7 @@ export function inspectAudit(input: {
         }
     }
 
-    // Matched against EVERY finding, not just the blocking ones: an advisory
-    // downgraded to moderate is still reported, so its waiver is not stale.
+    // Every finding, not just blocking ones: a downgraded advisory's waiver is not stale.
     const seen = new Set(all.map((r) => r.id));
     for (const entry of allowlist) {
         if (seen.has(entry.id)) continue;

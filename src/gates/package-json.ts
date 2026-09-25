@@ -1,50 +1,13 @@
 /**
- * package.json gate.
+ * package.json across the root and every workspace manifest:
  *
- * A manifest is the one file every tool reads and nobody rereads. It drifts
- * quietly: a field goes missing, a range gets pinned during a bad afternoon and
- * stays pinned, the key order wanders until diffs stop being readable.
- *
- * WHY THIS IS ONE GATE. The full-stack copies were byte-identical to each
- * other, and the desktop three differed only in a comment and one entry of a
- * data list. Across the two families three rules were shared — required
- * metadata, semver ranges, field order — and the desktop copy added three more
- * about shipping an Electron app. Those three need no switch: they fire on
- * shapes a web repo does not have (a `build` block, an `electron.vite.config`),
- * so in a web repo they are silent and cost nothing. The one thing that had to
- * be guarded was READING the electron-vite config: the desktop copy read it
- * unconditionally, which in a repo without one is a crash, not a pass.
- *
- * WHAT WAS TAKEN FROM WHICH FAMILY, and why the other spelling is gone:
- *   • the `~` ALLOWLIST is the desktop spelling. The full-stack copy hardcoded
- *     "TypeScript may use `~`, nothing else may". The allowlist says the same
- *     thing and makes the next exception cost a line of prose instead of an
- *     edit to the gate. A patch-pin is a decision; decisions get written down.
- *   • the MULTI-MANIFEST walk is the full-stack spelling, because a
- *     single-manifest repo is just the case where there are no workspaces.
- *     Roles differ: the root manifest is the project's identity and carries the
- *     full set, while workspace manifests are private, never published, and
- *     inherit toolchain facts (engines, packageManager) from the root — so
- *     re-stating those per workspace is duplication that can silently drift.
- *   • UNKNOWN FIELDS FAIL, which is the desktop spelling; the full-stack copy
- *     warned. A warning that nothing enforces is how the ordering rule stops
- *     being total: a field nobody placed sorts nowhere and is checked by
- *     nothing. Placing it costs one line.
- *
- * THE TOOLCHAIN RULE (7) is about this package itself: a project that depends
- * on it lists none of what it installs, and the CLIs it runs resolve to the
- * versions it pins. Those pins are exact, which rule 2 would fail in a project —
- * and rightly, since a project's lockfile pins its tree. A published package's
- * lockfile is read by nobody who installs it, so an exact pin is the only way
- * it can hold every project to one version of each linter.
- *
- * NOT DECIDED HERE. `CANONICAL_ORDER` is the list both families already agreed
- * on, with one genuine disagreement resolved against `sort-package-json`
- * itself, which the standard names as the authority: `packageManager` comes
- * immediately before `engines`. It is deliberately NOT that tool's full
- * 111-key order, which disagrees with the standard's own written sketch in
- * places that would move a field in every manifest in every repo. That is a
- * question about the standard, not about this gate, and it stays open.
+ *   1. Required metadata. The root carries identity and toolchain facts; workspaces
+ *      are private and inherit engines and packageManager.
+ *   2. `^` ranges, with `~` only for allowlisted packages (each with a reason).
+ *   3. Field order, per CANONICAL_ORDER. An unknown field fails, so the order stays total.
+ *   4–6. Electron packaging (`main`, `build.files`, `os`), only where the shapes exist.
+ *   7. A project depending on this package lists none of what it installs. This
+ *      package pins exactly because its lockfile never reaches the projects.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -103,12 +66,7 @@ type Manifest = {
     [key: string]: unknown;
 };
 
-/**
- * The canonical field order — sort-package-json's, as the standard's
- * "Field Ordering" section requires, covering every field these repos use.
- * A field absent from a manifest costs nothing; a field absent from THIS LIST
- * is a failure, so that ordering stays total.
- */
+/** The canonical field order, after sort-package-json. A field absent from this list fails. */
 export const CANONICAL_ORDER: string[] = [
     'name',
     'version',
@@ -146,8 +104,7 @@ export const CANONICAL_ORDER: string[] = [
     'bundleDependencies',
     'overrides',
     'resolutions',
-    // sort-package-json puts these two here, in this order. The standard names
-    // that tool as the authority, and the two families had drifted apart on it.
+    // sort-package-json's order for these two.
     'packageManager',
     'engines',
     'os',
@@ -170,9 +127,7 @@ const SEMVER = /^\d+\.\d+\.\d+(?:-[\w.]+)?$/;
 /** An `os` entry and the electron-builder target block that would produce it. */
 const OS_TO_TARGET: Record<string, string> = { darwin: 'mac', linux: 'linux', win32: 'win' };
 
-/**
- * Inspect every manifest in the repo. Pure: reads the tree, returns findings.
- */
+/** Inspect every manifest in the repo without printing. */
 export function inspectPackageJson({
     root,
     rootRequired = [],
@@ -287,10 +242,7 @@ export function inspectPackageJson({
     }
 
     // ── 4. The Electron entry point ─────────────────────────────────────────
-    // Only where there is an electron-vite config to compare against. `main`
-    // has to name the file it actually emits: get it wrong and the installer
-    // opens to nothing, which dev never shows because electron-vite serves the
-    // renderer itself.
+    // `main` must name the file electron-vite emits; dev never shows the mismatch.
     const viteConfigPath = path.join(root, electronViteConfig);
     if (fs.existsSync(viteConfigPath)) {
         const viteConfig = fs.readFileSync(viteConfigPath, 'utf8');
@@ -324,9 +276,7 @@ export function inspectPackageJson({
     }
 
     // ── 5. `build.files` ships the build output ─────────────────────────────
-    // electron-builder defaults to including everything, so an allowlist that
-    // forgets `out` produces an app bundle with no application in it — and it
-    // packages successfully.
+    // An allowlist that forgets `out` still packages, with no app inside.
     if (rootPkg.build !== undefined) {
         const buildFiles = rootPkg.build.files;
         if (!Array.isArray(buildFiles)) {
@@ -357,12 +307,7 @@ export function inspectPackageJson({
     }
 
     // ── 6. `os` agrees with the build targets ───────────────────────────────
-    // `os` is what npm enforces at install time; `build.mac`/`build.linux` are
-    // what CI can actually produce. Drifting them apart means advertising a
-    // platform nobody builds, or building one npm refuses to install on.
-    // Both halves are about electron-builder, so neither means anything without
-    // a `build` block: `os` on its own is an npm install constraint and has no
-    // packaging target to disagree with.
+    // Only with a `build` block: `os` alone is just an install constraint.
     const declaredOs =
         rootPkg.build === undefined || !Array.isArray(rootPkg.os)
             ? []
@@ -389,10 +334,7 @@ export function inspectPackageJson({
     }
 
     // ── 7. The lint toolchain comes from this package ───────────────────────
-    // Only in a project that depends on it. A second copy in the project is not
-    // a harmless duplicate: the project's copy is the one npm puts at the top of
-    // node_modules, so scripts, hooks and the editor run it — not the version the
-    // configs were written against — and five projects drift onto five versions.
+    // Only in a project that depends on it: a project copy would shadow the pinned one.
     const dependsOnSelf = [rootPkg.dependencies, rootPkg.devDependencies].some(
         (deps) => deps !== undefined && Object.hasOwn(deps, SELF_NAME),
     );
@@ -412,10 +354,7 @@ export function inspectPackageJson({
             }
         }
 
-        // The CLIs have to reach the top level for anything to find them, and
-        // npm only hoists them there from a registry or tarball install. A `file:`
-        // dependency is a symlink, and a symlinked package's dependencies stay
-        // inside it.
+        // A symlinked `file:` install keeps its dependencies inside it, so nothing hoists.
         for (const name of Object.keys(PROJECT_CLIS)) {
             const pinned = provided[name];
             if (pinned === undefined) continue;
@@ -442,9 +381,7 @@ export function inspectPackageJson({
     return { problems, manifests: manifests.map((m) => m.file) };
 }
 
-/**
- * Run the gate and print.
- */
+/** Run the gate and print. */
 export function checkPackageJson({ root = REPO_ROOT, standard, ...rest }: PackageJsonOptions = {}): void {
     const report = createGateReport({ name: 'package.json', ...(standard === undefined ? {} : { standard }) });
     const { problems, manifests } = inspectPackageJson({ root, ...rest });

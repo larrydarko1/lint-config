@@ -1,10 +1,6 @@
 import type { Config } from 'prettier';
 
-/**
- * Prettier configuration. Byte-identical in all five projects today, so it takes
- * no options — a project that needs a different value spreads this and overrides
- * the one key, which makes the departure visible in that project's own config.
- */
+/** Takes no options: a project that needs a different value spreads this and overrides the one key. */
 export const prettierConfig: Config = {
     singleQuote: true,
     useTabs: false,

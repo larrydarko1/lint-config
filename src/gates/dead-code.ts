@@ -1,53 +1,12 @@
 /**
- * Dead-code gate — the reachability half of "unused", which a linter cannot see.
+ * Dead code across the import graph, via knip. Two runs: the default graph, then
+ * `--production`, which drops tests so an export only its own test imports shows up
+ * as `testOnlyExports` (reported once, minus what the first run named).
  *
- * ESLint reasons inside one file: it knows a variable you assigned and never read.
- * It cannot know that nothing in the repository imports the module that variable
- * lives in. This gate asks knip for the whole import graph and fails on anything
- * nothing reaches. The first run in a repo usually proves the difference: in one of
- * them every single frontend file came back unreachable, because `index.html`
- * pointed at `/src/main.js` and the entry point is `main.ts` — the typecheck
- * compiles the files it is given, the build has its own resolution, and a stale
- * entry in an HTML file is invisible in a diff.
+ * Not gated (`--all` shows them): `unlisted` / `binaries` / `unresolved` (manifest
+ * drift, not dead code), `cycles`, and pnpm `catalog` findings.
  *
- * WHY THIS IS ONE GATE WITH ALMOST NO OPTIONS. All five copies were the same file.
- * With comments stripped they differ in four lines: which knip issue types are left
- * ungated, one environment variable, the path named in the closing hint, and the
- * glyph in front of the word. Nothing about it is family-shaped — knip reports what
- * it finds, and a repo without pnpm catalogs simply has no catalog findings.
- *
- * TWO RUNS, NOT ONE. knip's default graph counts a test file as a consumer, so an
- * export that only its own test imports looks alive — a fully tested owner-role
- * middleware mounted on zero routes passed this gate for months. The second run adds
- * `--production`, which drops test files from the graph, and reports what is left
- * minus whatever the first pass already named, so each finding is reported once.
- * Four different things land in that bucket and they do NOT share a fix, which is
- * why nothing here is automatic: production code nobody wired (delete it, or wire
- * it), a symbol the module genuinely publishes (tag it), an implementation detail a
- * test reached past the front door for (unexport it and test it through its caller),
- * and an expected value the test imported instead of writing down. That last one is
- * the reason to care: an assertion fed from the code under test is `x === x`, so
- * sharing a constant with the code under test does not keep the test in sync, it
- * stops the test from ever noticing.
- *
- * WHAT IS DELIBERATELY NOT GATED, and the line is "dead code, not drift":
- *   - `unlisted` / `binaries` / `unresolved`. knip also reports the mirror image —
- *     imported but not declared — which root scripts and e2e suites do constantly
- *     and get away with only because npm hoists workspace deps into the root
- *     `node_modules`. That is real drift and worth fixing, but it is a manifest
- *     problem, not dead code, and a gate that fails for a reason its name does not
- *     describe is a gate people learn to skip. `--all` shows them.
- *   - `cycles`. A cycle is a design smell about direction, not a claim that anything
- *     is unreachable — every file in one is very much alive. It wants its own check.
- *   - `catalog` / `catalogReferences`. pnpm catalogs, in npm-workspace repos.
- * Also out of scope, in the knip config rather than here: SCSS. knip does not follow
- * `@use`, so every partial imported by `index.scss` came back unused. Eleven false
- * positives is how a gate teaches you to ignore it; stylelint owns those files.
- *
- * `budgets` EXISTS AND IS ZERO EVERYWHERE. It is the shape of a backlog being
- * cleared, not a dial: every category in all five repos is at 0 and stays there,
- * `testOnlyExports` included — its opening 31 in the reference repo were worked
- * through by hand, one decision each. Never raise one to land a change.
+ * `budgets` is for clearing a backlog and should be zero; never raise one to land a change.
  */
 import { execFileSync } from 'node:child_process';
 
@@ -83,13 +42,7 @@ export type DeadCodeOptions = {
     notMachineChecked?: string;
 };
 
-/**
- * Every knip issue type this gate fails on, with the fix for each. This object
- * doubles as the `--include` list: knip only reports the types it is asked for, and
- * several of these (`nsExports`, `duplicates`, `enumMembers`) are off by default, so
- * naming them here rather than taking the defaults minus an exclude list is what
- * keeps the two in step — add a key and it is asked for, with no second list.
- */
+/** Every knip issue type this gate fails on, with its fix. Doubles as the `--include` list. */
 export const CATEGORIES: Record<string, DeadCodeCategory> = {
     files: {
         label: 'Unused files',
@@ -137,27 +90,18 @@ export const CATEGORIES: Record<string, DeadCodeCategory> = {
     },
 };
 
-/**
- * The second pass. Keyed separately because `testOnlyExports` is this gate's own
- * word, not a knip issue type — it cannot be asked for on the CLI, and it cannot sit
- * in CATEGORIES, which doubles as the `--include` list.
- */
+/** The second pass. Separate from CATEGORIES because it is not a knip issue type. */
 export const TEST_ONLY: DeadCodeCategory & { key: string } = {
     key: 'testOnlyExports',
     label: 'Exports used only by tests',
     fix: "Production code never imports this; only a test does. Decide which of the four it is: unwired production code (delete it, or wire it), a real part of the module's contract (tag `/** @public */`), an internal reached past the front door (unexport, and test it through the caller that uses it), or an expected value the test should write down as a literal instead of importing (an assertion fed from the code under test cannot fail).",
 };
 
-/**
- * CATEGORIES minus `files` and the dependency ones: under `--production` the test
- * files leave the graph, so `vitest` and every test helper come back "unused" and
- * the run would be nothing but noise. Exports are the only thing this pass has a
- * real claim to.
- */
+/** Only exports: under `--production` test helpers and test deps would all read as unused. */
 const PROD_INCLUDE = ['exports', 'types', 'nsExports', 'nsTypes', 'namespaceMembers', 'enumMembers'];
 const PROD_ARGS = ['--production', '--include-entry-exports'];
 
-/** Reported by `--all`, never gated. The header says why each is out. */
+/** Reported by `--all`, never gated. */
 const UNGATED = ['unlisted', 'binaries', 'unresolved', 'cycles', 'catalog', 'catalogReferences'];
 
 /** `file` alone when the whole file is unused; `file:line — name` otherwise. */
@@ -165,10 +109,7 @@ const where = ({ file, name, line }: DeadCodeHit): string =>
     name === file ? file : `${file}${line === undefined ? '' : `:${line}`} — ${name}`;
 const identity = ({ file, name }: DeadCodeHit): string => `${file}::${name}`;
 
-/**
- * One knip run, flattened and bucketed by category. `extra` is what separates the
- * two passes.
- */
+/** One knip run, flattened and bucketed by category. */
 export function runKnip(input: KnipRunInput): Record<string, DeadCodeHit[]> {
     const { root, bin, include, extra = [] } = input;
     const args = ['--no-progress', '--reporter', 'json', '--tags=-public', '--include', include.join(','), ...extra];
@@ -180,8 +121,7 @@ export function runKnip(input: KnipRunInput): Record<string, DeadCodeHit[]> {
             encoding: 'utf8',
             maxBuffer: 32 * 1024 * 1024,
             stdio: ['ignore', 'pipe', 'ignore'],
-            // dotenv prints a banner to stdout on load, which lands in the middle of the
-            // JSON this parses. Harmless in a repo that does not use dotenv.
+            // dotenv's stdout banner would corrupt the JSON.
             env: { ...process.env, DOTENV_CONFIG_QUIET: 'true' },
         });
     } catch (error) {
@@ -204,10 +144,7 @@ export function runKnip(input: KnipRunInput): Record<string, DeadCodeHit[]> {
     return collectHits(report, include);
 }
 
-/**
- * knip's JSON report, reduced to what this gate reads. Split out from the run so the
- * bucketing is testable against a real report without a repository to point knip at.
- */
+/** knip's JSON report, bucketed. Separate from the run so it is testable. */
 export function collectHits(report: KnipReport, include: string[]): Record<string, DeadCodeHit[]> {
     const found: Record<string, DeadCodeHit[]> = Object.fromEntries(include.map((key) => [key, []]));
     for (const entry of report.issues ?? []) {
@@ -227,16 +164,12 @@ export function collectHits(report: KnipReport, include: string[]): Record<strin
     return found;
 }
 
-/**
- * Pass one, then pass two minus whatever pass one already named.
- */
+/** Pass one, then pass two minus whatever pass one already named. */
 export function inspectDeadCode(
     knip: (include: string[], extra?: string[]) => Record<string, DeadCodeHit[]>,
 ): Record<string, DeadCodeHit[]> {
     const found = knip(Object.keys(CATEGORIES));
 
-    // Anything the first pass named is dead outright and is reported there; the
-    // remainder is alive only because a test imports it.
     const alreadyReported = new Set(Object.values(found).flat().map(identity));
     found[TEST_ONLY.key] = Object.values(knip(PROD_INCLUDE, PROD_ARGS))
         .flat()
@@ -245,11 +178,7 @@ export function inspectDeadCode(
     return found;
 }
 
-/**
- * The budget decision, separated from the run so it is testable without knip: which
- * categories are over budget, in the order CATEGORIES declares them, with the second
- * pass last because it is the one that needs a judgement rather than a deletion.
- */
+/** The categories over budget, in CATEGORIES order with the second pass last. */
 export function deadCodeProblems(
     found: Record<string, DeadCodeHit[]>,
     budgets: Record<string, number> = {},
@@ -287,9 +216,7 @@ export function checkDeadCode(options: DeadCodeOptions = {}): void {
     const report = createGateReport({ name: 'Dead code' });
     const gated = Object.keys(CATEGORIES);
 
-    // `--all` is the human-facing view, not a stricter gate: hand the terminal straight
-    // to knip so you get every category it knows about — including the ones this gate
-    // deliberately does not fail on — in its own formatting, with no budgets applied.
+    // `--all`: knip's own output, every category, no budgets.
     if (process.argv.includes('--all')) {
         const bin = packageBin('knip');
         try {

@@ -1,10 +1,6 @@
 /**
- * Where each family keeps its code. Every path in the shared rules comes from here,
- * so a rule can say "the browser half of the app" without knowing whether that is
- * `frontend/src` (a web app) or `src/renderer` (an Electron window).
- *
- * A project overrides any of these with the `paths` option; the preset is only the
- * default that keeps a normal project's config file short.
+ * Where each family keeps its code. Every path in the shared rules comes from here;
+ * a project overrides any of them with the `paths` option.
  */
 
 export type PresetName = 'electron' | 'fullstack';
@@ -30,11 +26,7 @@ export const electron: PresetPaths = {
     /** Everything a tsconfig covers, so type-aware rules can run on it. */
     typedSource: ['src/**/*.{ts,vue}', 'tests/**/*.ts', 'vitest.setup.ts', 'scripts/**/*.ts'],
     tests: ['tests/**/*.ts', 'vitest.setup.ts'],
-    /**
-     * Tests here sit outside `src/`, so they never picked up naming-convention and
-     * their helpers are named freely. Keeping that means the migration does not
-     * rename a few hundred fixtures for no benefit.
-     */
+    /** Tests sit outside `src/` and name their helpers freely. */
     namingIgnores: ['tests/**/*.ts', 'vitest.setup.ts'],
     /** Runs in a browser-like context — gets DOM globals. */
     browser: ['src/renderer/**/*.{ts,vue}'],

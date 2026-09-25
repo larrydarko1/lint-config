@@ -1,14 +1,6 @@
 /**
- * Function contract gate
- * WHAT IS DELIBERATELY NOT CHECKED:
- *   - `record*` / `save*` / `update*` / `delete*`. The standard allows "void or
- *     a receipt", and a receipt is any shape at all — there is nothing to assert.
- *   - `is*` / `has*` / `can*` doing I/O. Only `await` is visible from here; a
- *     synchronous `fs.readFileSync` or a `db.collection(…)` handle is not, and a
- *     rule that caught those would need a list of every I/O symbol in the repo.
- *     The `async`/`await` ban catches the shape that actually occurs.
- *   - Whether a name is *accurate*. `getUser` that silently creates one is
- *     Rule 1's worst failure and no signature reveals it. Review's job.
+ * Function contracts. Not checked: `record*`/`save*`/`update*`/`delete*` return shapes,
+ * synchronous I/O in `is*`/`has*`/`can*`, and whether a name is accurate.
  */
 
 import type { TSESLint, TSESTree } from '@typescript-eslint/utils';
@@ -137,8 +129,7 @@ const nameContract: TSESLint.RuleModule<
             const declared = node.returnType.typeAnnotation;
             const isAsync = node.async === true || frame?.hasAwait === true;
 
-            // A predicate or assertion signature is checked before unwrapping —
-            // `asserts x is T` is not a value type and has no Promise to unwrap.
+            // Before unwrapping: `asserts x is T` has no Promise to unwrap.
             if (isPredicate(declared)) {
                 if (['is', 'has', 'can'].includes(prefix) && declared.asserts !== true) return;
                 if (['assert', 'require', 'ensure'].includes(prefix)) return;
@@ -246,10 +237,7 @@ const nameContract: TSESLint.RuleModule<
     },
 };
 
-/**
- * Rule 2. One failure channel. `T | null | undefined` is two channels for the
- * same answer, and every call site has to guess which one it is getting.
- */
+/** Rule 2. One failure channel: not `T | null | undefined`. */
 const oneFailureChannel: TSESLint.RuleModule<'bothNullAndUndefined'> = {
     meta: {
         type: 'problem',
@@ -283,12 +271,7 @@ const oneFailureChannel: TSESLint.RuleModule<'bothNullAndUndefined'> = {
     },
 };
 
-/**
- * Rule 5. Two optionals in a row is the shape that forces `f(a, undefined, c)`
- * at the call site — the exact drift that put six positional arguments on
- * AppError. One options object instead, and every optional is named where it
- * is passed.
- */
+/** Rule 5. Two optionals in a row force `f(a, undefined, c)`; use one options object. */
 const noUndefinedHole: TSESLint.RuleModule<'undefinedHole'> = {
     meta: {
         type: 'problem',
@@ -324,9 +307,8 @@ const noUndefinedHole: TSESLint.RuleModule<'undefinedHole'> = {
 };
 
 /**
- * Rule 5. `archive(id, true)` is unreadable at the call site. A lone boolean
- * parameter is a setter and fine (`setMuted(muted: boolean)`); a boolean
- * *alongside other arguments* is a mode switch wearing a value's clothes.
+ * Rule 5. `archive(id, true)` is unreadable at the call site. A lone boolean is a
+ * setter and fine; a boolean alongside other arguments is a mode switch.
  */
 const noBooleanFlag: TSESLint.RuleModule<'booleanFlag'> = {
     meta: {
@@ -367,20 +349,9 @@ const noBooleanFlag: TSESLint.RuleModule<'booleanFlag'> = {
 };
 
 /**
- * Rule 6, narrowed to the defect it is actually about.
- *
- * The standard says "never await independent work in a loop" — but core
- * `no-await-in-loop` fires on the *syntax*, and measuring it here produced 47
- * hits of which essentially none were the bug: sequential Stripe calls (rate
- * limits), S3 prefix deletes, batched `for(;;)` cleanup, retry-connect loops,
- * queue polling. Every one of those is sequential ON PURPOSE, and a rule that
- * needs thirty "yes, deliberately" suppressions has stopped being a gate and
- * started being noise.
- *
- * The N+1 that actually costs something is a *database* round-trip per item.
- * That is what this matches: an `await` inside a loop whose expression reaches
- * into a Mongo collection. Fetch the set in one query (`$in`) and join with a
- * `Map` instead — `getWatchHistory` is the worked example in the standard.
+ * Rule 6, narrowed to N+1 queries: an `await` on a Mongo collection inside a loop
+ * over a list. Core `no-await-in-loop` also flags deliberately sequential work
+ * (rate-limited calls, paging, retries). Fetch the set with `$in` and join with a `Map`.
  */
 const noDbAwaitInLoop: TSESLint.RuleModule<'dbInLoop'> = {
     meta: {
@@ -395,10 +366,7 @@ const noDbAwaitInLoop: TSESLint.RuleModule<'dbInLoop'> = {
         },
     },
     create(context) {
-        // Only loops that walk a list. `for (;;)` and `while` are how batched
-        // paging and retry-with-backoff are written — one query per *batch* is
-        // the fix for an N+1, not an instance of it, and flagging those was what
-        // made the naive version of this rule unusable.
+        // Only loops that walk a list; `for (;;)` and `while` are paging and retries.
         const LOOPS = ['ForInStatement', 'ForOfStatement'];
         const DB_CALL = /\.collection\s*(<[^>]*>)?\s*\(/;
         const sourceCode = context.sourceCode;

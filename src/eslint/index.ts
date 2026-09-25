@@ -1,12 +1,7 @@
 /**
- * The ESLint base every project shares: the JS/TS/Vue presets, which globals apply
- * where, the strict type rules, the naming convention, and the relaxations tests get.
- *
- * What it deliberately does NOT own is the per-area wiring — which selectors apply to
- * `api/src/routes` or to `src/main`. That is genuinely shaped by the project's folders,
- * so it stays in the project's own config file and is passed in as `overrides`. The
- * selectors it composes are exported from here, so the project writes the wiring, not
- * the rules.
+ * The shared ESLint base: presets, globals, strict type rules, naming and test
+ * relaxations. Per-area wiring (which selectors apply to which folder) stays in the
+ * project's config and is passed in as `overrides`.
  */
 import js from '@eslint/js';
 import type { Linter } from 'eslint';
@@ -31,11 +26,7 @@ export type ImportExtensionsOptions = {
 export type LarryOptions = {
     /** Which family's folder layout to assume. */
     preset: PresetName;
-    /**
-     * The project root — pass `import.meta.dirname`. Required: `tsconfigRootDir` has to point
-     * at the project, and `import.meta.dirname` read from inside this package would point at
-     * the package instead.
-     */
+    /** The project root: pass `import.meta.dirname`. Required, for `tsconfigRootDir`. */
     rootDir: string;
     /** Override any path set from the preset. See presets.ts. */
     paths?: Partial<PresetPaths>;
@@ -83,11 +74,7 @@ const TEST_RELAXATIONS: Linter.RulesRecord = {
     '@typescript-eslint/await-thenable': 'off',
 };
 
-/**
- * Import specifiers say exactly what the runtime resolves. A bundler strips `.ts` for you,
- * so writing it is noise; Node, running a script directly, resolves the string as written and
- * fails without it. The two blocks below encode that split.
- */
+/** Bundled code omits `.ts`; code Node runs directly must name it. */
 const importExtensionBlocks = (option: boolean | ImportExtensionsOptions): Linter.Config[] => {
     const { nodeRun = [] } = typeof option === 'object' ? option : {};
     return [
@@ -121,13 +108,10 @@ const importExtensionBlocks = (option: boolean | ImportExtensionsOptions): Linte
 
 /** The shared ESLint flat config. See {@link LarryOptions} for what a project passes. */
 export function larry(options: LarryOptions): Linter.Config[] {
-    // The `as Linter.Config` casts below are where another package's preset enters the array.
-    // typescript-eslint, eslint-plugin-vue and eslint-config-prettier each declare their configs
-    // with their own types, which disagree with ESLint's (and with each other) under
-    // exactOptionalPropertyTypes. ESLint validates every block when it loads the array.
+    // The `as Linter.Config` casts: third-party preset types disagree with ESLint's under
+    // exactOptionalPropertyTypes. ESLint validates every block at load.
 
-    // Checked before anything is read from `options`: a project's eslint.config.js is plain
-    // JavaScript, and `larry()` with nothing at all deserves this message, not a destructuring error.
+    // eslint.config.js is plain JS, so `larry()` with no argument must fail readably.
     if (!options?.rootDir)
         throw new Error('larry({ rootDir }) is required — pass `import.meta.dirname` from the project.');
 
@@ -189,9 +173,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
             : []),
 
         // ── Everywhere, typed or not ─────────────────────────────────────────
-        // This block is deliberately FIRST of the rule blocks. Flat config is
-        // last-match-wins and this one has no `files`, so it matches everything:
-        // placed after the strict block it would quietly undo it.
+        // First on purpose: it matches everything, and flat config is last-match-wins.
         {
             rules: {
                 '@typescript-eslint/consistent-type-definitions': ['error', 'type'],

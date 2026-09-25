@@ -1,17 +1,6 @@
 /**
- * The repository root, and never the caller's cwd.
- *
- * Every gate needs it and none may depend on where it was invoked from: `npm run`
- * sets cwd to the package root, a git hook does not, and an editor task runner sets
- * it to whatever folder happens to be open. Resolving it from the filesystem makes
- * the answer the same in all three.
- *
- * The two families had two different answers, and neither generalises. The full-stack
- * copy walked up for a `package.json` declaring `workspaces`, which finds nothing in a
- * single-package repo. The desktop copy used `../..` from its own file, which is
- * correct only while the file stays exactly two levels down. This walks up for the
- * markers in priority order, so both layouts land on the same directory they always
- * did — and a file that moves does not silently change the answer.
+ * The repository root: the nearest ancestor with a `workspaces` manifest, else the
+ * nearest with `.git`, so a gate gets the same answer from any subdirectory.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,9 +19,6 @@ const isWorkspaceRoot = (dir: string) => {
 
 const isGitRoot = (dir: string) => fs.existsSync(path.join(dir, '.git'));
 
-/**
- * Walk up from `startDir` and return the first directory matching `marker`.
- */
 const walkUp = (startDir: string, marker: (dir: string) => boolean): string | null => {
     let dir = startDir;
     for (;;) {
@@ -49,8 +35,6 @@ const walkUp = (startDir: string, marker: (dir: string) => boolean): string | nu
  * @returns The repository root.
  */
 export function findRepoRoot(startDir: string = import.meta.dirname): string {
-    // A workspaces manifest wins: in a monorepo the git root and the workspace root are
-    // the same directory, but checking it first keeps the answer right if they ever differ.
     const found = walkUp(startDir, isWorkspaceRoot) ?? walkUp(startDir, isGitRoot);
     if (found !== null) return found;
     throw new Error(
@@ -59,8 +43,5 @@ export function findRepoRoot(startDir: string = import.meta.dirname): string {
     );
 }
 
-/**
- * The repo root for the process that imported this. Resolved from the CWD rather than
- * from this file, because the package may be installed outside the repo it is linting.
- */
+/** Resolved from the CWD, not this file: the package may be installed outside the repo it lints. */
 export const REPO_ROOT: string = findRepoRoot(process.cwd());

@@ -22,9 +22,8 @@ export const bannedCryptoModules = [
 ];
 
 /**
- * @param [options.vHtmlAllowed=[]] Components allowed to use `v-html`. Each one is a
- *   deliberate exception — the markup is either sanitised on the way in or static and internal —
- *   so they are named per project here instead of switching the rule off everywhere.
+ * @param [options.vHtmlAllowed=[]] Components allowed to use `v-html`: markup that is
+ *   sanitised on the way in, or static and internal.
  */
 export const securityStandards = (options: { vHtmlAllowed?: string[] } = {}) => {
     const { vHtmlAllowed = [] } = options;

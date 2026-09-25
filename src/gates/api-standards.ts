@@ -1,66 +1,19 @@
 /**
- * REST API architecture gate — the route map, the middleware order, and the
- * limiter contract.
+ * REST API architecture: the route map, the middleware order and the limiter contract.
  *
- * The rules here share one failure mode: the server keeps answering. A router
- * mounted without a rate-limit tier serves every request it is given. An error
- * handler registered too early is still a valid four-argument function — Express
- * simply never reaches it, and every `AppError` in the codebase degrades to an
- * unhandled 500 with no line anywhere saying so. A JSDoc route map that has
- * fallen behind the file is worse than no map, because review trusts it: this
- * gate's first run found 13 routes live in production and absent from their own
- * header, plus one documenting Express 4 syntax the code had stopped using.
+ *   1. Each router's JSDoc route map matches its declarations, both ways.
+ *   2. Route paths name resources, not the verb the method already says.
+ *   3. Routes stay thin: no direct database access.
+ *   4. No `/api/v<n>` prefix until a real v2 exists.
+ *   5. Middleware order (positions via `callSites`, never indentation; an
+ *      `express.json()` alias is resolved to where it is registered).
+ *   6. Every mount carries a rate-limit tier.
+ *   7. The token-bucket contract, and no fixed-window limiter library beside it.
+ *   8. Pagination is capped through the shared schema, never raw `parseInt` on `req.query`.
+ *   9. CORS credentials on both the server and the shared client instance.
  *
- * WHAT THE TWO COPIES DISAGREED ABOUT, and how it was settled. Almost nothing,
- * which is itself the finding — this pair had stayed in step where the security
- * gates had not. Three differences:
- *
- *   • THE TIER LIST. One repo has three tiers, the other four. That is a repo's
- *     inventory, not a rule, so `tiers` is an option. The RULE — that every
- *     mount carries one of them — is the same in both.
- *
- *   • READING `.max(maxLimit)`. One copy tolerated whitespace after the paren
- *     and the other did not, so the same schema passed in one repo and failed in
- *     the other the moment Prettier reflowed it. The tolerant one is correct;
- *     a gate that a formatter can flip is not a gate.
- *
- *   • RESOLVING THE `express.json()` ALIAS. The newer copy resolves
- *     `const parseJson = express.json(…)` to the `app.use()` that installs it,
- *     because the ordering rules are about which middleware RUNS first and a
- *     factory call is not a registration. The older one matched the factory
- *     call, which sits at the top of the module — so it read the body parser as
- *     registered before CORS, in a file where it is not. Kept, generalised.
- *
- * NO POSITION IS READ FROM INDENTATION. The older copy located helmet with
- * `indexOf('app.use(\n    helmet(')`, which is four spaces of today's Prettier
- * config written into a security rule. Every position here comes from
- * `callSites`, which counts brackets: find the `helmet(` call, then the
- * `app.use(` that encloses it.
- *
- * FOUR RULES ARE NEW, all of them from the standard rather than from either
- * copy, and all four of the same kind — a thing the standard says in a sentence
- * that no type, test or lint rule can see:
- *
- *   • NO FIXED-WINDOW LIMITER LIBRARY. `express-rate-limit` and
- *     `rate-limiter-flexible` are both fixed-window counters, so neither gives
- *     burst capacity with continuous refill, and both carry the boundary-burst
- *     weakness where a client gets 2× the limit across a window edge. One added
- *     beside the token bucket looks like belt and braces and is a second,
- *     weaker limiter with its own opinion.
- *
- *   • `optionalAuth` MUST BE REGISTERED BEFORE THE RATE-LIMITED MOUNTS. The
- *     limiters key on `req.userId` and fall back to the IP. Registered after
- *     them, the resolve happens too late, `req.userId` is never set, and every
- *     authenticated client silently shares one bucket with everyone behind its
- *     NAT. Nothing breaks; the limits are just wrong for the shared case, which
- *     is the case nobody tests.
- *
- *   • NO RAW `parseInt` ON `req.query`. The standard's own ❌ example. It
- *     bypasses the Zod query schema, so the cap the schema declares is not
- *     applied and `?limit=1000000` goes straight through.
- *
- *   • NO `{ ok: true, data }` ENVELOPE. The standard forbids wrapping every
- *     success, because then every consumer unwraps forever.
+ * Also: `optionalAuth` before the limited mounts (they key on `req.userId`), and no
+ * `{ ok: true, data }` success envelope.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -118,11 +71,7 @@ export interface ApiStandardsOptions extends Omit<ApiStandardsInput, 'root'> {
 /** The three tiers the standard names. A repo with more states its own list. */
 const DEFAULT_TIERS = ['strictLimiter', 'standardLimiter', 'relaxedLimiter'];
 
-/**
- * Path segments that repeat what the HTTP method already said. `POST /videos`,
- * never `POST /videos/create` — two things claiming to say what the request does
- * is two things that can disagree.
- */
+/** Path segments that repeat the HTTP method: `POST /videos`, never `POST /videos/create`. */
 const VERB_SEGMENTS = new Set(['create', 'update', 'delete', 'remove', 'get', 'list', 'new', 'edit', 'fetch']);
 
 /** Fixed-window counters wearing a token bucket's job. */
@@ -134,9 +83,7 @@ const ROUTE_DECLARATION = /^router\.(get|post|put|patch|delete)\(\s*\n?\s*'([^']
 /** Route lines in a JSDoc header: ` * GET /videos/:id — one clause`. */
 const ROUTE_DOCUMENTATION = /^\s*\*\s+(GET|POST|PUT|PATCH|DELETE)\s+(\/\S*)/gm;
 
-/**
- * Every REST relationship this repo can be asked about, as a list of problems.
- */
+/** Every problem found, without printing. */
 export function inspectApiStandards(input: ApiStandardsInput): ApiStandardsInspection {
     const {
         root = REPO_ROOT,
@@ -178,15 +125,8 @@ export function inspectApiStandards(input: ApiStandardsInput): ApiStandardsInspe
             ),
         );
 
-        // A header may write routes at their mounted path (`/api/videos/:id`) or
-        // relative to the router (`/:id`). Strip the mount when the header states
-        // one, so both spellings compare against the same declarations.
-        //
-        // The trailing punctuation is trimmed because `\S*` runs to the next space:
-        // a header ending the sentence — "mounted at /api/reports." — captured the
-        // full stop, which matches no route, so the mount silently stopped being
-        // stripped and EVERY route in the file was reported twice, once as
-        // undocumented and once as phantom. Both copies had it.
+        // Headers may write mounted (`/api/videos/:id`) or relative (`/:id`) paths;
+        // strip the stated mount. Trailing punctuation is trimmed off the mount.
         const mount = (/mounted at (\/\S*)/.exec(header)?.[1] ?? '').replace(/[.,;:)]+$/, '') || null;
         const documented = new Set(
             [...header.matchAll(ROUTE_DOCUMENTATION)].map(([, verb, documentedPath = '']) => {
@@ -284,15 +224,9 @@ export function inspectApiStandards(input: ApiStandardsInput): ApiStandardsInspe
 
     const helmetAt = installedAt('helmet(');
     const corsAt = installedAt('cors({');
-    // THE ORDERING RULES ARE ABOUT WHAT RUNS FIRST, and a factory call is not a
-    // registration. `const parseJson = express.json(…)` is state, which the
-    // declaration-order gate requires ABOVE every side effect — so the factory
-    // sits at the top of the module, above cors, while the `app.use()` that
-    // calls it sits two hundred lines below. Reading the factory as the
-    // registration reports a body parser running before the origin check in a
-    // file where it plainly does not. Resolve the alias to where it is CALLED,
-    // and fall back to the factory only when the parser is registered inline,
-    // so removing express.json() altogether is still caught as missing.
+    // Order is where a middleware is registered, not created: resolve
+    // `const parseJson = express.json(…)` to its `app.use()`, falling back to the
+    // factory only when registered inline.
     const jsonAlias = /const\s+([A-Za-z_$][\w$]*)\s*=\s*express\.json\(/.exec(index)?.[1];
     const jsonUseAt = jsonAlias === undefined ? -1 : installedAt(`${jsonAlias}(req`);
     const jsonAt = jsonUseAt !== -1 ? jsonUseAt : installedAt('express.json(');
@@ -412,8 +346,6 @@ export function inspectApiStandards(input: ApiStandardsInput): ApiStandardsInspe
         }
     }
 
-    // A fixed-window library beside the token bucket is a second limiter with a
-    // weaker opinion, and whichever runs first decides.
     const limiterSources = [rateLimiters, tokenBucket, indexFile, ...routeFiles];
     for (const library of FIXED_WINDOW_LIBRARIES) {
         const importers = limiterSources.filter((rel) => new RegExp(`from\\s+'${library}'`).test(code(rel)));
@@ -484,12 +416,7 @@ export function inspectApiStandards(input: ApiStandardsInput): ApiStandardsInspe
                 'One HTTP client module for the whole frontend — it is where the credential setting lives.',
             );
         } else {
-            // READ IT FROM THE INSTANCE, NOT THE FILE. Both repos also pass
-            // `{ withCredentials: true }` on the one refresh call that needs it
-            // explicitly, further down the same module. A file-wide search finds
-            // THAT and passes — so a client whose shared instance had lost the
-            // setting entirely, and which therefore drops the refresh cookie on
-            // every other request in the app, read as correct.
+            // From the shared instance, not the file: a per-call `withCredentials` elsewhere must not satisfy it.
             const clientSource = code(apiClient);
             const [construction] = callArgs(clientSource, clientFactory);
             if (construction === undefined) {
@@ -513,9 +440,7 @@ export function inspectApiStandards(input: ApiStandardsInput): ApiStandardsInspe
     return { problems, counts: { routes, files: routeFiles.length, mounts: mounts.length } };
 }
 
-/**
- * Run the gate and print.
- */
+/** Run the gate and print. */
 export function checkApiStandards({ root = REPO_ROOT, standard, ...rest }: ApiStandardsOptions): void {
     const report = createGateReport({ name: 'REST API standards', ...(standard === undefined ? {} : { standard }) });
     const { problems, counts } = inspectApiStandards({ root, ...rest });

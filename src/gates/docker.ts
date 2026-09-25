@@ -1,79 +1,28 @@
 /**
- * Container image gate — everything about an image that needs no Docker daemon,
- * so it runs on every push rather than only where images are built.
+ * Container images, checked without a Docker daemon:
  *
- *   1. MULTI-STAGE. A single-stage image ships devDependencies, the TypeScript
- *      source and the compiler.
- *   2. NON-ROOT AT RUNTIME, WITH THE BASE RESOLVED. "Does this Dockerfile say
- *      USER?" is the wrong question: no USER is correct for nginx-unprivileged
- *      and a hole for stock nginx, whose master process is root.
- *   3. A HEALTHCHECK THAT ASKS THE PROCESS SOMETHING. Orchestrators gate traffic
- *      on it, and one a wedged process still passes reports green through the
- *      incident.
- *   4. BASE IMAGES PINNED BY TAG — never `:latest`, never bare.
- *   5. PACKAGE LISTS CLEANED IN THE SAME RUN. A layer can only add.
- *   6. CMD AND ENTRYPOINT IN EXEC FORM, AND NEVER VIA A PACKAGE MANAGER. Shell
- *      form and `npm start` both put something that does not forward SIGTERM at
- *      PID 1, so every rollout waits out the grace period and SIGKILLs a job.
- *   7. COPY, NOT ADD.
- *   8. NO SECRETS BAKED INTO A LAYER.
- *   9. THE BASE IMAGE'S NODE MAJOR IS engines.node. A Docker build never reads
- *      engines, so the tag drifts in total silence and only production runs the
- *      untested major.
- *  10. .dockerignore COVERS THE DANGEROUS THINGS.
- *  11. MANIFESTS COPIED BEFORE SOURCES, so a source edit does not reinstall.
- *  12. NODE_ENV=production IN A NODE RUNTIME STAGE.
- *  13. EVERY DOCKERFILE IS BUILT BY A WORKFLOW, FROM THE CONFIGURED CONTEXT.
- *  14. `--ignore-scripts` ON EVERY npm INSTALL IN A BUILD.
- *  15. EXPOSE AGREES WITH THE k8s containerPort (when `deployments` is given).
- *  16. THE KUSTOMIZATION NAMES IMAGES THE BUILD PUSHES (when `kustomization` is
- *      given), with no placeholder and no floating tag.
- *  17. THE IMAGES THAT NEED GLIBC STAY ON IT (when `glibc` is given).
+ *   1. Multi-stage.
+ *   2. Non-root at runtime, with the base resolved (nginx-unprivileged needs no USER).
+ *   3. A HEALTHCHECK that asks the running process something (not `pgrep`, not
+ *      `node -e "process.exit(0)"`, not NONE).
+ *   4. Base images pinned by tag — never `:latest`, never bare.
+ *   5. Package lists cleaned in the same RUN.
+ *   6. CMD and ENTRYPOINT in exec form, and never via a package manager.
+ *   7. COPY, not ADD.
+ *   8. No secrets baked into a layer.
+ *   9. The base image's Node major is engines.node.
+ *  10. .dockerignore covers the dangerous things.
+ *  11. Manifests copied before sources.
+ *  12. NODE_ENV=production in a Node runtime stage.
+ *  13. Every Dockerfile is built by a workflow, from the configured context.
+ *  14. `--ignore-scripts` on every npm install.
+ *  15. EXPOSE agrees with the k8s containerPort (when `deployments` is given).
+ *  16. The kustomization names images the build pushes (when `kustomization` is given).
+ *  17. The images that need glibc stay on it (when `glibc` is given).
  *
- * ONE COPY, MOVED. Only one project ships images, so like the metrics gate this
- * is a move rather than a merge, and the project's own lists — which Dockerfile
- * deploys through which manifest, which image must stay on glibc and why — are
- * options now rather than constants.
- *
- * TWO RULES LEFT FOR THE GATES THAT OWN THEM. The copy also checked the CI
- * `node-version` against engines.node, which the pipeline gate's rule 18 already
- * does — in both directions — and that `workflow_run.workflows:` names resolve,
- * which is about workflows and nothing about images, so a repository with no
- * Dockerfile never got it. A rule with two owners drifts between them. Both live
- * in the pipeline gate now; the Node rule here is the Dockerfile half only.
- *
- * THREE RULES ARE NEW, ALL FROM THE STANDARD, which states each outright and
- * which the copy never checked: `--ignore-scripts` on every install, no package
- * manager as PID 1 (`CMD ["npm", "start"]` IS exec form, so rule 6 passed it),
- * and a HEALTHCHECK that asks the running process rather than proving a process
- * exists. The standard's own two wrong examples — `pgrep`, and a fresh
- * `node -e "process.exit(0)"` — are the two it now rejects, along with
- * `HEALTHCHECK NONE`, which the copy counted as having one.
- *
- * WHAT THE MOVE FOUND THE PARSER GETTING WRONG, none of which its repo could
- * show because its three Dockerfiles never used the syntax:
- *
- *   • `FROM --platform=$BUILDPLATFORM node:24 AS build` read the flag as the
- *     image, so the tag rule graded `--platform=…` and the Node rule never saw a
- *     `node:` base at all.
- *   • `ARG NODE_MAJOR=24` / `FROM node:${NODE_MAJOR}-alpine` was never resolved,
- *     so the one rule that pays for this gate went silent on exactly the
- *     Dockerfile that parameterised its version to keep it in one place.
- *   • USER, HEALTHCHECK and ENV are INHERITED through `FROM <earlier-stage>`.
- *     Reading only the final stage's own lines reported a `USER node` set one
- *     stage up as missing.
- *   • A stage was matched to ANY stage of that name, itself included. In
- *     `FROM node AS node` the base is the image — a stage can only name one
- *     declared before it — so the untagged image was skipped by the tag rule,
- *     and following the stage "back to its base" never ended.
- *   • `COPY package*.json ./` — the most common way to copy the manifests —
- *     did not match `/package\.json/`, so it was reported as no manifest copied.
- *   • The legacy `ENV JWT_SECRET supersecret` form, with a space instead of `=`,
- *     was invisible to the secrets rule.
- *   • A `.dockerignore` entry re-included by a later `!` line still counted.
- *   • A malformed build workflow crashed the gate, and a malformed manifest was
- *     skipped in silence — the YAML parser RECOVERS from a bad document rather
- *     than throwing. Both are reported now, the metrics gate's lesson again.
+ * Stages inherit USER, ENV and HEALTHCHECK through `FROM <earlier-stage>`; global
+ * ARGs are substituted into FROM lines. CI node-version and workflow_run names are
+ * the pipeline gate's.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -193,11 +142,7 @@ function parseInstructions(src: string): Instruction[] {
     return out;
 }
 
-/**
- * The stages, with each FROM's flags dropped and its global ARGs substituted.
- * Anything before the first FROM belongs to no stage — except `ARG`, whose
- * default is what a `FROM node:${NODE_MAJOR}` line resolves against.
- */
+/** The stages, with each FROM's flags dropped and global ARGs (before the first FROM) substituted. */
 function parseStages(src: string): Stage[] {
     const stages: Stage[] = [];
     const globalArgs: Map<string, string> = new Map();
@@ -220,11 +165,7 @@ function parseStages(src: string): Stage[] {
     return stages;
 }
 
-/**
- * A stage and every stage it is built `FROM`, root first. USER, ENV and
- * HEALTHCHECK are inherited down this chain, so a setting one stage up is in
- * force in the stage below it.
- */
+/** A stage and every stage it is built `FROM`, root first: the chain USER, ENV and HEALTHCHECK inherit down. */
 function chainOf(stages: Stage[], stage: Stage): Stage[] {
     const chain: Stage[] = [stage];
     for (let parent = parentOf(stages, stage); parent !== undefined; parent = parentOf(stages, parent)) {
@@ -233,12 +174,7 @@ function chainOf(stages: Stage[], stage: Stage): Stage[] {
     return chain;
 }
 
-/**
- * The stage `stage` is built FROM, if its base names one. Only an EARLIER stage
- * can be named — in `FROM node AS node` the base is the image, not the stage
- * itself — and stage names are case-insensitive, as Docker reads them. Because
- * the parent always sits earlier, following parents cannot loop.
- */
+/** The earlier stage `stage` is built FROM, if any (case-insensitive). Only earlier stages count, so no loops. */
 function parentOf(stages: Stage[], stage: Stage): Stage | undefined {
     const base = stage.base.toLowerCase();
     return stages
@@ -247,9 +183,7 @@ function parentOf(stages: Stage[], stage: Stage): Stage | undefined {
         .at(-1);
 }
 
-/**
- * The last instance of `instruction` in force for `stage`, inherited included.
- */
+/** The last instance of `instruction` in force for `stage`, inherited included. */
 function effective(stages: Stage[], stage: Stage, instruction: string): Instruction | undefined {
     return chainOf(stages, stage)
         .flatMap((s) => s.instructions)
@@ -257,9 +191,7 @@ function effective(stages: Stage[], stage: Stage, instruction: string): Instruct
         .at(-1);
 }
 
-/**
- * `ENV A=1 B=2` and the legacy `ENV A 1` both, as name/value pairs.
- */
+/** `ENV A=1 B=2` and the legacy `ENV A 1` both, as name/value pairs. */
 function assignments(args: string): [string, string][] {
     if (!args.includes('=')) {
         const m = /^([A-Za-z_]\w*)\s+(.+)$/.exec(args);
@@ -292,12 +224,7 @@ export function inspectDocker(input: DockerInput): DockerInspection {
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
     const exists = (rel: string) => fs.existsSync(path.join(root, rel));
 
-    /**
-     * Every document in a YAML file, or null with the failure reported. The
-     * parser recovers from a bad document instead of throwing, so `errors` has to
-     * be read — a try/catch alone never fires, and every rule about the file
-     * then passes.
-     */
+    /** Every document in a YAML file, or null with the failure reported. The parser recovers rather than throws, so `errors` is read. */
     const yamlDocuments = (rel: string): unknown[] | null => {
         const documents = YAML.parseAllDocuments(read(rel));
         const list = Array.isArray(documents) ? documents : [documents];
@@ -561,8 +488,7 @@ export function inspectDocker(input: DockerInput): DockerInspection {
             .map((l) => l.trim())
             .filter((l) => l !== '' && !l.startsWith('#'));
         for (const [label, spellings, why] of REQUIRED_IGNORES) {
-            // The LAST line naming it wins: a later `!.env` re-includes what an
-            // earlier `.env` excluded, and Docker applies them in order.
+            // The last line naming it wins (`!.env` re-includes).
             const verdict = lines.filter((l) => (spellings as readonly string[]).includes(l.replace(/^!/, ''))).at(-1);
             if (verdict === undefined || verdict.startsWith('!')) {
                 fail(

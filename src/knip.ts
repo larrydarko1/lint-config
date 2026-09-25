@@ -1,19 +1,8 @@
 /**
- * knip config: the project's own entry points and paths, plus what knip cannot
- * work out for itself once the lint toolchain comes from this package.
- *
- * knip switches a plugin on when the project lists the plugin's package. A
- * project that lists none of the linters gets none of the plugins, so every file
- * they read — eslint.config.js, prettier.config.js, commitlint.config.js,
- * lint-staged.config.js — comes back as an unused file, and the dead-code gate
- * fails on four files that are very much alive.
- *
- * The same missing listing makes knip report, in `--all`, the CLIs as unlisted
- * binaries and the packages the Stylelint and commitlint configs hand over by
- * path as unlisted dependencies. Both are ignored here, but only those: knip
- * answers an ignore entry that matches nothing with a "remove from ignore…"
- * hint, so ignoring everything this package installs would bury the project's
- * real hints under twenty false ones.
+ * knip enables a plugin only when the project lists its package. The linters come
+ * from this package instead, so without this their config files read as unused and
+ * their CLIs and plugins as unlisted. Only those are ignored: knip warns about
+ * ignore entries that match nothing.
  */
 import type { KnipConfiguration } from 'knip';
 

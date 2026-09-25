@@ -1,29 +1,13 @@
 /**
- * i18n locale consistency gate — the cross-locale half of "correct", which the
- * @intlify ESLint rules cannot see. Those check that each file is well-formed and
- * that no key is missing (valid-message-syntax, no-missing-keys-in-other-locales);
- * only this can check the locales AGREE with one another.
+ * Cross-locale consistency, which the @intlify ESLint rules cannot see:
  *
- *   1. Plural-segment parity   — "a | b" must have the same number of `|` segments
- *                                in every locale, or vue-i18n selects the wrong
- *                                branch (or none) for that language.
- *   2. Placeholder parity      — the set of {named} interpolation tokens must match
- *                                across locales. Order may differ (word order is
- *                                language-specific), the set may not: a translator
- *                                dropping `{count}` yields a message that renders
- *                                fine and silently loses the number.
- *   3. Array-length parity     — array-valued keys must have the same length in
- *                                every locale, or the UI renders a different number
- *                                of options per language. A key that is an array in
- *                                one locale and a string in another is reported too:
- *                                `v-for` over a string iterates its characters.
- *   4. createI18n options      — `escapeParameter`, `legacy` and `fallbackLocale`.
- *                                No lint rule reads that file, and escapeParameter
- *                                is a security control, not a preference.
+ *   1. Plural-segment parity — the same number of `|` segments in every locale.
+ *   2. Placeholder parity    — the same set of {named} tokens (order may differ).
+ *   3. Array-length parity   — the same length, and never an array in one locale
+ *                              and a string in another.
+ *   4. createI18n options    — `escapeParameter`, `legacy` and `fallbackLocale`.
  *
- * A key present in the reference locale and absent elsewhere is NOT reported here:
- * that is no-missing-keys-in-other-locales' job, and two gates reporting the same
- * problem is how a gate earns a --no-verify.
+ * Missing keys are left to no-missing-keys-in-other-locales.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -81,15 +65,9 @@ const REQUIRED_OPTIONS = [
     },
 ];
 
-/**
- * One locale file as a flat map of key path → value.
- *
- * Arrays get a synthetic `key[]` entry holding their length alongside their elements,
- * so a length difference is visible without walking the tree twice.
- */
+/** One locale file as a flat map of key path → value. Arrays also get a `key[]` entry holding their length. */
 function flatten(root: unknown): Record<string, string> {
     const out: Record<string, string> = {};
-    /** @param node @param {string} prefix @returns {void} */
     const visit = (node: unknown, prefix: string): void => {
         if (Array.isArray(node)) {
             out[`${prefix}[]`] = `__array:${node.length}`;
@@ -116,14 +94,12 @@ function placeholders(str: string): string[] {
     return [...new Set((str.match(/\{[^}]+\}/g) ?? []).filter((t) => t !== "{'@'}"))].sort();
 }
 
-/** @param str @returns {number} */
 function pluralSegments(str: string): number {
     return str.split('|').length;
 }
 
 /**
- * Run the gate and report what it found, without printing or exiting — so the
- * behaviour can be tested directly instead of by shelling out and reading stdout.
+ * Run the gate and return what it found, without printing or exiting.
  *
  * @param options.localeDir Locale folder, relative to `root`.
  * @param options.configFile The file calling createI18n, relative to `root`.
@@ -131,9 +107,7 @@ function pluralSegments(str: string): number {
  * @param [options.root] Repository root. Defaults to the caller's repo.
  * @param [options.configNotes] Extra sentence per required option
  *   (keyed `escapeParameter` / `legacy` / `fallbackLocale`), appended to the shared reason.
- * @returns
- *   `fatal` is set when the gate could not run at all — a missing locale folder, an
- *   unparseable file — which is a different failure from "the locales disagree".
+ * @returns `fatal` is set when the gate could not run at all (missing folder, unparseable file).
  */
 export function inspectI18n(options: I18nGateOptions): I18nGateResult {
     const { localeDir, configFile, reference = 'en', root = REPO_ROOT, configNotes = {} } = options;
@@ -192,9 +166,7 @@ export function inspectI18n(options: I18nGateOptions): I18nGateResult {
             }
 
             if (curVal === undefined) {
-                // An absent key belongs to no-missing-keys-in-other-locales. A key that is
-                // present but an ARRAY here and a string in the reference does not — nothing
-                // else would catch it, because both files are individually well-formed.
+                // Absent keys are ESLint's; an array/string mismatch is not caught anywhere else.
                 if (cur[`${key}[]`] !== undefined) {
                     errors.push(`[${loc}] ${key}: array where ${reference} has a string`);
                 }
@@ -233,9 +205,7 @@ export function inspectI18n(options: I18nGateOptions): I18nGateResult {
     return { errors, locales, keyCount, fatal: null };
 }
 
-/**
- * The gate as a project runs it: inspect, print, and set the exit code.
- */
+/** The gate as a project runs it: inspect, print, and set the exit code. */
 export function checkI18n(options: I18nGateOptions): void {
     const { errors, locales, keyCount, fatal } = inspectI18n(options);
 

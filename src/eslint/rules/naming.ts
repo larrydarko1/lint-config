@@ -1,10 +1,6 @@
 import type { Linter } from 'eslint';
 
-/**
- * `@typescript-eslint/naming-convention`, which was copied verbatim into all five
- * projects — about 60 lines each. It is the same everywhere because it describes
- * how Larry names things, not what any one project does.
- */
+/** `@typescript-eslint/naming-convention`, the same for every project. */
 export const NAMING_CONVENTION: Linter.RuleEntry = [
     'error',
     // Catch-all: camelCase for anything not matched below.

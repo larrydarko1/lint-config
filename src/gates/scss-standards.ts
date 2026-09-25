@@ -1,54 +1,21 @@
 /**
- * SCSS architecture gate.
+ * SCSS architecture. Two modules matter: the INJECTED one (`additionalData`,
+ * compiled once per SFC) and the ENTRY one (imported once by `main.ts`). Anything
+ * reachable from the injected module that emits CSS ships once per component.
  *
- * Stylesheets fail quietly. Nothing throws when a token is missing from one
- * theme, when a rule is emitted forty-seven times, or when a `var()` names
- * something nothing declares — the build is green, the page just looks wrong,
- * and only for whoever picked that theme.
+ *   1. The barrel `@forward`s the tokens.
+ *   2. The entry `@use`s every emitting module.
+ *   3. main.ts imports exactly one stylesheet.
+ *   4. Nothing reachable from the injected module emits.
+ *   5. The Vite injection is configured and guarded.
+ *   6. No SFC manually `@use`s what Vite already injects.
+ *   7. Theme parity, and every `var(--token)` resolves.
+ *   8. No Sass colour function on a runtime `$color-*` token.
+ *   9. No `@extend` inside an SFC.
+ *  10. Self-hosted fonts: no CDN, no `@fontsource`, bundled `@font-face`, LICENSE
+ *      beside the woff2 (silent on a system font stack).
  *
- * WHY THIS ONE WAS THE HARDEST. Five copies, 191 to 436 lines, and unlike every
- * gate before it the copies did not agree on WHAT they were checking. They
- * agreed on the principles and disagreed on the spelling, because the projects
- * themselves genuinely differ — one ships themes as JSON files users hand-edit,
- * which is a product feature, not a style preference.
- *
- * THE FINDING THAT MADE IT TRACTABLE. Two roles hide behind the word "barrel",
- * and every repo has both:
- *   • the INJECTED module — what `additionalData` prepends to every SFC style
- *     block. It is compiled once PER COMPONENT, so anything it can reach that
- *     emits a rule ships once per component.
- *   • the ENTRY module — what `main.ts` imports, exactly once. This is the only
- *     path by which a global rule should reach the bundle.
- * Three repos inject the token module and let `index.scss` be both barrel and
- * entry. Two inject the barrel, which forces the entry into a second file
- * (`global.scss`). That is not two architectures needing a switch — it is one
- * rule, "whatever is injected must emit nothing, transitively", reading two
- * different starting points. The one-file check in the desktop copy is the
- * degenerate case of the graph walk in the newest copy.
- *
- * AND IT CAUGHT A REAL BUG. One project injected `_variables.scss`, and
- * `_variables.scss` held the five `[data-theme='…'] { @include emit-theme(…) }`
- * blocks. Measured on the real build: every palette appeared 47 times in the
- * production CSS — once per SFC plus once for the barrel — and moving the
- * emission into a partial only the entry reaches took the stylesheet from
- * 286,849 bytes to 110,002. Four of the five repos already had a rule for this;
- * the fifth did not, and it was the one with the bug.
- *
- * WHAT THE STANDARD SETTLED, where the copies disagreed:
- *   • NO SASS COLOUR FUNCTION ON A `$color-*` TOKEN. One copy had it; the
- *     standard states it outright with a worked example. It is in, for all.
- *   • NO `@extend` INSIDE AN SFC. One copy had it; the standard's architecture
- *     section says SFCs cannot `@extend` across the compilation boundary. In.
- *   • FONTS — no CDN, no `@fontsource` dependency, `@font-face` in the base
- *     partial resolving to a bundled asset, and the upstream LICENSE shipped
- *     beside the woff2. The standard lists all four; one copy checked the last
- *     two, two copies checked the first two. All four are in, and the ones that
- *     only apply to a repo that vendors fonts stay silent in a repo that does
- *     not — a system font stack is not a violation.
- *
- * WHAT IS STILL AN OPTION, because it is a real difference and not drift: where
- * the palettes live. `themes.source` is the only switch in the gate, and the
- * comparison it feeds is identical in all three cases.
+ * `themes.source` is the only switch: where the palettes live.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -81,16 +48,11 @@ export type EmittingModule = {
 };
 
 /**
- * Where the palettes live. This is the gate's only switch, and it is a switch
- * because the difference is a real architectural choice rather than drift:
+ * Where the palettes live:
  *
- *   • `scss-maps`  — palettes are Sass maps run through an `emit-theme` mixin.
- *                    This is what the standard specifies.
- *   • `css-blocks` — palettes are written out as literal custom-property blocks,
- *                    so stylelint's `no-unknown-custom-properties` can see them.
- *                    A Sass map is opaque to it, and to this gate.
- *   • `json-presets` — palettes are JSON files on disk, seeded into the user's
- *                    profile for hand-editing. A product feature, not a style.
+ *   • `scss-maps`    — Sass maps run through an `emit-theme` mixin (the standard).
+ *   • `css-blocks`   — literal custom-property blocks, visible to stylelint.
+ *   • `json-presets` — JSON files on disk, for users to hand-edit.
  */
 export type ThemeSource = ScssMapThemes | CssBlockThemes | JsonPresetThemes;
 
@@ -100,21 +62,11 @@ export type ScssMapThemes = {
     file: string;
     /** The palette every other one is compared against, without any `theme-` prefix. */
     reference: string;
-    /**
-     * The map that registers which palettes get emitted, without its `$`. Absent
-     * means the project emits one literal `[data-theme='…']` block per palette
-     * instead, which is what the standard shows.
-     */
+    /** The map registering which palettes get emitted, without its `$`. Absent: one `[data-theme='…']` block per palette. */
     registryName?: string;
     /** Where `emit-theme` and `color-scheme` live, if not alongside the maps. */
     mixinFile?: string;
-    /**
-     * Where the maps are actually turned into CSS — the `[data-theme='…']` blocks
-     * or the loop over the registry. Defaults to `file`. It is a separate option
-     * because a map is a declaration and emitting it is an effect: the moment a
-     * project moves its emission out of the injected module, which is what this
-     * gate pushes for, the two part company.
-     */
+    /** Where the maps are turned into CSS, if not in `file`. Defaults to `file`. */
     emitFile?: string;
 };
 
@@ -125,12 +77,7 @@ export type CssBlockThemes = {
     reference: string;
     /** How a palette is selected. `data-theme` is what the standard specifies. */
     selector: 'data-theme' | 'app-class';
-    /**
-     * A partial holding colours that are the same in every palette, declared on
-     * `:root`. They take no part in the parity comparison — there is nothing for
-     * them to disagree with — but a `var()` naming one resolves perfectly well,
-     * so the sweep has to know about them.
-     */
+    /** A partial of palette-independent colours on `:root`: not compared, but they resolve `var()`s. */
     invariantFile?: string;
 };
 
@@ -155,10 +102,7 @@ export type ScssStandardsOptions = {
     src: string;
     /** The file holding the `@forward`s. Defaults to `index.scss`. */
     barrel?: string;
-    /**
-     * The file `main.ts` imports, which `@use`s the emitting modules. Defaults to
-     * the barrel. It is a second file only when the barrel itself is injected.
-     */
+    /** The file `main.ts` imports, which `@use`s the emitting modules. Defaults to the barrel. */
     entry?: string;
     /** The module Vite prepends to every SFC. Defaults to `_variables.scss`. */
     injected?: string;
@@ -169,15 +113,9 @@ export type ScssStandardsOptions = {
     /** The specifier `additionalData` must inject, exactly as written there. */
     injectedSpecifier: string;
     /**
-     * Text the `additionalData` guard must contain, once the injected specifier
-     * itself is discounted — because that specifier always mentions the styles
-     * folder, and matching on it made the check pass unconditionally.
-     *
-     * Vite only hands the preprocessor the entry stylesheet and each SFC style
-     * block; partials are resolved inside Sass and never reach it. So a project
-     * whose entry is the only styles-tree file Vite sees can guard on just that
-     * filename, while one that injects the barrel must exempt the whole folder.
-     * Defaults to `'styles'`.
+     * Text the `additionalData` guard must contain, besides the injected specifier.
+     * Guard on the entry's filename, or on the whole folder when the barrel is
+     * injected. Defaults to `'styles'`.
      */
     injectionGuard?: string;
     /** Modules the barrel must `@forward`. Defaults to `['variables']`. */
@@ -185,11 +123,7 @@ export type ScssStandardsOptions = {
     /** Modules the entry point must `@use`, since nothing else can reach them. */
     emitters?: EmittingModule[];
     themes: ThemeSource;
-    /**
-     * Custom properties a component sets on itself through a `:style` binding, so
-     * they are deliberately absent from every palette. Mapped to the reason, kept
-     * with the name so the exemption has to justify itself.
-     */
+    /** Custom properties a component sets through `:style`, absent from every palette. Mapped to the reason. */
     componentLocalVars?: Record<string, string>;
     /** Extra files swept for remote fonts, e.g. `index.html`. */
     html?: string[];
@@ -206,10 +140,7 @@ export type ScssStandardsInput = Omit<ScssStandardsOptions, 'standard' | 'root'>
 /** Sass constructs that declare something and emit nothing until it is used. */
 const INERT_AT_RULES = /^@(mixin|function|use|forward|if|else|each|for|while|return|debug|warn|error)\b/;
 
-/**
- * Sass colour functions. A `$color-*` alias is a `var(--color-…)` at runtime, so
- * Sass never sees the value it is being asked to compute on.
- */
+/** Sass colour functions, which cannot compute on a runtime `var(--color-…)`. */
 const COLOUR_FN =
     /\b(?:lighten|darken|saturate|desaturate|transparentize|opacify|fade-in|fade-out|rgba|color\.(?:adjust|scale|change|mix|invert|complement))\(\s*\$color-[a-z0-9-]+/g;
 
@@ -217,9 +148,7 @@ const COLOUR_FN =
 const REMOTE_ASSET =
     /@import\s+url\(\s*['"]?https?:|fonts\.googleapis\.com|fonts\.gstatic\.com|use\.typekit\.net|fonts\.bunny\.net|cdn\.jsdelivr\.net|unpkg\.com/gi;
 
-/**
- * Inspect the SCSS architecture.
- */
+/** Inspect the SCSS architecture without printing. */
 export function inspectScssStandards({
     root,
     styles,
@@ -276,10 +205,7 @@ export function inspectScssStandards({
     const entrySrc = exists(entryPath) ? read(entryPath) : '';
 
     // ── 1. The barrel forwards the tokens ────────────────────────────────
-    // `@forward` re-exports a module's members to whoever `@use`s this file.
-    // `@use` would load it and keep it private — which is the whole difference,
-    // and the reason a barrel that `@use`s its tokens looks fine and resolves
-    // nothing.
+    // `@use` would keep the members private to the barrel.
     for (const module of forwarded) {
         if (!new RegExp(String.raw`@forward\s+['"][^'"]*${module}['"]`).test(barrelSrc)) {
             fail(
@@ -315,17 +241,13 @@ export function inspectScssStandards({
     }
 
     // ── 4. Nothing reachable from the injected module emits ─────────────────
-    // This is the rule the whole gate is built around. Each SFC style block is
-    // its own Sass compilation, so a rule reachable from the injected module is
-    // emitted once per component — silently, with a green build.
     const walked = new Set();
     const walkInjected = (rel: string) => {
         if (walked.has(rel)) return;
         walked.add(rel);
         const source = read(rel);
 
-        // Loud (slash-star) comments survive compilation, so one in a file the
-        // injection can reach is copied into every component's stylesheet.
+        // Loud (slash-star) comments survive compilation, so they emit too.
         const loud = [...source.matchAll(/\/\*[\s\S]*?\*\//g)];
         if (loud.length > 0) {
             fail(
@@ -483,11 +405,7 @@ export function inspectScssStandards({
     }
 
     // 7b. Every `var(--token)` resolves to something.
-    // A map-driven project never writes its custom properties down: the mixin
-    // interpolates them, `--#{$prefix}#{$key}`, so the NAMES only exist after
-    // Sass runs. Reconstructing them from the map keys is what lets this sweep
-    // work at all there — without it every alias in the token layer looks
-    // undeclared, which is the loudest possible false positive.
+    // A map-driven project's names are reconstructed from the map keys and the mixin prefix.
     const declared = new Set([
         ...(fallback ?? []),
         ...(reference ?? []),
@@ -561,10 +479,7 @@ export function inspectScssStandards({
         }
     }
 
-    // A repo on a system font stack declares no `@font-face` and vendors
-    // nothing. There is nothing to license and nothing to bundle, so these two
-    // stay silent rather than demanding a fonts directory that has no reason to
-    // exist.
+    // Silent on a system font stack.
     const fontFaceSrc = fontFaceFile !== undefined && exists(fontFaceFile) ? read(fontFaceFile) : '';
     if (/@font-face/.test(fontFaceSrc)) {
         for (const [, url = ''] of fontFaceSrc.matchAll(/src:\s*url\(['"]?([^'")]+)['"]?\)/g)) {
@@ -587,7 +502,6 @@ export function inspectScssStandards({
 
     return { problems, styleFiles, palettes: [...palettes.keys()], tokenCount: reference?.size ?? 0 };
 
-    /** @param dir @param {(name: string) => boolean} test @param {string[]} out */
     function walk(dir: string, test: (name: string) => boolean, out: string[] = []) {
         if (!exists(dir)) return out;
         for (const item of fs.readdirSync(abs(dir), { withFileTypes: true })) {
@@ -600,23 +514,14 @@ export function inspectScssStandards({
 }
 
 /**
- * The selector heads in `source` that actually put CSS in the output.
- *
- * NESTING IS THE WHOLE DIFFICULTY. `@media (min-width: 900px) { … }` at the top
- * level emits; the same line inside `@mixin above($bp) { … }` emits nothing at
- * all until something `@include`s it. A line-by-line scan cannot tell those
- * apart, and gets the second one wrong — which is the expensive direction,
- * because it fails a file that is correct. So this tracks the block stack: a
- * head counts only when no enclosing block is one of Sass's declare-don't-emit
- * constructs.
+ * The selector heads in `source` that put CSS in the output: a head counts only
+ * when no enclosing block is a declare-don't-emit construct (`@mixin`, …).
  */
 function emittingHeads(source: string): string[] {
     const heads: string[] = [];
     /** One entry per open block: does it, or anything above it, suppress output? */
     const stack: boolean[] = [];
-    // Interpolation is not a block, and a brace inside a quoted string is not a
-    // block either. Blanking both first is what keeps `--color-#{$key}: …` from
-    // reading as a selector named `--color-#`.
+    // Blank interpolation and quoted strings, so their braces are not blocks.
     const text = source
         .replace(/(['"])(?:\\.|(?!\1)[^\\])*\1/g, (quoted) => quoted.replace(/[{};]/g, ' '))
         .replace(/#\{[^}]*\}/g, 'x');
@@ -627,13 +532,7 @@ function emittingHeads(source: string): string[] {
             const trimmed = head.trim();
             const suppressed = stack.includes(true);
             const declaresOnly = INERT_AT_RULES.test(trimmed) || trimmed.startsWith('%');
-            // No test for "is this really a declaration?" is needed, and an
-            // earlier one here was actively wrong: it treated `:root` as a
-            // declaration because of the leading colon, and so stayed silent on
-            // the very block this gate exists to find. A declaration cannot
-            // reach a `{` at all — `head` resets at every `;`, and the only two
-            // ways a brace hides inside a value, interpolation and a quoted
-            // string, are both neutralised above.
+            // A declaration never reaches a `{`: `head` resets at every `;`.
             if (!suppressed && !declaresOnly && trimmed !== '') heads.push(trimmed.replace(/\s+/g, ' '));
             stack.push(suppressed || declaresOnly);
             head = '';
@@ -649,15 +548,7 @@ function emittingHeads(source: string): string[] {
     return heads;
 }
 
-/**
- * Read the palettes, whichever way this project spells them.
- *
- * This is the gate's one switch, and it exists because the difference is real:
- * a project whose users hand-edit theme files keeps them as JSON on disk, and a
- * project that wants stylelint to see its custom properties writes them out as
- * literal declarations rather than generating them from a Sass map. What comes
- * back is the same shape in all three cases, and every rule above it is shared.
- */
+/** Read the palettes, whichever way this project spells them, into one shape. */
 function readPalettes({
     themes,
     root,
@@ -671,11 +562,7 @@ function readPalettes({
     exists: (rel: string) => boolean;
     fail: (file: string, what: string, why: string) => void;
 }) {
-    /**
-     * A gate reports; it does not crash. A palette file that has been renamed or
-     * deleted is a finding — and a far more likely one than it sounds, since the
-     * whole point of this gate is to push emission out of one file into another.
-     */
+    /** A missing palette file is a finding, not a crash. */
     const readOrFail = (rel: string, role: string) => {
         if (exists(rel)) return read(rel);
         fail(
@@ -689,11 +576,7 @@ function readPalettes({
     const palettes: Map<string, Set<string>> = new Map();
     let invariant: Set<string> = new Set();
     let fallback: Set<string> | undefined;
-    /**
-     * What the `emit-theme` mixin puts in front of a map key to make the custom
-     * property name. Read out of the mixin rather than assumed, because it is the
-     * one place the map keys and the `var()` names are connected.
-     */
+    /** The prefix the `emit-theme` mixin puts before a map key, read from the mixin. */
     let emitPrefix = '';
 
     if (themes.source === 'json-presets') {
@@ -801,8 +684,7 @@ function readPalettes({
             }
         }
     } else {
-        // 'scss-maps': the palettes are Sass maps. A map is only a palette once
-        // something emits it, which is the `registry` half below.
+        // 'scss-maps': a map is only a palette once the registry emits it.
         const source = readOrFail(themes.file, 'theme maps');
         for (const [, name = '', body = ''] of source.matchAll(/^\$([a-z0-9-]+):\s*\(\n?([\s\S]*?)^\);/gm)) {
             if (name === themes.registryName) continue;
@@ -818,9 +700,6 @@ function readPalettes({
             );
         }
 
-        // Where the maps ARE and where they are EMITTED are two files as often as
-        // one: moving the emission out of the injected module is exactly the fix
-        // this gate pushes projects towards, and it leaves the maps behind.
         const emitSrc = themes.emitFile === undefined ? source : readOrFail(themes.emitFile, 'theme emission');
         const emitted =
             themes.registryName === undefined
@@ -883,10 +762,7 @@ function readPalettes({
     };
 }
 
-/**
- * Source with its comments removed. A `var()` named only in a comment is not a
- * reference, and a rule named only in a comment is not a rule.
- */
+/** Source with its comments removed. */
 function stripComments(source: string) {
     return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
@@ -913,9 +789,7 @@ function escapeRe(literal: string) {
     return literal.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
-/**
- * Run the gate and print.
- */
+/** Run the gate and print. */
 export function checkScssStandards({ root = REPO_ROOT, standard, ...rest }: ScssStandardsOptions): void {
     const report = createGateReport({ name: 'SCSS architecture', ...(standard === undefined ? {} : { standard }) });
     const { problems, styleFiles, palettes, tokenCount } = inspectScssStandards({ root, ...rest });

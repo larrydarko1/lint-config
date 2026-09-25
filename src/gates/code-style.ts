@@ -1,63 +1,18 @@
 /**
- * Code style gate — the conventions a linter has no opinion about.
+ * File-shape conventions ESLint has no opinion about: filename casing, a composable
+ * exporting its own name, the line softcap, public before private, headers, SFC
+ * block order and attributes, comment format per block, no JSDoc type tags, and no
+ * relative imports where an alias resolves.
  *
- * ESLint reasons about code. Everything here is about the SHAPE of a file: what it
- * is called, how long it is, which order its parts come in, and which comment form
- * belongs in which block. None of it changes behaviour, all of it is invisible in a
- * diff — you read the import line, not the convention it broke — and the cost of
- * every one of them grows with the number of files that copied it.
+ * Conventions are per-project data (`casing`, `headers`, `lineCap`, `baseline`,
+ * `aliasedRoots`); an unmatched file is deliberately unconstrained.
  *
- * WHY ONE GATE AND NOT TWO. The five copies looked like two different gates: the
- * full-stack pair names backend modules `kebab-case`, the desktop three name `.ts`
- * `camelCase` and `.vue` `PascalCase`. But that is the naming CONVENTION, which is
- * data, not the rule — the rule is "a filename follows the convention for where it
- * sits", and it is the same rule in both. Applying the trigger test to the rest gave
- * the same answer every time, and four rules that only one family had turned out to
- * cost nothing anywhere:
- *   - a composable file exporting its own name (desktop): zero findings in either
- *     full-stack repo, which has `use*.ts` files of its own;
- *   - SFC block order (one full-stack copy + desktop): zero findings in the other;
- *   - the stale-baseline rules (full-stack): four real findings across the desktop
- *     repos, which is exactly the point of them.
- * A fifth, the full-stack habit of reading `.scss` partials as well as SFC style
- * blocks, is carried over but is a no-op in every repo today: both families write
- * `//` line comments in a standalone partial and reserve `/* ... *\/` for the style
- * block of an SFC. It stays because a `/* ... *\/` appearing in a partial is exactly
- * the case nobody would notice.
- * The one rule that genuinely cannot be switched on everywhere is `aliasedRoots`,
- * and it is self-silencing: a repo that declares no alias roots never reaches it.
+ * The softcap is a ratchet: files already over it are listed in `baseline` at their
+ * size and fail only if they grow. An entry back under the cap, or naming a missing
+ * file, fails too. Size is non-blank lines excluding an SFC's `<style>` block, as the
+ * standard defines it.
  *
- * WHAT STAYS PER PROJECT is the data — `scan`, `casing`, `headers`, `lineCap`,
- * `baseline` and `aliasedRoots`. An entry missing from `casing` or
- * `headers` means those files are deliberately unconstrained, which is a decision
- * worth writing down rather than a hole.
- *
- * THE SOFTCAP IS A RATCHET, NOT A CAP. The standard says 400 is soft, so failing
- * every file over it would be a refactor backlog wearing a red X. The files already
- * over it are listed in `baseline` at the size they were, and the gate fails only
- * when a new file crosses the line or a listed one grows. Three rules keep the list
- * honest in the other direction: a baselined file back under the cap must lose its
- * entry, and an entry naming a file that no longer exists is rot. Without them the
- * list only ever grows stale — one component was baselined at 514 lines and had
- * shrunk to 305, so its entry was licensing 209 lines of regrowth.
- *
- * THE UNIT IS NON-BLANK TEMPLATE-AND-SCRIPT LINES, and it is deliberately not an
- * option. The copies disagreed about it — the full-stack pair skips blank lines and
- * drops the `<style>` block of an SFC, the desktop three counted what `wc -l`
- * counts — and the gap is large enough to matter: one real component is 1098
- * lines one way and 490 the other. The standard settles it rather than taste:
- * "files over ~400 lines (template and script only, style can be ignored)", and the
- * SCSS standard says in as many words that no gate counts stylesheet lines and none
- * will, because a stylesheet's honest size is set by how many things it styles. A
- * measure that counts the style block also pays a component for moving its CSS out
- * of the file it belongs to, which is the opposite of what these repos want. So the
- * desktop measure was drift, its baselines were re-measured once, and the option is
- * gone rather than left as a dial that can put the drift back.
- *
- * WHAT IS DELIBERATELY NOT CHECKED. Tests: no desktop repo keeps one under its
- * source root, and the full-stack copies exclude them outright, so a shared gate
- * that scanned them would be inventing a rule rather than sharing one. Ambient
- * `.d.ts` files: they are named after what they declare, not by our casing.
+ * Not checked: tests and ambient `.d.ts` files.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -149,31 +104,20 @@ const isDeclaration = (rel: string) => rel.endsWith('.d.ts');
 /** 1-based line of a byte offset, so a per-occurrence finding can point at it. */
 const lineAt = (source: string, index: number): number => source.slice(0, index).split('\n').length;
 
-/**
- * The size of a file: non-blank lines, and for an SFC the `<style>` block does not
- * count. This is the unit the standard's ~400 softcap is written in — "template and
- * script only, style can be ignored" — and every `baseline` number with it.
- */
+/** Non-blank lines, excluding an SFC's `<style>` block. */
 export function measureFile(source: string, rel: string): number {
     const body = rel.endsWith('.vue') ? source.replace(/<style[\s\S]*?<\/style>/g, '') : source;
     return body.split('\n').filter((line) => line.trim() !== '').length;
 }
 
-/**
- * The `<script>` block that carries `setup`, plus any companion block. An SFC may
- * legitimately open with a plain `<script lang="ts">` — that is where a generic
- * component declares the type its `setup` block is generic over — so a rule that
- * reads the FIRST script block fails a file that is written correctly.
- */
+/** The `<script setup>` block (not necessarily the first), plus any companion block. */
 export function scriptBlocks(source: string): { setup: string | null; others: string[] } {
     const attrs = [...source.matchAll(/<script\b([^>]*)>/g)].map((m) => m[1] ?? '');
     const setup = attrs.find((a) => /\bsetup\b/.test(a));
     return { setup: setup ?? null, others: attrs.filter((a) => a !== setup) };
 }
 
-/**
- * Every problem in one source tree, without printing anything.
- */
+/** Every problem in one source tree, without printing anything. */
 export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
     const {
         root,

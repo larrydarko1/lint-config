@@ -1,60 +1,15 @@
 /**
- * Database drift gate.
+ * Database drift: the cross-file layer (ESLint sees one file, contract tests one
+ * module). Covers the index manifest and registry, example documents vs types,
+ * the schema doc, migrations (tested, `up()` only, immutable once merged, the only
+ * place an index is dropped), graceful shutdown, and optionally ops-script safety
+ * and backup health.
  *
- * Every rule here exists because of a failure that a diff cannot show. A schema
- * doc describing a domain that was never built. An example document carrying a
- * field no type declares. A migration merged without a test, or edited after it
- * had already run somewhere. A collection nothing indexes, so every query
- * against it is a full scan. An index dropped at boot instead of in a
- * migration, so it is rebuilt on every restart of every replica, forever.
- * None of it throws. Most of it is invisible until it is expensive.
- *
- * WHY THIS IS THE LONGEST GATE. It is the cross-file layer of a three-layer
- * rule set the standard sets out deliberately: ESLint sees inside one file, a
- * contract test cannot be waved through with an inline disable, and this gate
- * sees the things that only exist BETWEEN files — a manifest and a migration
- * disagreeing, a doc and a type disagreeing, a checksum file and a directory
- * disagreeing. Those have no other home, so they all live here.
- *
- * WHAT WAS TAKEN FROM WHICH COPY. The two full-stack copies agreed on the
- * middle of the gate and differed at both ends, in opposite directions, so
- * this is the union with each disagreement settled once:
- *   • THE REGISTRY IS IMPORTED, not regex-parsed. One copy matched
- *     `export const COLLECTIONS = [ … ] as const` with a regular expression;
- *     the other ran `await import()` on the module. Importing is better twice
- *     over. It cannot be defeated by reformatting, and it TESTS SOMETHING THE
- *     REGEX CANNOT: the bootstrap migration imports this module through the
- *     migrate-mongo CLI, where there is no bundler and no path aliases, so a
- *     runtime import added here breaks `npm run db:migrate` and nothing else.
- *     Nothing else would catch it.
- *   • AN UNINDEXED COLLECTION IS AN ERROR WITH AN EXEMPTION REGISTER, not a
- *     warning. One copy warned, which is a finding nobody acts on. The other
- *     failed unless the collection appeared in a `noIndexByDesign` map with a
- *     written reason. The register is the better half of the idea: a
- *     collection with no index is either a decision or an oversight, and the
- *     difference is whether someone wrote down which.
- *   • A TYPE MAY BE OPEN. One copy treated any example key the type does not
- *     declare as stale documentation. That is wrong for a document with an
- *     index signature, where fields the type cannot name are the point. The
- *     signature is detected rather than configured.
- *   • THE MIGRATION RULES are the union: exports `up()`, exports no `down()`,
- *     creates no index, and is named so migrate-mongo can order it. Only one
- *     copy had the last three, and the standard states all of them.
- *
- * TWO RULES ARE NEW, and both come from the standard rather than from either
- * copy. Every index entry carries a `why` — the keys are the what, and
- * TypeScript already shows you that; which query it serves is the part that
- * decays. And a TTL index carries `expireAfterSeconds`, because without it a
- * TTL index is an ordinary date index that silently never deletes anything.
- * Both repos already pass both.
- *
- * WHAT IS OPTIONAL, AND WHY THAT IS NOT A COMPROMISE. The backup, restore,
- * wipe and ops-script rules apply to a repo that HAS a backup pipeline. One of
- * the two has none and no host to restore onto, and its copy of this gate said
- * so in a header comment so the absence was a recorded decision rather than an
- * oversight. That is the right instinct and it is preserved: omit the group and
- * the rules do not run, but the omission is written down in the shim, where the
- * next person reads it.
+ * The registry is imported, not parsed, which also proves it loads under plain
+ * Node as the migrate-mongo CLI needs. A collection with no index must be listed
+ * in `noIndexByDesign` with a reason. A type with an index signature accepts extra
+ * example keys. Omit the ops and backup groups where they do not apply, and say so
+ * in the shim.
  */
 import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
@@ -92,10 +47,7 @@ export type DbService = {
     closes?: boolean;
 };
 
-/**
- * An ordered drain. Each stage must appear, and in this order — from the thing
- * that produces work to the thing that stores it.
- */
+/** An ordered drain, from what produces work to what stores it. */
 export type DrainOrder = {
     file: string;
     stages: { what: string; pattern: RegExp }[];
@@ -104,10 +56,7 @@ export type DrainOrder = {
 export type OpsOptions = {
     /** Destructive scripts that must refuse to run when NODE_ENV=production. */
     productionRefusals?: string[];
-    /**
-     * The wipe script — the most dangerous file in the repo, so it is defended
-     * in depth: a TTY check, and a prompt that makes you type the database name.
-     */
+    /** The wipe script: needs a TTY check and a prompt to type the database name. */
     wipe?: {
         file: string;
         /** How the script names the target database, e.g. `cfg.mongoDb`. */
@@ -168,11 +117,7 @@ export type DbDriftInput = {
     services?: DbService[];
     /** A queue worker's ordered shutdown. */
     drainOrder?: DrainOrder;
-    /**
-     * Where the manifest is applied at boot. A list, because splitting it
-     * across the processes that write those collections is legitimate — but an
-     * index export no applier names is one nothing ever creates.
-     */
+    /** Where the manifest is applied at boot; may be split across processes. */
     indexAppliers?: { file: string; applies: string[]; fn?: string }[];
     /** Manifests to check for a migrate-down script. */
     packageManifests?: string[];
@@ -204,12 +149,7 @@ const DEFAULT_TTL_FIELDS = ['expiresAt', 'expireAt', 'expiresOn'];
 /** `Users` → `users`, `HashDatabase` → `hash-database`, `AssetInfo` → `asset-info`. */
 const kebab = (name: string) => name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
 
-/**
- * The top-level fields of `type Name = { … }`, ignoring anything nested.
- *
- * Brace-counted rather than matched: a document type holds nested objects, and
- * a regex that stops at the first `}` reports half a schema as the whole of it.
- */
+/** The top-level fields of `type Name = { … }`, brace-counted, ignoring anything nested. */
 function typeFields(
     source: string,
     typeName: string,
@@ -233,8 +173,7 @@ function typeFields(
 
     const code = top.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
     return {
-        // An index signature means the document carries fields the type cannot
-        // name, so an example with extra keys is correct rather than stale.
+        // An index signature allows extra example keys.
         open: /\[\s*\w+\s*:\s*string\s*\]\s*:/.test(code),
         fields: [...code.matchAll(/(?:^|[;\n{])\s*(\w+)(\??)\s*:/g)].map((m) => ({
             name: m[1] ?? '',
@@ -257,12 +196,7 @@ function documentedFields(doc: string, collection: string): string[] | null {
     return [...section.matchAll(/^\| `(\w+)`\s*\|/gm)].map((m) => m[1] ?? '');
 }
 
-/**
- * Whether git ignores a path, asked of git itself rather than read out of
- * `.gitignore`: the answer depends on pattern order, negations and every nested
- * ignore file in the tree. Null when git could not answer at all, which must not
- * read as "not ignored".
- */
+/** Whether git ignores a path, asked of `git check-ignore`. Null when git could not answer. */
 function gitIgnores(root: string, rel: string): boolean | null {
     const { status, error } = spawnSync('git', ['check-ignore', '-q', '--no-index', rel], {
         cwd: root,
@@ -283,9 +217,7 @@ function walk(root: string, dir: string): string[] {
     });
 }
 
-/**
- * Read the gate's findings without printing them.
- */
+/** Read the gate's findings without printing them. */
 export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspection> {
     const {
         root,
@@ -322,8 +254,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
     const exists = (rel: string) => fs.existsSync(path.join(root, rel));
 
     // ── 0. Anchors ───────────────────────────────────────────────────────────
-    // A moved file has to stop the gate. Every rule below reads one of these,
-    // and a rule that finds nothing to check reports a pass it never proved.
+    // A moved file stops the gate, so no rule passes on nothing.
     for (const rel of [manifest, typesFile, bootstrap, architecture, examplesDir, migrationsDir, testsDir]) {
         if (!exists(rel)) {
             fail(
@@ -336,9 +267,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
     if (problems.length > 0) return { problems, warnings, collections: [], indexes: 0, migrations: 0 };
 
     // ── 1. The registry loads under plain Node ───────────────────────────────
-    // Not a formality. The bootstrap migration imports this module through the
-    // migrate-mongo CLI, where there is no bundler and no alias resolution, so
-    // a runtime import added here breaks `npm run db:migrate` and nothing else.
+    // migrate-mongo imports it with no bundler and no aliases.
     let registry: Record<string, unknown>;
     try {
         registry = (await import(pathToFileURL(path.join(root, manifest)).href)) as Record<string, unknown>;
@@ -703,9 +632,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
     }
 
     // ── 11. Only a migration drops an index ──────────────────────────────────
-    // A drop applied at boot re-runs on every restart of every replica. If the
-    // replacement index has the same auto-generated name, that is a
-    // drop-and-rebuild loop that reindexes the collection on every start.
+    // A drop at boot re-runs on every restart of every replica.
     for (const rel of appDirs.flatMap((dir) => walk(root, dir))) {
         if (!/\.dropIndexe?s?\s*\(/.test(read(rel))) continue;
         fail(
@@ -719,9 +646,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
     for (const service of services) {
         const source = read(service.entry);
         for (const signal of ['SIGTERM', 'SIGINT']) {
-            // Quoted, not merely mentioned. `process.on(signal, …)` always
-            // spells it as a string literal, while a comment explaining WHY the
-            // handler matters names it too — and a comment is not a handler.
+            // Quoted, so a comment naming the signal does not count.
             if (new RegExp(`['"]${signal}['"]`).test(source)) continue;
             fail(
                 service.entry,
@@ -739,9 +664,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
     }
 
     // ── 13. A queue worker drains in dependency order ────────────────────────
-    // "Close the client" understates it for a worker. The active jobs ARE the
-    // in-flight writes, so the consumers stop first; closing Mongo while a job
-    // is mid-write is the same severed write with extra steps.
+    // Consumers stop before Mongo closes: active jobs are in-flight writes.
     if (drainOrder !== undefined) {
         const source = read(drainOrder.file);
         const found = drainOrder.stages.map((stage) => ({ ...stage, at: source.search(stage.pattern) }));
@@ -768,11 +691,6 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
     }
 
     // ── 14. Every index export is actually applied by someone ────────────────
-    // A list rather than one file, because splitting the manifest across the
-    // processes that write those collections is a legitimate design: the api
-    // applies what the api writes, the worker applies what the worker writes.
-    // What is NOT legitimate is an index array nobody applies at all, which
-    // looks exactly like a declared index and creates nothing.
     if (indexAppliers !== undefined) {
         for (const name of indexExports) {
             if (indexAppliers.some((applier) => applier.applies.includes(name))) continue;
@@ -787,12 +705,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
             const source = read(applier.file);
             const fn = applier.fn ?? 'ensureIndexes';
 
-            // A DECLARATION IS NOT A CALL. `async function ensureIndexes(db)`
-            // must not satisfy the rule that something reaches it — that was
-            // the whole failure, an applier that defines the function and never
-            // runs it. So the declaration is blanked before looking for a call.
-            // `await fn(`, `fn(` and `.then(fn)` are all real spellings here;
-            // what matters is that it is reached, not how.
+            // Blank the declaration first, so defining the applier is not calling it.
             const calls = source.replace(new RegExp(String.raw`function\s+${fn}\s*\(`, 'g'), 'x(');
             if (!new RegExp(String.raw`\b${fn}\s*\(|\.then\(\s*${fn}\s*[),]`).test(calls)) {
                 fail(
@@ -919,10 +832,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
 
         if (ops.restore !== undefined) {
             const source = read(ops.restore.file);
-            // `.flushdb()` with the dot: one of these repos types its Redis
-            // client inline (`{ flushdb(): Promise<unknown> }`), and that
-            // declaration would otherwise count as the flush — and, being near
-            // the top of the file, would pass the ordering check every time.
+            // With the dot, so an inline type's `flushdb(): …` does not count.
             const flush = source.search(/\.flushdb\s*\(\s*\)/);
             const enqueue = source.search(/queue\.add\(/);
 
@@ -953,9 +863,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
     }
 
     // ── 17. Backup health ────────────────────────────────────────────────────
-    // Warnings, not failures: a stale drill is a thing to schedule, not a
-    // reason to block a commit that has nothing to do with it. An empty dump
-    // is different, and fails.
+    // A stale drill warns; an empty dump fails.
     if (backups !== undefined) {
         const maxAgeDays = backups.maxAgeDays ?? 90;
 
@@ -1020,9 +928,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
     return { problems, warnings, collections, indexes: indexes.length, migrations: migrationFiles.length };
 }
 
-/**
- * Run the gate and print.
- */
+/** Run the gate and print. */
 export async function checkDbDrift({ root = REPO_ROOT, standard, ...rest }: DbDriftOptions): Promise<void> {
     const report = createGateReport({ name: 'Database drift', ...(standard === undefined ? {} : { standard }) });
     const { problems, warnings, collections, indexes, migrations } = await inspectDbDrift({ root, ...rest });

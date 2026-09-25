@@ -1,50 +1,16 @@
 /**
- * Environment & configuration drift gate.
+ * Env drift, per service:
  *
- * Env is the one input a program cannot type-check, cannot see in a diff and
- * cannot be tested into behaving. Every failure it produces is silent: a key
- * that exists in the schema but in no `.env.example` is a key the next person
- * deploys without; a key documented but no longer read is a key someone sets
- * carefully and is ignored; a secret with a `.default()` is a secret that boots
- * on its placeholder instead of crashing. Nothing throws. The service starts.
- *
- * WHY THIS IS ONE GATE WITH NO SWITCHES. The two full-stack copies were the
- * closest pair in the whole port — same rules, same order, same prose, and the
- * only structural difference was that one repo has three services and the other
- * two. That is a list, not an architecture. Everything else was drift in one
- * direction or the other, so this file is the union and the loser's spelling is
- * gone.
- *
- * WHAT WAS TAKEN FROM WHICH COPY:
- *   • THE GITIGNORE RULE is asked of git, not read out of `.gitignore`. One
- *     copy regex-matched `^\*?\.env$` against the top-level file. Whether a
- *     path is ignored depends on pattern order, negations and every nested
- *     `.gitignore` in the tree, so a regex over one file gets it wrong in
- *     whichever direction it happened to be written — and the failure mode is
- *     a gate that reports "`.env` is ignored" about a file git is tracking.
- *     `git check-ignore` is the only thing that knows the real answer.
- *   • THE SECRET SHAPES are the union. One copy knew the Stripe spellings
- *     (`sk_live_`, `whsec_`) because that repo takes payments; the other did
- *     not. A repo that never had a Stripe key still gains from the rule the
- *     day someone pastes one in.
- *   • THE SERVICE LIST DRIVES EVERYTHING. One copy hardcoded
- *     `['api/src/index.ts', 'worker/src/index.ts']` beside a SERVICES array
- *     that already said so. The paths are derived here, so adding a service is
- *     one line and cannot half-apply.
- *
- * ONE RULE IS NEW, and it comes from the standard rather than from either copy:
- * `process.env` is not read outside the config module and the entry file.
- * env.instructions.md states it outright ("Never read `process.env` in routes,
- * services, or components") and both repos already pass it, so it costs nothing
- * today and catches the first person who reaches around the schema. Tests are
- * exempt: setting env is how you test a config module.
- *
- * WHY THE LOCAL `.env` IS ONLY EVER A WARNING. It is gitignored, so CI has
- * none, and running on defaults is legitimate — the standard's own design goal
- * is that a fresh clone boots with no `.env` at all. That same design is why
- * the drift is invisible: the app cannot tell you about it, because by
- * construction it works. So the warning is the only sighting you get of a
- * prod-only key you are missing, and it must not be able to fail a build.
+ *   1. The Zod schema and `.env.example` agree, both ways.
+ *   2. The local `.env` agrees too, as a warning only: it is gitignored and a fresh
+ *      clone must boot without one.
+ *   3. dotenv is the entry file's first import.
+ *   4. No secret carries a bare `.default()`.
+ *   5. A shared key is declared once.
+ *   6. The config object carries the canonical groups.
+ *   7. No committed `.env.example` holds a real secret.
+ *   8. `.env` is git-ignored and `.env.example` is not (asked of `git check-ignore`).
+ *   9. `process.env` is read only in the config module and entry file (tests exempt).
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -72,10 +38,7 @@ export type EnvService = {
     example: string;
     /** The entry file dotenv must be imported first in, e.g. `api/src/index.ts`. */
     entry: string;
-    /**
-     * The gitignored env it actually boots with. Omitted when the service has
-     * none. Its drift is reported as a warning and can never fail a build.
-     */
+    /** The gitignored env it boots with, if any. Its drift only warns. */
     local?: string;
 };
 
@@ -89,11 +52,7 @@ export type EnvDriftInput = {
      * (`...mongoEnv`). Omit in a repo where each service declares its own keys.
      */
     sharedEnv?: string;
-    /**
-     * Config module → the groups its exported `config` object must carry.
-     * The canonical tree is a cross-standard interface, so a rename here is a
-     * breaking change in files that never import this one.
-     */
+    /** Config module → the groups its exported `config` object must carry. */
     canonicalGroups?: Record<string, string[]>;
     /** Every committed `.env.example` to sweep for real secrets. */
     exampleFiles?: string[];
@@ -122,25 +81,13 @@ export type EnvDriftOptions = Omit<EnvDriftInput, 'root'> & {
     standard?: string;
 };
 
-/**
- * A key whose NAME says it holds a secret. Matched on the suffix because that
- * is the half nobody renames: `STRIPE_SECRET_KEY`, `SMTP_PASS`, `JWT_SECRET`.
- */
+/** A key whose name says it holds a secret, by suffix: `SMTP_PASS`, `JWT_SECRET`. */
 const SECRET_KEY_RE = /_(SECRET|KEY|PASS|PASSWORD|TOKEN)$/;
 
-/**
- * Declarations that are already safe, so a `.default()` beside them is not the
- * bug this rule is looking for. `requiredSecret`/`hexSecret` carry no default,
- * `infraDefault` re-arms itself in production, and `.optional()` types the key
- * as genuinely absent rather than quietly substituted.
- */
+/** Declarations already safe beside a `.default()`: no default, production-armed, or `.optional()`. */
 const SAFE_SECRET_FORMS = /requiredSecret\(|hexSecret\(|infraDefault\(|\.optional\(\)/;
 
-/**
- * Values that look like the real thing rather than a placeholder. Each is a
- * shape no human types by accident, which is what keeps this from crying wolf
- * over `replace-me` and `your-key-here`.
- */
+/** Values shaped like real secrets rather than placeholders. */
 const REAL_SECRET_SHAPES = [
     { what: 'a 64-char hex string (a real AES/HMAC key)', re: /=\s*[0-9a-fA-F]{64}\s*$/m },
     { what: 'a live Stripe key', re: /=\s*sk_live_\w+/m },
@@ -152,23 +99,12 @@ const REAL_SECRET_SHAPES = [
 /** A `VITE_*` key whose name claims it holds a secret. Vite ships all of them. */
 const VITE_SECRET_RE = /^#?\s*(VITE_[A-Z0-9_]*(?:SECRET|KEY|PASSWORD|TOKEN))\s*=/gm;
 
-/**
- * UPPER_SNAKE object keys — the env-var fields of a Zod schema, declared as
- * `KEY:` at the start of a line.
- *
- * The schema is the source of truth, not `process.env.X`: once env is validated
- * by Zod, grepping for `process.env` finds one call site and tells you nothing
- * about which keys the program actually reads.
- */
+/** UPPER_SNAKE object keys: a Zod schema's env fields, declared as `KEY:` at the start of a line. */
 function schemaFieldKeys(source: string): Set<string> {
     return new Set([...source.matchAll(/^\s*([A-Z][A-Z0-9_]*):/gm)].map((m) => m[1] ?? ''));
 }
 
-/**
- * Each `export const NAME = { … }` fragment in the shared env module, mapped to
- * the keys it declares, so a config that spreads `...s3Env` can be resolved to
- * real key names rather than reported as undocumented.
- */
+/** Each `export const NAME = { … }` fragment in the shared env module, mapped to its keys. */
 function sharedFragments(source: string): Record<string, Set<string>> {
     const fragments: Record<string, Set<string>> = {};
     for (const [, name = '', body = ''] of source.matchAll(/export const (\w+) = \{([\s\S]*?)\n\};/g)) {
@@ -191,12 +127,8 @@ function configKeys(source: string, fragments: Record<string, Set<string>>, igno
 }
 
 /**
- * The keys declared in a dotenv-style file.
- *
- * `commentedCounts` is the whole difference between the two files this gate
- * parses, and conflating them is the mistake that makes the whole check lie:
- *   `.env.example` — a commented `# KEY=` DOCUMENTS an optional var → counts.
- *   `.env`         — a commented `# KEY=` is a var that is NOT SET → does not.
+ * The keys declared in a dotenv-style file. `commentedCounts`: in `.env.example` a
+ * commented `# KEY=` documents an optional var; in `.env` it is unset.
  */
 function dotenvKeys(
     source: string,
@@ -207,9 +139,6 @@ function dotenvKeys(
     for (const raw of source.split('\n')) {
         const line = raw.trim();
         const isComment = line.startsWith('#');
-        // One decision, in one place. Uncommenting the line first and then
-        // matching would make `# KEY=` count everywhere, which is right for the
-        // example and wrong for the real env.
         if (isComment && !commentedCounts) continue;
         const key = /^([A-Z0-9_]+)=/.exec(isComment ? line.replace(/^#\s*/, '') : line)?.[1];
         if (key !== undefined && !ignored.has(key)) keys.add(key);
@@ -218,14 +147,9 @@ function dotenvKeys(
 }
 
 /**
- * Whether git ignores a path, asked of git itself.
+ * Whether git ignores a path, asked of `git check-ignore`.
  *
- * Three answers, not two. `git check-ignore` exits 0 for ignored and 1 for not
- * ignored, but anything else — no repository, no git on PATH — means the
- * question was never answered, and a gate that reads that as "not ignored"
- * reports a missing `.gitignore` rule that is right there in the file.
- *
- * @returns Null when git could not answer.
+ * @returns Null when git could not answer (no repository, no git).
  */
 function gitIgnores(root: string, rel: string): boolean | null {
     const { status, error } = spawnSync('git', ['check-ignore', '-q', '--no-index', rel], {
@@ -247,9 +171,7 @@ function walk(root: string, dir: string): string[] {
     });
 }
 
-/**
- * Read the gate's findings without printing them.
- */
+/** Read the gate's findings without printing them. */
 export function inspectEnvDrift(input: EnvDriftInput): EnvDriftInspection {
     const {
         root,
@@ -272,8 +194,7 @@ export function inspectEnvDrift(input: EnvDriftInput): EnvDriftInspection {
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
     const exists = (rel: string) => fs.existsSync(path.join(root, rel));
 
-    // A missing anchor has to stop the gate rather than each rule shrugging: a
-    // rule that silently finds nothing to check reports a pass it never proved.
+    // A missing anchor stops the gate, so no rule passes on nothing.
     for (const rel of [sharedEnv, ...services.flatMap((s) => [s.config, s.example, s.entry])]) {
         if (rel !== undefined && !exists(rel)) {
             fail(
@@ -311,8 +232,6 @@ export function inspectEnvDrift(input: EnvDriftInput): EnvDriftInspection {
         }
 
         // ── 2. Advisory: the .env you actually boot with ─────────────────────
-        // Never a failure. It is gitignored, CI has none, and booting on
-        // defaults is the design working — see the header.
         if (service.local === undefined || !exists(service.local)) continue;
 
         const inLocal = dotenvKeys(read(service.local), { commentedCounts: false }, ignored);
@@ -469,15 +388,10 @@ export function inspectEnvDrift(input: EnvDriftInput): EnvDriftInspection {
     }
 
     // ── 9. process.env is read only where the schema is ──────────────────────
-    // From the standard: "Never read process.env in routes, services, or
-    // components. Always go through config." Reaching around the schema is how
-    // a key gets read that is validated nowhere, documented nowhere, and typed
-    // `string | undefined` at every call site that forgot.
     const allowed = new Set([...services.map((s) => s.config), ...services.map((s) => s.entry)]);
     for (const dir of businessDirs ?? []) {
         for (const rel of walk(root, dir)) {
             if (allowed.has(rel)) continue;
-            // Tests set env on purpose: that is how you test a config module.
             if (/(^|[\\/])__tests__[\\/]|\.test\.ts$|\.spec\.ts$/.test(rel)) continue;
 
             const line = read(rel)
@@ -496,9 +410,7 @@ export function inspectEnvDrift(input: EnvDriftInput): EnvDriftInspection {
     return { problems, warnings, services: summary };
 }
 
-/**
- * Run the gate and print.
- */
+/** Run the gate and print. */
 export function checkEnvDrift({ root = REPO_ROOT, standard, ...rest }: EnvDriftOptions): void {
     const report = createGateReport({ name: 'Env drift', ...(standard === undefined ? {} : { standard }) });
     const { problems, warnings, services } = inspectEnvDrift({ root, ...rest });
@@ -515,7 +427,6 @@ export function checkEnvDrift({ root = REPO_ROOT, standard, ...rest }: EnvDriftO
             'Whether a value is the RIGHT value, whether a default is sensible, whether a key that should be a secret is named like one, and whether the production env actually has every key this repo says it needs.',
     });
 
-    // After the report, so a failing run leads with what failed. Warnings never
-    // set an exit code — see the header on why the local .env cannot gate a build.
+    // After the report; warnings never set an exit code.
     if (report.count === 0) for (const warning of warnings) console.warn(`\n⚠ ${warning}`);
 }

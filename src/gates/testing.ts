@@ -1,51 +1,17 @@
 /**
- * Testing standards gate — the mechanically checkable half of the testing standard.
+ * The mechanically checkable half of the testing standard:
  *
- * WHY ONE GATE. The two families look further apart here than anywhere else: one
- * keeps suites co-located in `__tests__/` and runs Playwright out of `e2e/`, the
- * other mirrors `src/` under `tests/` and has deliberately NO E2E suite at all. But
- * read the rules rather than the values and they are the same three sentences:
- * "every suite is where this project said suites go", "a `.spec` file belongs to the
- * E2E runner, so it lives where E2E lives — which may be nowhere", and "the numbers
- * that define failure only move one way". The pattern is DATA. `layout` says which
- * pattern was picked, `e2e` says where E2E lives or that it does not exist, and the
- * rule underneath is one rule in both.
+ *   1. Suites sit where `layout` says (co-located `__tests__/` or a mirrored tree).
+ *   2. A `.spec` file belongs to the E2E runner.
+ *   3. E2E lives where `e2e` says, or nowhere; a Playwright config only once a spec exists.
+ *   4. Coverage thresholds only rise; every exclude has a reason.
+ *   5. No file at 0% (needs `coverage/coverage-summary.json`; skipped and said so without it).
+ *   6. Suite hygiene: no `.only`/`.skip`, no commented-out cases, no duplicate titles.
+ *   7. No transport patching.
+ *   8. `wrapper.vm` reads, as a ratchet.
+ *   9. The DOM environment the standard names.
  *
- * THE TWO ONE-FAMILY RULE SETS ARE BOTH FREE. Suite hygiene (`.only`, `.skip`, bare
- * `test()`, a commented-out case, two cases with the same title in one `describe`)
- * came from the desktop copies and finds nothing in either full-stack repo — 464
- * suites between them, clean. The transport-patching rule came from the full-stack
- * copies and finds nothing in the desktop three. Neither needed a switch, and each
- * now covers a family that had never checked for it.
- *
- * THE `vm` RATCHET IS SCOPED TO NOTHING IN PARTICULAR ON PURPOSE. The full-stack
- * copies only scanned `frontend/`, which was an assumption about where components
- * live rather than a rule. Scanning every suite gives the same answer in all five
- * repos today (zero) and keeps giving the right one if a component test ever lands
- * somewhere else.
- *
- * TWO IMPROVEMENTS TAKEN FROM ONE COPY EACH, because they are fixes rather than
- * preferences: a Playwright config is demanded only once a spec exists —
- * a gate that fails for something nobody has written teaches people to switch gates
- * off; and `git ls-files` output is filtered through `existsSync`, because
- * `--cached` still lists a file whose deletion has not been committed, and reading
- * one crashes the gate on a tree that is merely mid-refactor.
- *
- * WHAT IS DELIBERATELY NOT CHECKED:
- *   - Whether a test is any good. The 0% rule catches a file with no test at all;
- *     nothing here tells a thorough suite from one that executes every line and
- *     asserts almost nothing.
- *   - Whether a test has an assertion. A call that feeds a value into an `expect`
- *     built three lines earlier is indistinguishable from one that does nothing
- *     without running the suite.
- *   - The priority order (security → utilities → services → composables →
- *     components). It describes what to write NEXT, which is a property of a
- *     backlog, not of the tree.
- *
- * ONE SECTION IS CONDITIONAL and says so in the output rather than passing quietly:
- * the 0% rule needs `coverage/coverage-summary.json`, which only exists after a
- * `--coverage` run. CI orders this gate after one; locally the summary names what it
- * skipped, so a green tick never overstates itself.
+ * Not checked: test quality, assertion presence, what to write next.
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -167,18 +133,12 @@ export function repoFiles(root: string): string[] {
         })
             .split('\n')
             .filter(Boolean)
-            // `--cached` still lists a file whose deletion has not been committed yet.
-            // Reading one would crash this gate on a tree that is merely mid-refactor.
+            // `--cached` still lists files deleted but not yet committed.
             .filter((rel) => fs.existsSync(path.join(root, rel)))
     );
 }
 
-/**
- * Duplicate case titles, scoped to the enclosing `describe` — the same title in two
- * different blocks reads fine and is everywhere in these suites; the same title
- * twice in ONE block is a copy-paste that lost its edit. `it.each` titles are
- * skipped: their `%s` placeholders expand per case at run time.
- */
+/** Duplicate case titles within one `describe`. `it.each` titles are skipped (they expand at run time). */
 export function duplicateTitles(source: string): { title: string; count: number }[] {
     const stack = [];
     const seen = new Map();
@@ -205,9 +165,7 @@ export function duplicateTitles(source: string): { title: string; count: number 
     return [...seen].filter(([, count]) => count > 1).map(([title, count]) => ({ title, count }));
 }
 
-/**
- * Every problem in one repository's suites, without printing anything.
- */
+/** Every problem in one repository's suites, without printing anything. */
 export function inspectTesting(input: TestingInput): TestingInspection {
     const {
         root,
@@ -310,8 +268,6 @@ export function inspectTesting(input: TestingInput): TestingInspection {
                 );
             }
         }
-        // Demanded by the specs, not unconditionally: a config demanded for tests nobody
-        // has written is noise, and noise is what teaches people to switch a gate off.
     } else if (specs.length > 0 && !exists(e2e.config)) {
         fail(
             e2e.config,
@@ -386,8 +342,7 @@ export function inspectTesting(input: TestingInput): TestingInspection {
         );
         for (const [key, entry] of Object.entries(summary)) {
             if (key === 'total') continue;
-            // A key from another root stays as it is: a path printed as `../../x` tells
-            // a reader less than the absolute one it was rewritten from.
+            // A key outside the root stays absolute.
             const rel = key.startsWith(root) ? path.relative(root, key) : key;
             measured++;
             if (entry.statements.total === 0) continue;
@@ -452,8 +407,7 @@ export function inspectTesting(input: TestingInput): TestingInspection {
     if (domEnvironment !== undefined) {
         const { name, config: envConfig, project } = domEnvironment;
         const envSrc = read(envConfig);
-        // A named project's environment sits inside its own block; a single-project
-        // config has exactly one, so the same read works with no project named.
+        // Works for a named project's block and for a single-project config alike.
         const found =
             project === undefined
                 ? /environment:\s*'([\w-]+)'/.exec(envSrc)

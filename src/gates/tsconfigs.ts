@@ -1,38 +1,16 @@
 /**
- * tsconfig drift gate.
+ * tsconfig drift: every rule here catches a config that makes MORE code compile.
  *
- * The compiler settles what is checked, and every rule here exists because a
- * config can be wrong in a way that makes MORE code compile, not less — so the
- * build stays green and the mistake is invisible until something ships.
- *
- * WHY THIS IS ONE GATE AND NOT TWO. The two families' copies ran to 456 and 498
- * lines and looked far apart. They were not: nine rules each, eight of them the
- * same rule, and the three lists they are built on — the checking flags, the
- * environmental settings, the section dividers — were BYTE-IDENTICAL across all
- * five repos. Nineteen strictness flags agreed on exactly, in two families that
- * never shared a file. The apparent split was rule 6, and even that turned out
- * to be two instances of one shape: "this named project may not do X".
- *
- * WHAT THE STANDARD SETTLED. Where the copies genuinely disagreed, the
- * disagreement was resolved against `sort-package-json`/the instructions files
- * rather than against taste, and the loser's spelling is gone rather than left
- * as an option — an option is how drift comes back.
- *
- * THE ONE RULE THAT WAS WRONG EVERYWHERE. The desktop copy checked that a
- * browser project does not DECLARE `node` in `types`. That check passes in a
- * repo whose browser program has Node globals in scope anyway, pulled in by a
- * transitive `/// <reference types="node" />` from some server SDK's typings —
- * which is exactly what a `import type Stripe from 'stripe'` in a shared
- * package does. The declaration is not the effect. So `browserSources` checks
- * the effect at the source level, where it is cheap: no file in a browser tree
- * may import a Node builtin or touch a Node global. Tests are excluded — they
- * run under vitest in Node and legitimately read fixtures off disk.
- *
- * Rules DELIBERATELY NOT HERE, so their absence is a decision:
- *   - JSON Schema validation via ajv. The schema it validated against declared
- *     `additionalProperties: true` at both levels with every property typed
- *     `boolean` — it could not reject a single real drift. Rules 2 to 6 are
- *     that schema, written as the assertions it was trying to express.
+ *   1. Every project extends the base (resolved, not just spelled).
+ *   2. The base holds every checking flag and no environmental setting.
+ *   3. Weakening a base flag needs a reason on the line (or just above).
+ *   4. A declared target names the same ES year as its lib.
+ *   5. Every project declares `types`.
+ *   6. Named projects: services typed `["node"]`; browser projects without Node, in
+ *      config and in source (tests exempt); source-only packages never emit.
+ *   7. Every project config is reached by a typecheck script.
+ *   8. A solution file only runs in build mode.
+ *   9. Section dividers come from the known set, in order.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -102,15 +80,7 @@ type ParsedConfig = {
     options: CompilerOptions | undefined;
 };
 
-/**
- * The checking rules the base owns, at the value that is the strict one. A
- * project may differ — with a reason — but the base may not be missing any of
- * them, or strictness becomes something each project decides for itself.
- *
- * This list is identical in all five repos. It is a default, not an option,
- * for the same reason: a per-repo strictness list is how "strict" stops meaning
- * one thing.
- */
+/** The checking flags the base must hold, at their strict value. A project may differ, with a reason. */
 export const BASE_FLAGS: Record<string, boolean> = {
     strict: true,
     exactOptionalPropertyTypes: true,
@@ -176,9 +146,7 @@ const NODE_GLOBAL =
 const IS_TEST = /(?:^|\/)(?:__tests__|__mocks__)\//;
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
 
-/**
- * Inspect every tsconfig in the repo. Pure: reads the tree, returns findings.
- */
+/** Inspect every tsconfig in the repo without printing. */
 export function inspectTsconfigs({
     root,
     base: BASE = 'tsconfig.base.json',
@@ -215,8 +183,7 @@ export function inspectTsconfigs({
     const projects = [...configs].filter(([rel, cfg]) => rel !== BASE && cfg.options !== undefined);
 
     // ── 1. Every project extends the base, and the base wins ────────────────
-    // Resolved, not spelled: tsc treats a missing `extends` target as a warning
-    // it carries on past, so the file reads as strict and is not.
+    // Resolved, not spelled: tsc only warns on a missing `extends` target.
     for (const [rel, cfg] of projects) {
         const parents = cfg.data.extends === undefined ? [] : [cfg.data.extends].flat();
         const at = parents.findIndex((p) => resolveExtends(p, rel) === BASE);
@@ -273,7 +240,6 @@ export function inspectTsconfigs({
     }
 
     // ── 3. Weakening a base flag needs the reason written next to it ────────
-    // Not a comment somewhere in the file: next to the line.
     for (const [rel, cfg] of projects) {
         for (const flag of Object.keys(baseFlags)) {
             if (cfg.own[flag] === undefined || cfg.own[flag] === baseFlags[flag]) continue;
@@ -307,8 +273,7 @@ export function inspectTsconfigs({
     }
 
     // ── 5. Every project declares `types` ───────────────────────────────────
-    // The default is not "none". It is every `@types/*` package hoisted into
-    // scope, so the program widens whenever a transitive dependency adds one.
+    // The default is every hoisted `@types/*` package, not none.
     for (const [rel, cfg] of projects) {
         if (cfg.own.types === undefined) {
             fail(
@@ -330,10 +295,7 @@ export function inspectTsconfigs({
     }
 
     // ── 6a. A browser project is not typed against Node ─────────────────────
-    // It runs sandboxed. Node globals in scope mean the compiler blesses calls
-    // that throw in the packaged app. `node` is allowed WITH a reason written
-    // next to it — the rule-3 idiom — because one real case exists: a shared
-    // package consumed as TypeScript source whose own files read `process.env`.
+    // `node` is allowed with a reason next to it, as in rule 3.
     for (const rel of browserProjects) {
         const cfg = configs.get(rel);
         if (cfg === undefined) continue;
@@ -351,9 +313,7 @@ export function inspectTsconfigs({
     }
 
     // ── 6b. Browser SOURCE does not touch Node ──────────────────────────────
-    // The check that rule 6a cannot make. A browser program can have Node
-    // globals in scope without ever declaring them, dragged in by one
-    // `/// <reference types="node" />` inside a dependency's typings.
+    // A dependency's `/// <reference types="node" />` brings Node in without a declaration.
     for (const rel of walkFiles(root, browserSources, {
         match: /\.(?:vue|[cm]?tsx?)$/,
         exclude: (p) => IS_TEST.test(p) || TEST_FILE.test(p) || p.endsWith('.d.ts'),
@@ -394,7 +354,6 @@ export function inspectTsconfigs({
     }
 
     // ── 7. Every project config is reached by a typecheck script ────────────
-    // A config nothing runs is a config that drifts for free.
     const { reached, pointed } = reachableConfigs();
 
     for (const [rel] of projects) {
@@ -408,8 +367,7 @@ export function inspectTsconfigs({
     }
 
     // ── 8. A solution file is only ever run in build mode ───────────────────
-    // Rule 7 trusts `-b` to follow references, so the one thing that would make
-    // it a lie gets its own check.
+    // Rule 7 trusts `-b` to follow references.
     for (const rel of pointed) {
         const cfg = configs.get(rel);
         if (cfg !== undefined && isSolution(cfg.data)) {
@@ -457,11 +415,7 @@ export function inspectTsconfigs({
         return out;
     }
 
-    /**
-     * A config as both text and data. `options` is what the file plus its
-     * ancestors decide; `own` is only what this file states, which is what
-     * rules 3 to 6 are about — inheriting a setting is not choosing it.
-     */
+    /** A config as text and data: `options` includes ancestors, `own` is only this file (rules 3–6). */
     function parse(rel: string): ParsedConfig {
         const raw = read(rel);
         let data: TsconfigJson;
@@ -550,17 +504,9 @@ export function inspectTsconfigs({
     }
 
     /**
-     * Configs a compiler is actually pointed at. Every `npm run` script in the
-     * repo is read, not just `typecheck`, and each `&&` segment is judged on
-     * its own, because tsc has three ways of being told what to compile:
-     *   • `-p <file>` names one project outright;
-     *   • `-b`/`--build` takes its projects positionally, and then compiles
-     *     everything they `reference` as well;
-     *   • neither, in which case tsc falls back to the `tsconfig.json` beside
-     *     the manifest that runs it.
-     *
-     * `reached` is every config a compiler ends up loading; `pointed` is the
-     * subset a script names WITHOUT build mode, which is what rule 8 judges.
+     * Configs a compiler is pointed at, from every `&&` segment of every script
+     * (`-p`, `-b` plus references, or the default `tsconfig.json`). `pointed` is
+     * the subset named without build mode, for rule 8.
      */
     function reachableConfigs() {
         const reached = new Set<string>();
@@ -621,9 +567,7 @@ export function inspectTsconfigs({
     }
 }
 
-/**
- * Run the gate and print.
- */
+/** Run the gate and print. */
 export function checkTsconfigs({ root = REPO_ROOT, standard, ...rest }: TsconfigsOptions = {}): void {
     const report = createGateReport({ name: 'tsconfigs', ...(standard === undefined ? {} : { standard }) });
     const { problems, projects, flagCount } = inspectTsconfigs({ root, ...rest });

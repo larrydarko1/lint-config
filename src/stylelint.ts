@@ -1,22 +1,12 @@
-/**
- * SCSS/Vue style rules. The base is what every project agrees on; every place a
- * project deliberately departs (rem spacing, generated tokens)
- * is an option rather than a fork of the file.
- */
+/** SCSS/Vue style rules. Every place a project departs from the base is an option. */
 import { fileURLToPath } from 'node:url';
 
 import type { Config } from 'stylelint';
 
 /**
- * Shared configs and plugins are resolved from HERE, as absolute paths.
- * Stylelint resolves a bare name like `stylelint-scss` next to the config file
- * that names it — which is the project's, not this one's — so bare names would
- * force every project to keep its own copy of every plugin installed, which is
- * the duplication this package exists to remove.
- *
- * `import.meta.resolve`, not `require.resolve`: stylelint-config-standard-scss is
- * ESM-only and its `exports` map has no `require` entry, so the CJS resolver
- * refuses it.
+ * Plugins resolved from here as absolute paths: Stylelint resolves bare names next to
+ * the project's config, which would need the project to install them. `import.meta.resolve`
+ * because stylelint-config-standard-scss is ESM-only.
  */
 const dep = (name: string) => fileURLToPath(import.meta.resolve(name));
 
@@ -46,10 +36,7 @@ const SCSS_COLOR_FUNCTION_PATTERN =
 export type StylelintOptions = {
     /** Unit allowed for margin/padding/gap/border-radius. Defaults to `'em'`. */
     spacingUnit?: 'em' | 'rem';
-    /**
-     * Properties that must reference a token instead of a literal. Defaults to colour only;
-     * the full-stack projects add the type and radius scales.
-     */
+    /** Properties that must reference a token instead of a literal. Defaults to colour only. */
     tokenProperties?: string[];
     /** Treat `0` as a reset rather than an untokenised value. Defaults to false. */
     ignoreZero?: boolean;
@@ -146,8 +133,6 @@ export function stylelint(options: StylelintOptions = {}): Config {
             'color-function-notation': 'modern',
 
             // –– BEM ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-            // block, block__element, block--modifier. The default pattern rejects
-            // the `--modifier` half, which is the part that carries the meaning.
             ...(bem
                 ? {
                       'selector-class-pattern': [
@@ -160,9 +145,7 @@ export function stylelint(options: StylelintOptions = {}): Config {
                 : {}),
 
             // –– UNITS –––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-            // Spacing and radius follow `spacingUnit`: `em` anchors geometry to the
-            // element's own text, `rem` to one app-wide anchor. Both scale with the
-            // user's font-size preference, which is the part `px` gives up.
+            // Spacing and radius follow `spacingUnit`; both em and rem scale with the user's font size.
             'declaration-property-unit-allowed-list': {
                 'font-size': ['rem'],
                 'line-height': [],
@@ -204,10 +187,7 @@ export function stylelint(options: StylelintOptions = {}): Config {
             'scss/declaration-nested-properties': 'never',
 
             // –– DESIGN TOKENS –––––––––––––––––––––––––––––––––––––––––––––––
-            // The unit rules above constrain the UNIT but not the NUMBER —
-            // `font-size: 0.875rem` passes them while being exactly the hard-coded
-            // value the standard forbids. `tokenProperties` closes that for the
-            // scales a project has finished tokenising.
+            // The unit rules constrain the unit, not the number; `tokenProperties` covers that.
             'no-unknown-custom-properties': unknownCustomProperties ? true : null,
             'scale-unlimited/declaration-strict-value': [
                 tokenProperties,
@@ -218,12 +198,8 @@ export function stylelint(options: StylelintOptions = {}): Config {
             ],
 
             // –– THEMING: NO SCSS COLOR FUNCTIONS ON RUNTIME TOKENS ––––––––––––
-            // Every `$color-*` alias resolves to `var(--color-*)`, whose value only
-            // exists at runtime. Handing one to a Sass colour function asks the
-            // compiler to compute with a string it cannot see — `rgba($color-accent,
-            // .12)` compiles to garbage or throws, and the failure is silent enough
-            // to ship. `color-mix(in srgb, $color-accent 12%, transparent)` is the
-            // runtime-computed, theme-aware equivalent.
+            // `$color-*` resolves to `var(--color-*)`, which Sass cannot compute with.
+            // Use `color-mix(in srgb, $color-accent 12%, transparent)` instead.
             ...(noScssColorFunctions
                 ? {
                       'declaration-property-value-disallowed-list': [
@@ -237,9 +213,6 @@ export function stylelint(options: StylelintOptions = {}): Config {
                 : {}),
 
             // –– MODULE SYSTEM ––––––––––––––––––––––––––––––––––––––––––––––––
-            // `@import` is deprecated in Sass and slated for removal; it also dumps
-            // everything into one global namespace, which is what `@use`/`@forward`
-            // exist to prevent.
             ...(noScssImport ? { 'at-rule-disallowed-list': ['import'] } : {}),
 
             // –– SCOPED STYLES –––––––––––––––––––––––––––––––––––––––––––––––
@@ -249,9 +222,7 @@ export function stylelint(options: StylelintOptions = {}): Config {
             // –– GENERAL BEST PRACTICES –––––––––––––––––––––––––––––––––––––
             'color-no-invalid-hex': true,
             'declaration-no-important': true,
-            // Consecutive duplicates with DIFFERENT values are the CSS fallback
-            // idiom — `min-height: 100vh` then `100dvh`, so a browser that does not
-            // know the second keeps the first. Same-value duplicates stay an error.
+            // Different-value duplicates are the fallback idiom (`100vh` then `100dvh`).
             'declaration-block-no-duplicate-properties': duplicateFallbacks
                 ? [true, { ignore: ['consecutive-duplicates-with-different-values'] }]
                 : true,
@@ -260,11 +231,7 @@ export function stylelint(options: StylelintOptions = {}): Config {
             'media-feature-name-no-unknown': true,
 
             // –– MOBILE-FIRST –––––––––––––––––––––––––––––––––––––––––––––––
-            // Base styles target the smallest viewport; breakpoints only ever layer
-            // UP with min-width. A max-width query means someone started from the
-            // desktop layout and shrank it, which is the pattern this forbids.
-            // (This constrains the media FEATURE only; `max-width` as a property is
-            // untouched and still governed by the unit allow-list above.)
+            // Breakpoints layer up with min-width. Only the media feature; the property is untouched.
             ...(mobileFirst ? { 'media-feature-name-disallowed-list': ['max-width'] } : {}),
             'at-rule-no-unknown': null,
 
@@ -280,9 +247,7 @@ export function stylelint(options: StylelintOptions = {}): Config {
         },
         overrides: [
             ...(vue ? [{ files: ['**/*.vue'], customSyntax: dep('postcss-html') }] : []),
-            // _variables.scss maps every `--token` to a `$variable`, but the `:root` that declares
-            // them lives elsewhere, and stylelint resolves custom properties per file — so from
-            // here every token looks undeclared. The real three-way check is the scss gate.
+            // The `:root` declaring these tokens is in another file; the scss gate checks them.
             ...(variablesOverride
                 ? [
                       {

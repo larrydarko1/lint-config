@@ -1,70 +1,27 @@
 /**
- * Electron security gate — the process-model invariants of a desktop app.
+ * The process-model invariants of a desktop app:
  *
- *   1.  THE webPreferences INVARIANTS, on every window. contextIsolation,
- *       nodeIntegration, sandbox. `nodeIntegration: true` hands `require` to a
- *       window rendering user content; `contextIsolation: false` lets that
- *       content reach into the preload's scope and rewrite the API surface. Both
- *       are one word each, and neither changes anything you can see.
- *   2.  BANNED webPreferences. webviewTag, allowRunningInsecureContent,
- *       experimentalFeatures, enableRemoteModule, nodeIntegrationInWorker,
- *       nodeIntegrationInSubFrames set true, or webSecurity set false. Each
- *       re-opens something the defaults already closed.
- *   3.  EVERY WINDOW DECLARES A PRELOAD. A second window added later for a print
- *       preview or an about box is the one nobody re-audits.
- *   4.  setWindowOpenHandler DENIES, and never allows. Anything else creates a
- *       window whose webPreferences nothing here configured.
- *   5.  will-navigate IS GUARDED — it calls `preventDefault()` on its own event.
- *   6.  NO `new-window` HANDLER. Removed in Electron 22: dead code shaped exactly
- *       like a security control, which stops review looking for the real one.
- *   7.  BOTH PERMISSION HANDLERS EXIST AND HAVE A DENY PATH. The request handler
- *       calls its callback with `false`; the check handler returns `false`.
- *   8.  A CUSTOM PROTOCOL CHECKS ITS BOUNDARY AND REFUSES WITH 403. A scheme
- *       handler is a file-read primitive callable from renderer JavaScript; `..`
- *       in a URL is the whole exploit. The deprecated `register*Protocol` family
- *       is refused outright, because this rule only reads `protocol.handle`.
- *   9.  A PRIVILEGED SCHEME DOES NOT BYPASS CSP.
- *  10.  shell.openExternal IS SCHEME-GUARDED, inside its own function. Unguarded
- *       it hands the OS any URL — `file://`, `smb://`, a `.lnk` — which is local
- *       execution reached by clicking a link.
- *  11.  NO UNESCAPED HTML SINKS. `document.write`, `outerHTML =` and
- *       `insertAdjacentHTML` are banned. An `innerHTML` assignment is allowed only
- *       when every piece of what it assigns is a literal, a `const` bound to one,
- *       or the output of a sanitizer.
- *  12.  EVERY `v-html` BINDING IS ACCOUNTED FOR — per binding, not per file.
- *  13.  NO REGEXP BUILT FROM UNESCAPED INPUT.
- *  14.  NO TLS OR CERTIFICATE OVERRIDES.
+ *   1.  contextIsolation, nodeIntegration and sandbox set safely on every window.
+ *   2.  No banned webPreferences (webviewTag, allowRunningInsecureContent,
+ *       experimentalFeatures, enableRemoteModule, nodeIntegrationInWorker/SubFrames,
+ *       webSecurity: false).
+ *   3.  Every window declares a preload.
+ *   4.  setWindowOpenHandler denies, and never allows.
+ *   5.  will-navigate calls `preventDefault()`.
+ *   6.  No `new-window` handler (removed in Electron 22).
+ *   7.  Both permission handlers exist and have a deny path.
+ *   8.  A custom protocol checks its boundary and refuses with 403; no deprecated
+ *       `register*Protocol`.
+ *   9.  A privileged scheme does not bypass CSP.
+ *  10.  shell.openExternal is scheme-guarded, inside its own function.
+ *  11.  No unescaped HTML sinks: `innerHTML` only from literals, consts bound to
+ *       them, or a sanitizer.
+ *  12.  Every `v-html` binding is accounted for, per binding.
+ *  13.  No RegExp built from unescaped input.
+ *  14.  No TLS or certificate overrides.
  *
- * EVERY RULE NOW READS ITS OWN CODE AND NOTHING ELSE. The copies ended each
- * window, handler and privileged-scheme list on `\n    })` or `\n])` — four
- * spaces, or none, of that day's indentation — so a window built one level
- * deeper was "no BrowserWindow found" and a handler moved to the top level was
- * read to the NEXT handler's closing brace. Everything is bracket-counted now
- * (source.ts). The same fix closed three wrong-scope reads:
- *
- *   • openExternal was accepted when `https?://` appeared anywhere in the 400
- *     characters BEFORE the call — including a neighbouring function's guard.
- *     The guard must now be in the function that makes the call, before it.
- *   • The RegExp rule accepted any `.replace(` within 120 characters of the
- *     variable's declaration, provided the metacharacter escape appeared
- *     ANYWHERE in the file. It now reads that variable's own declaration.
- *   • An `innerHTML` interpolation was only checked inside a template literal,
- *     so `el.innerHTML = note.title` — the plainest form of the bug — passed.
- *
- * FOUR RULES WERE TIGHTENED TO MATCH THEIR OWN WHY, all free in all three repos:
- * setWindowOpenHandler may not return `allow` for some URLs (the why already
- * said "anything but deny"); the deprecated protocol API is refused rather than
- * unread; `ignore-certificate-errors` as a command-line switch and
- * `rejectUnauthorized: false` count as certificate overrides; and a v-html
- * exemption names the BINDING, because a file-level exemption was exactly the
- * "stale exemption silently covers the next binding" the old message warned of.
- *
- * NAMES THIS GATE STILL TRUSTS, deliberately. The boundary check in rule 8 is
- * recognised by what it is called (`isInsideBoundary`, `isInside`,
- * `withinRoot`, `path.relative(`, `startsWith(root`), because it lives in a
- * library module and whether it is CORRECT is a unit test's question. The
- * sanitizers in rule 11 are the same: `escapeHtml` and `DOMPurify.sanitize` are
- * built in, and a project names any other with the reason it is safe.
+ * Spans are bracket-counted (source.ts). The rule 8 boundary check and the rule 11
+ * sanitizers are recognised by name; their correctness is a unit test's question.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -206,12 +163,7 @@ const TLS_OVERRIDES = [
 
 const lineAt = (code: string, index: number): number => code.slice(0, index).split('\n').length;
 
-/**
- * The offset just inside the innermost FUNCTION body that contains `index` —
- * control blocks (`if`, `try`, `for` …) and object literals are walked through,
- * because a guard written as `if (safe) { try { open(url) } }` is still the
- * function's guard. `0` at the top level.
- */
+/** The offset just inside the innermost function body containing `index` (control blocks walked through); `0` at top level. */
 function enclosingFunctionStart(code: string, index: number): number {
     let depth = 0;
     for (let j = index - 1; j >= 0; j--) {
@@ -373,13 +325,11 @@ const isTemplate = (e: string) => e.startsWith('`') && templateEnd(e, 0) === e.l
 const isIdentifier = (e: string) => /^[A-Za-z_$][\w$]*$/.test(e);
 
 /**
- * The first piece of `expr` that is NOT known-safe HTML, or `null` when all of
- * it is. Safe is: a string literal, a template whose every interpolation is
- * safe, a call to a sanitizer that is the whole expression, a number, or a
- * `const` in this file bound to something safe.
+ * The first piece of `expr` that is not known-safe HTML, or `null`. Safe: a string
+ * literal, a template of safe parts, a whole-expression sanitizer call, a number, or
+ * a `const` in this file bound to something safe.
  *
- * @param seen The names followed on THIS path — a cycle guard,
- *   not a cache: `volIcon` reached twice through two siblings is two lookups.
+ * @param seen Names followed on this path: a cycle guard, not a cache.
  */
 function unsafeHtml(expr: string, code: string, index: number, sanitizer: RegExp, seen: Set<string>): string | null {
     const e = unwrap(expr);
@@ -417,9 +367,8 @@ function unsafeHtml(expr: string, code: string, index: number, sanitizer: RegExp
 }
 
 /**
- * The first piece of a RegExp source expression that is NOT a literal or an
- * escaped value, or `null`. Escaped means the variable's own declaration runs
- * the metacharacter escape, or calls a function in this file that does.
+ * The first piece of a RegExp source that is not a literal or escaped value, or
+ * `null`. Escaped: the variable's declaration runs the escape, directly or via a local function.
  */
 function unescapedRegex(expr: string, code: string, index: number, seen: Set<string>): string | null {
     const e = unwrap(expr);

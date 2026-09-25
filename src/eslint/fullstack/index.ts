@@ -1,11 +1,7 @@
 /**
- * The full-stack family's standards: the rules that assume workspaces for frontend,
- * api, worker and shared, a database behind the api, and a websocket gateway. Each
- * full-stack project used to keep its own copy of all of these.
- *
- * `fullstackStandards()` returns the blocks in the order they have always been
- * applied. The selectors the project composes into its own per-area
- * `no-restricted-syntax` blocks are re-exported individually below.
+ * The full-stack family: rules that assume frontend / api / worker / shared workspaces,
+ * a database behind the api and a websocket gateway. The selectors a project composes
+ * into its own `no-restricted-syntax` blocks are re-exported individually below.
  */
 import { apiStandards } from './api.ts';
 import { dbStandards } from './db.ts';

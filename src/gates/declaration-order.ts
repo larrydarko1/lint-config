@@ -1,75 +1,23 @@
 /**
- * Declaration order gate.
- *
- * The canonical order within a module:
+ * Declaration order. The canonical order within a module:
  *    1. imports          — `import` statements
- *    2. types            — interfaces, type aliases, Zod schemas: the vocabulary
- *    3. contract         — defineProps / defineEmits: the SFC's public API, which
- *                          everything below it reads as `props`
- *    4. constants        — thresholds, ids, feature flags, SCREAMING_SNAKE config
+ *    2. types            — interfaces, type aliases, Zod schemas
+ *    3. contract         — defineProps / defineEmits
+ *    4. constants        — thresholds, ids, flags, SCREAMING_SNAKE config
  *    5. classes          — exported first, then private
  *    6. state            — singletons, caches, lazy loaders, module-level refs
- *    7. exported-fns     — the public API, the headline
- *    8. private-fns      — implementation detail, grouped by concern
- *    9. side-effects     — onMounted / watch / listener wiring: statements that RUN
- *                          at load and reference every layer above
+ *    7. exported-fns
+ *    8. private-fns
+ *    9. side-effects     — onMounted / watch / listener wiring
  *
- * This is a hard rule. There is one exception and it is not a list someone
- * maintains — it is computed, because the only thing that can legitimately
- * override the table is the module failing to load.
+ * The only exception is computed: a statement never moves above a binding it reads
+ * at load time (a TDZ ReferenceError). See analyze().
  *
- * HOW THE EXCEPTION WORKS. `const` and `class` bindings sit in a temporal dead
- * zone and side-effect statements run at load, so the table is not uniformly safe
- * to impose: moving a statement above something it reads is a ReferenceError at
- * import time — the module never loads, and no test catches it because nothing
- * gets far enough to run. So the canonical order is computed as a topological sort
- * keyed by category (see analyze() below): an edge A→B exists when B reads, at load
- * time, a binding A declares, and the sort always takes the available statement
- * with the lowest (category, original position). The result is the table wherever
- * the dependencies permit, and the dependency everywhere else.
+ * Test files get a second pass against TEST_CATEGORIES; imports get a third,
+ * mechanical pass (./import-order.ts), the only one `--fix` touches.
  *
- * Hoisted `function` declarations and type-only declarations create no edges — they
- * are visible wherever they sit — which is why the bulk of the ordering is free.
- *
- * The shape that earns it in a Vue codebase is `defineExpose({ el })`: contract
- * (#3) reading a template ref that is state (#6), so hoisting it to position 3
- * would put it above the `ref()` it exposes.
- *
- * SCOPE is `sourceRoots`, in two passes. Test files get the SECOND pass, against a
- * different table (TEST_CATEGORIES): imports → types → mocks → constants → helpers
- * → hooks → tests. A suite used to be out of scope on the grounds that its order
- * was dictated by `vi.mock` hoisting rather than by design, which had it backwards
- * — the hoisting is precisely what fixes `vi.mock`'s position, and a file that
- * writes it lower down misrepresents what runs first. What is true is that the
- * production table cannot express the rule: `vi.mock`, `beforeEach` and `describe`
- * are all expression statements, so it bins all three as side-effects and sorts the
- * mocks LAST. Hence two tables.
- *
- * INSIDE LAYER 1. Imports are the one category whose internal order is mechanical,
- * so a third pass sorts them — see the header of ./import-order.ts for why the
- * groups are by source and not by kind. That pass is the only one `--fix` touches,
- * because it is the only one whose fix cannot change what the module does:
- * side-effect imports never move.
- *
- * WHAT THIS CANNOT SEE. Whether two statements in the SAME category are in a
- * sensible order relative to each other, imports aside. The table says private
- * functions are "grouped by concern"; grouping is a judgement about meaning, and
- * the sort preserves existing relative order within a category rather than
- * inventing one.
- *
- * WHY THIS GATE DOES NOT USE createGateReport. Its finding is not one line per
- * file: it is a headline per file with a nested, line-numbered list under it, and
- * a closing paragraph explaining that every position it names is reachable. The
- * shared reporter's shape (file → what → why) would flatten that into one entry
- * per misplaced statement and lose the grouping that makes a 40-statement module
- * reviewable.
- *
- * WHAT WAS DECIDED HERE. Five copies existed and the only differences were the
- * source roots, the import groups, and one rule: one copy's `isTestPath` also treats a
- * top-level `tests/` directory as suites, where the full-stack copies matched only
- * colocated `__tests__`. That one is the superset and neither full-stack repo has a
- * `tests/` directory under a source root, so it is the one that ships — the other
- * four projects' output is unchanged by it.
+ * Not checked: order within a category. Reports its own nested format rather than
+ * using createGateReport.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -124,37 +72,10 @@ export const CATEGORIES: string[] = [
     'side-effects',
 ];
 
-/**
- * A test file's order. Not a subset of CATEGORIES: three of those layers cannot
- * occur in a suite (a test file has no contract, no classes, and exports nothing),
- * and two of the rest invert. `vi.mock` is an expression statement, so the
- * production classifier bins it as a side-effect and sorts it LAST — the exact
- * opposite of where Vitest actually runs it. `beforeEach` and `describe` classify
- * identically, which collapses the three statements this rule is about into one
- * category where the sort has nothing left to say. Hence a separate list rather
- * than a flag on the existing one.
- */
+/** A test file's order. Separate from CATEGORIES, which would sort `vi.mock` last as a side effect. */
 export const TEST_CATEGORIES: string[] = ['imports', 'types', 'mocks', 'constants', 'helpers', 'hooks', 'tests'];
 
-/**
- * Classifying a statement is an AST question, not a regex one: telling
- * `const x = () => {}` (a function) from `const x = ref(0)` (state) from
- * `const X = 'a'` (config) is a question about an initializer's shape, and "is this
- * identifier exported" is a question about modifiers.
- *
- * Two judgement calls are baked in, because the categories genuinely overlap:
- *
- *   1. A ZOD SCHEMA IS VOCABULARY, NOT STATE. `const FileInfoSchema = z.object({})`
- *      is the runtime half of a type declaration — Zod blurs the type/value line on
- *      purpose, and the whole idiom is `const XSchema` sitting next to
- *      `type X = z.infer<typeof XSchema>`. Binning the schema as state would rule
- *      that pairing a violation and make a schemas/ directory unfixable without
- *      making it worse to read.
- *   2. SCREAMING_SNAKE IS CONFIG EVEN WHEN COMPUTED. `const APP_HOME =
- *      path.join(os.homedir(), '.app')` is configuration; the call in the
- *      initializer does not make it mutable state. The naming convention is the
- *      only signal that separates the two, so it is the one used.
- */
+/** Classifies a statement by AST shape. Zod schemas count as types; SCREAMING_SNAKE as constants even when computed. */
 
 type Profile = { categories: string[]; classify: (s: ts.Statement) => string; eager?: string };
 type Item = {
@@ -170,21 +91,10 @@ type Item = {
 
 const PRODUCTION_PROFILE: Profile = { categories: CATEGORIES, classify: (s) => classify(s) };
 
-/**
- * `eager` names the category whose function bodies run during the import phase.
- * A `vi.mock` / `vi.hoisted` factory is an arrow, so the default analysis skips
- * its body as "runs later", which is true of every other arrow in a module and
- * false of these two — Vitest invokes them while resolving imports. Without this,
- * a fake class the factory closes over looks unreferenced and the sort cheerfully
- * moves it below the mock that needs it, which is a TDZ ReferenceError at import
- * time.
- */
+/** `eager`: the category whose function bodies run at import (`vi.mock` / `vi.hoisted` factories). */
 const TEST_PROFILE: Profile = { categories: TEST_CATEGORIES, classify: (s) => classifyTest(s), eager: 'mocks' };
 
-/**
- * A suite, or a module that only exists to support one: a `tests/` directory holds
- * nothing else.
- */
+/** A suite, or a module under `tests/` that supports one. */
 export const isTestPath = (rel: string): boolean =>
     /(^|\/)(tests|__tests__)\//.test(rel) || /\.(test|spec)\.ts$/.test(rel);
 
@@ -195,9 +105,7 @@ const MACROS = new Set(['defineProps', 'defineEmits', 'defineModel', 'defineSlot
 const isFnLike = (n: ts.Node | undefined): boolean =>
     n !== undefined && (ts.isArrowFunction(n) || ts.isFunctionExpression(n));
 
-/**
- * A literal-ish initializer: safe to call "constant" rather than "state".
- */
+/** A literal-ish initializer: safe to call "constant" rather than "state". */
 function isConstantInit(n: ts.Node | undefined): boolean {
     if (n === undefined) return false;
     if (ts.isAsExpression(n)) return isConstantInit(n.expression);
@@ -223,9 +131,7 @@ function isConstantInit(n: ts.Node | undefined): boolean {
     return false;
 }
 
-/**
- * The identifier a call/property chain is rooted at: `z.object({}).strict()` → `z`.
- */
+/** The identifier a call/property chain is rooted at: `z.object({}).strict()` → `z`. */
 function rootIdentifier(n: ts.Node | undefined): string | null {
     let e = n;
     while (e !== undefined) {
@@ -263,9 +169,7 @@ function classify(stmt: ts.Statement): string {
         if (decls.some((d) => MACROS.has(callName(d.initializer) ?? ''))) return 'contract';
         if (decls.some((d) => isFnLike(d.initializer))) return exported ? 'exported-fns' : 'private-fns';
         const isConst = (stmt.declarationList.flags & ts.NodeFlags.Const) !== 0;
-        // A Zod schema is the runtime half of a type declaration — vocabulary, not state.
-        // Zod deliberately blurs the type/value line, and `const XSchema = z.object({})`
-        // sitting beside `type X = z.infer<typeof XSchema>` is the point of using it.
+        // A Zod schema sits beside its `z.infer` type.
         if (isConst && decls.some((d) => rootIdentifier(d.initializer) === 'z' || /Schema$/.test(d.name.getText())))
             return 'types';
         if (!isConst) return 'state';
@@ -280,8 +184,7 @@ function classify(stmt: ts.Statement): string {
             'useTemplateRef',
         ]);
         if (decls.some((d) => REACTIVE.has(callName(d.initializer) ?? ''))) return 'state';
-        // SCREAMING_SNAKE is the repo's marker for config, even when it is computed
-        // (`const APP_HOME = path.join(os.homedir(), '.app')` is configuration, not state).
+        // SCREAMING_SNAKE is config even when computed.
         const allShouty = decls.every((d) => ts.isIdentifier(d.name) && /^[A-Z][A-Z0-9_]*$/.test(d.name.text));
         if (allShouty) return 'constants';
         if (decls.every((d) => isConstantInit(d.initializer))) return 'constants';
@@ -295,10 +198,7 @@ function classify(stmt: ts.Statement): string {
     return 'side-effects';
 }
 
-/**
- * `vi.hoisted` is in the mock block, not among the constants: the factory below it
- * reads the spies it returns, and Vitest lifts both above the imports together.
- */
+/** `vi.hoisted` belongs to the mock block: the factory reads its spies and Vitest hoists both. */
 const MOCK_CALLS = new Set(['mock', 'doMock', 'unmock', 'doUnmock', 'hoisted']);
 const HOOK_CALLS = new Set(['beforeEach', 'afterEach', 'beforeAll', 'afterAll']);
 const TEST_CALLS = new Set(['describe', 'it', 'test']);
@@ -307,9 +207,7 @@ function classifyTest(stmt: ts.Statement): string {
     if (ts.isImportDeclaration(stmt) || ts.isImportEqualsDeclaration(stmt)) return 'imports';
     if (ts.isExportDeclaration(stmt) && stmt.moduleSpecifier !== undefined) return 'imports';
     if (ts.isFunctionDeclaration(stmt)) return 'helpers';
-    // Types, enums and fake classes are the vocabulary the mock block is written in
-    // — `class FakeProc extends EventEmitter` exists to be returned from a factory.
-    // They sit above it for the same reason types sit at layer 2 in production.
+    // Types, enums and fake classes sit above the mocks that use them.
     if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt)) return 'types';
     if (ts.isClassDeclaration(stmt) || ts.isEnumDeclaration(stmt)) return 'types';
 
@@ -317,9 +215,7 @@ function classifyTest(stmt: ts.Statement): string {
         const decls = stmt.declarationList.declarations;
         if (decls.some((d) => MOCK_CALLS.has(callName(d.initializer) ?? ''))) return 'mocks';
         if (decls.some((d) => isFnLike(d.initializer))) return 'helpers';
-        // Everything else a suite declares is fixture data. The production
-        // classifier's state/constants split is about a module's mutable surface,
-        // which is not a question a test file raises.
+        // Everything else a suite declares is fixture data.
         return 'constants';
     }
 
@@ -338,9 +234,7 @@ function classifyTest(stmt: ts.Statement): string {
     return 'hooks';
 }
 
-/**
- * Names a statement binds at module scope.
- */
+/** Names a statement binds at module scope. */
 function declaredNames(stmt: ts.Statement): string[] {
     const out: string[] = [];
     const push = (n: ts.Node | undefined) => {
@@ -435,20 +329,11 @@ function nameOf(s: ts.Statement, sf: ts.SourceFile): string {
 /**
  * The canonical order for a module's statements, and which of them are misplaced.
  *
- * Order is a topological sort keyed by category: an edge A→B exists when B reads,
- * at load time, a binding that A declares. Kahn's algorithm then always takes the
- * available statement with the lowest (category, original position). The result is
- * canonical order everywhere the dependencies permit, and never places a statement
- * above something it reads — so the ONLY departures from the table are the ones
- * where obeying it would throw a ReferenceError at import time.
- *
- * Hoisted `function` declarations and type-only declarations contribute no edges:
- * they are visible regardless of where they sit.
- *
- * `misplaced` is the minimum set of statements to move, computed as everything
- * outside the longest common subsequence of the actual and ideal sequences — so one
- * statement in the wrong place is reported as one problem, not as every statement
- * after it having shifted.
+ * A topological sort (Kahn's) with an edge A→B when B reads, at load time, a binding
+ * A declares, always taking the lowest (category, original position). Hoisted
+ * functions and type-only declarations add no edges. `misplaced` is everything
+ * outside the longest common subsequence of actual and ideal order, so one moved
+ * statement is one problem.
  */
 function analyze(code: string, filename: string, profile: Profile = PRODUCTION_PROFILE): Analysis {
     const sf = ts.createSourceFile(filename, code, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
@@ -550,14 +435,10 @@ function analyze(code: string, filename: string, profile: Profile = PRODUCTION_P
             belongsAfter: after !== undefined ? `${after.cat} "${after.name}"` : 'the top of the module',
         });
     }
-    // `order` is the ideal sequence as original statement indices — what a fixer
-    // needs to rewrite the file, and the same sequence `misplaced` is derived from.
     return { misplaced, count: items.length, order: ideal.map((it) => it.i) };
 }
 
-/**
- * Reads a file (unwrapping an SFC's <script setup>) and analyses it.
- */
+/** Reads a file (unwrapping an SFC's <script setup>) and analyses it. */
 export function analyzeFile(rel: string, root: string, profile: Profile = profileFor(rel)): Analysis | null {
     let code = fs.readFileSync(path.join(root, rel), 'utf8');
     let lineOffset = 0;
