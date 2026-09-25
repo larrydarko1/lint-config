@@ -64,11 +64,9 @@ export type TestingOptions = {
     domEnvironment?: DomEnvironment;
     /** Sites reading a component through `wrapper.vm`, as a ratchet. Raise it with a reason. */
     vmBaseline?: number;
-    /** The document to point at on failure. */
-    standard?: string;
 };
 
-export type TestingInput = Omit<TestingOptions, 'standard'> & { root: string };
+export type TestingInput = TestingOptions & { root: string };
 
 export type TestingProblem = {
     file: string;
@@ -443,9 +441,9 @@ export function inspectTesting(input: TestingInput): TestingInspection {
 }
 
 export function checkTesting(options: TestingOptions): void {
-    const { root = REPO_ROOT, standard, ...rest } = options;
+    const { root = REPO_ROOT, ...rest } = options;
 
-    const report = createGateReport({ name: 'Testing', standard });
+    const report = createGateReport({ name: 'Testing' });
     const { problems, suites, specs, measured, uncovered, haveCoverage } = inspectTesting({ root, ...rest });
     for (const { file, what, why } of problems) report.fail(file, what, why);
 

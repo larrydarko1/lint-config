@@ -139,8 +139,6 @@ export type DbDriftInspection = {
 export type DbDriftOptions = Omit<DbDriftInput, 'root'> & {
     /** Defaults to the repository root. */
     root?: string;
-    /** The instructions file to point at on failure. */
-    standard?: string;
 };
 
 /** Fields whose name says the index is meant to expire documents, not just sort them. */
@@ -929,8 +927,8 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
 }
 
 /** Run the gate and print. */
-export async function checkDbDrift({ root = REPO_ROOT, standard, ...rest }: DbDriftOptions): Promise<void> {
-    const report = createGateReport({ name: 'Database drift', ...(standard === undefined ? {} : { standard }) });
+export async function checkDbDrift({ root = REPO_ROOT, ...rest }: DbDriftOptions): Promise<void> {
+    const report = createGateReport({ name: 'Database drift' });
     const { problems, warnings, collections, indexes, migrations } = await inspectDbDrift({ root, ...rest });
 
     for (const { file, what, why } of problems) report.fail(file, what, why);

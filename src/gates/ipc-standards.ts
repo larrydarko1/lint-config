@@ -54,8 +54,6 @@ export type IpcStandardsInspection = {
 export type IpcStandardsOptions = Omit<IpcStandardsInput, 'root'> & {
     /** Default: the repo root. */
     root?: string;
-    /** The instructions file to point at on failure. */
-    standard?: string;
 };
 
 /** A call that, given the argument, checks its type or value. */
@@ -452,8 +450,8 @@ export function inspectIpcStandards({
     };
 }
 
-export function checkIpcStandards({ root = REPO_ROOT, standard, ...rest }: IpcStandardsOptions): void {
-    const report = createGateReport({ name: 'IPC standards', ...(standard === undefined ? {} : { standard }) });
+export function checkIpcStandards({ root = REPO_ROOT, ...rest }: IpcStandardsOptions): void {
+    const report = createGateReport({ name: 'IPC standards' });
     const { problems, counts } = inspectIpcStandards({ root, ...rest });
 
     for (const { file, what, why } of problems) report.fail(file, what, why);

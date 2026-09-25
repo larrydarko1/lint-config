@@ -64,8 +64,6 @@ export interface ApiStandardsInspection {
 
 export interface ApiStandardsOptions extends Omit<ApiStandardsInput, 'root'> {
     root?: string;
-    /** The instructions file to point at on failure. */
-    standard?: string;
 }
 
 /** The three tiers the standard names. A repo with more states its own list. */
@@ -441,8 +439,8 @@ export function inspectApiStandards(input: ApiStandardsInput): ApiStandardsInspe
 }
 
 /** Run the gate and print. */
-export function checkApiStandards({ root = REPO_ROOT, standard, ...rest }: ApiStandardsOptions): void {
-    const report = createGateReport({ name: 'REST API standards', ...(standard === undefined ? {} : { standard }) });
+export function checkApiStandards({ root = REPO_ROOT, ...rest }: ApiStandardsOptions): void {
+    const report = createGateReport({ name: 'REST API standards' });
     const { problems, counts } = inspectApiStandards({ root, ...rest });
 
     for (const { file, what, why } of problems) report.fail(file, what, why);

@@ -38,8 +38,6 @@ export type TsconfigsInspection = {
 export type TsconfigsOptions = {
     /** Defaults to the repo root resolved from the process cwd. */
     root?: string;
-    /** The instructions file to point at on failure. Omit where the repo documents none. */
-    standard?: string;
     /** The one config that owns strictness. Defaults to `tsconfig.base.json`. */
     base?: string;
     /** Checking flags the base must hold, at the strict value. Defaults to `BASE_FLAGS`. */
@@ -60,7 +58,7 @@ export type TsconfigsOptions = {
     nonEmitting?: string[];
 };
 
-export type TsconfigsInput = Omit<TsconfigsOptions, 'standard' | 'root'> & { root: string };
+export type TsconfigsInput = Omit<TsconfigsOptions, 'root'> & { root: string };
 
 /** compilerOptions, naming only the settings this gate reads by name. */
 type CompilerOptions = Record<string, unknown> & { types?: string[]; lib?: string[] };
@@ -568,8 +566,8 @@ export function inspectTsconfigs({
 }
 
 /** Run the gate and print. */
-export function checkTsconfigs({ root = REPO_ROOT, standard, ...rest }: TsconfigsOptions = {}): void {
-    const report = createGateReport({ name: 'tsconfigs', ...(standard === undefined ? {} : { standard }) });
+export function checkTsconfigs({ root = REPO_ROOT, ...rest }: TsconfigsOptions = {}): void {
+    const report = createGateReport({ name: 'tsconfigs' });
     const { problems, projects, flagCount } = inspectTsconfigs({ root, ...rest });
 
     for (const { file, what, why } of problems) report.fail(file, what, why);

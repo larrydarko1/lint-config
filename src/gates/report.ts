@@ -16,8 +16,6 @@ export type GateFailure = {
 export type GateReportOptions = {
     /** The gate's name as it appears in its own output, e.g. "Error handling". */
     name: string;
-    /** The instructions file to point at on failure. */
-    standard?: string | undefined;
 };
 
 export type GateResult = {
@@ -45,10 +43,9 @@ export function plural(n: number, noun: string, plural = `${noun}s`): string {
 
 /**
  * @param options.name The gate's name as it appears in its own output ("Error handling").
- * @param [options.standard] The instructions file to point at on failure.
  */
 export function createGateReport(options: GateReportOptions): GateReport {
-    const { name, standard } = options;
+    const { name } = options;
     const failures: GateFailure[] = [];
 
     return {
@@ -88,7 +85,6 @@ export function createGateReport(options: GateReportOptions): GateReport {
                     console.error(`    • ${what}`);
                     console.error(`      ${why}\n`);
                 }
-                if (standard !== undefined) console.error(`See ${standard}, then re-run.`);
                 // Not process.exit(): it can truncate output still buffered on a pipe.
                 process.exitCode = 1;
                 return;

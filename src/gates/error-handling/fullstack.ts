@@ -143,7 +143,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
         directCodeEmitters = [],
     } = options;
 
-    const report = createGateReport({ name: 'Error handling', standard: 'error-handling.instructions.md' });
+    const report = createGateReport({ name: 'Error handling' });
 
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
     const exists = (rel: string) => fs.existsSync(path.join(root, rel));

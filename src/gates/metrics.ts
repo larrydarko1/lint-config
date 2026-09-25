@@ -132,8 +132,6 @@ export interface MetricsInspection {
 
 export interface MetricsOptions extends Omit<MetricsInput, 'root'> {
     root?: string;
-    /** The instructions file to point at on failure. */
-    standard?: string;
 }
 
 /** Kinds every cluster already knows. Anything else is a CRD CI has to install. */
@@ -817,8 +815,8 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
 }
 
 /** Run the gate and print. */
-export function checkMetrics({ root = REPO_ROOT, standard, ...rest }: MetricsOptions): void {
-    const report = createGateReport({ name: 'Metrics', ...(standard === undefined ? {} : { standard }) });
+export function checkMetrics({ root = REPO_ROOT, ...rest }: MetricsOptions): void {
+    const report = createGateReport({ name: 'Metrics' });
     const { problems, counts } = inspectMetrics({ root, ...rest });
 
     for (const { file, what, why } of problems) report.fail(file, what, why);

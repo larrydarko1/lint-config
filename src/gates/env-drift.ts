@@ -77,8 +77,6 @@ export type EnvDriftInspection = {
 export type EnvDriftOptions = Omit<EnvDriftInput, 'root'> & {
     /** Defaults to the repository root. */
     root?: string;
-    /** The instructions file to point at on failure. */
-    standard?: string;
 };
 
 /** A key whose name says it holds a secret, by suffix: `SMTP_PASS`, `JWT_SECRET`. */
@@ -411,8 +409,8 @@ export function inspectEnvDrift(input: EnvDriftInput): EnvDriftInspection {
 }
 
 /** Run the gate and print. */
-export function checkEnvDrift({ root = REPO_ROOT, standard, ...rest }: EnvDriftOptions): void {
-    const report = createGateReport({ name: 'Env drift', ...(standard === undefined ? {} : { standard }) });
+export function checkEnvDrift({ root = REPO_ROOT, ...rest }: EnvDriftOptions): void {
+    const report = createGateReport({ name: 'Env drift' });
     const { problems, warnings, services } = inspectEnvDrift({ root, ...rest });
 
     for (const { file, what, why } of problems) report.fail(file, what, why);

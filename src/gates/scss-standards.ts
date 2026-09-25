@@ -94,8 +94,6 @@ export type JsonPresetThemes = {
 export type ScssStandardsOptions = {
     /** Defaults to the repo root resolved from the process cwd. */
     root?: string;
-    /** The instructions file to point at on failure. */
-    standard?: string;
     /** The styles directory, repo-relative. Every file option below is relative to it. */
     styles: string;
     /** The source tree swept for SFCs and stylesheets, repo-relative. */
@@ -135,7 +133,7 @@ export type ScssStandardsOptions = {
     packageJson?: string;
 };
 
-export type ScssStandardsInput = Omit<ScssStandardsOptions, 'standard' | 'root'> & { root: string };
+export type ScssStandardsInput = Omit<ScssStandardsOptions, 'root'> & { root: string };
 
 /** Sass constructs that declare something and emit nothing until it is used. */
 const INERT_AT_RULES = /^@(mixin|function|use|forward|if|else|each|for|while|return|debug|warn|error)\b/;
@@ -790,8 +788,8 @@ function escapeRe(literal: string) {
 }
 
 /** Run the gate and print. */
-export function checkScssStandards({ root = REPO_ROOT, standard, ...rest }: ScssStandardsOptions): void {
-    const report = createGateReport({ name: 'SCSS architecture', ...(standard === undefined ? {} : { standard }) });
+export function checkScssStandards({ root = REPO_ROOT, ...rest }: ScssStandardsOptions): void {
+    const report = createGateReport({ name: 'SCSS architecture' });
     const { problems, styleFiles, palettes, tokenCount } = inspectScssStandards({ root, ...rest });
 
     for (const { file, what, why } of problems) report.fail(file, what, why);

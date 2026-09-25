@@ -91,8 +91,6 @@ export interface SecurityDriftInspection {
 
 export interface SecurityDriftOptions extends Omit<SecurityDriftInput, 'root'> {
     root?: string;
-    /** The instructions file to point at on failure. */
-    standard?: string;
 }
 
 /** OWASP's Argon2id floor. Raising these is fine; the gate only catches a fall. */
@@ -982,8 +980,8 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
 }
 
 /** Run the gate and print. */
-export function checkSecurityDrift({ root = REPO_ROOT, standard, ...rest }: SecurityDriftOptions): void {
-    const report = createGateReport({ name: 'Security drift', ...(standard === undefined ? {} : { standard }) });
+export function checkSecurityDrift({ root = REPO_ROOT, ...rest }: SecurityDriftOptions): void {
+    const report = createGateReport({ name: 'Security drift' });
     const { problems, counts } = inspectSecurityDrift({ root, ...rest });
 
     for (const { file, what, why } of problems) report.fail(file, what, why);

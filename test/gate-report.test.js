@@ -43,7 +43,7 @@ test('a clean run prints the summary, the footer, and leaves the exit code alone
 
 test('NEGATIVE: a failure sets exit code 1 and prints what AND why', () => {
     const { out, err, exitCode } = capture(() => {
-        const report = createGateReport({ name: 'Error handling', standard: 'error-handling.instructions.md' });
+        const report = createGateReport({ name: 'Error handling' });
         report.fail('api/src/a.ts:3', 'swallows a failure', 'Say why it is safe to drop.');
         report.done({ summary: 'never printed' });
     });
@@ -53,7 +53,6 @@ test('NEGATIVE: a failure sets exit code 1 and prints what AND why', () => {
     assert.match(err, /api\/src\/a\.ts:3/);
     assert.match(err, /• swallows a failure/);
     assert.match(err, /Say why it is safe to drop\./);
-    assert.match(err, /See error-handling\.instructions\.md, then re-run\./);
 });
 
 test('failures in the same file are printed under one heading', () => {

@@ -52,10 +52,9 @@ export type CodeStyleOptions = {
     aliasedRoots?: string[];
     /** SFCs that legitimately own a global style block, such as an app root. */
     globalStyles?: string[];
-    standard?: string;
 };
 
-export type CodeStyleInput = Omit<CodeStyleOptions, 'root' | 'standard'> & { root: string };
+export type CodeStyleInput = Omit<CodeStyleOptions, 'root'> & { root: string };
 
 export type CodeStyleProblem = { file: string; what: string; why: string };
 
@@ -358,8 +357,8 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
 }
 
 export function checkCodeStyle(options: CodeStyleOptions): void {
-    const { root = REPO_ROOT, standard = 'code-style.instructions.md', ...rest } = options;
-    const report = createGateReport({ name: 'Code style', standard });
+    const { root = REPO_ROOT, ...rest } = options;
+    const report = createGateReport({ name: 'Code style' });
 
     const { problems, files, baselined } = inspectCodeStyle({ root, ...rest });
     for (const { file, what, why } of problems) report.fail(file, what, why);

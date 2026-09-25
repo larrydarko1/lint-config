@@ -54,11 +54,9 @@ export type HtmlStandardsOptions = {
     csp?: boolean;
     /** A pre-launch origin that should be replaced before shipping. Warns, never fails. */
     placeholderOrigin?: string;
-    /** The document to point at on failure. */
-    standard?: string;
 };
 
-export type HtmlStandardsInput = Omit<HtmlStandardsOptions, 'standard'> & { root: string };
+export type HtmlStandardsInput = HtmlStandardsOptions & { root: string };
 
 export type HtmlStandardsProblem = {
     file: string;
@@ -345,13 +343,10 @@ export function inspectHtmlStandards(input: HtmlStandardsInput): HtmlStandardsIn
     return { problems, warnings, required: required.length };
 }
 
-/**
- * @param [options.standard] The document to point at on failure.
- */
 export function checkHtmlStandards(options: HtmlStandardsOptions): void {
-    const { root = REPO_ROOT, standard, ...rest } = options;
+    const { root = REPO_ROOT, ...rest } = options;
 
-    const report = createGateReport({ name: 'HTML standards', standard });
+    const report = createGateReport({ name: 'HTML standards' });
     const { problems, warnings, required } = inspectHtmlStandards({ root, ...rest });
     for (const { file, what, why } of problems) report.fail(file, what, why);
 

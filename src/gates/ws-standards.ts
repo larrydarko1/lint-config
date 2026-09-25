@@ -87,8 +87,6 @@ export interface WsStandardsInspection {
 
 export interface WsStandardsOptions extends Omit<WsStandardsInput, 'root'> {
     root?: string;
-    /** The instructions file to point at on failure. */
-    standard?: string;
 }
 
 /** Socket.IO's own events. A listener for one of these is not an app contract. */
@@ -613,8 +611,8 @@ export function inspectWsStandards(input: WsStandardsInput): WsStandardsInspecti
 }
 
 /** Run the gate and print. */
-export function checkWsStandards({ root = REPO_ROOT, standard, ...rest }: WsStandardsOptions): void {
-    const report = createGateReport({ name: 'WebSocket standards', ...(standard === undefined ? {} : { standard }) });
+export function checkWsStandards({ root = REPO_ROOT, ...rest }: WsStandardsOptions): void {
+    const report = createGateReport({ name: 'WebSocket standards' });
     const { problems, counts } = inspectWsStandards({ root, ...rest });
 
     for (const { file, what, why } of problems) report.fail(file, what, why);

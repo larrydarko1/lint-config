@@ -79,8 +79,6 @@ export type ElectronSecurityInspection = {
 export type ElectronSecurityOptions = Omit<ElectronSecurityInput, 'root'> & {
     /** Default: the repo root. */
     root?: string;
-    /** The instructions file to point at on failure. */
-    standard?: string;
 };
 
 const REQUIRED_PREFS = [
@@ -764,8 +762,8 @@ export function inspectElectronSecurity({
     };
 }
 
-export function checkElectronSecurity({ root = REPO_ROOT, standard, ...rest }: ElectronSecurityOptions): void {
-    const report = createGateReport({ name: 'Electron security', ...(standard === undefined ? {} : { standard }) });
+export function checkElectronSecurity({ root = REPO_ROOT, ...rest }: ElectronSecurityOptions): void {
+    const report = createGateReport({ name: 'Electron security' });
     const { problems, counts } = inspectElectronSecurity({ root, ...rest });
 
     for (const { file, what, why } of problems) report.fail(file, what, why);

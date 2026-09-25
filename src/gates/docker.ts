@@ -73,10 +73,7 @@ export type DockerInspection = {
     counts: { images: number; stages: number; nodeMajor: string | null };
 };
 
-export type DockerOptions = DockerInput & {
-    /** The instructions file to point at on failure. */
-    standard?: string;
-};
+export type DockerOptions = DockerInput;
 
 /** Bases that run unprivileged by construction, so no USER is needed. */
 const NONROOT_BASES = [/^nginxinc\/nginx-unprivileged(:|$)/];
@@ -679,8 +676,8 @@ export function inspectDocker(input: DockerInput): DockerInspection {
     };
 }
 
-export function checkDocker({ root = REPO_ROOT, standard, ...rest }: DockerOptions): void {
-    const report = createGateReport({ name: 'Docker', ...(standard === undefined ? {} : { standard }) });
+export function checkDocker({ root = REPO_ROOT, ...rest }: DockerOptions): void {
+    const report = createGateReport({ name: 'Docker' });
     const { problems, counts } = inspectDocker({ root, ...rest });
 
     for (const { file, what, why } of problems) report.fail(file, what, why);

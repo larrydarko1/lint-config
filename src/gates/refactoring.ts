@@ -73,7 +73,7 @@ export function checkRefactoring(options: RefactoringOptions = {}): void {
         requireCheckboxes = false,
     } = options;
 
-    const report = createGateReport({ name: 'Refactoring', standard: 'refactoring.instructions.md' });
+    const report = createGateReport({ name: 'Refactoring' });
 
     const lintedExtensions = new Set(linted);
     const skipNames = new Set(['package-lock.json', tracker, ...skip]);

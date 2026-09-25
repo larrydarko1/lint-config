@@ -32,8 +32,6 @@ export type PackageJsonInspection = {
 export type PackageJsonOptions = {
     /** Defaults to the repo root resolved from the process cwd. */
     root?: string;
-    /** The instructions file to point at on failure. */
-    standard?: string;
     /** Fields the root manifest owes: the project's identity and its toolchain facts. */
     rootRequired?: string[];
     /** Fields a workspace manifest owes. Toolchain facts are inherited from the root, so they are not here. */
@@ -51,7 +49,7 @@ export type PackageJsonOptions = {
     provided?: Record<string, string>;
 };
 
-export type PackageJsonInput = Omit<PackageJsonOptions, 'standard' | 'root'> & { root: string };
+export type PackageJsonInput = Omit<PackageJsonOptions, 'root'> & { root: string };
 
 /** A manifest as the file wrote it. Only the keys this gate reads by name are named. */
 type Manifest = {
@@ -382,8 +380,8 @@ export function inspectPackageJson({
 }
 
 /** Run the gate and print. */
-export function checkPackageJson({ root = REPO_ROOT, standard, ...rest }: PackageJsonOptions = {}): void {
-    const report = createGateReport({ name: 'package.json', ...(standard === undefined ? {} : { standard }) });
+export function checkPackageJson({ root = REPO_ROOT, ...rest }: PackageJsonOptions = {}): void {
+    const report = createGateReport({ name: 'package.json' });
     const { problems, manifests } = inspectPackageJson({ root, ...rest });
 
     for (const { file, what, why } of problems) report.fail(file, what, why);

@@ -300,7 +300,7 @@ export function checkDuplication(options: DuplicationOptions): void {
         return;
     }
 
-    const report = createGateReport({ name: 'Duplication', standard: 'refactoring.instructions.md' });
+    const report = createGateReport({ name: 'Duplication' });
 
     let full: JscpdReport;
     const perRootReports: Record<string, JscpdReport> = {};

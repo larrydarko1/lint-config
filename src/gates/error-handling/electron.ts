@@ -1,6 +1,6 @@
 /**
  * Error handling at an Electron app's boundaries:
- *
+ * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1/2. Every IPC handler contains its own failures. A throw crossing the bridge
  *        reaches the renderer as a flattened string, with no boundary above it.
  *   3.   Process-level backstops for unhandled rejections and exceptions.
@@ -18,22 +18,16 @@ import { stripComments } from '../strip-comments.ts';
 import { countSwallows, findSwallowedErrors } from '../swallowed-errors.ts';
 
 export type ElectronErrorHandlingOptions = {
-    /** Repository root. */
-    root?: string;
-    /** Main-process sources. Defaults to `src/main`. */
-    mainDir?: string;
-    /** Renderer sources, scanned for swallowed failures. Defaults to `src/renderer`. */
-    rendererDir?: string;
-    /** Where the app lifecycle is wired. Defaults to `src/main/index.ts`. */
-    mainIndex?: string;
-    /** Services holding a resource the OS does not reclaim on window close; each must be released in `before-quit`. */
-    cleanupRequired?: [service: string, why: string][];
+    root?: string; // Repository root.
+    mainDir?: string; // Main-process sources. Defaults to `src/main`.
+    rendererDir?: string; // Renderer sources, scanned for swallowed failures. Defaults to `src/renderer`.
+    mainIndex?: string; // Where the app lifecycle is wired. Defaults to `src/main/index.ts`.
+    cleanupRequired?: [service: string, why: string][]; // Services holding a resource the OS does not reclaim on window close; each must be released in `before-quit`.
 };
 
 /**
  * From `start`, the body of the callback that follows. Located from the `=>`, since the
  * first `{` may belong to an inline return type.
- *
  * @returns `expression: true` for a concise arrow body, which has no try block.
  */
 function callbackBody(source: string, start: number): { body: string; expression: boolean } {
@@ -141,7 +135,7 @@ export function checkElectronErrorHandling(options: ElectronErrorHandlingOptions
         cleanupRequired = [],
     } = options;
 
-    const report = createGateReport({ name: 'Error handling', standard: 'error-handling.instructions.md' });
+    const report = createGateReport({ name: 'Error handling' });
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
 
     const mainFiles = walkFiles(root, mainDir, { match: /\.ts$/ });
