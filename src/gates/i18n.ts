@@ -27,7 +27,7 @@ export type I18nGateOptions = {
     configNotes?: Record<string, string>;
 };
 
-export type I18nGateResult = {
+type I18nGateResult = {
     errors: string[];
     locales: string[];
     keyCount: number;

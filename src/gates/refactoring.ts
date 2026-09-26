@@ -33,7 +33,7 @@ export type RefactoringOptions = {
 };
 
 /** Kept in step by hand with the ESLint `terms` list, which is matched case-insensitively. */
-export const MARKERS: RegExp = /\b(TODO|FIXME|FIX ME|HACK|XXX|TBD|WIP)\b/;
+const MARKERS: RegExp = /\b(TODO|FIXME|FIX ME|HACK|XXX|TBD|WIP)\b/;
 
 /** Extensions ESLint parses in a default setup, so this gate leaves them alone. */
 const DEFAULT_LINTED = ['.ts', '.tsx', '.vue', '.js', '.mjs', '.cjs'];

@@ -18,11 +18,16 @@ import { stripComments } from '../strip-comments.ts';
 import { countSwallows, findSwallowedErrors } from '../swallowed-errors.ts';
 
 export type ElectronErrorHandlingOptions = {
-    root?: string; // Repository root.
-    mainDir?: string; // Main-process sources. Defaults to `src/main`.
-    rendererDir?: string; // Renderer sources, scanned for swallowed failures. Defaults to `src/renderer`.
-    mainIndex?: string; // Where the app lifecycle is wired. Defaults to `src/main/index.ts`.
-    cleanupRequired?: [service: string, why: string][]; // Services holding a resource the OS does not reclaim on window close; each must be released in `before-quit`.
+    /** Repository root. */
+    root?: string;
+    /** Main-process sources. Defaults to `src/main`. */
+    mainDir?: string;
+    /** Renderer sources, scanned for swallowed failures. Defaults to `src/renderer`. */
+    rendererDir?: string;
+    /** Where the app lifecycle is wired. Defaults to `src/main/index.ts`. */
+    mainIndex?: string;
+    /** Services holding a resource the OS does not reclaim on window close; each must be released in `before-quit`. */
+    cleanupRequired?: [service: string, why: string][];
 };
 
 /**

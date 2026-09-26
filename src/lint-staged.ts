@@ -4,8 +4,10 @@
  */
 
 export type LintStagedOptions = {
-    stylelint?: boolean; // Also run `stylelint --fix` on staged SCSS and Vue files. Defaults to false.
-    tasks?: Record<string, string | string[]>; // Extra glob → command entries, merged last.
+    /** Also run `stylelint --fix` on staged SCSS and Vue files. Defaults to false. */
+    stylelint?: boolean;
+    /** Extra glob → command entries, merged last. */
+    tasks?: Record<string, string | string[]>;
 };
 
 export function lintStaged(options: LintStagedOptions = {}): Record<string, string | string[]> {

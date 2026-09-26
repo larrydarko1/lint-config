@@ -29,7 +29,16 @@ import { walkFiles } from './files.ts';
 import { createImportOrder, type ImportOrderOptions } from './import-order.ts';
 import { REPO_ROOT } from './repo-root.ts';
 
-export type Misplaced = {
+export type DeclarationOrderOptions = {
+    /** Repository root. Defaults to the caller's repo root. */
+    root?: string;
+    /** Directories to walk, relative to `root`. */
+    sourceRoots: string[];
+    /** Forwarded to `createImportOrder` for the import-sorting pass. */
+    importOrder?: ImportOrderOptions;
+};
+
+type Misplaced = {
     /** The category the statement was binned into. */
     cat: string;
     /** The statement's name, as the report prints it. */
@@ -40,7 +49,7 @@ export type Misplaced = {
     belongsAfter: string;
 };
 
-export type Analysis = {
+type Analysis = {
     misplaced: Misplaced[];
     /** Top-level statements considered. */
     count: number;
@@ -48,15 +57,6 @@ export type Analysis = {
     cycle?: boolean;
     /** The ideal sequence as original statement indices — what a fixer needs. */
     order?: number[];
-};
-
-export type DeclarationOrderOptions = {
-    /** Repository root. Defaults to the caller's repo root. */
-    root?: string;
-    /** Directories to walk, relative to `root`. */
-    sourceRoots: string[];
-    /** Forwarded to `createImportOrder` for the import-sorting pass. */
-    importOrder?: ImportOrderOptions;
 };
 
 /** The canonical order of a module's top-level statements. */

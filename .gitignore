@@ -2,3 +2,4 @@ node_modules
 *.log
 .eslint-snapshots/
 dist/
+todo.md

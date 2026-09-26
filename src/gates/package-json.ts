@@ -14,20 +14,7 @@ import path from 'node:path';
 
 import { PROJECT_CLIS, SELF_NAME, providedPackages } from '../toolchain.ts';
 import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport } from './report.ts';
-
-export type PackageJsonProblem = {
-    /** The manifest the finding belongs to. */
-    file: string;
-    what: string;
-    why: string;
-};
-
-export type PackageJsonInspection = {
-    problems: PackageJsonProblem[];
-    /** Every manifest read: the root, plus each workspace that has one. */
-    manifests: string[];
-};
+import { createGateReport, type GateFailure } from './report.ts';
 
 export type PackageJsonOptions = {
     /** Defaults to the repo root resolved from the process cwd. */
@@ -49,7 +36,14 @@ export type PackageJsonOptions = {
     provided?: Record<string, string>;
 };
 
-export type PackageJsonInput = Omit<PackageJsonOptions, 'root'> & { root: string };
+type PackageJsonInspection = {
+    problems: GateFailure[];
+    /** Every manifest read: the root, plus each workspace that has one. */
+    manifests: string[];
+};
+
+
+type PackageJsonInput = Omit<PackageJsonOptions, 'root'> & { root: string };
 
 /** A manifest as the file wrote it. Only the keys this gate reads by name are named. */
 type Manifest = {
@@ -135,7 +129,7 @@ export function inspectPackageJson({
     electronViteConfig = 'electron.vite.config.ts',
     provided = providedPackages(),
 }: PackageJsonInput): PackageJsonInspection {
-    const problems: PackageJsonProblem[] = [];
+    const problems: GateFailure[] = [];
     const fail = (file: string, what: string, why: string): void => {
         problems.push({ file, what, why });
     };

@@ -20,7 +20,7 @@ export type PresetPaths = {
 };
 
 /** Electron desktop: main / preload / renderer under one `src/`, tests in `tests/`. */
-export const electron: PresetPaths = {
+const electron: PresetPaths = {
     /** Shipped code. Excludes tests, which the test block relaxes separately. */
     source: ['src/**/*.{ts,vue}', 'scripts/**/*.ts'],
     /** Everything a tsconfig covers, so type-aware rules can run on it. */
@@ -41,7 +41,7 @@ export const electron: PresetPaths = {
 };
 
 /** Full-stack monorepo: workspaces for frontend / api / worker / shared, plus e2e. */
-export const fullstack: PresetPaths = {
+const fullstack: PresetPaths = {
     source: [
         'frontend/src/**/*.{ts,vue}',
         'api/src/**/*.ts',

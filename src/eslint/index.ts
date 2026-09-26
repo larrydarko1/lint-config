@@ -15,14 +15,6 @@ import ts from 'typescript-eslint';
 import { resolvePaths, type PresetName, type PresetPaths } from './presets.ts';
 import { NAMING_CONVENTION } from './rules/naming.ts';
 
-export type ImportExtensionsOptions = {
-    /**
-     * Folders Node executes directly (`['scripts/**\/*.ts']`), where the specifier must name
-     * the real `.ts` file.
-     */
-    nodeRun?: string[];
-};
-
 export type LarryOptions = {
     /** Which family's folder layout to assume. */
     preset: PresetName;
@@ -32,15 +24,9 @@ export type LarryOptions = {
     paths?: Partial<PresetPaths>;
     /** Load the Vue plugin and parse `.vue` files. Defaults to true. */
     vue?: boolean;
-    /**
-     * Enforce import specifiers: no extension on TS/JS, but `.vue` and `.json` keep theirs.
-     * Defaults to false.
-     */
+    /** Enforce import specifiers: no extension on TS/JS, but `.vue` and `.json` keep theirs. Defaults to false.*/
     importExtensions?: boolean | ImportExtensionsOptions;
-    /**
-     * A dedicated tsconfig for tests (e.g. `./tsconfig.test.json`). Without it tests use the
-     * project service like everything else.
-     */
+    /** A dedicated tsconfig for tests (e.g. `./tsconfig.test.json`). Without it tests use the project service like everything else. */
     testProject?: string;
     /** Extra rules for test files, merged after the defaults. */
     testRules?: Linter.RulesRecord;
@@ -48,12 +34,15 @@ export type LarryOptions = {
     rules?: Linter.RulesRecord;
     /** Standards blocks (security, logging, …) to splice in. */
     standards?: Linter.Config[];
-    /**
-     * The project's own blocks — the per-area `no-restricted-syntax`/`no-restricted-imports`
-     * wiring. Appended last, before Prettier.
-     */
+    /** The project's own blocks — the per-area `no-restricted-syntax`/`no-restricted-imports` wiring. Appended last, before Prettier. */
     overrides?: Linter.Config[];
 };
+
+type ImportExtensionsOptions = {
+    /** Folders Node executes directly (`['scripts/**\/*.ts']`), where the specifier must name the real `.ts` file. */
+    nodeRun?: string[];
+};
+
 
 /** Rules relaxed in tests, where mocks and fixtures legitimately do what shipped code must not. */
 const TEST_RELAXATIONS: Linter.RulesRecord = {

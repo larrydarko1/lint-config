@@ -21,75 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport } from './report.ts';
-
-export type ScssProblem = {
-    /** The file the finding belongs to. */
-    file: string;
-    what: string;
-    why: string;
-};
-
-export type ScssStandardsInspection = {
-    problems: ScssProblem[];
-    /** Every `.scss` and `.vue` file swept, repo-relative. */
-    styleFiles: string[];
-    /** The palette names found, in the project's own vocabulary. */
-    palettes: string[];
-    /** How many tokens the reference palette declares. */
-    tokenCount: number;
-};
-
-/** A module the entry point must `@use`, with the reason its absence matters. */
-export type EmittingModule = {
-    /** Matched against the `@use` specifier, so the partial's bare name. */
-    module: string;
-    why: string;
-};
-
-/**
- * Where the palettes live:
- *
- *   • `scss-maps`    — Sass maps run through an `emit-theme` mixin (the standard).
- *   • `css-blocks`   — literal custom-property blocks, visible to stylelint.
- *   • `json-presets` — JSON files on disk, for users to hand-edit.
- */
-export type ThemeSource = ScssMapThemes | CssBlockThemes | JsonPresetThemes;
-
-export type ScssMapThemes = {
-    source: 'scss-maps';
-    /** The partial holding the `$theme-*` maps. */
-    file: string;
-    /** The palette every other one is compared against, without any `theme-` prefix. */
-    reference: string;
-    /** The map registering which palettes get emitted, without its `$`. Absent: one `[data-theme='…']` block per palette. */
-    registryName?: string;
-    /** Where `emit-theme` and `color-scheme` live, if not alongside the maps. */
-    mixinFile?: string;
-    /** Where the maps are turned into CSS, if not in `file`. Defaults to `file`. */
-    emitFile?: string;
-};
-
-export type CssBlockThemes = {
-    source: 'css-blocks';
-    /** The partial holding one custom-property block per palette. */
-    file: string;
-    reference: string;
-    /** How a palette is selected. `data-theme` is what the standard specifies. */
-    selector: 'data-theme' | 'app-class';
-    /** A partial of palette-independent colours on `:root`: not compared, but they resolve `var()`s. */
-    invariantFile?: string;
-};
-
-export type JsonPresetThemes = {
-    source: 'json-presets';
-    /** The directory of bundled `<id>.json` presets. */
-    dir: string;
-    /** The preset id every other one is compared against. */
-    reference: string;
-    /** The partial whose `:root` block is the compiled-in fallback layer. */
-    fallbackFile: string;
-};
+import { createGateReport, type GateFailure } from './report.ts';
 
 export type ScssStandardsOptions = {
     /** Defaults to the repo root resolved from the process cwd. */
@@ -133,7 +65,69 @@ export type ScssStandardsOptions = {
     packageJson?: string;
 };
 
-export type ScssStandardsInput = Omit<ScssStandardsOptions, 'root'> & { root: string };
+type ScssStandardsInspection = {
+    problems: GateFailure[];
+    /** Every `.scss` and `.vue` file swept, repo-relative. */
+    styleFiles: string[];
+    /** The palette names found, in the project's own vocabulary. */
+    palettes: string[];
+    /** How many tokens the reference palette declares. */
+    tokenCount: number;
+};
+
+/** A module the entry point must `@use`, with the reason its absence matters. */
+type EmittingModule = {
+    /** Matched against the `@use` specifier, so the partial's bare name. */
+    module: string;
+    why: string;
+};
+
+/**
+ * Where the palettes live:
+ *
+ *   • `scss-maps`    — Sass maps run through an `emit-theme` mixin (the standard).
+ *   • `css-blocks`   — literal custom-property blocks, visible to stylelint.
+ *   • `json-presets` — JSON files on disk, for users to hand-edit.
+ */
+type ThemeSource = ScssMapThemes | CssBlockThemes | JsonPresetThemes;
+
+type ScssMapThemes = {
+    source: 'scss-maps';
+    /** The partial holding the `$theme-*` maps. */
+    file: string;
+    /** The palette every other one is compared against, without any `theme-` prefix. */
+    reference: string;
+    /** The map registering which palettes get emitted, without its `$`. Absent: one `[data-theme='…']` block per palette. */
+    registryName?: string;
+    /** Where `emit-theme` and `color-scheme` live, if not alongside the maps. */
+    mixinFile?: string;
+    /** Where the maps are turned into CSS, if not in `file`. Defaults to `file`. */
+    emitFile?: string;
+};
+
+type CssBlockThemes = {
+    source: 'css-blocks';
+    /** The partial holding one custom-property block per palette. */
+    file: string;
+    reference: string;
+    /** How a palette is selected. `data-theme` is what the standard specifies. */
+    selector: 'data-theme' | 'app-class';
+    /** A partial of palette-independent colours on `:root`: not compared, but they resolve `var()`s. */
+    invariantFile?: string;
+};
+
+type JsonPresetThemes = {
+    source: 'json-presets';
+    /** The directory of bundled `<id>.json` presets. */
+    dir: string;
+    /** The preset id every other one is compared against. */
+    reference: string;
+    /** The partial whose `:root` block is the compiled-in fallback layer. */
+    fallbackFile: string;
+};
+
+
+type ScssStandardsInput = Omit<ScssStandardsOptions, 'root'> & { root: string };
 
 /** Sass constructs that declare something and emit nothing until it is used. */
 const INERT_AT_RULES = /^@(mixin|function|use|forward|if|else|each|for|while|return|debug|warn|error)\b/;
@@ -167,7 +161,7 @@ export function inspectScssStandards({
     fontFaceFile,
     packageJson,
 }: ScssStandardsInput): ScssStandardsInspection {
-    const problems: ScssProblem[] = [];
+    const problems: GateFailure[] = [];
     const fail = (file: string, what: string, why: string) => {
         problems.push({ file, what, why });
     };

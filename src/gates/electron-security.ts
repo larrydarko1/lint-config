@@ -28,19 +28,17 @@ import path from 'node:path';
 
 import { walkFiles } from './files.ts';
 import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural } from './report.ts';
+import { createGateReport, plural, type GateFailure } from './report.ts';
 import { callSites, declaredBody, functionParts, propertyValue, splitTopLevel, type FunctionParts } from './source.ts';
 import { stripComments } from './strip-comments.ts';
 
-export type ElectronSecurityProblem = {
-    /** `path` or `path:line`. */
-    file: string;
-    what: string;
-    why: string;
+export type ElectronSecurityOptions = Omit<ElectronSecurityInput, 'root'> & {
+    /** Default: the repo root. */
+    root?: string;
 };
 
 /** One `v-html` binding someone has vouched for. */
-export type VHtmlEntry = {
+type VHtmlEntry = {
     /** The `.vue` file, relative to the repo root. */
     file: string;
     /** The bound expression exactly as written, e.g. `shape.icon`. */
@@ -50,14 +48,14 @@ export type VHtmlEntry = {
 };
 
 /** A project helper whose output is safe to assign to `innerHTML`. */
-export type Sanitizer = {
+type Sanitizer = {
     /** Called as `name(…)` or `this.name(…)`, e.g. `renderInline`. */
     name: string;
     /** Why its output is escaped. */
     why: string;
 };
 
-export type ElectronSecurityInput = {
+type ElectronSecurityInput = {
     root: string;
     /** Default `src/main`. */
     mainDir?: string;
@@ -71,14 +69,9 @@ export type ElectronSecurityInput = {
     sanitizers?: Sanitizer[];
 };
 
-export type ElectronSecurityInspection = {
-    problems: ElectronSecurityProblem[];
+type ElectronSecurityInspection = {
+    problems: GateFailure[];
     counts: { windows: number; schemes: number; innerHtml: number; vHtml: number; regexps: number };
-};
-
-export type ElectronSecurityOptions = Omit<ElectronSecurityInput, 'root'> & {
-    /** Default: the repo root. */
-    root?: string;
 };
 
 const REQUIRED_PREFS = [
@@ -414,7 +407,7 @@ export function inspectElectronSecurity({
     vHtml = [],
     sanitizers = [],
 }: ElectronSecurityInput): ElectronSecurityInspection {
-    const problems: ElectronSecurityProblem[] = [];
+    const problems: GateFailure[] = [];
     const fail: (file: string, what: string, why: string) => void = (file, what, why) =>
         problems.push({ file, what, why });
 

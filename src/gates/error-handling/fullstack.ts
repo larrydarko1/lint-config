@@ -1,6 +1,6 @@
 /**
  * Error handling across a full-stack app's boundaries.
- *
+ * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1.  Every throw obeys the status policy (400 never parsed, 422 invalid data).
  *   1b. A code means one status everywhere.
  *   2.  One AppError class with its documented fields.
@@ -58,10 +58,7 @@ export type FullstackErrorHandlingOptions = {
     directCodeEmitters?: string[];
 };
 
-/**
- * Codes that must carry `securityEvent: true`, by pattern so new codes enrol
- * themselves. Expiry is deliberately absent: it is routine.
- */
+// Codes that must carry `securityEvent: true`, by pattern so new codes enrol themselves. Expiry is deliberately absent: it is routine.
 const SECURITY_EVENT_PATTERNS = [
     /^INCORRECT_/,
     /_REQUIRED$/,
@@ -158,11 +155,11 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
     const routine = new Set(notSecurityEvents);
     const emitters = [...directCodeEmitters, handler];
 
-    /** True when a code must carry `securityEvent: true`. */
+    // True when a code must carry `securityEvent: true`.
     const isSecurityEvent = (c: string) =>
         !routine.has(c) && (explicitSecurity.has(c) || SECURITY_EVENT_PATTERNS.some((p) => p.test(c)));
 
-    /** Every code in the shared contract, in declaration order. */
+    // Every code in the shared contract, in declaration order.
     const allCodes = exists(codesFile)
         ? [
               ...(/export const ERROR_CODES = \[([\s\S]*?)\] as const;/.exec(read(codesFile))?.[1] ?? '').matchAll(

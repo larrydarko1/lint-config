@@ -17,23 +17,8 @@ import path from 'node:path';
 
 import { walkFiles } from './files.ts';
 import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport } from './report.ts';
+import { createGateReport, type GateFailure } from './report.ts';
 import { stripComments } from './strip-comments.ts';
-
-export type TsconfigProblem = {
-    /** `path` or `path:line`. */
-    file: string;
-    what: string;
-    why: string;
-};
-
-export type TsconfigsInspection = {
-    problems: TsconfigProblem[];
-    /** Every config that checks code: not the base, not a solution file. */
-    projects: string[];
-    /** How many checking flags the base was held to. */
-    flagCount: number;
-};
 
 export type TsconfigsOptions = {
     /** Defaults to the repo root resolved from the process cwd. */
@@ -58,7 +43,16 @@ export type TsconfigsOptions = {
     nonEmitting?: string[];
 };
 
-export type TsconfigsInput = Omit<TsconfigsOptions, 'root'> & { root: string };
+type TsconfigsInspection = {
+    problems: GateFailure[];
+    /** Every config that checks code: not the base, not a solution file. */
+    projects: string[];
+    /** How many checking flags the base was held to. */
+    flagCount: number;
+};
+
+
+type TsconfigsInput = Omit<TsconfigsOptions, 'root'> & { root: string };
 
 /** compilerOptions, naming only the settings this gate reads by name. */
 type CompilerOptions = Record<string, unknown> & { types?: string[]; lib?: string[] };
@@ -157,7 +151,7 @@ export function inspectTsconfigs({
     browserSources = [],
     nonEmitting = [],
 }: TsconfigsInput): TsconfigsInspection {
-    const problems: TsconfigProblem[] = [];
+    const problems: GateFailure[] = [];
     const fail = (file: string, what: string, why: string): void => {
         problems.push({ file, what, why });
     };

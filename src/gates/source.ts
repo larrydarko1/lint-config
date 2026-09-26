@@ -6,21 +6,22 @@
  * Pass source through `stripComments` first when asking "does the code do X".
  */
 
-export interface CallSite {
+export type FunctionParts = {
+    /** Parameter names in order — types, defaults and `...` stripped, destructuring flattened. */
+    params: string[];
+    /** The block's inside, or an expression-bodied arrow's expression. */
+    body: string;
+};
+
+type CallSite = {
     /** Byte offset of the first character of the call. */
     index: number;
     /** Byte offset of the matching `)`. */
     end: number;
     /** The argument text between the parens. */
     args: string;
-}
+};
 
-export interface FunctionParts {
-    /** Parameter names in order — types, defaults and `...` stripped, destructuring flattened. */
-    params: string[];
-    /** The block's inside, or an expression-bodied arrow's expression. */
-    body: string;
-}
 
 /**
  * Every `token(…)` call in a file, with its position (for ordering rules) and its

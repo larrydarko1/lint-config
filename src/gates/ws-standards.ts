@@ -20,34 +20,11 @@ import path from 'node:path';
 
 import { walkFiles } from './files.ts';
 import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural } from './report.ts';
+import { createGateReport, plural, type GateFailure } from './report.ts';
 import { braceBlock, callSites, declaredBody, propertyValue } from './source.ts';
 import { stripComments } from './strip-comments.ts';
 
-export interface WsProblem {
-    file: string | null;
-    what: string;
-    why: string;
-}
-
-/**
- * Mandatory where a pod holds only its own sockets; a regression where every pod
- * already subscribes to every bucket. `'forbidden'` requires the reason in the gateway header.
- */
-export type RedisAdapterRule =
-    | { mode: 'required' }
-    | {
-          mode: 'forbidden';
-          /** What the header must still say, matched case-insensitively. */
-          headerPhrase: string;
-          /** The argument itself, reported when an adapter reappears. */
-          why: string;
-      };
-
-/** How this gateway addresses its clients. */
-export type RoomRule = { join: 'personal'; prefix: string } | { join: 'helpers' };
-
-export interface WsStandardsInput {
+export type WsStandardsOptions = {
     /** Repository root. Defaults to the nearest ancestor holding a package.json. */
     root?: string;
     /** The gateway module that constructs the Socket.IO server. */
@@ -78,16 +55,30 @@ export interface WsStandardsInput {
     teardownFn?: string;
     /** The session hook the teardown registers with. Absent means "called from the sign-out path". */
     sessionTeardown?: string;
-}
+};
 
-export interface WsStandardsInspection {
-    problems: WsProblem[];
+/**
+ * Mandatory where a pod holds only its own sockets; a regression where every pod
+ * already subscribes to every bucket. `'forbidden'` requires the reason in the gateway header.
+ */
+type RedisAdapterRule =
+    | { mode: 'required' }
+    | {
+          mode: 'forbidden';
+          /** What the header must still say, matched case-insensitively. */
+          headerPhrase: string;
+          /** The argument itself, reported when an adapter reappears. */
+          why: string;
+      };
+
+/** How this gateway addresses its clients. */
+type RoomRule = { join: 'personal'; prefix: string } | { join: 'helpers' };
+
+
+type WsStandardsInspection = {
+    problems: GateFailure[];
     counts: { outbound: number; inbound: number; documented: number };
-}
-
-export interface WsStandardsOptions extends Omit<WsStandardsInput, 'root'> {
-    root?: string;
-}
+};
 
 /** Socket.IO's own events. A listener for one of these is not an app contract. */
 const LIFECYCLE = new Set(['connect', 'connection', 'disconnect', 'disconnecting', 'connect_error', 'error']);
@@ -115,7 +106,7 @@ function tryCatchPairs(source: string): { attempt: string; recovery: string }[] 
 }
 
 /** Every problem found, without printing. */
-export function inspectWsStandards(input: WsStandardsInput): WsStandardsInspection {
+export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspection {
     const {
         root = REPO_ROOT,
         gateway,
@@ -134,7 +125,7 @@ export function inspectWsStandards(input: WsStandardsInput): WsStandardsInspecti
         sessionTeardown,
     } = input;
 
-    const problems: WsProblem[] = [];
+    const problems: GateFailure[] = [];
     const fail = (file: string | null, what: string, why: string) => {
         problems.push({ file, what, why });
     };
@@ -611,14 +602,14 @@ export function inspectWsStandards(input: WsStandardsInput): WsStandardsInspecti
 }
 
 /** Run the gate and print. */
-export function checkWsStandards({ root = REPO_ROOT, ...rest }: WsStandardsOptions): void {
+export function checkWsStandards(options: WsStandardsOptions): void {
     const report = createGateReport({ name: 'WebSocket standards' });
-    const { problems, counts } = inspectWsStandards({ root, ...rest });
+    const { problems, counts } = inspectWsStandards(options);
 
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
     const adapter =
-        rest.redisAdapter?.mode === 'forbidden'
+        options.redisAdapter?.mode === 'forbidden'
             ? 'no Redis adapter and the reason still written down'
             : 'Redis adapter degrading to in-memory';
 

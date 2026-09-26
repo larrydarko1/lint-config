@@ -10,21 +10,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural } from './report.ts';
+import { createGateReport, plural, type GateFailure } from './report.ts';
 import { braceBlock, callArgs, catchBodies, evalProduct, fnBody } from './source.ts';
 import { stripComments } from './strip-comments.ts';
 
-export interface SecurityProblem {
-    /** `path` or `path:line`, relative to the repo root. */
-    file: string | null;
-    /** The violation. */
-    what: string;
-    /** Why the rule exists. */
-    why: string;
-}
-
 /** The auth surface: the files the credential rules read, and the names inside them. */
-export interface AuthSurface {
+type AuthSurface = {
     /** Where the refresh cookie is set. */
     cookieFile: string;
     /** The function header, when it is not `function setRefreshCookie`. */
@@ -53,9 +44,9 @@ export interface AuthSurface {
     escapeHtmlFile?: string;
     /** Password reset, and the config key holding its TTL. Omit where there is no reset flow. */
     passwordReset?: { file: string; ttlKey: string };
-}
+};
 
-export interface SecurityDriftInput {
+type SecurityDriftInput = {
     root: string;
     /** The Express entry: helmet, cors, trust proxy, the timeouts, the mounts. */
     entry: string;
@@ -82,16 +73,16 @@ export interface SecurityDriftInput {
     credentials?: string[];
     /** Calls that make a credential safe to store. Defaults cover blind indexes and hashes. */
     derivations?: string[];
-}
+};
 
-export interface SecurityDriftInspection {
-    problems: SecurityProblem[];
+type SecurityDriftInspection = {
+    problems: GateFailure[];
     counts: { backend: number; frontend: number; locations: number; throttleCalls: number };
-}
+};
 
-export interface SecurityDriftOptions extends Omit<SecurityDriftInput, 'root'> {
+export type SecurityDriftOptions = Omit<SecurityDriftInput, 'root'> & {
     root?: string;
-}
+};
 
 /** OWASP's Argon2id floor. Raising these is fine; the gate only catches a fall. */
 const OWASP_ARGON2 = { memoryCost: 64 * 1024, timeCost: 3 };
@@ -219,7 +210,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
         derivations = DERIVATIONS,
     } = input;
 
-    const problems: SecurityProblem[] = [];
+    const problems: GateFailure[] = [];
     const fail = (file: string, what: string, why: string) => {
         problems.push({ file, what, why });
     };

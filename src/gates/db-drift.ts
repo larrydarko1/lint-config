@@ -18,19 +18,15 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural } from './report.ts';
+import { createGateReport, plural, type GateFailure } from './report.ts';
 
-export type DbProblem = {
-    /** The file the problem is in. */
-    file: string;
-    /** The violation. */
-    what: string;
-    /** Why the rule exists. */
-    why: string;
+export type DbDriftOptions = Omit<DbDriftInput, 'root'> & {
+    /** Defaults to the repository root. */
+    root?: string;
 };
 
 /** One entry of the index manifest, reduced to what this gate reads. */
-export type IndexSpec = {
+type IndexSpec = {
     collection: string;
     keys?: Record<string, unknown>;
     options?: { expireAfterSeconds?: number };
@@ -39,7 +35,7 @@ export type IndexSpec = {
 };
 
 /** A deployable process that holds a database connection. */
-export type DbService = {
+type DbService = {
     name: string;
     /** Its entry file, which must handle SIGTERM/SIGINT. */
     entry: string;
@@ -48,12 +44,12 @@ export type DbService = {
 };
 
 /** An ordered drain, from what produces work to what stores it. */
-export type DrainOrder = {
+type DrainOrder = {
     file: string;
     stages: { what: string; pattern: RegExp }[];
 };
 
-export type OpsOptions = {
+type OpsOptions = {
     /** Destructive scripts that must refuse to run when NODE_ENV=production. */
     productionRefusals?: string[];
     /** The wipe script: needs a TTY check and a prompt to type the database name. */
@@ -72,7 +68,7 @@ export type OpsOptions = {
     envLoader?: string;
 };
 
-export type BackupOptions = {
+type BackupOptions = {
     /** The restore-drill log. An untested backup is not a backup. */
     drills: string;
     /** The fixed-path manifest of the most recent backup. */
@@ -83,7 +79,7 @@ export type BackupOptions = {
     maxAgeDays?: number;
 };
 
-export type DbDriftInput = {
+type DbDriftInput = {
     /** Repository root; every path below is relative to it. */
     root: string;
     /** The index manifest — the one definition site. Imported, not parsed. */
@@ -127,8 +123,8 @@ export type DbDriftInput = {
     backups?: BackupOptions;
 };
 
-export type DbDriftInspection = {
-    problems: DbProblem[];
+type DbDriftInspection = {
+    problems: GateFailure[];
     /** Advisories that must never fail a build — a stale drill, a late backup. */
     warnings: string[];
     collections: string[];
@@ -136,10 +132,6 @@ export type DbDriftInspection = {
     migrations: number;
 };
 
-export type DbDriftOptions = Omit<DbDriftInput, 'root'> & {
-    /** Defaults to the repository root. */
-    root?: string;
-};
 
 /** Fields whose name says the index is meant to expire documents, not just sort them. */
 const DEFAULT_TTL_FIELDS = ['expiresAt', 'expireAt', 'expiresOn'];
@@ -242,7 +234,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
         backups,
     } = input;
 
-    const problems: DbProblem[] = [];
+    const problems: GateFailure[] = [];
     const warnings: string[] = [];
     const fail = (file: string, what: string, why: string) => {
         problems.push({ file, what, why });

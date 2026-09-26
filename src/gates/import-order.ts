@@ -20,9 +20,16 @@ import path from 'node:path';
 import { parse as parseSfc } from '@vue/compiler-sfc';
 import ts from 'typescript';
 
-export type ImportProblem = { line: number; message: string };
+export type ImportOrderOptions = {
+    /** The npm scope this monorepo's own packages use, e.g. `'@acme/'`. */
+    workspaceScope?: string;
+    /** tsconfig `paths` entries that look like packages but point into this repo. */
+    localAliases?: string[];
+};
 
-export type ImportAnalysis = {
+type ImportProblem = { line: number; message: string };
+
+type ImportAnalysis = {
     /** Every place the import run departs from canonical order, sorted by line. */
     problems: ImportProblem[];
     /** How many imports were in the leading run. */
@@ -31,15 +38,8 @@ export type ImportAnalysis = {
     fixed: string;
 };
 
-export type ImportOrderOptions = {
-    /** The npm scope this monorepo's own packages use, e.g. `'@acme/'`. */
-    workspaceScope?: string;
-    /** tsconfig `paths` entries that look like packages but point into this repo. */
-    localAliases?: string[];
-};
-
 /** Function-valued properties, not methods, so destructuring does not trip `unbound-method`. */
-export type ImportOrder = {
+type ImportOrder = {
     IMPORT_GROUPS: string[];
     /** `null` when the file is an SFC with no script block. */
     checkImportsInFile: (rel: string, root: string) => ImportAnalysis | null;

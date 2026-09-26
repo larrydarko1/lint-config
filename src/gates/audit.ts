@@ -10,18 +10,7 @@
 import { execFileSync } from 'node:child_process';
 
 import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural } from './report.ts';
-
-export type AllowlistEntry = {
-    /** The advisory, as a GHSA id — the last segment of the advisory URL. */
-    id: string;
-    /** The package npm reports it against. */
-    package: string;
-    /** Why it cannot be fixed here, AND why it is unreachable in this code. */
-    reason: string;
-    /** `YYYY-MM-DD`: when to look again. Past it, the gate fails. */
-    expires: string;
-};
+import { createGateReport, plural, type GateFailure } from './report.ts';
 
 export type AuditOptions = {
     /** Repository root; `npm audit` runs here. */
@@ -36,16 +25,21 @@ export type AuditOptions = {
     today?: string;
 };
 
-export type AuditProblem = {
-    /** The package the advisory is against, or null for a finding about the allowlist itself. */
-    file: string | null;
-    what: string;
-    why: string;
+type AllowlistEntry = {
+    /** The advisory, as a GHSA id — the last segment of the advisory URL. */
+    id: string;
+    /** The package npm reports it against. */
+    package: string;
+    /** Why it cannot be fixed here, AND why it is unreachable in this code. */
+    reason: string;
+    /** `YYYY-MM-DD`: when to look again. Past it, the gate fails. */
+    expires: string;
 };
 
-export type AuditInspection = {
+
+type AuditInspection = {
     /** Everything wrong, in report order. */
-    problems: AuditProblem[];
+    problems: GateFailure[];
     /** Advisories covered by a waiver still within its review date. */
     waived: number;
     /** Whether the audit itself completed. False means nothing was verified. */
@@ -105,7 +99,6 @@ function runAudit(root: string, omit: string[]): string {
 /**
  * The whole decision, separated from running `npm audit` and printing so it can be
  * tested against recorded JSON.
- *
  * @param [input.report] Parsed `npm audit --json`. Omit it to mean "the audit did not run".
  * @param [input.auditError] Why the audit did not run, when it did not.
  * @param [input.allowlist=[]]
@@ -128,7 +121,7 @@ export function inspectAudit(input: {
         today = new Date().toISOString().slice(0, 10),
     } = input;
 
-    const problems: AuditProblem[] = [];
+    const problems: GateFailure[] = [];
     const blocks = new Set(failSeverities);
 
     // Malformed waivers need no audit to report.

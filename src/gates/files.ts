@@ -6,14 +6,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export type PathFilter = RegExp | ((rel: string) => boolean);
-
 export type WalkOptions = {
     /** Keep only paths matching this. Defaults to every file. */
     match?: PathFilter;
     /** Drop paths matching this, applied after `match`. */
     exclude?: PathFilter;
 };
+
+type PathFilter = RegExp | ((rel: string) => boolean);
 
 const matches = (filter: PathFilter, rel: string): boolean =>
     filter instanceof RegExp ? filter.test(rel) : filter(rel);

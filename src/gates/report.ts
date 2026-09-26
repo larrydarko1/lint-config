@@ -18,7 +18,7 @@ export type GateReportOptions = {
     name: string;
 };
 
-export type GateResult = {
+type GateResult = {
     /** The one-line pass message: what the gate actually proved, with counts. */
     summary: string;
     /** What this gate cannot see, so a green tick is not mistaken for the whole standard. */
@@ -29,7 +29,7 @@ export type GateResult = {
  * Declared as properties holding functions rather than as methods: these are closures
  * with no `this`, and a method signature makes `unbound-method` flag every destructuring.
  */
-export type GateReport = {
+type GateReport = {
     fail: (file: string | null, what: string, why: string) => void;
     readonly count: number;
     readonly failures: GateFailure[];
@@ -66,7 +66,6 @@ export function createGateReport(options: GateReportOptions): GateReport {
 
         /**
          * Print the report and set the exit code. Always the last thing a gate does.
-         *
          * @param result.summary The one-line pass message: what the gate proved, with counts.
          * @param [result.notMachineChecked] What this gate cannot see, so a green
          *   tick is not mistaken for the whole standard.

@@ -14,24 +14,6 @@ import { packageBin } from './bin.ts';
 import { REPO_ROOT } from './repo-root.ts';
 import { createGateReport } from './report.ts';
 
-export type DeadCodeCategory = { label: string; fix: string };
-
-/** One knip finding, flattened. `name === file` means the whole file is unused. */
-export type DeadCodeHit = { file: string; name: string; line: number | undefined };
-
-export type KnipItem = { name: string; line?: number };
-
-/** knip --reporter json, reduced to what this gate reads. */
-export type KnipReport = { issues?: ({ file: string } & Record<string, unknown>)[] };
-
-export type KnipRunInput = {
-    root: string;
-    /** Absolute path to knip's bin script, run with `process.execPath`. */
-    bin: string;
-    include: string[];
-    extra?: string[] | undefined;
-};
-
 export type DeadCodeOptions = {
     root?: string;
     /** Max findings per category. Zero unless a backlog is still being cleared. */
@@ -41,6 +23,25 @@ export type DeadCodeOptions = {
     /** The runtime-reachability examples this repo would recognise. */
     notMachineChecked?: string;
 };
+
+type DeadCodeCategory = { label: string; fix: string };
+
+/** One knip finding, flattened. `name === file` means the whole file is unused. */
+type DeadCodeHit = { file: string; name: string; line: number | undefined };
+
+type KnipItem = { name: string; line?: number };
+
+/** knip --reporter json, reduced to what this gate reads. */
+type KnipReport = { issues?: ({ file: string } & Record<string, unknown>)[] };
+
+type KnipRunInput = {
+    root: string;
+    /** Absolute path to knip's bin script, run with `process.execPath`. */
+    bin: string;
+    include: string[];
+    extra?: string[] | undefined;
+};
+
 
 /** Every knip issue type this gate fails on, with its fix. Doubles as the `--include` list. */
 export const CATEGORIES: Record<string, DeadCodeCategory> = {
@@ -110,7 +111,7 @@ const where = ({ file, name, line }: DeadCodeHit): string =>
 const identity = ({ file, name }: DeadCodeHit): string => `${file}::${name}`;
 
 /** One knip run, flattened and bucketed by category. */
-export function runKnip(input: KnipRunInput): Record<string, DeadCodeHit[]> {
+function runKnip(input: KnipRunInput): Record<string, DeadCodeHit[]> {
     const { root, bin, include, extra = [] } = input;
     const args = ['--no-progress', '--reporter', 'json', '--tags=-public', '--include', include.join(','), ...extra];
 

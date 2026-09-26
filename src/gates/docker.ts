@@ -30,23 +30,9 @@ import path from 'node:path';
 import YAML from 'yaml';
 
 import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural } from './report.ts';
+import { createGateReport, plural, type GateFailure } from './report.ts';
 
-export type DockerProblem = {
-    /** `path`, or null for a finding that belongs to no single file. */
-    file: string | null;
-    what: string;
-    why: string;
-};
-
-export type GlibcImage = {
-    /** The Dockerfile, as a repo-relative path (`docker/worker.Dockerfile`). */
-    file: string;
-    /** Which native module needs glibc, and how it fails on musl. Printed on failure. */
-    why: string;
-};
-
-export type DockerInput = {
+export type DockerOptions = {
     root?: string;
     /** Where the Dockerfiles live. `*.Dockerfile` and a plain `Dockerfile` are read. Defaults to `docker`. */
     dockerDir?: string;
@@ -68,12 +54,18 @@ export type DockerInput = {
     glibc?: GlibcImage[];
 };
 
-export type DockerInspection = {
-    problems: DockerProblem[];
-    counts: { images: number; stages: number; nodeMajor: string | null };
+type GlibcImage = {
+    /** The Dockerfile, as a repo-relative path (`docker/worker.Dockerfile`). */
+    file: string;
+    /** Which native module needs glibc, and how it fails on musl. Printed on failure. */
+    why: string;
 };
 
-export type DockerOptions = DockerInput;
+
+type DockerInspection = {
+    problems: GateFailure[];
+    counts: { images: number; stages: number; nodeMajor: string | null };
+};
 
 /** Bases that run unprivileged by construction, so no USER is needed. */
 const NONROOT_BASES = [/^nginxinc\/nginx-unprivileged(:|$)/];
@@ -200,7 +192,7 @@ function assignments(args: string): [string, string][] {
     ]);
 }
 
-export function inspectDocker(input: DockerInput): DockerInspection {
+export function inspectDocker(input: DockerOptions): DockerInspection {
     const {
         root = REPO_ROOT,
         dockerDir = 'docker',
@@ -214,7 +206,7 @@ export function inspectDocker(input: DockerInput): DockerInspection {
         glibc = [],
     } = input;
 
-    const problems: DockerProblem[] = [];
+    const problems: GateFailure[] = [];
     const fail = (file: string | null, what: string, why: string) => {
         problems.push({ file, what, why });
     };
@@ -676,9 +668,9 @@ export function inspectDocker(input: DockerInput): DockerInspection {
     };
 }
 
-export function checkDocker({ root = REPO_ROOT, ...rest }: DockerOptions): void {
+export function checkDocker(options: DockerOptions): void {
     const report = createGateReport({ name: 'Docker' });
-    const { problems, counts } = inspectDocker({ root, ...rest });
+    const { problems, counts } = inspectDocker(options);
 
     for (const { file, what, why } of problems) report.fail(file, what, why);
 

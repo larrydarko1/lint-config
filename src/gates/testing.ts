@@ -18,37 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural } from './report.ts';
-
-/** Where this project put its suites. The pattern is data; the rule is the same either way. */
-export type TestLayout =
-    | { kind: 'colocated' }
-    | {
-          kind: 'mirrored';
-          /** The tree the suites live in, e.g. `tests`. */
-          root: string;
-          /** The `src/` directories it mirrors one-for-one. Omit to allow any. */
-          areas?: string[];
-      };
-
-/** Where the E2E suite lives, or `false` where there deliberately is none. */
-export type E2eLayout = false | { dir: string; config: string };
-
-export type CoverageThresholds = {
-    statements: number;
-    branches: number;
-    functions: number;
-    lines: number;
-};
-
-export type DomEnvironment = {
-    /** The environment the standard names, e.g. `jsdom`. */
-    name: string;
-    /** The config that sets it. */
-    config: string;
-    /** A named Vitest project inside that config, where the config has more than one. */
-    project?: string;
-};
+import { createGateReport, plural, type GateFailure } from './report.ts';
 
 export type TestingOptions = {
     root?: string;
@@ -66,16 +36,41 @@ export type TestingOptions = {
     vmBaseline?: number;
 };
 
-export type TestingInput = TestingOptions & { root: string };
 
-export type TestingProblem = {
-    file: string;
-    what: string;
-    why: string;
+/** Where this project put its suites. The pattern is data; the rule is the same either way. */
+type TestLayout =
+    | { kind: 'colocated' }
+    | {
+          kind: 'mirrored';
+          /** The tree the suites live in, e.g. `tests`. */
+          root: string;
+          /** The `src/` directories it mirrors one-for-one. Omit to allow any. */
+          areas?: string[];
+      };
+
+/** Where the E2E suite lives, or `false` where there deliberately is none. */
+type E2eLayout = false | { dir: string; config: string };
+
+type CoverageThresholds = {
+    statements: number;
+    branches: number;
+    functions: number;
+    lines: number;
 };
 
-export type TestingInspection = {
-    problems: TestingProblem[];
+type DomEnvironment = {
+    /** The environment the standard names, e.g. `jsdom`. */
+    name: string;
+    /** The config that sets it. */
+    config: string;
+    /** A named Vitest project inside that config, where the config has more than one. */
+    project?: string;
+};
+
+type TestingInput = TestingOptions & { root: string };
+
+type TestingInspection = {
+    problems: GateFailure[];
     /** `.test.ts` files found. */
     suites: number;
     /** `.spec.ts` / `.spec.js` files found. */
@@ -87,14 +82,14 @@ export type TestingInspection = {
     haveCoverage: boolean;
 };
 
-export type HygieneRule = {
+type HygieneRule = {
     re: RegExp;
     what: string;
     why: string;
 };
 
 /** The ways a suite goes wrong while every run stays green, so none of them announce themselves. */
-export const HYGIENE: HygieneRule[] = [
+const HYGIENE: HygieneRule[] = [
     {
         re: /^\s*(?:describe|it|test)\.only\b/,
         what: 'a parked `.only`',
@@ -177,7 +172,7 @@ export function inspectTesting(input: TestingInput): TestingInspection {
         vmBaseline = 0,
     } = input;
 
-    const problems: TestingProblem[] = [];
+    const problems: GateFailure[] = [];
     const fail = (file: string, what: string, why: string): void => {
         problems.push({ file, what, why });
     };

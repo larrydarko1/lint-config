@@ -23,37 +23,36 @@ import path from 'node:path';
 import YAML from 'yaml';
 
 import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural } from './report.ts';
+import { createGateReport, plural, type GateFailure } from './report.ts';
 import { stripComments } from './strip-comments.ts';
 
-export interface MetricProblem {
-    file: string | null;
-    what: string;
-    why: string;
-}
+export type MetricsOptions = Omit<MetricsInput, 'root'> & {
+    root?: string;
+};
 
-export type Labels = Record<string, string>;
 
-export interface K8sPort {
+type Labels = Record<string, string>;
+
+type K8sPort = {
     name?: string;
     port?: number;
     targetPort?: number | string;
     containerPort?: number;
-}
+};
 
-export interface Probe {
+type Probe = {
     exec?: { command?: string[] };
     httpGet?: { path?: string; port?: number | string };
-}
+};
 
-export interface Container {
+type Container = {
     name?: string;
     ports?: K8sPort[];
     livenessProbe?: Probe;
     readinessProbe?: Probe;
-}
+};
 
-export interface K8sDoc {
+type K8sDoc = {
     kind?: string;
     metadata?: { name?: string; labels?: Labels };
     spec?: {
@@ -66,16 +65,16 @@ export interface K8sDoc {
         podSelector?: { matchLabels?: Labels };
         ingress?: { from?: { namespaceSelector?: { matchLabels?: Labels } }[]; ports?: K8sPort[] }[];
     };
-}
+};
 
-export interface Resource {
+type Resource = {
     rel: string;
     kind: string;
     name: string;
     doc: K8sDoc;
-}
+};
 
-export interface ScrapeTarget {
+type ScrapeTarget = {
     monitor: Resource;
     service: Resource;
     deployment: Resource;
@@ -84,16 +83,16 @@ export interface ScrapeTarget {
     port: number | undefined;
     path: string;
     interval: string | undefined;
-}
+};
 
 /** A handler read out of a source file by pattern, so a rewrite is reported rather than passed. */
-export interface Handler {
+type Handler = {
     file: string;
     /** Defaults to the Express `app.get('/livez', …)` / `app.get('/healthz', …)` shape. */
     pattern?: RegExp;
-}
+};
 
-export interface MetricsInput {
+type MetricsInput = {
     root: string;
     /** The manifest directory, walked recursively; `kustomization.yaml` is skipped. */
     manifests: string;
@@ -123,16 +122,12 @@ export interface MetricsInput {
     headlessServices?: string[];
     /** Extra unbounded label names, beyond the built-in list. */
     unboundedLabels?: string[];
-}
+};
 
-export interface MetricsInspection {
-    problems: MetricProblem[];
+type MetricsInspection = {
+    problems: GateFailure[];
     counts: { monitors: number; services: number; workloads: number; crdKinds: string[] };
-}
-
-export interface MetricsOptions extends Omit<MetricsInput, 'root'> {
-    root?: string;
-}
+};
 
 /** Kinds every cluster already knows. Anything else is a CRD CI has to install. */
 const CORE_KINDS = new Set([
@@ -216,7 +211,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
         unboundedLabels = [],
     } = input;
 
-    const problems: MetricProblem[] = [];
+    const problems: GateFailure[] = [];
     const fail = (file: string, what: string, why: string) => {
         problems.push({ file, what, why });
     };

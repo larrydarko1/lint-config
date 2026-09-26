@@ -21,18 +21,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural } from './report.ts';
+import { createGateReport, plural, type GateFailure } from './report.ts';
 import { callSites, declaredFunction, functionParts, splitTopLevel, type FunctionParts } from './source.ts';
 import { stripComments } from './strip-comments.ts';
 
-export type IpcProblem = {
-    /** `path` or `path:line`. */
-    file: string;
-    what: string;
-    why: string;
+export type IpcStandardsOptions = Omit<IpcStandardsInput, 'root'> & {
+    /** Default: the repo root. */
+    root?: string;
 };
 
-export type IpcStandardsInput = {
+type IpcStandardsInput = {
     root: string;
     /** Holds the "IPC handler ownership:" table and any inline handlers. Default `src/main/index.ts`. */
     mainIndex?: string;
@@ -46,15 +44,11 @@ export type IpcStandardsInput = {
     contractType?: string;
 };
 
-export type IpcStandardsInspection = {
-    problems: IpcProblem[];
+type IpcStandardsInspection = {
+    problems: GateFailure[];
     counts: { handlers: number; events: number; preloadChannels: number };
 };
 
-export type IpcStandardsOptions = Omit<IpcStandardsInput, 'root'> & {
-    /** Default: the repo root. */
-    root?: string;
-};
 
 /** A call that, given the argument, checks its type or value. */
 const VALIDATORS = [
@@ -116,7 +110,7 @@ export function inspectIpcStandards({
     contract = 'src/schemas/electron.d.ts',
     contractType = 'ElectronAPI',
 }: IpcStandardsInput): IpcStandardsInspection {
-    const problems: IpcProblem[] = [];
+    const problems: GateFailure[] = [];
     const fail: (file: string, what: string, why: string) => void = (file, what, why) =>
         problems.push({ file, what, why });
     const exists = (rel: string) => fs.existsSync(path.join(root, rel));

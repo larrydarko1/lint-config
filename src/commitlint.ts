@@ -1,6 +1,19 @@
 /** Conventional commits, with a narrowed type list and raised body length limits. */
 import { fileURLToPath } from 'node:url';
 
+export type CommitlintOptions = {
+    /** Warn (never block) when a subject describes two pieces of work ("fix X and also Y"). Defaults to true. */
+    subjectSingleWhy?: boolean;
+    /** Replace the allowed type list outright. */
+    types?: string[];
+    /** Defaults to 200. */
+    headerMaxLength?: number;
+    /** Defaults to 400. */
+    bodyMaxLineLength?: number;
+    /** Extra commitlint rules, merged last. */
+    rules?: Record<string, unknown>;
+};
+
 /** Resolved from here for the same reason as in stylelint.ts: so the project does not need its own copy. */
 const dep = (name: string) => fileURLToPath(import.meta.resolve(name));
 
@@ -36,14 +49,6 @@ const singleWhy = ({ subject }: { subject: string | null }): [boolean, string] =
     subject === null || !MULTI_WHY.some((p) => p.test(subject)),
     'subject names two pieces of work — a commit answers one "why". Consider splitting it; a refactor and the feature that uses it review far better apart.',
 ];
-
-export type CommitlintOptions = {
-    subjectSingleWhy?: boolean; // Warn (never block) when a subject describes two pieces of work ("fix X and also Y"). Defaults to true.
-    types?: string[]; // Replace the allowed type list outright.
-    headerMaxLength?: number; // Defaults to 200.
-    bodyMaxLineLength?: number; // Defaults to 400.
-    rules?: Record<string, unknown>; // Extra commitlint rules, merged last.
-};
 
 export function commitlint(options: CommitlintOptions = {}) {
     const {

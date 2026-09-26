@@ -17,19 +17,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport } from './report.ts';
+import { createGateReport, type GateFailure } from './report.ts';
 
-export type EnvProblem = {
-    /** `path` or `path:line`. */
-    file: string;
-    /** The violation. */
-    what: string;
-    /** Why the rule exists. */
-    why: string;
+export type EnvDriftOptions = Omit<EnvDriftInput, 'root'> & {
+    /** Defaults to the repository root. */
+    root?: string;
 };
 
 /** One deployable process: its schema, its documentation, and the env it boots with. */
-export type EnvService = {
+type EnvService = {
     /** How the service is named in output, e.g. `api`. */
     name: string;
     /** The config module holding the Zod schema, e.g. `api/src/lib/config.ts`. */
@@ -42,7 +38,7 @@ export type EnvService = {
     local?: string;
 };
 
-export type EnvDriftInput = {
+type EnvDriftInput = {
     /** Repository root; every path below is relative to it. */
     root: string;
     /** Every deployable process in the repo. */
@@ -67,16 +63,11 @@ export type EnvDriftInput = {
     businessDirs?: string[];
 };
 
-export type EnvDriftInspection = {
-    problems: EnvProblem[];
+type EnvDriftInspection = {
+    problems: GateFailure[];
     /** Advisories that must never fail a build — the local `.env`, and a rule that could not run. */
     warnings: string[];
     services: { name: string; keys: number }[];
-};
-
-export type EnvDriftOptions = Omit<EnvDriftInput, 'root'> & {
-    /** Defaults to the repository root. */
-    root?: string;
 };
 
 /** A key whose name says it holds a secret, by suffix: `SMTP_PASS`, `JWT_SECRET`. */
@@ -183,7 +174,7 @@ export function inspectEnvDrift(input: EnvDriftInput): EnvDriftInspection {
     } = input;
 
     const ignored = new Set(ignoredKeys);
-    const problems: EnvProblem[] = [];
+    const problems: GateFailure[] = [];
     const warnings: string[] = [];
     const fail = (file: string, what: string, why: string) => {
         problems.push({ file, what, why });

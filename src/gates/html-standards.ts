@@ -16,31 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural } from './report.ts';
-
-/** A presence check over the document shell. */
-export type HeadCheck = {
-    /** The tag, as it appears in the failure message. */
-    what: string;
-    re: RegExp;
-    why: string;
-};
-
-/** A project passes the keys it owes. */
-export type HeadRequirement =
-    | 'lang'
-    | 'charset'
-    | 'appMount'
-    | 'viewport'
-    | 'title'
-    | 'description'
-    | 'ogTitle'
-    | 'ogDescription'
-    | 'ogImage'
-    | 'canonical'
-    | 'twitterCard'
-    | 'themeColor'
-    | 'icon';
+import { createGateReport, plural, type GateFailure } from './report.ts';
 
 export type HtmlStandardsOptions = {
     root?: string;
@@ -56,16 +32,35 @@ export type HtmlStandardsOptions = {
     placeholderOrigin?: string;
 };
 
-export type HtmlStandardsInput = HtmlStandardsOptions & { root: string };
-
-export type HtmlStandardsProblem = {
-    file: string;
+/** A presence check over the document shell. */
+type HeadCheck = {
+    /** The tag, as it appears in the failure message. */
     what: string;
+    re: RegExp;
     why: string;
 };
 
-export type HtmlStandardsInspection = {
-    problems: HtmlStandardsProblem[];
+/** A project passes the keys it owes. */
+type HeadRequirement =
+    | 'lang'
+    | 'charset'
+    | 'appMount'
+    | 'viewport'
+    | 'title'
+    | 'description'
+    | 'ogTitle'
+    | 'ogDescription'
+    | 'ogImage'
+    | 'canonical'
+    | 'twitterCard'
+    | 'themeColor'
+    | 'icon';
+
+
+type HtmlStandardsInput = HtmlStandardsOptions & { root: string };
+
+type HtmlStandardsInspection = {
+    problems: GateFailure[];
     /** Non-failing notes, printed after the report. */
     warnings: string[];
     /** How many head requirements were asked for. */
@@ -142,7 +137,7 @@ export const HEAD_CHECKS: Record<HeadRequirement, HeadCheck> = {
 };
 
 /** Directives that must be present in a meta-tag CSP, locked to the value given. */
-export const CSP_REQUIRED: HeadCheck[] = [
+const CSP_REQUIRED: HeadCheck[] = [
     {
         what: "default-src 'self'",
         re: /default-src\s+'self'\s*(?:;|$)/,
@@ -171,7 +166,7 @@ export const CSP_REQUIRED: HeadCheck[] = [
 ];
 
 /** Values that must never appear. A CSP that was widened still parses. */
-export const CSP_BANNED: HeadCheck[] = [
+const CSP_BANNED: HeadCheck[] = [
     {
         what: "'unsafe-eval'",
         re: /'unsafe-eval'/,
@@ -208,7 +203,7 @@ export function entryPath(src: string, indexHtml: string): string {
 export function inspectHtmlStandards(input: HtmlStandardsInput): HtmlStandardsInspection {
     const { root, indexHtml, baseScss, require: required = [], csp = false, placeholderOrigin } = input;
 
-    const problems: HtmlStandardsProblem[] = [];
+    const problems: GateFailure[] = [];
     const warnings: string[] = [];
     const fail = (file: string, what: string, why: string): void => {
         problems.push({ file, what, why });

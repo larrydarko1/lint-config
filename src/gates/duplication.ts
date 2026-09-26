@@ -21,39 +21,6 @@ import { walkFiles } from './files.ts';
 import { REPO_ROOT } from './repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './report.ts';
 
-export type Ceiling = {
-    /** Percentage of duplicated tokens this format may not exceed. */
-    limit: number;
-    /** Why this format's number is where it is. Printed as the failure's reason. */
-    note?: string;
-};
-
-export type CrossCloneAllowance = {
-    /** The two repo-relative paths, in either order. */
-    files: [string, string];
-    /** What makes the two copies composition rather than logic. */
-    why: string;
-};
-
-/** jscpd's JSON report, reduced to what this gate reads. */
-export type CloneLocation = { name: string; start: number; end: number };
-
-export type Clone = {
-    format: string;
-    lines: number;
-    tokens: number;
-    firstFile: CloneLocation;
-    secondFile: CloneLocation;
-};
-
-export type JscpdReport = {
-    duplicates: Clone[];
-    statistics: {
-        formats: Record<string, { percentageTokens: number; clones: number } | undefined>;
-        total: { clones: number };
-    };
-};
-
 export type DuplicationOptions = {
     /** Repository root. Defaults to the repo this runs in. */
     root?: string;
@@ -73,9 +40,43 @@ export type DuplicationOptions = {
     ignoreDirs?: string[];
 };
 
-export type TypeDeclaration = { root: string; where: string };
+type Ceiling = {
+    /** Percentage of duplicated tokens this format may not exceed. */
+    limit: number;
+    /** Why this format's number is where it is. Printed as the failure's reason. */
+    note?: string;
+};
 
-export type DuplicationInput = {
+type CrossCloneAllowance = {
+    /** The two repo-relative paths, in either order. */
+    files: [string, string];
+    /** What makes the two copies composition rather than logic. */
+    why: string;
+};
+
+/** jscpd's JSON report, reduced to what this gate reads. */
+type CloneLocation = { name: string; start: number; end: number };
+
+type Clone = {
+    format: string;
+    lines: number;
+    tokens: number;
+    firstFile: CloneLocation;
+    secondFile: CloneLocation;
+};
+
+type JscpdReport = {
+    duplicates: Clone[];
+    statistics: {
+        formats: Record<string, { percentageTokens: number; clones: number } | undefined>;
+        total: { clones: number };
+    };
+};
+
+
+type TypeDeclaration = { root: string; where: string };
+
+type DuplicationInput = {
     root: string;
     /** The run over every scan root at once. */
     report: JscpdReport;
@@ -89,7 +90,7 @@ export type DuplicationInput = {
     crossCloneAllowed?: CrossCloneAllowance[];
 };
 
-export type DuplicationInspection = {
+type DuplicationInspection = {
     problems: GateFailure[];
     /** How many distinct exported type names were seen. */
     types: number;

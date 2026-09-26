@@ -19,25 +19,8 @@ import path from 'node:path';
 
 import { walkFiles } from './files.ts';
 import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural } from './report.ts';
+import { createGateReport, plural, type GateFailure } from './report.ts';
 import { stripComments } from './strip-comments.ts';
-
-export type CaseStyle = 'kebab' | 'camel' | 'pascal';
-
-export type CasingRule = {
-    /** Tested against the repo-relative path. First matching rule wins; an unmatched file is unchecked. */
-    files: RegExp;
-    style: CaseStyle;
-    /** Paths this rule does not apply to — an upstream naming convention, or a framework-fixed name. */
-    exempt?: RegExp;
-};
-
-export type HeaderRule = {
-    /** Tested against the repo-relative path. First matching rule wins. */
-    files: RegExp;
-    /** `jsdoc` a `/** ... *\/` block, `comment` any leading comment, `none` a BAN on one. */
-    require: 'jsdoc' | 'comment' | 'none';
-};
 
 export type CodeStyleOptions = {
     root?: string;
@@ -54,12 +37,28 @@ export type CodeStyleOptions = {
     globalStyles?: string[];
 };
 
-export type CodeStyleInput = Omit<CodeStyleOptions, 'root'> & { root: string };
+type CaseStyle = 'kebab' | 'camel' | 'pascal';
 
-export type CodeStyleProblem = { file: string; what: string; why: string };
+type CasingRule = {
+    /** Tested against the repo-relative path. First matching rule wins; an unmatched file is unchecked. */
+    files: RegExp;
+    style: CaseStyle;
+    /** Paths this rule does not apply to — an upstream naming convention, or a framework-fixed name. */
+    exempt?: RegExp;
+};
 
-export type CodeStyleInspection = {
-    problems: CodeStyleProblem[];
+type HeaderRule = {
+    /** Tested against the repo-relative path. First matching rule wins. */
+    files: RegExp;
+    /** `jsdoc` a `/** ... *\/` block, `comment` any leading comment, `none` a BAN on one. */
+    require: 'jsdoc' | 'comment' | 'none';
+};
+
+
+type CodeStyleInput = Omit<CodeStyleOptions, 'root'> & { root: string };
+
+type CodeStyleInspection = {
+    problems: GateFailure[];
     /** Source files examined — `.ts`/`.tsx`/`.vue`, excluding specs and ambient declarations. */
     files: number;
     baselined: number;
@@ -129,7 +128,7 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
         globalStyles = [],
     } = input;
 
-    const problems: CodeStyleProblem[] = [];
+    const problems: GateFailure[] = [];
     const fail = (file: string, what: string, why: string): void => {
         problems.push({ file, what, why });
     };

@@ -1,6 +1,6 @@
 /**
  * REST API architecture: the route map, the middleware order and the limiter contract.
- *
+ * ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1. Each router's JSDoc route map matches its declarations, both ways.
  *   2. Route paths name resources, not the verb the method already says.
  *   3. Routes stay thin: no direct database access.
@@ -11,7 +11,6 @@
  *   7. The token-bucket contract, and no fixed-window limiter library beside it.
  *   8. Pagination is capped through the shared schema, never raw `parseInt` on `req.query`.
  *   9. CORS credentials on both the server and the shared client instance.
- *
  * Also: `optionalAuth` before the limited mounts (they key on `req.userId`), and no
  * `{ ok: true, data }` success envelope.
  */
@@ -20,17 +19,11 @@ import path from 'node:path';
 
 import { walkFiles } from './files.ts';
 import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural } from './report.ts';
+import { createGateReport, plural, type GateFailure } from './report.ts';
 import { callArgs, callSites } from './source.ts';
 import { stripComments } from './strip-comments.ts';
 
-export interface ApiProblem {
-    file: string | null;
-    what: string;
-    why: string;
-}
-
-export interface ApiStandardsInput {
+export type ApiStandardsOptions = {
     /** Repository root. Defaults to the nearest ancestor holding a package.json. */
     root?: string;
     /** The directory of router files, each opening with its JSDoc route map. */
@@ -41,7 +34,7 @@ export interface ApiStandardsInput {
     rateLimiters: string;
     /** The module holding the atomic Redis Lua bucket. */
     tokenBucket: string;
-    /** The shared Zod schemas, where `makePaginationQuery` lives. */
+    /** The shared Zod schemas. */
     schemas: string;
     /** The frontend HTTP client, which carries the other half of `credentials: true`. */
     apiClient?: string;
@@ -55,16 +48,12 @@ export interface ApiStandardsInput {
     optionalAuth?: string;
     /** What builds the shared client instance. Defaults to `axios.create(`. */
     clientFactory?: string;
-}
+};
 
-export interface ApiStandardsInspection {
-    problems: ApiProblem[];
+type ApiStandardsInspection = {
+    problems: GateFailure[];
     counts: { routes: number; files: number; mounts: number };
-}
-
-export interface ApiStandardsOptions extends Omit<ApiStandardsInput, 'root'> {
-    root?: string;
-}
+};
 
 /** The three tiers the standard names. A repo with more states its own list. */
 const DEFAULT_TIERS = ['strictLimiter', 'standardLimiter', 'relaxedLimiter'];
@@ -82,7 +71,7 @@ const ROUTE_DECLARATION = /^router\.(get|post|put|patch|delete)\(\s*\n?\s*'([^']
 const ROUTE_DOCUMENTATION = /^\s*\*\s+(GET|POST|PUT|PATCH|DELETE)\s+(\/\S*)/gm;
 
 /** Every problem found, without printing. */
-export function inspectApiStandards(input: ApiStandardsInput): ApiStandardsInspection {
+export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsInspection {
     const {
         root = REPO_ROOT,
         routesDir,
@@ -98,7 +87,7 @@ export function inspectApiStandards(input: ApiStandardsInput): ApiStandardsInspe
         clientFactory = 'axios.create(',
     } = input;
 
-    const problems: ApiProblem[] = [];
+    const problems: GateFailure[] = [];
     const fail = (file: string | null, what: string, why: string) => {
         problems.push({ file, what, why });
     };
@@ -439,9 +428,9 @@ export function inspectApiStandards(input: ApiStandardsInput): ApiStandardsInspe
 }
 
 /** Run the gate and print. */
-export function checkApiStandards({ root = REPO_ROOT, ...rest }: ApiStandardsOptions): void {
+export function checkApiStandards(options: ApiStandardsOptions): void {
     const report = createGateReport({ name: 'REST API standards' });
-    const { problems, counts } = inspectApiStandards({ root, ...rest });
+    const { problems, counts } = inspectApiStandards(options);
 
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
