@@ -25,9 +25,9 @@ import path from 'node:path';
 import { parse as parseSfc } from '@vue/compiler-sfc';
 import ts from 'typescript';
 
-import { walkFiles } from './files.ts';
+import { walkFiles } from './lib/files.ts';
 import { createImportOrder, type ImportOrderOptions } from './import-order.ts';
-import { REPO_ROOT } from './repo-root.ts';
+import { REPO_ROOT } from './lib/repo-root.ts';
 
 export type DeclarationOrderOptions = {
     /** Repository root. Defaults to the caller's repo root. */

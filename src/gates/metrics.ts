@@ -22,9 +22,9 @@ import path from 'node:path';
 
 import YAML from 'yaml';
 
-import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './report.ts';
-import { stripComments } from './strip-comments.ts';
+import { REPO_ROOT } from './lib/repo-root.ts';
+import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { stripComments } from './lib/strip-comments.ts';
 
 export type MetricsOptions = Omit<MetricsInput, 'root'> & {
     root?: string;

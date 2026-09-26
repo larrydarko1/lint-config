@@ -10,9 +10,9 @@
  */
 import { execFileSync } from 'node:child_process';
 
-import { packageBin } from './bin.ts';
-import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport } from './report.ts';
+import { packageBin } from './lib/bin.ts';
+import { REPO_ROOT } from './lib/repo-root.ts';
+import { createGateReport } from './lib/report.ts';
 
 export type DeadCodeOptions = {
     root?: string;

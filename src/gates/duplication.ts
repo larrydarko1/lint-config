@@ -16,10 +16,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { packageBin } from './bin.ts';
-import { walkFiles } from './files.ts';
-import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './report.ts';
+import { packageBin } from './lib/bin.ts';
+import { walkFiles } from './lib/files.ts';
+import { REPO_ROOT } from './lib/repo-root.ts';
+import { createGateReport, plural, type GateFailure } from './lib/report.ts';
 
 export type DuplicationOptions = {
     /** Repository root. Defaults to the repo this runs in. */

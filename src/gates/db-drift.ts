@@ -17,8 +17,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './report.ts';
+import { REPO_ROOT } from './lib/repo-root.ts';
+import { createGateReport, plural, type GateFailure } from './lib/report.ts';
 
 export type DbDriftOptions = Omit<DbDriftInput, 'root'> & {
     /** Defaults to the repository root. */

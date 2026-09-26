@@ -84,10 +84,6 @@
             "types": "./dist/gates/error-handling/fullstack.d.ts",
             "default": "./dist/gates/error-handling/fullstack.js"
         },
-        "./gates/files": {
-            "types": "./dist/gates/files.d.ts",
-            "default": "./dist/gates/files.js"
-        },
         "./gates/html-standards": {
             "types": "./dist/gates/html-standards.d.ts",
             "default": "./dist/gates/html-standards.js"
@@ -103,6 +99,26 @@
         "./gates/ipc-standards": {
             "types": "./dist/gates/ipc-standards.d.ts",
             "default": "./dist/gates/ipc-standards.js"
+        },
+        "./gates/lib/files": {
+            "types": "./dist/gates/lib/files.d.ts",
+            "default": "./dist/gates/lib/files.js"
+        },
+        "./gates/lib/repo-root": {
+            "types": "./dist/gates/lib/repo-root.d.ts",
+            "default": "./dist/gates/lib/repo-root.js"
+        },
+        "./gates/lib/report": {
+            "types": "./dist/gates/lib/report.d.ts",
+            "default": "./dist/gates/lib/report.js"
+        },
+        "./gates/lib/source": {
+            "types": "./dist/gates/lib/source.d.ts",
+            "default": "./dist/gates/lib/source.js"
+        },
+        "./gates/lib/strip-comments": {
+            "types": "./dist/gates/lib/strip-comments.d.ts",
+            "default": "./dist/gates/lib/strip-comments.js"
         },
         "./gates/metrics": {
             "types": "./dist/gates/metrics.d.ts",
@@ -120,14 +136,6 @@
             "types": "./dist/gates/refactoring.d.ts",
             "default": "./dist/gates/refactoring.js"
         },
-        "./gates/repo-root": {
-            "types": "./dist/gates/repo-root.d.ts",
-            "default": "./dist/gates/repo-root.js"
-        },
-        "./gates/report": {
-            "types": "./dist/gates/report.d.ts",
-            "default": "./dist/gates/report.js"
-        },
         "./gates/scss-standards": {
             "types": "./dist/gates/scss-standards.d.ts",
             "default": "./dist/gates/scss-standards.js"
@@ -135,14 +143,6 @@
         "./gates/security-drift": {
             "types": "./dist/gates/security-drift.d.ts",
             "default": "./dist/gates/security-drift.js"
-        },
-        "./gates/source": {
-            "types": "./dist/gates/source.d.ts",
-            "default": "./dist/gates/source.js"
-        },
-        "./gates/strip-comments": {
-            "types": "./dist/gates/strip-comments.d.ts",
-            "default": "./dist/gates/strip-comments.js"
         },
         "./gates/swallowed-errors": {
             "types": "./dist/gates/swallowed-errors.d.ts",

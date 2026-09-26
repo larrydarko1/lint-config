@@ -1,7 +1,7 @@
 /**
  * `npm audit` with a reviewed allowlist. High and critical advisories fail unless
  * their GHSA is waived with a reason and a review date. The build also fails on:
- *
+ * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   - a waiver past its review date;
  *   - a waiver npm no longer reports at any severity (the fix shipped);
  *   - a waiver missing any of its four fields;
@@ -9,8 +9,8 @@
  */
 import { execFileSync } from 'node:child_process';
 
-import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './report.ts';
+import { REPO_ROOT } from './lib/repo-root.ts';
+import { createGateReport, plural, type GateFailure } from './lib/report.ts';
 
 export type AuditOptions = {
     /** Repository root; `npm audit` runs here. */

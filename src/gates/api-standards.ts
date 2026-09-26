@@ -17,11 +17,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { walkFiles } from './files.ts';
-import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './report.ts';
-import { callArgs, callSites } from './source.ts';
-import { stripComments } from './strip-comments.ts';
+import { walkFiles } from './lib/files.ts';
+import { REPO_ROOT } from './lib/repo-root.ts';
+import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { callArgs, callSites } from './lib/source.ts';
+import { stripComments } from './lib/strip-comments.ts';
 
 export type ApiStandardsOptions = {
     /** Repository root. Defaults to the nearest ancestor holding a package.json. */

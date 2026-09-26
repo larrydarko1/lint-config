@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { REPO_ROOT } from './repo-root.ts';
+import { REPO_ROOT } from './lib/repo-root.ts';
 
 export type I18nGateOptions = {
     /** Locale folder, relative to `root`. */

@@ -6,8 +6,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import type { GateFailure } from './report.ts';
-import { stripComments } from './strip-comments.ts';
+import type { GateFailure } from './lib/report.ts';
+import { stripComments } from './lib/strip-comments.ts';
 
 export type SwallowScanOptions = {
     /** Repository root. */

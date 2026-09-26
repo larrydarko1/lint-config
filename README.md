@@ -231,8 +231,9 @@ its source roots, its services, and exceptions it has approved, each with a stat
 pass or fail. List `vue` in `.jscpd.json` and jscpd reports template markup as `html` on its own.
 Don't list `html` there, because jscpd rejects it.
 
-`repo-root`, `strip-comments`, `source`, `files` and `report` are the helpers the gates are built
-from, and they are exported for your own gates.
+`gates/lib/repo-root`, `gates/lib/strip-comments`, `gates/lib/source`, `gates/lib/files` and
+`gates/lib/report` are the helpers the gates are built from, and they are exported for your own
+gates.
 
 ## The toolchain
 

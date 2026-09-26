@@ -16,8 +16,8 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, type GateFailure } from './report.ts';
+import { REPO_ROOT } from './lib/repo-root.ts';
+import { createGateReport, type GateFailure } from './lib/report.ts';
 
 export type EnvDriftOptions = Omit<EnvDriftInput, 'root'> & {
     /** Defaults to the repository root. */

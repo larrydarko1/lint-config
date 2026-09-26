@@ -30,8 +30,8 @@ import path from 'node:path';
 
 import YAML from 'yaml';
 
-import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural } from './report.ts';
+import { REPO_ROOT } from './lib/repo-root.ts';
+import { createGateReport, plural } from './lib/report.ts';
 
 /*
  * Parsed YAML is whatever the file says. Only the containers the gate walks through are

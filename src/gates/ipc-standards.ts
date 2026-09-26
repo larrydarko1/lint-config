@@ -20,10 +20,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './report.ts';
-import { callSites, declaredFunction, functionParts, splitTopLevel, type FunctionParts } from './source.ts';
-import { stripComments } from './strip-comments.ts';
+import { REPO_ROOT } from './lib/repo-root.ts';
+import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { callSites, declaredFunction, functionParts, splitTopLevel, type FunctionParts } from './lib/source.ts';
+import { stripComments } from './lib/strip-comments.ts';
 
 export type IpcStandardsOptions = Omit<IpcStandardsInput, 'root'> & {
     /** Default: the repo root. */

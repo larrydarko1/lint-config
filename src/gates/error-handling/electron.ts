@@ -11,10 +11,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { walkFiles } from '../files.ts';
-import { REPO_ROOT } from '../repo-root.ts';
-import { createGateReport, plural } from '../report.ts';
-import { stripComments } from '../strip-comments.ts';
+import { walkFiles } from '../lib/files.ts';
+import { REPO_ROOT } from '../lib/repo-root.ts';
+import { createGateReport, plural } from '../lib/report.ts';
+import { stripComments } from '../lib/strip-comments.ts';
 import { countSwallows, findSwallowedErrors } from '../swallowed-errors.ts';
 
 export type ElectronErrorHandlingOptions = {

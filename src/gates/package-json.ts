@@ -13,8 +13,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { PROJECT_CLIS, SELF_NAME, providedPackages } from '../toolchain.ts';
-import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, type GateFailure } from './report.ts';
+import { REPO_ROOT } from './lib/repo-root.ts';
+import { createGateReport, type GateFailure } from './lib/report.ts';
 
 export type PackageJsonOptions = {
     /** Defaults to the repo root resolved from the process cwd. */

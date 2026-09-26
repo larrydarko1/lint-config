@@ -3,24 +3,22 @@
  * exporting its own name, the line softcap, public before private, headers, SFC
  * block order and attributes, comment format per block, no JSDoc type tags, and no
  * relative imports where an alias resolves.
- *
- * Conventions are per-project data (`casing`, `headers`, `lineCap`, `baseline`,
+ * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+ * - Conventions are per-project data (`casing`, `headers`, `lineCap`, `baseline`,
  * `aliasedRoots`); an unmatched file is deliberately unconstrained.
- *
- * The softcap is a ratchet: files already over it are listed in `baseline` at their
+ * - The softcap is a ratchet: files already over it are listed in `baseline` at their
  * size and fail only if they grow. An entry back under the cap, or naming a missing
  * file, fails too. Size is non-blank lines excluding an SFC's `<style>` block, as the
  * standard defines it.
- *
- * Not checked: tests and ambient `.d.ts` files.
+ * - Not checked: tests and ambient `.d.ts` files.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { walkFiles } from './files.ts';
-import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './report.ts';
-import { stripComments } from './strip-comments.ts';
+import { walkFiles } from './lib/files.ts';
+import { REPO_ROOT } from './lib/repo-root.ts';
+import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { stripComments } from './lib/strip-comments.ts';
 
 export type CodeStyleOptions = {
     root?: string;

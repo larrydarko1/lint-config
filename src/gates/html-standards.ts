@@ -15,8 +15,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './report.ts';
+import { REPO_ROOT } from './lib/repo-root.ts';
+import { createGateReport, plural, type GateFailure } from './lib/report.ts';
 
 export type HtmlStandardsOptions = {
     root?: string;

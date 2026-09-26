@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { packageBin } from '../src/gates/bin.ts';
+import { packageBin } from '../src/gates/lib/bin.ts';
 import { knip } from '../src/knip.ts';
 
 /**

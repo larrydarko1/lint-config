@@ -9,10 +9,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { REPO_ROOT } from './repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './report.ts';
-import { braceBlock, callArgs, catchBodies, evalProduct, fnBody } from './source.ts';
-import { stripComments } from './strip-comments.ts';
+import { REPO_ROOT } from './lib/repo-root.ts';
+import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { braceBlock, callArgs, catchBodies, evalProduct, fnBody } from './lib/source.ts';
+import { stripComments } from './lib/strip-comments.ts';
 
 /** The auth surface: the files the credential rules read, and the names inside them. */
 type AuthSurface = {

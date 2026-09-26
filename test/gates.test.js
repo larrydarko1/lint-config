@@ -10,10 +10,10 @@ import { existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { packageBin } from '../src/gates/bin.ts';
-import { stripComments } from '../src/gates/strip-comments.ts';
+import { packageBin } from '../src/gates/lib/bin.ts';
+import { stripComments } from '../src/gates/lib/strip-comments.ts';
 import { createImportOrder } from '../src/gates/import-order.ts';
-import { findRepoRoot } from '../src/gates/repo-root.ts';
+import { findRepoRoot } from '../src/gates/lib/repo-root.ts';
 import {
     braceBlock,
     callArgs,
@@ -26,7 +26,7 @@ import {
     functionParts,
     propertyValue,
     splitTopLevel,
-} from '../src/gates/source.ts';
+} from '../src/gates/lib/source.ts';
 
 test('stripComments blanks comments and keeps every offset', () => {
     const src = 'const a = 1; // note\n/* block */ const b = 2;\n';
