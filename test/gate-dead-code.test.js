@@ -1,13 +1,11 @@
 /**
  * The dead-code gate, against crafted knip reports.
- *
- * knip itself is not under test here — it is a well-tested binary, and pointing it
+ * - knip itself is not under test here — it is a well-tested binary, and pointing it
  * at a fixture repository would test its resolution rather than this gate's rules.
  * What IS this gate is everything around the run: how a report is flattened, how the
  * two passes are combined, and which categories are counted. Those are the parts
  * that drifted between the five copies, so those are the parts with tests.
- *
- * The two-pass tests are the ones worth reading. The second pass exists because
+ * - The two-pass tests are the ones worth reading. The second pass exists because
  * knip's default graph counts a test file as a consumer, so an export that only its
  * own test imports looks alive — and it is subtracted from the first pass so one
  * dead export is not reported twice under two different names.

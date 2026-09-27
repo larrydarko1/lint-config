@@ -4,7 +4,6 @@
  * "@larrydarko/lint-config/prettier"` in package.json, a commitlint or stylelint
  * `extends`, a lint-staged config that is a one-line re-export. Those four also
  * export the factory by name, so a project with options never touches `default`.
- *
  * This package does not lint itself, so this is the check that holds the line.
  */
 import { test } from 'node:test';

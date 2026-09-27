@@ -1,7 +1,6 @@
 /**
  * The duplication gate's rules, against the JSON jscpd actually emits.
- *
- * Driven through `inspectDuplication` rather than by running jscpd over a fixture
+ * - Driven through `inspectDuplication` rather than by running jscpd over a fixture
  * repo: the alternative is to check a clone of a specific token count into a fixture
  * and trust jscpd's tokenizer, its `minTokens`, and nobody ever reformatting the
  * fixture. `exportedTypes` is the one part that reads the filesystem, so it gets a

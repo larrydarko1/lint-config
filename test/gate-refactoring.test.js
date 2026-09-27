@@ -1,12 +1,10 @@
 /**
  * The refactoring gate, against real fixture repositories.
- *
- * It has to be a real repository: the gate's file list comes from
+ * - It has to be a real repository: the gate's file list comes from
  * `git ls-files --cached --others --exclude-standard`, and that choice is the point
  * of one of the tests below — a marker in a file added but not yet committed must be
  * caught before the commit, not after.
- *
- * The case-sensitivity tests are the ones worth reading. Four of the five projects
+ * - The case-sensitivity tests are the ones worth reading. Four of the five projects
  * matched the shouted form only and one matched case-insensitively; three of them
  * ship Spanish or Portuguese locale strings containing the ordinary word `todo`, so
  * the insensitive match is the one that cannot be satisfied without breaking a

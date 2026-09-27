@@ -1,7 +1,6 @@
 /**
  * The audit gate's decision, against the JSON `npm audit --json` actually emits.
- *
- * Driven through `inspectAudit` rather than by shelling out: a test that installs
+ * - Driven through `inspectAudit` rather than by shelling out: a test that installs
  * a vulnerable package passes or fails depending on what upstream did that week,
  * which is the opposite of what a gate's own suite should depend on.
  */

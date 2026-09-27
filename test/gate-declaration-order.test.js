@@ -1,7 +1,6 @@
 /**
  * The declaration-order gate, against minimal fixture projects.
- *
- * Every check has a fixture that must FAIL as well as one that must pass. The two
+ * - Every check has a fixture that must FAIL as well as one that must pass. The two
  * halves are equally load-bearing here: the whole point of the topological sort is
  * that it does NOT report a statement the table would move but the temporal dead
  * zone pins in place, and the only way to know that exception still works is to

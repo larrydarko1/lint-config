@@ -1,7 +1,6 @@
 /**
  * The two family error-handling gates, against minimal fixture projects.
- *
- * Each test starts from a project that PASSES and breaks exactly one thing, so a
+ * - Each test starts from a project that PASSES and breaks exactly one thing, so a
  * failure names the check that caught it. The passing baseline matters as much as
  * the negatives: a gate that fails everything is as useless as one that fails
  * nothing, and only the baseline tells the two apart.

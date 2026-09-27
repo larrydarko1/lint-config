@@ -1,11 +1,9 @@
 /**
  * The code style gate, against temporary source trees.
- *
- * Every test builds a real directory because the gate's whole job is the shape of
+ * - Every test builds a real directory because the gate's whole job is the shape of
  * files on disk — what they are called, how long they are, what their first line is.
  * A fake filesystem would test the mock.
- *
- * The tests worth reading are the ones covering the four rules that only one family
+ * - The tests worth reading are the ones covering the four rules that only one family
  * had. They are here as much to record that the union costs nothing as to check the
  * behaviour: a composable exporting its own name, SFC block order, and the two
  * stale-baseline rules all found zero problems in the repos that never had them —

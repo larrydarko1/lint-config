@@ -1,8 +1,7 @@
 /**
  * The docker gate, against a minimal fixture repository that passes and a
  * negative for every rule: each test breaks exactly one thing.
- *
- * The parser tests at the end are the ones worth reading first. Each is a
+ * - The parser tests at the end are the ones worth reading first. Each is a
  * Dockerfile shape the original repo never used, so the copy could not have
  * shown it getting them wrong.
  */

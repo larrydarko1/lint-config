@@ -1,13 +1,11 @@
 /**
  * The pipeline gate, against minimal fixture repositories.
- *
- * This gate cannot be proved the way the others were. The two families' copies
+ * - This gate cannot be proved the way the others were. The two families' copies
  * both PASS on their own repos, so running the merged version against all four
  * projects only shows it still passes — it says nothing about whether a rule
  * survived the merge. The negatives below are the proof: each starts from
  * a repository that passes and breaks exactly one thing.
- *
- * Five of those rules existed only in the full-stack copy and three only in the
+ * - Five of those rules existed only in the full-stack copy and three only in the
  * desktop copy, so eight of these tests are asserting coverage one family did not
  * have at all.
  */
