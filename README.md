@@ -115,6 +115,14 @@ modules (`/eslint/electron` and `/eslint/fullstack`) export the standards blocks
 the selectors, banned-import lists and rule plugins those blocks are built from, so the
 project's own per-folder blocks can reuse them in `overrides`.
 
+Most standards are the same in both families. Security, TypeScript, env, Vue, HTML and a11y,
+i18n, refactoring, testing and the function contracts are one implementation each, applied to
+that family's folders. Only the rules about a family's architecture differ: process or
+workspace boundaries, its logger, and the full-stack api, database and websocket rules. Both
+`electronStandards()` and `fullstackStandards()` accept the same options: `security.vHtmlAllowed`,
+`html.globalStylesheet`, `refactoring.markerFiles` and `i18n` (or `i18n: false`).
+`fullstackStandards()` also accepts `logging.consoleAllowed`.
+
 **`rootDir` is required.** It becomes `tsconfigRootDir` and must be the project's directory. A
 default taken from inside this package would point at the package, and every type-aware rule would
 quietly find no tsconfig.

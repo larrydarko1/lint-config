@@ -16,15 +16,16 @@ export const configModuleSelectors = [
 export const noImportMetaEnv = {
     selector: "MemberExpression[object.type='MetaProperty'][property.name='env']",
     message:
-        'Do not read `import.meta.env` here. Validate it once with Zod in a single renderer config module and import the typed value — every VITE_* var is inlined into the shipped bundle, so this is also the boundary that keeps a secret out of the packaged app.',
+        'Do not read `import.meta.env` here. Validate it once with Zod in a single frontend config module and import the typed value — every VITE_* var is inlined into the shipped bundle, so this is also the boundary that keeps a secret out of it.',
 };
 
-export const envStandards = [
+/** @param processEnvAllowed Where `process.env` is read on purpose: config modules, tests, scripts. */
+export const envStandards = (processEnvAllowed: string[]) => [
     {
         rules: { 'no-process-env': 'error' },
     },
     {
-        files: ['**/lib/config.ts', 'tests/**/*.ts', 'vitest.setup.ts', 'scripts/**/*.ts', 'build/**/*.cjs'],
+        files: processEnvAllowed,
         rules: { 'no-process-env': 'off' },
     },
 ];

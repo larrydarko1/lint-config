@@ -1,34 +1,51 @@
 import vueI18n from '@intlify/eslint-plugin-vue-i18n';
 import * as jsoncParser from 'jsonc-eslint-parser';
 
+export type I18nOptions = {
+    /** The locale files as an ESLint glob. Defaults to the family's. */
+    localeFiles?: string;
+    /** The same set as the plugin wants it. Defaults to `./` + `localeFiles`. */
+    localeDir?: string;
+    /** The vue-i18n message syntax to validate. Defaults to `^11.0.0`. */
+    messageSyntaxVersion?: string;
+    /**
+     * Literals that are not translatable copy — the app's own name, usually, since a
+     * brand name reads the same in every locale.
+     */
+    ignoreText?: string[];
+    /**
+     * Keys `no-unused-keys` cannot see: namespaces addressed by a computed key, or a key
+     * read as a plain property instead of through `t()`. Each entry goes unchecked, so
+     * keep the list short.
+     */
+    unscannedKeys?: string[];
+    /** The tree the unused-key scan reads. Defaults to the family's. */
+    usageSrc?: string;
+    /** Locale names that are not language codes but are meant to be there, like a joke locale. */
+    customLocales?: string[];
+};
+
 /**
- * @param [options.localeDir='./assets/locales/*.json'] Where the locale files live.
- * @param [options.localeFiles='assets/locales/*.json'] The same set as an ESLint glob.
- * @param [options.messageSyntaxVersion='^11.0.0'] The vue-i18n message syntax to validate.
- * @param [options.ignoreText=[]] Literals that are not translatable copy — the app's
- *   own name, usually, since a brand name is the same in every locale.
- * @param [options.unscannedKeys=[]] Keys the unused-key scan cannot see because nothing
- *   calls `t()` for them: a locale's own endonym read as a plain property, for instance.
- * @param [options.usageSrc='src/renderer'] The tree the unused-key scan reads.
+ * @param layout.vue The components.
+ * @param layout.frontend Everything that runs in the Vue app, components and scripts both.
+ * @param layout.localeFiles The family's default for `options.localeFiles`.
+ * @param layout.usageSrc The family's default for `options.usageSrc`.
  */
 export const i18nStandards = (
-    options: {
-        localeDir?: string;
-        localeFiles?: string;
-        messageSyntaxVersion?: string;
-        ignoreText?: string[];
-        unscannedKeys?: string[];
-        usageSrc?: string;
-    } = {},
+    layout: { vue: string[]; frontend: string[]; localeFiles: string; usageSrc: string },
+    options: I18nOptions = {},
 ) => {
     const {
-        localeDir = './assets/locales/*.json',
-        localeFiles = 'assets/locales/*.json',
+        localeFiles = layout.localeFiles,
+        localeDir = `./${localeFiles}`,
         messageSyntaxVersion = '^11.0.0',
         ignoreText = [],
         unscannedKeys = [],
-        usageSrc = 'src/renderer',
+        usageSrc = layout.usageSrc,
+        customLocales = [],
     } = options;
+
+    const noUnknownLocale = ['error', { locales: customLocales }];
 
     return [
         {
@@ -40,7 +57,7 @@ export const i18nStandards = (
             },
         },
         {
-            files: ['src/renderer/**/*.vue'],
+            files: layout.vue,
             plugins: { '@intlify/vue-i18n': vueI18n },
             rules: {
                 '@intlify/vue-i18n/no-raw-text': [
@@ -55,19 +72,20 @@ export const i18nStandards = (
                     'error',
                     {
                         element: 'i18n',
-                        message:
-                            'No per-component <i18n> blocks — every key lives in assets/locales/<locale>.json. A block splits a key away from its siblings, and no locale-parity check can see it.',
+                        message: `No per-component <i18n> blocks — every key lives in ${localeFiles.replace('*', '<locale>')}. A block splits a key away from its siblings, and no locale-parity check can see it.`,
                     },
                 ],
                 '@intlify/vue-i18n/no-i18n-t-path-prop': 'error',
             },
         },
         {
-            files: ['src/renderer/**/*.{ts,vue}'],
+            files: layout.frontend,
             plugins: { '@intlify/vue-i18n': vueI18n },
             rules: {
                 '@intlify/vue-i18n/no-missing-keys': 'error',
                 '@intlify/vue-i18n/valid-message-syntax': 'error',
+                '@intlify/vue-i18n/valid-plural-forms': 'error',
+                '@intlify/vue-i18n/no-unknown-locale': noUnknownLocale,
                 '@intlify/vue-i18n/prefer-linked-key-with-paren': 'error',
             },
         },
@@ -80,6 +98,8 @@ export const i18nStandards = (
                 '@intlify/vue-i18n/no-missing-keys-in-other-locales': 'error',
                 '@intlify/vue-i18n/no-duplicate-keys-in-locale': 'error',
                 '@intlify/vue-i18n/valid-message-syntax': 'error',
+                '@intlify/vue-i18n/valid-plural-forms': 'error',
+                '@intlify/vue-i18n/no-unknown-locale': noUnknownLocale,
                 '@intlify/vue-i18n/prefer-linked-key-with-paren': 'error',
                 '@intlify/vue-i18n/no-unused-keys': [
                     'error',

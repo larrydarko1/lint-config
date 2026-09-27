@@ -8,15 +8,19 @@ export const noStoreLibraryPatterns = [
 
 export const aliasOnlyImportPatterns = [
     {
-        group: ['../*', '../**'],
+        group: ['../*', './*'],
         message:
-            'Use the `@/renderer`, `@/main`, `@/preload` or `@/schemas` alias, not a parent-relative path — relative paths break silently when a file moves and hide the import depth. Same-directory `./` imports are fine.',
+            'Use the `@/` alias, not a relative path — `@/composables/feed/useFeed`, not `../../composables/feed/useFeed` or `./useFeed`. Relative paths break silently when a file moves and hide the import depth.',
     },
 ];
 
-export const vueStandards = [
+/**
+ * @param layout.vue The components.
+ * @param layout.frontend Everything that runs in the Vue app, components and scripts both.
+ */
+export const vueStandards = (layout: { vue: string[]; frontend: string[] }) => [
     {
-        files: ['src/renderer/**/*.vue'],
+        files: layout.vue,
         rules: {
             'vue/component-api-style': ['error', ['script-setup']],
             'vue/block-order': ['error', { order: ['script', 'template', 'style'] }],
@@ -34,7 +38,7 @@ export const vueStandards = [
         },
     },
     {
-        files: ['src/renderer/**/*.{ts,vue}'],
+        files: layout.frontend,
         rules: {
             'vue/no-ref-object-reactivity-loss': 'error',
             'vue/require-typed-ref': 'error',

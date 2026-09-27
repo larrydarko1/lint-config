@@ -2,7 +2,6 @@
  * Reading structure out of source text by counting brackets, not parsing: gates must
  * survive briefly unparseable files and read `.vue` and nginx config too. Each helper
  * returns an empty result rather than a wrong one.
- *
  * Pass source through `stripComments` first when asking "does the code do X".
  */
 

@@ -21,16 +21,24 @@ export const bannedCryptoModules = [
     },
 ];
 
+export type SecurityOptions = {
+    /**
+     * Components allowed to use `v-html`: markup sanitised on the way in, or static copy
+     * the project authors itself — never anything a user submitted.
+     */
+    vHtmlAllowed?: string[];
+};
+
 /**
- * @param [options.vHtmlAllowed=[]] Views allowed to use `v-html` — long-form static
- *   copy the project authors itself, never anything a user submitted.
+ * @param layout.code Everything the crypto and `eval` bans cover.
+ * @param layout.vue The components `v-html` is banned in.
  */
-export const securityStandards = (options: { vHtmlAllowed?: string[] } = {}) => {
+export const securityStandards = (layout: { code: string[]; vue: string[] }, options: SecurityOptions = {}) => {
     const { vHtmlAllowed = [] } = options;
 
     return [
         {
-            files: ['api/src/**/*.ts', 'worker/src/**/*.ts', 'packages/**/*.ts'],
+            files: layout.code,
             rules: {
                 'no-restricted-imports': ['error', { paths: bannedCryptoModules }],
                 'no-eval': 'error',
@@ -38,13 +46,8 @@ export const securityStandards = (options: { vHtmlAllowed?: string[] } = {}) => 
             },
         },
         {
-            files: ['frontend/src/**/*.{ts,vue}'],
-            rules: {
-                'no-restricted-imports': ['error', { paths: bannedCryptoModules }],
-                'no-eval': 'error',
-                'no-implied-eval': 'error',
-                'vue/no-v-html': 'error',
-            },
+            files: layout.vue,
+            rules: { 'vue/no-v-html': 'error' },
         },
         ...(vHtmlAllowed.length ? [{ files: vHtmlAllowed, rules: { 'vue/no-v-html': 'off' } }] : []),
     ];

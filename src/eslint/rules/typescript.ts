@@ -6,31 +6,16 @@ export const tsSourceSelectors = [
     },
 ];
 
-export const sharedPackageBannedImports = {
-    patterns: [
-        {
-            group: ['vue', 'vue/*', '@vue/*', 'vue-router', 'pinia', 'vue-i18n'],
-            message:
-                'The shared package is framework-neutral — api and worker import it, so it must not pull in Vue. A Vue-flavoured type belongs in frontend/src/types/, "Two hard constraints on the shared package").',
-        },
-        {
-            group: ['express', 'express/*', '@types/express', 'mongodb', 'bullmq', 'ioredis'],
-            message:
-                'The shared package is dependency-light and framework-neutral — it must not import a server framework or a driver. Share the plain shape (a type or constant), and let each workspace import the library itself.',
-        },
-    ],
-};
-
-export const typescriptStandards = [
+/**
+ * @param layout.source Code whose modules must not `export default`.
+ * @param layout.code Source and tests: explicit boundary types, no CommonJS globals.
+ * @param layout.defaultExportAllowed Files a tool loads by their default export (a runner's config).
+ */
+export const typescriptStandards = (layout: { source: string[]; code: string[]; defaultExportAllowed: string[] }) => [
     {
-        files: [
-            'api/src/**/*.ts',
-            'worker/src/**/*.ts',
-            'frontend/src/**/*.{ts,vue}',
-            'packages/shared/src/**/*.ts',
-            'e2e/**/*.ts',
-        ],
-        ignores: ['e2e/playwright.config.ts', 'e2e/support/global-setup.ts'],
+        files: layout.source,
+        // The `*.vue` module shim has to `export default` — the ban is for our own modules.
+        ignores: ['**/*.d.ts', ...layout.defaultExportAllowed],
         rules: {
             'no-restricted-exports': [
                 'error',
@@ -47,13 +32,7 @@ export const typescriptStandards = [
         },
     },
     {
-        files: [
-            'api/src/**/*.ts',
-            'worker/src/**/*.ts',
-            'frontend/src/**/*.{ts,vue}',
-            'packages/shared/src/**/*.ts',
-            'e2e/**/*.ts',
-        ],
+        files: layout.code,
         rules: {
             '@typescript-eslint/explicit-module-boundary-types': 'error',
             'no-var': 'error',

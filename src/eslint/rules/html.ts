@@ -1,15 +1,23 @@
 import a11y from 'eslint-plugin-vuejs-accessibility';
 
+export type HtmlOptions = {
+    /**
+     * Components that host the app-wide stylesheet, where a `<style>` block must NOT be
+     * scoped. Defaults to the family's.
+     */
+    globalStylesheet?: string[];
+};
+
 /**
- * @param [options.globalStylesheet=['src/renderer/App.vue']] Components that host the
- *   app-wide stylesheet, where a `<style>` block must NOT be scoped.
+ * @param layout.vue The components.
+ * @param layout.globalStylesheet The family's default for `options.globalStylesheet`.
  */
-export const htmlStandards = (options: { globalStylesheet?: string[] } = {}) => {
-    const { globalStylesheet = ['src/renderer/App.vue'] } = options;
+export const htmlStandards = (layout: { vue: string[]; globalStylesheet: string[] }, options: HtmlOptions = {}) => {
+    const { globalStylesheet = layout.globalStylesheet } = options;
 
     return [
         {
-            files: ['src/renderer/**/*.vue'],
+            files: layout.vue,
             plugins: { a11y },
             rules: {
                 'vue/enforce-style-attribute': ['error', { allow: ['scoped'] }],

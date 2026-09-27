@@ -21,7 +21,6 @@ const matches = (filter: PathFilter, rel: string): boolean =>
 /**
  * Every file under `dirs`, as paths relative to `root`, sorted so output is stable
  * across filesystems.
- *
  * @param root Repository root.
  * @param dirs One or more directories, relative to `root`.
  * @param [options.match] Keep only paths matching this. Defaults to every file.

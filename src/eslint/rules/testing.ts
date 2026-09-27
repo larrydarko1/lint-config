@@ -1,8 +1,9 @@
 import vitest from '@vitest/eslint-plugin';
 
-export const testingStandards = [
+/** @param files The family's test files. */
+export const testingStandards = (files: string[]) => [
     {
-        files: ['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}', 'e2e/**/*.spec.ts'],
+        files,
         plugins: { vitest },
         rules: {
             'vitest/no-focused-tests': 'error',

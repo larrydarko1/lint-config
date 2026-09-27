@@ -1,48 +1,73 @@
 /**
  * The Electron family: rules that assume a main / preload / renderer split, a sandboxed
- * window and IPC as the only way across. The selectors a project composes into its own
- * `no-restricted-syntax` blocks are re-exported individually below.
+ * window and IPC as the only way across. The rules both families share live in
+ * ../rules and are given this family's folders here. The selectors a project composes
+ * into its own `no-restricted-syntax` blocks are re-exported individually below.
  */
-import { envStandards } from './env.ts';
-import { htmlStandards } from './html.ts';
-import { i18nStandards } from './i18n.ts';
+import { PRESETS } from '../presets.ts';
+import { envStandards } from '../rules/env.ts';
+import { htmlStandards, type HtmlOptions } from '../rules/html.ts';
+import { i18nStandards, type I18nOptions } from '../rules/i18n.ts';
+import { refactoringStandards, type RefactoringOptions } from '../rules/refactoring.ts';
+import { securityStandards, type SecurityOptions } from '../rules/security.ts';
+import { testingStandards } from '../rules/testing.ts';
+import { typescriptStandards } from '../rules/typescript.ts';
+import { vueStandards } from '../rules/vue.ts';
 import { loggingStandards } from './logging.ts';
-import { refactoringStandards } from './refactoring.ts';
-import { securityStandards } from './security.ts';
-import { testingStandards } from './testing.ts';
-import { typescriptStandards } from './typescript.ts';
-import { vueStandards } from './vue.ts';
 
-export { bannedCryptoModules } from './security.ts';
+export { bannedCryptoModules } from '../rules/security.ts';
+export { configModuleSelectors, noImportMetaEnv } from '../rules/env.ts';
+export { noSingleLetterDeclaration, noFileURLToPath } from '../rules/code-style.ts';
+export { tsSourceSelectors } from '../rules/typescript.ts';
+export { noStoreLibraryPatterns, aliasOnlyImportPatterns } from '../rules/vue.ts';
+export { functionContractsPlugin } from '../rules/function-contracts.ts';
 export { loggerCallSelectors } from './logging.ts';
 export { errorHandlingSelectors } from './error-handling.ts';
-export { tsSourceSelectors, schemasBannedImports, rendererBannedImports, mainBannedImports } from './typescript.ts';
-export { configModuleSelectors, noImportMetaEnv } from './env.ts';
-export { noSingleLetterDeclaration, utilsBannedImportPatterns, libBannedImportPatterns } from './code-style.ts';
-export { noStoreLibraryPatterns, aliasOnlyImportPatterns } from './vue.ts';
-export { functionContractsPlugin } from './function-contracts.ts';
+export { schemasBannedImports, rendererBannedImports, mainBannedImports } from './boundaries.ts';
+export { utilsBannedImportPatterns, libBannedImportPatterns } from './code-style.ts';
+
+/** The renderer's components, and everything that runs in the window. */
+const { vue, browser: renderer } = PRESETS.electron;
+/** All three processes. */
+const SOURCE = ['src/**/*.{ts,vue}'];
+const TESTS = ['tests/**/*.ts'];
 
 export type ElectronStandardsOptions = {
-    /** See security.ts — `vHtmlAllowed`. */
-    security?: Parameters<typeof securityStandards>[0];
-    /** See html.ts — `globalStylesheet`. */
-    html?: Parameters<typeof htmlStandards>[0];
-    /** See i18n.ts. Pass `false` for a single-language app. */
-    i18n?: Parameters<typeof i18nStandards>[0] | false;
+    /** See rules/security.ts — `vHtmlAllowed`. */
+    security?: SecurityOptions;
+    /** See rules/html.ts — `globalStylesheet`. */
+    html?: HtmlOptions;
+    /** See rules/refactoring.ts — `markerFiles`. */
+    refactoring?: RefactoringOptions;
+    /** See rules/i18n.ts. Pass `false` for a single-language app. */
+    i18n?: I18nOptions | false;
 };
 
 export function electronStandards(options: ElectronStandardsOptions = {}) {
-    const { security: securityOptions, html: htmlOptions, i18n: i18nOptions } = options;
+    const { security, html, refactoring, i18n } = options;
 
     return [
-        ...securityStandards(securityOptions),
+        ...securityStandards({ code: SOURCE, vue }, security),
         ...loggingStandards,
-        ...typescriptStandards,
-        ...envStandards,
-        ...htmlStandards(htmlOptions),
-        ...vueStandards,
-        ...(i18nOptions === false ? [] : i18nStandards(i18nOptions)),
-        ...refactoringStandards,
-        ...testingStandards,
+        ...typescriptStandards({ source: SOURCE, code: [...SOURCE, ...TESTS], defaultExportAllowed: [] }),
+        ...envStandards(['**/lib/config.ts', ...TESTS, 'vitest.setup.ts', 'scripts/**/*.ts', 'build/**/*.cjs']),
+        ...htmlStandards({ vue, globalStylesheet: ['src/renderer/App.vue'] }, html),
+        ...vueStandards({ vue, frontend: renderer }),
+        ...(i18n === false
+            ? []
+            : i18nStandards(
+                  { vue, frontend: renderer, localeFiles: 'assets/locales/*.json', usageSrc: 'src/renderer' },
+                  i18n,
+              )),
+        ...refactoringStandards(
+            {
+                code: [...SOURCE, ...TESTS],
+                source: SOURCE,
+                tests: TESTS,
+                markerFiles: ['eslint/**/*.js', 'eslint.config.js', 'scripts/**/*.ts'],
+            },
+            refactoring,
+        ),
+        ...testingStandards([...TESTS, '**/*.test.ts', '**/*.spec.ts']),
     ];
 }
