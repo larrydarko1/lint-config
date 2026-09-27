@@ -1,6 +1,6 @@
 /**
  * WebSocket architecture: one server, one client, and the order of the handshake.
- *
+ * ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1. One Socket.IO server, on the existing HTTP listener.
  *   2. The Redis adapter, `required` or `forbidden` (see RedisAdapter).
  *   3. The origin is checked on the upgrade (CORS does not cover it).

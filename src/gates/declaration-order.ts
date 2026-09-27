@@ -1,5 +1,6 @@
 /**
  * Declaration order. The canonical order within a module:
+ * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *    1. imports          — `import` statements
  *    2. types            — interfaces, type aliases, Zod schemas
  *    3. contract         — defineProps / defineEmits
@@ -10,13 +11,11 @@
  *    8. private-fns
  *    9. side-effects     — onMounted / watch / listener wiring
  *
- * The only exception is computed: a statement never moves above a binding it reads
+ * - The only exception is computed: a statement never moves above a binding it reads
  * at load time (a TDZ ReferenceError). See analyze().
- *
- * Test files get a second pass against TEST_CATEGORIES; imports get a third,
+ * - Test files get a second pass against TEST_CATEGORIES; imports get a third,
  * mechanical pass (./import-order.ts), the only one `--fix` touches.
- *
- * Not checked: order within a category. Reports its own nested format rather than
+ * - Not checked: order within a category. Reports its own nested format rather than
  * using createGateReport.
  */
 import fs from 'node:fs';

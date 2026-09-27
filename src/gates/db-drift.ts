@@ -4,7 +4,6 @@
  * the schema doc, migrations (tested, `up()` only, immutable once merged, the only
  * place an index is dropped), graceful shutdown, and optionally ops-script safety
  * and backup health.
- *
  * The registry is imported, not parsed, which also proves it loads under plain
  * Node as the migrate-mongo CLI needs. A collection with no index must be listed
  * in `noIndexByDesign` with a reason. A type with an index signature accepts extra

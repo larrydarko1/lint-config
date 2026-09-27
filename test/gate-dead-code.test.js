@@ -55,6 +55,20 @@ test('a duplicates finding is an array of the names one symbol is exported under
     assert.deepEqual(names(found.duplicates), ['src/a.ts:3 send = dispatch']);
 });
 
+test('a cycle is the loop in import order, closed back on the file it starts from', () => {
+    const issue = {
+        file: 'src/a.ts',
+        cycles: [
+            [
+                { name: 'src/a.ts', line: 4 },
+                { name: 'src/b.ts', line: 15 },
+            ],
+        ],
+    };
+    const found = collectHits(report(issue), ['cycles']);
+    assert.deepEqual(names(found.cycles), ['src/a.ts:4 src/a.ts → src/b.ts → src/a.ts']);
+});
+
 test('a category not asked for is not collected', () => {
     const issue = { file: 'src/a.ts', exports: [{ name: 'a' }], types: [{ name: 'B' }] };
     const found = collectHits(report(issue), ['exports']);
@@ -230,8 +244,11 @@ test('the three dependency categories are all gated', () => {
     }
 });
 
-test('drift-only categories are not gated', () => {
-    for (const key of ['unlisted', 'binaries', 'unresolved', 'cycles', 'catalog', 'catalogReferences']) {
-        assert.ok(!Object.keys(CATEGORIES).includes(key), `${key} is drift, not dead code`);
+test('the rest of the import graph is gated too, pnpm catalogs aside', () => {
+    for (const key of ['unlisted', 'binaries', 'unresolved', 'cycles']) {
+        assert.ok(Object.keys(CATEGORIES).includes(key), `${key} must be gated`);
+    }
+    for (const key of ['catalog', 'catalogReferences']) {
+        assert.ok(!Object.keys(CATEGORIES).includes(key), `${key} is pnpm-only`);
     }
 });

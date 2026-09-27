@@ -1,6 +1,6 @@
 /**
  * GitHub Actions workflows (and composite actions):
- *
+ * ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1. timeout-minutes on every job (the default is 360).
  *   2. concurrency with an explicit cancel-in-progress.
  *   3. Least-privilege `permissions:`, declared.

@@ -1,12 +1,11 @@
 /**
  * Cross-locale consistency, which the @intlify ESLint rules cannot see:
- *
+ * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1. Plural-segment parity — the same number of `|` segments in every locale.
  *   2. Placeholder parity    — the same set of {named} tokens (order may differ).
  *   3. Array-length parity   — the same length, and never an array in one locale
  *                              and a string in another.
  *   4. createI18n options    — `escapeParameter`, `legacy` and `fallbackLocale`.
- *
  * Missing keys are left to no-missing-keys-in-other-locales.
  */
 import fs from 'node:fs';

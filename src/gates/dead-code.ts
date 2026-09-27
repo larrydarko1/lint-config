@@ -2,10 +2,10 @@
  * Dead code across the import graph, via knip. Two runs: the default graph, then
  * `--production`, which drops tests so an export only its own test imports shows up
  * as `testOnlyExports` (reported once, minus what the first run named).
- *
- * Not gated (`--all` shows them): `unlisted` / `binaries` / `unresolved` (manifest
- * drift, not dead code), `cycles`, and pnpm `catalog` findings.
- *
+ * Also gated, though none of it is dead code: the other half of knip's graph — an
+ * import the manifest does not declare, a binary nothing installs, an import that
+ * resolves to nothing, and circular imports. Only pnpm `catalog` findings are not
+ * gated (`--all` shows them).
  * `budgets` is for clearing a backlog and should be zero; never raise one to land a change.
  */
 import { execFileSync } from 'node:child_process';
@@ -41,7 +41,6 @@ type KnipRunInput = {
     include: string[];
     extra?: string[] | undefined;
 };
-
 
 /** Every knip issue type this gate fails on, with its fix. Doubles as the `--include` list. */
 export const CATEGORIES: Record<string, DeadCodeCategory> = {
@@ -89,6 +88,22 @@ export const CATEGORIES: Record<string, DeadCodeCategory> = {
         label: 'Unused optional peer dependencies',
         fix: 'Declared as an optional peer, imported nowhere. Drop it from the manifest.',
     },
+    unlisted: {
+        label: 'Unlisted dependencies',
+        fix: "Imported here, declared in no package.json this workspace reads. It resolves only because npm hoisted another workspace's copy, so it breaks the day that workspace drops it or pins another version. Declare it in the package.json that owns this file, at the same range the other workspaces use.",
+    },
+    binaries: {
+        label: 'Unlisted binaries',
+        fix: 'A script runs this command and no dependency provides it. Declare the package that ships it, or, if it is a system tool (ffmpeg, docker), list it under `ignoreBinaries` in the knip config so the requirement is written down.',
+    },
+    unresolved: {
+        label: 'Unresolved imports',
+        fix: 'This specifier resolves to nothing — a moved file, a typo, or a path alias knip was not told about. Fix the import, or teach knip the alias; an import nothing can follow is also a module knip cannot see past.',
+    },
+    cycles: {
+        label: 'Circular imports',
+        fix: "These modules import each other, so one of them is read half-initialised at load time and the pair can only be understood, tested or moved together. Move what both need into a third module, or have the lower-level one take the dependency as a parameter. A cycle through a barrel is usually one file importing its own domain's barrel back: import the file directly.",
+    },
 };
 
 /** The second pass. Separate from CATEGORIES because it is not a knip issue type. */
@@ -102,8 +117,11 @@ export const TEST_ONLY: DeadCodeCategory & { key: string } = {
 const PROD_INCLUDE = ['exports', 'types', 'nsExports', 'nsTypes', 'namespaceMembers', 'enumMembers'];
 const PROD_ARGS = ['--production', '--include-entry-exports'];
 
-/** Reported by `--all`, never gated. */
-const UNGATED = ['unlisted', 'binaries', 'unresolved', 'cycles', 'catalog', 'catalogReferences'];
+/** Reported by `--all`, never gated: pnpm catalogs, which the family repos do not use. */
+const UNGATED = ['catalog', 'catalogReferences'];
+
+/** Categories whose finding is an ARRAY of symbols, and how its names are joined. */
+const JOINED: Record<string, string> = { duplicates: ' = ', cycles: ' → ' };
 
 /** `file` alone when the whole file is unused; `file:line — name` otherwise. */
 const where = ({ file, name, line }: DeadCodeHit): string =>
@@ -154,9 +172,16 @@ export function collectHits(report: KnipReport, include: string[]): Record<strin
             if (!Array.isArray(items)) continue;
             for (const item of items as (KnipItem | KnipItem[])[]) {
                 (found[category] ??= []).push(
-                    // A `duplicates` finding is an ARRAY of the names one symbol is exported under.
+                    // `duplicates`: the names one symbol is exported under. `cycles`: each file
+                    // on the loop in import order, so the start is repeated to close it.
                     Array.isArray(item)
-                        ? { file: entry.file, name: item.map((symbol) => symbol.name).join(' = '), line: item[0]?.line }
+                        ? {
+                              file: entry.file,
+                              name: [...item, ...(category === 'cycles' ? item.slice(0, 1) : [])]
+                                  .map((symbol) => symbol.name)
+                                  .join(JOINED[category] ?? ' = '),
+                              line: item[0]?.line,
+                          }
                         : { file: entry.file, name: item.name, line: item.line },
                 );
             }
@@ -245,7 +270,7 @@ export function checkDeadCode(options: DeadCodeOptions = {}): void {
     for (const { what, why } of deadCodeProblems(found, budgets, checksDir)) report.fail(null, what, why);
 
     report.done({
-        summary: `No dead code — ${gated.length + 1} categories, all at 0.`,
+        summary: `No dead code or import-graph drift — ${gated.length + 1} categories, all at 0.`,
         notMachineChecked,
     });
 }

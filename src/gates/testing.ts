@@ -1,6 +1,6 @@
 /**
  * The mechanically checkable half of the testing standard:
- *
+ * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1. Suites sit where `layout` says (co-located `__tests__/` or a mirrored tree).
  *   2. A `.spec` file belongs to the E2E runner.
  *   3. E2E lives where `e2e` says, or nowhere; a Playwright config only once a spec exists.
@@ -10,7 +10,6 @@
  *   7. No transport patching.
  *   8. `wrapper.vm` reads, as a ratchet.
  *   9. The DOM environment the standard names.
- *
  * Not checked: test quality, assertion presence, what to write next.
  */
 import { execFileSync } from 'node:child_process';

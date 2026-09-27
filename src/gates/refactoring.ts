@@ -3,7 +3,6 @@
  * see them: files with no parser (`.scss`, `.yml`, `.md`, Dockerfiles…) and SFC
  * templates, which vue-eslint-parser keeps off the comment list. For a `.vue` file in
  * `linted`, ESLint has the `<script>` half and this gate reads the `<template>` half.
- *
  * The match is case-sensitive on purpose: `todo` is an ordinary Spanish and Portuguese
  * word in locale files. Lowercase markers in code are ESLint's job.
  */

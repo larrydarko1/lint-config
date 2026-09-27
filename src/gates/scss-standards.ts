@@ -2,7 +2,7 @@
  * SCSS architecture. Two modules matter: the INJECTED one (`additionalData`,
  * compiled once per SFC) and the ENTRY one (imported once by `main.ts`). Anything
  * reachable from the injected module that emits CSS ships once per component.
- *
+ * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1. The barrel `@forward`s the tokens.
  *   2. The entry `@use`s every emitting module.
  *   3. main.ts imports exactly one stylesheet.
@@ -14,7 +14,6 @@
  *   9. No `@extend` inside an SFC.
  *  10. Self-hosted fonts: no CDN, no `@fontsource`, bundled `@font-face`, LICENSE
  *      beside the woff2 (silent on a system font stack).
- *
  * `themes.source` is the only switch: where the palettes live.
  */
 import fs from 'node:fs';

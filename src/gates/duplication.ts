@@ -1,13 +1,12 @@
 /**
  * Duplication, via one jscpd run over every scan root:
- *
+ * ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1. Per-format token-percentage ceilings. A format with no entry is not gated;
  *      `--all` still prints it.
  *   2. No single clone over `maxCloneTokens`, which a shrinking ratio cannot hide.
  *   3. No block copied between scan roots, except allowed composition roots.
  *   4. No exported type name declared in two roots.
- *
- * Rules 3 and 4 say nothing in a single-root repo. `perRoot` also holds each root
+ * - Rules 3 and 4 say nothing in a single-root repo. `perRoot` also holds each root
  * to the ceilings on its own. jscpd matches tokens, not intent: raise a ceiling with
  * a reason rather than contort the code.
  */

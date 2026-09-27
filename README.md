@@ -212,7 +212,7 @@ its source roots, its services, and exceptions it has approved, each with a stat
 | -------------------------- | --------- | ------------------------------------------------------------------------ |
 | `audit`                    | both      | `npm audit`, with a reviewed allowlist that expires                      |
 | `code-style`               | both      | file names, file length, SFC block order, stale size baselines           |
-| `dead-code`                | both      | unused files, exports and dependencies (knip)                            |
+| `dead-code`                | both      | unused code and dependencies, undeclared imports, import cycles (knip)   |
 | `declaration-order`        | both      | the order of imports, types, constants and functions in a module         |
 | `duplication`              | both      | copy-paste ceilings per format and a cap on clone size (jscpd)           |
 | `html-standards`           | both      | `index.html`: shell, CSP, entry module, remote resources, reduced motion |

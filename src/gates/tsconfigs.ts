@@ -1,6 +1,6 @@
 /**
  * tsconfig drift: every rule here catches a config that makes MORE code compile.
- *
+ * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1. Every project extends the base (resolved, not just spelled).
  *   2. The base holds every checking flag and no environmental setting.
  *   3. Weakening a base flag needs a reason on the line (or just above).

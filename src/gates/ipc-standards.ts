@@ -1,6 +1,6 @@
 /**
  * IPC architecture gate — the channel surface between main and renderer.
- *
+ * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1. The main entry's "IPC handler ownership:" table matches the handlers, both ways.
  *   2. Every channel the preload invokes has a handler.
  *   3. Every event the preload listens for is sent.
@@ -9,13 +9,11 @@
  *   6. One `exposeInMainWorld`, typed against the shared contract.
  *   7. Every handler validates every argument.
  *   8. Channels are `domain:action`, both camelCase, the action not repeating the domain.
- *
- * Rule 7 reads each handler's own body, per argument (`safeParse`/`parse`/`typeof`/
+ * - Rule 7 reads each handler's own body, per argument (`safeParse`/`parse`/`typeof`/
  * `instanceof`/`Array.isArray`/`Number.is*`/`.test`), following an argument into a
  * helper declared in the same file. Handlers are found by receiver: `ipcMain`,
  * `webContents.ipc` and anything typed `IpcMain`, including `handleOnce`/`once`/`sendSync`.
- *
- * Handlers containing their own failures is error-handling's rule.
+ * - Handlers containing their own failures is error-handling's rule.
  */
 import fs from 'node:fs';
 import path from 'node:path';

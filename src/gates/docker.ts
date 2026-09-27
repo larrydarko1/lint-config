@@ -1,6 +1,6 @@
 /**
  * Container images, checked without a Docker daemon:
- *
+ * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1. Multi-stage.
  *   2. Non-root at runtime, with the base resolved (nginx-unprivileged needs no USER).
  *   3. A HEALTHCHECK that asks the running process something (not `pgrep`, not
@@ -19,8 +19,7 @@
  *  15. EXPOSE agrees with the k8s containerPort (when `deployments` is given).
  *  16. The kustomization names images the build pushes (when `kustomization` is given).
  *  17. The images that need glibc stay on it (when `glibc` is given).
- *
- * Stages inherit USER, ENV and HEALTHCHECK through `FROM <earlier-stage>`; global
+ * - Stages inherit USER, ENV and HEALTHCHECK through `FROM <earlier-stage>`; global
  * ARGs are substituted into FROM lines. CI node-version and workflow_run names are
  * the pipeline gate's.
  */

@@ -1,7 +1,7 @@
 /**
  * Observability: the scrape chain, the probes and metric cardinality. Each of
  * these breaks while the manifests stay valid and nothing errors.
- *
+ * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1–3. ServiceMonitor → Service → pods all select each other.
  *   4.   The NetworkPolicy admits the monitoring namespace.
  *   5.   A scrape-only Service is headless (else Prometheus scrapes a random pod).

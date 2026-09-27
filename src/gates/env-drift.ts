@@ -1,6 +1,6 @@
 /**
  * Env drift, per service:
- *
+ * ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1. The Zod schema and `.env.example` agree, both ways.
  *   2. The local `.env` agrees too, as a warning only: it is gitignored and a fresh
  *      clone must boot without one.

@@ -1,6 +1,6 @@
 /**
  * The document shell (`index.html`), which no linter reads:
- *
+ * ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1. The head tags this kind of document owes (`head` picks keys from HEAD_CHECKS),
  *      plus the zoom ban.
  *   2. The entry module resolves.
@@ -9,7 +9,6 @@
  *   4. No remote subresources: only `<link>` rels that fetch count.
  *   5. The global reduced-motion override exists, at top level, with `!important`.
  *   6. A pre-launch origin, as a warning.
- *
  * Not checked: semantics, ARIA, alt-text quality, heading order.
  */
 import fs from 'node:fs';

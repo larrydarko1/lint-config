@@ -1,6 +1,6 @@
 /**
  * The process-model invariants of a desktop app:
- *
+ * ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– 
  *   1.  contextIsolation, nodeIntegration and sandbox set safely on every window.
  *   2.  No banned webPreferences (webviewTag, allowRunningInsecureContent,
  *       experimentalFeatures, enableRemoteModule, nodeIntegrationInWorker/SubFrames,
@@ -19,8 +19,7 @@
  *  12.  Every `v-html` binding is accounted for, per binding.
  *  13.  No RegExp built from unescaped input.
  *  14.  No TLS or certificate overrides.
- *
- * Spans are bracket-counted (source.ts). The rule 8 boundary check and the rule 11
+ * - Spans are bracket-counted (source.ts). The rule 8 boundary check and the rule 11
  * sanitizers are recognised by name; their correctness is a unit test's question.
  */
 import fs from 'node:fs';
@@ -186,7 +185,6 @@ function enclosingFunctionStart(code: string, index: number): number {
 
 /**
  * The interpolated expressions of a template literal, `${a} and ${b(c)}` → `['a', 'b(c)']`.
- *
  * @param template The literal including its backticks.
  */
 function interpolations(template: string): string[] {

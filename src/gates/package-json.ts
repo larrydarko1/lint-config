@@ -1,6 +1,6 @@
 /**
  * package.json across the root and every workspace manifest:
- *
+ * ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1. Required metadata. The root carries identity and toolchain facts; workspaces
  *      are private and inherit engines and packageManager.
  *   2. `^` ranges, with `~` only for allowlisted packages (each with a reason).

@@ -1,16 +1,14 @@
 /**
  * Import order. Imports are grouped by how far away the code lives, farthest first:
- *
+ * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *    1. builtin    — `node:fs`, and bare `fs` / `path`
  *    2. external   — npm packages, `electron` included
- *    3. workspace  — this monorepo's other packages (only where `workspaceScope` is set)
+ *    3. workspace  — monorepo's other packages (only where `workspaceScope` is set)
  *    4. local      — `@/…`, `./…`, `../…`, `#…`, and any `localAliases`
- *
- * One blank line between groups, none inside one, alphabetical by specifier
+ * - One blank line between groups, none inside one, alphabetical by specifier
  * (case-insensitive) within a group. Groups are by source, not kind: inline type
  * imports share a statement with values.
- *
- * Side-effect imports (`import 'dotenv/config'`) never move; they split the run into
+ * - Side-effect imports (`import 'dotenv/config'`) never move; they split the run into
  * segments sorted independently. Only the leading run of imports is checked.
  */
 import fs from 'node:fs';

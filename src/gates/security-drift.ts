@@ -2,7 +2,6 @@
  * Security controls whose failure is silent: the app boots and the suite stays
  * green. Rules are numbered in the body. Groups a repo does not have (reset flow,
  * reverse proxy, TLS config, …) are omitted, and the shim says why.
- *
  * Comments are blanked before any rule asks what the code does, and definitions
  * are blanked where a rule asks whether something is called. `v-html` is ESLint's.
  */
