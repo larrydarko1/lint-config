@@ -239,9 +239,9 @@ its source roots, its services, and exceptions it has approved, each with a stat
 pass or fail. List `vue` in `.jscpd.json` and jscpd reports template markup as `html` on its own.
 Don't list `html` there, because jscpd rejects it.
 
-`gates/lib/repo-root`, `gates/lib/strip-comments`, `gates/lib/source`, `gates/lib/files` and
-`gates/lib/report` are the helpers the gates are built from, and they are exported for your own
-gates.
+`gates/lib/repo-root`, `gates/lib/strip-comments`, `gates/lib/source`, `gates/lib/files`,
+`gates/lib/report` and `gates/lib/swallowed-errors` are the helpers the gates are built from, and
+they are exported for your own gates.
 
 ## The toolchain
 
@@ -290,6 +290,14 @@ that copy after you change this package, so reinstall it:
 
 ```bash
 npm uninstall @larrydarko/lint-config && npm i -D file:../lint-config
+```
+
+This is for trying a change, not for committing. A `file:` dependency ties the project's lockfile
+to your folder layout, so CI and fresh clones cannot install it. Switch back to the published
+version, and remove `install-links` from `.npmrc`, before you commit:
+
+```bash
+npm i -D @larrydarko/lint-config@beta
 ```
 
 ## License

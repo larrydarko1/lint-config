@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { createGateReport } from '../src/gates/lib/report.ts';
-import { findSwallowedErrors, countSwallows } from '../src/gates/swallowed-errors.ts';
+import { findSwallowedErrors, countSwallows } from '../src/gates/lib/swallowed-errors.ts';
 
 /** Runs `fn` with console captured and process.exitCode restored afterwards. */
 const capture = (fn) => {

@@ -10,7 +10,7 @@
  *   6.  `params` (sent to the client) carry no request input; `message` (logged) may.
  *   7.  Non-HTTP services do not use AppError.
  *   8.  Exactly one frontend interceptor translates codes, with a fallback.
- *   9.  A swallowed failure states its reason (../swallowed-errors.ts).
+ *   9.  A swallowed failure states its reason (../lib/swallowed-errors.ts).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,7 +19,7 @@ import { walkFiles } from '../lib/files.ts';
 import { REPO_ROOT } from '../lib/repo-root.ts';
 import { createGateReport, plural } from '../lib/report.ts';
 import { stripComments } from '../lib/strip-comments.ts';
-import { countSwallows, findSwallowedErrors } from '../swallowed-errors.ts';
+import { countSwallows, findSwallowedErrors } from '../lib/swallowed-errors.ts';
 
 export type FullstackErrorHandlingOptions = {
     /** Repository root. */

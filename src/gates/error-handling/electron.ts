@@ -6,7 +6,7 @@
  *   3.   Process-level backstops for unhandled rejections and exceptions.
  *   4.   `before-quit` releases what closing the window does not. The hook is
  *        required even when nothing needs releasing yet.
- *   5.   A swallowed failure states its reason (../swallowed-errors.ts).
+ *   5.   A swallowed failure states its reason (../lib/swallowed-errors.ts).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -15,7 +15,7 @@ import { walkFiles } from '../lib/files.ts';
 import { REPO_ROOT } from '../lib/repo-root.ts';
 import { createGateReport, plural } from '../lib/report.ts';
 import { stripComments } from '../lib/strip-comments.ts';
-import { countSwallows, findSwallowedErrors } from '../swallowed-errors.ts';
+import { countSwallows, findSwallowedErrors } from '../lib/swallowed-errors.ts';
 
 export type ElectronErrorHandlingOptions = {
     /** Repository root. */

@@ -6,7 +6,8 @@
     "license": "MIT",
     "author": "Lorenzo Mazzola",
     "publishConfig": {
-        "access": "public"
+        "access": "public",
+        "tag": "beta"
     },
     "engines": {
         "node": ">=24"
@@ -120,6 +121,10 @@
             "types": "./dist/gates/lib/strip-comments.d.ts",
             "default": "./dist/gates/lib/strip-comments.js"
         },
+        "./gates/lib/swallowed-errors": {
+            "types": "./dist/gates/lib/swallowed-errors.d.ts",
+            "default": "./dist/gates/lib/swallowed-errors.js"
+        },
         "./gates/metrics": {
             "types": "./dist/gates/metrics.d.ts",
             "default": "./dist/gates/metrics.js"
@@ -143,10 +148,6 @@
         "./gates/security-drift": {
             "types": "./dist/gates/security-drift.d.ts",
             "default": "./dist/gates/security-drift.js"
-        },
-        "./gates/swallowed-errors": {
-            "types": "./dist/gates/swallowed-errors.d.ts",
-            "default": "./dist/gates/swallowed-errors.js"
         },
         "./gates/testing": {
             "types": "./dist/gates/testing.d.ts",
