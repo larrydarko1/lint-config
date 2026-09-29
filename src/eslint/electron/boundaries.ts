@@ -1,32 +1,33 @@
+import { bannedPackages } from '../rules/banned-packages.ts';
+
+const NO_VUE_IN_MAIN =
+    'The main process must not import renderer code or Vue — it has no DOM. Share the type through src/schemas and send the value over IPC.';
+
 // src/schemas is the shared contract between main, preload and renderer — it must stay process-neutral.
 export const schemasBannedImports = {
     patterns: [
-        {
-            group: ['electron', 'electron/*', 'electron-log', 'electron-log/*'],
-            message:
-                'src/schemas is the shared contract all three processes import — it must not pull in Electron. A main-process type belongs in src/main, a renderer type in src/renderer.',
-        },
-        {
-            group: ['vue', 'vue/*', '@vue/*', 'vue-i18n'],
-            message:
-                'src/schemas is framework-neutral — the main process imports it, so it must not pull in Vue. A Vue-flavoured type belongs in src/renderer.',
-        },
+        bannedPackages(
+            ['electron', 'electron-log'],
+            'src/schemas is the shared contract all three processes import — it must not pull in Electron. A main-process type belongs in src/main, a renderer type in src/renderer.',
+        ),
+        bannedPackages(
+            ['vue', '@vue', 'vue-i18n'],
+            'src/schemas is framework-neutral — the main process imports it, so it must not pull in Vue. A Vue-flavoured type belongs in src/renderer.',
+        ),
     ],
 };
 
 // The renderer is sandboxed: it reaches the OS through window.electronAPI, never directly.
 export const rendererBannedImports = {
     patterns: [
-        {
-            group: ['electron', 'electron/*', 'electron-log', 'electron-log/*'],
-            message:
-                'The renderer must not import Electron directly — contextIsolation means it would not resolve at runtime anyway. Add an IPC channel in src/preload and call it through `window.electronAPI`.',
-        },
-        {
-            group: ['node:*', 'fs', 'fs/*', 'path', 'os', 'child_process', 'crypto'],
-            message:
-                'No Node built-ins in the renderer — it is a sandboxed browser context. Do the filesystem/OS work in a main-process service and expose it over IPC.',
-        },
+        bannedPackages(
+            ['electron', 'electron-log'],
+            'The renderer must not import Electron directly — contextIsolation means it would not resolve at runtime anyway. Add an IPC channel in src/preload and call it through `window.electronAPI`.',
+        ),
+        bannedPackages(
+            ['node:', 'fs', 'path', 'os', 'child_process', 'crypto'],
+            'No Node built-ins in the renderer — it is a sandboxed browser context. Do the filesystem/OS work in a main-process service and expose it over IPC.',
+        ),
         {
             group: ['@/main/*', '@/main/**', '@/preload/*', '@/preload/**'],
             message:
@@ -37,10 +38,7 @@ export const rendererBannedImports = {
 
 export const mainBannedImports = {
     patterns: [
-        {
-            group: ['@/renderer/*', '@/renderer/**', 'vue', 'vue/*', '@vue/*'],
-            message:
-                'The main process must not import renderer code or Vue — it has no DOM. Share the type through src/schemas and send the value over IPC.',
-        },
+        { group: ['@/renderer/*', '@/renderer/**'], message: NO_VUE_IN_MAIN },
+        bannedPackages(['vue', '@vue'], NO_VUE_IN_MAIN),
     ],
 };

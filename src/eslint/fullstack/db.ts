@@ -1,3 +1,5 @@
+import type { FullstackLayout } from '../presets.ts';
+
 const DOWN_MESSAGE =
     'Migrations are forward-only: no down(). A reversal that loses data is not a rollback (the bootstrap down() dropped all 28 collections). To undo a migration, write a new forward migration. See db/migrations/README.md.';
 
@@ -73,47 +75,56 @@ const noOdm = { paths: dbBannedImports };
 
 export const dbApiWorkerSelectors = [noCreateIndexInApi, noDropIndexInApi, noExtraMongoClient, noUntypedCollection];
 
-/** api/src/lib/db.ts — the manifest applier + singleton (createIndex/new MongoClient are its job). */
+/** The api's lib/db.ts — the manifest applier + singleton (createIndex/new MongoClient are its job). */
 export const dbDbTsSelectors = [noDropIndexInApi, noUntypedCollection];
 
-/** worker/src/index.ts — the worker singleton (new MongoClient is its job). */
+/** A service's index.ts — that process's singleton (new MongoClient is its job). */
 export const dbWorkerIndexSelectors = [noCreateIndexInApi, noDropIndexInApi, noUntypedCollection];
 
-export const dbStandards = [
-    {
-        files: ['db/migrations/**/*.js'],
-        rules: {
-            'no-restricted-syntax': ['error', ...noMigrationDown, noCreateIndexInMigration],
-            'no-restricted-imports': ['error', noOdm],
+/**
+ * @param layout The full-stack workspaces. The api's `src/lib/db.ts` and each service's
+ *   `src/index.ts` are the modules allowed to construct a client.
+ */
+export const dbStandards = (layout: FullstackLayout) => {
+    const apiDb = `${layout.workspaces.api}/src/lib/db.ts`;
+    const serviceEntries = layout.workspaces.services.map((dir) => `${dir}/src/index.ts`);
+
+    return [
+        {
+            files: ['db/migrations/**/*.js'],
+            rules: {
+                'no-restricted-syntax': ['error', ...noMigrationDown, noCreateIndexInMigration],
+                'no-restricted-imports': ['error', noOdm],
+            },
         },
-    },
-    {
-        files: ['api/src/**/*.ts', 'worker/src/**/*.ts'],
-        ignores: ['**/__tests__/**', 'api/src/lib/db.ts', 'worker/src/index.ts'],
-        rules: {
-            'no-restricted-syntax': ['error', ...dbApiWorkerSelectors],
-            'no-restricted-imports': ['error', noOdm],
+        {
+            files: layout.backend,
+            ignores: ['**/__tests__/**', apiDb, ...serviceEntries],
+            rules: {
+                'no-restricted-syntax': ['error', ...dbApiWorkerSelectors],
+                'no-restricted-imports': ['error', noOdm],
+            },
         },
-    },
-    {
-        files: ['api/src/lib/db.ts'],
-        rules: {
-            'no-restricted-syntax': ['error', ...dbDbTsSelectors],
-            'no-restricted-imports': ['error', noOdm],
+        {
+            files: [apiDb],
+            rules: {
+                'no-restricted-syntax': ['error', ...dbDbTsSelectors],
+                'no-restricted-imports': ['error', noOdm],
+            },
         },
-    },
-    {
-        files: ['worker/src/index.ts'],
-        rules: {
-            'no-restricted-syntax': ['error', ...dbWorkerIndexSelectors],
-            'no-restricted-imports': ['error', noOdm],
+        {
+            files: serviceEntries,
+            rules: {
+                'no-restricted-syntax': ['error', ...dbWorkerIndexSelectors],
+                'no-restricted-imports': ['error', noOdm],
+            },
         },
-    },
-    {
-        files: ['scripts/**/*.ts'],
-        ignores: ['scripts/download-models.ts'],
-        rules: {
-            'no-restricted-syntax': ['error', noEnvFallbackInScripts],
+        {
+            files: ['scripts/**/*.ts'],
+            ignores: ['scripts/download-models.ts'],
+            rules: {
+                'no-restricted-syntax': ['error', noEnvFallbackInScripts],
+            },
         },
-    },
-];
+    ];
+};

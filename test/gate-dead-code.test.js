@@ -13,7 +13,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { CATEGORIES, TEST_ONLY, collectHits, deadCodeProblems, inspectDeadCode } from '../src/gates/dead-code.ts';
+import {
+    CATEGORIES,
+    TEST_ONLY,
+    collectHits,
+    deadCodeProblems,
+    deadCodeSummary,
+    inspectDeadCode,
+} from '../src/gates/dead-code.ts';
 
 /** A knip JSON report with the given per-file issue buckets. */
 const report = (...issues) => ({ issues });
@@ -211,6 +218,40 @@ test('a budget applies only to the category it names', () => {
     const problems = deadCodeProblems(found, { exports: 1 });
     assert.equal(problems.length, 1);
     assert.match(problems[0]?.what ?? '', /^Unused exported types/);
+});
+
+test('a budget whose category is back at zero must be removed', () => {
+    const problems = deadCodeProblems({}, { cycles: 4 });
+    assert.equal(problems.length, 1);
+    assert.match(problems[0]?.what ?? '', /^Circular imports: back at 0, but still budgeted 4\./);
+});
+
+test('a budget of zero on an empty category is not a problem', () => {
+    assert.deepEqual(deadCodeProblems({}, { cycles: 0 }), []);
+});
+
+test('a budget naming no category is reported, not ignored', () => {
+    const problems = deadCodeProblems({ cycles: [hit('src/a.ts', 'a', 1)] }, { cycle: 1 });
+    assert.deepEqual(
+        problems.map((p) => p.what),
+        [
+            'Circular imports: 1 exceeds the budget of 0.\n      • src/a.ts:1 — a',
+            'The budget for `cycle` names no category.',
+        ],
+    );
+});
+
+// ── deadCodeSummary ─────────────────────────────────────────────────────────
+test('the summary says all at 0 only when every category is', () => {
+    assert.equal(deadCodeSummary({}), 'No dead code or import-graph drift — 16 categories, all at 0.');
+});
+
+test('the summary names a budget still in use', () => {
+    const found = { cycles: [hit('src/a.ts', 'a', 1), hit('src/b.ts', 'b', 1), hit('src/c.ts', 'c', 1)] };
+    assert.equal(
+        deadCodeSummary(found, { cycles: 4 }),
+        'No dead code or import-graph drift — 16 categories, 15 at 0; within budget: circular imports 3 of 4.',
+    );
 });
 
 test('the second pass is reported last, after every knip category', () => {

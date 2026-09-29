@@ -1,6 +1,7 @@
 /**
  * Cross-locale consistency, which the @intlify ESLint rules cannot see:
  * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+ *   0. Locale filenames      — a bare two-letter language code (`pt`, not `pt-BR`).
  *   1. Plural-segment parity — the same number of `|` segments in every locale.
  *   2. Placeholder parity    — the same set of {named} tokens (order may differ).
  *   3. Array-length parity   — the same length, and never an array in one locale
@@ -24,6 +25,8 @@ export type I18nGateOptions = {
     root?: string;
     /** Extra sentence per required option, keyed `escapeParameter` / `legacy` / `fallbackLocale`. */
     configNotes?: Record<string, string>;
+    /** Locale names that are not two-letter codes but are meant to be there, like a joke locale. */
+    customLocales?: string[];
 };
 
 type I18nGateResult = {
@@ -93,6 +96,13 @@ function placeholders(str: string): string[] {
     return [...new Set((str.match(/\{[^}]+\}/g) ?? []).filter((t) => t !== "{'@'}"))].sort();
 }
 
+/**
+ * ISO 639-1. The app picks its locale from the browser's language subtag — the house
+ * pattern is `navigator.language.split('-')[0]` — and that is never `pt-BR`, so a
+ * region-named file is never selected; a three-letter code only matches by accident.
+ */
+const LOCALE_CODE = /^[a-z]{2}$/;
+
 function pluralSegments(str: string): number {
     return str.split('|').length;
 }
@@ -106,10 +116,11 @@ function pluralSegments(str: string): number {
  * @param [options.root] Repository root. Defaults to the caller's repo.
  * @param [options.configNotes] Extra sentence per required option
  *   (keyed `escapeParameter` / `legacy` / `fallbackLocale`), appended to the shared reason.
+ * @param [options.customLocales] Locale names allowed although they are not two-letter codes.
  * @returns `fatal` is set when the gate could not run at all (missing folder, unparseable file).
  */
 export function inspectI18n(options: I18nGateOptions): I18nGateResult {
-    const { localeDir, configFile, reference = 'en', root = REPO_ROOT, configNotes = {} } = options;
+    const { localeDir, configFile, reference = 'en', root = REPO_ROOT, configNotes = {}, customLocales = [] } = options;
 
     const localePath = path.resolve(root, localeDir);
     const configPath = path.resolve(root, configFile);
@@ -139,6 +150,15 @@ export function inspectI18n(options: I18nGateOptions): I18nGateResult {
 
     const ref = flat[reference] ?? {};
     const errors: string[] = [];
+
+    // ── 0. Locale filenames ─────────────────────────────────────────────────────
+    for (const loc of locales) {
+        if (!LOCALE_CODE.test(loc) && !customLocales.includes(loc)) {
+            errors.push(
+                `[${loc}] filename is not a two-letter ISO 639-1 code — the locale is picked by the browser's language subtag, which never carries a region, so this file is never selected. Rename it, or list it in \`customLocales\` if it is not a language.`,
+            );
+        }
+    }
 
     // ── 1–3. Cross-locale value-shape parity against the reference locale ────────
     for (const loc of locales.filter((l) => l !== reference)) {

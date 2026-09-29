@@ -204,15 +204,20 @@ export function inspectDeadCode(
     return found;
 }
 
-/** The categories over budget, in CATEGORIES order with the second pass last. */
+const ALL_CATEGORIES: [string, DeadCodeCategory][] = [...Object.entries(CATEGORIES), [TEST_ONLY.key, TEST_ONLY]];
+
+/**
+ * The categories over budget, in CATEGORIES order with the second pass last, then the
+ * budgets that should not be there: one naming no category, and one whose category is
+ * back at zero — left in place, it is a licence to regrow to the old count.
+ */
 export function deadCodeProblems(
     found: Record<string, DeadCodeHit[]>,
     budgets: Record<string, number> = {},
     checksDir = 'scripts/checks',
 ): { what: string; why: string }[] {
     const problems: { what: string; why: string }[] = [];
-    const categories: [string, DeadCodeCategory][] = [...Object.entries(CATEGORIES), [TEST_ONLY.key, TEST_ONLY]];
-    for (const [category, { label, fix }] of categories) {
+    for (const [category, { label, fix }] of ALL_CATEGORIES) {
         const hits = found[category] ?? [];
         const budget = budgets[category] ?? 0;
         if (hits.length <= budget) continue;
@@ -223,7 +228,37 @@ export function deadCodeProblems(
             why: `${fix}\n      Budgets live in ${checksDir}/check-dead-code.ts and only ever go down. If an export is public by design, tag it \`/** @public */\` rather than raising one.`,
         });
     }
+
+    const known = new Map(ALL_CATEGORIES);
+    for (const [category, budget] of Object.entries(budgets)) {
+        const entry = known.get(category);
+        if (!entry) {
+            problems.push({
+                what: `The budget for \`${category}\` names no category.`,
+                why: `A misspelt key budgets nothing, so the category it meant is still held at 0. The categories are: ${[...known.keys()].join(', ')}.`,
+            });
+        } else if (budget > 0 && (found[category] ?? []).length === 0) {
+            problems.push({
+                what: `${entry.label}: back at 0, but still budgeted ${budget}.`,
+                why: `Remove the \`${category}\` budget from ${checksDir}/check-dead-code.ts so the ratchet cannot quietly slip back. A budget left behind is a licence to regrow to the old count.`,
+            });
+        }
+    }
     return problems;
+}
+
+/**
+ * The pass line. "All at 0" only when it is true; a budget still in use is named with
+ * its count, so a backlog being cleared stays visible on every green run.
+ */
+export function deadCodeSummary(found: Record<string, DeadCodeHit[]>, budgets: Record<string, number> = {}): string {
+    const backlog = ALL_CATEGORIES.flatMap(([category, { label }]) => {
+        const count = (found[category] ?? []).length;
+        return count > 0 ? [`${label.toLowerCase()} ${count} of ${budgets[category] ?? 0}`] : [];
+    });
+    const head = `No dead code or import-graph drift — ${ALL_CATEGORIES.length} categories`;
+    if (backlog.length === 0) return `${head}, all at 0.`;
+    return `${head}, ${ALL_CATEGORIES.length - backlog.length} at 0; within budget: ${backlog.join(', ')}.`;
 }
 
 /**
@@ -270,7 +305,7 @@ export function checkDeadCode(options: DeadCodeOptions = {}): void {
     for (const { what, why } of deadCodeProblems(found, budgets, checksDir)) report.fail(null, what, why);
 
     report.done({
-        summary: `No dead code or import-graph drift — ${gated.length + 1} categories, all at 0.`,
+        summary: deadCodeSummary(found, budgets),
         notMachineChecked,
     });
 }

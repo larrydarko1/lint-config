@@ -12,14 +12,28 @@ import vuePlugin from 'eslint-plugin-vue';
 import globals from 'globals';
 import ts from 'typescript-eslint';
 
-import { resolvePaths, type PresetName, type PresetPaths } from './presets.ts';
+import {
+    fullstackLayout,
+    resolvePaths,
+    type FullstackLayout,
+    type FullstackWorkspaces,
+    type PresetName,
+    type PresetPaths,
+} from './presets.ts';
 import { NAMING_CONVENTION } from './rules/naming.ts';
+import { assertWorkspacesCovered } from './workspace-guard.ts';
 
 export type LarryOptions = {
     /** Which family's folder layout to assume. */
     preset: PresetName;
     /** The project root: pass `import.meta.dirname`. Required, for `tsconfigRootDir`. */
     rootDir: string;
+    /**
+     * Full-stack only: which workspace plays which role, merged over FULLSTACK_WORKSPACES.
+     * The preset's paths and `fullstackStandards()` are both built from it, and it is held
+     * to package.json's `workspaces` — one with a `src/` and no role fails the config.
+     */
+    workspaces?: Partial<FullstackWorkspaces>;
     /** Override any path set from the preset. See presets.ts. */
     paths?: Partial<PresetPaths>;
     /** Load the Vue plugin and parse `.vue` files. Defaults to true. */
@@ -32,8 +46,8 @@ export type LarryOptions = {
     testRules?: Linter.RulesRecord;
     /** Extra rules for all source files, merged last. */
     rules?: Linter.RulesRecord;
-    /** Standards blocks (security, logging, …) to splice in. */
-    standards?: Linter.Config[];
+    /** Standards blocks (security, logging, …) to splice in: `electronStandards()` or `fullstackStandards()`. */
+    standards?: Linter.Config[] | ((layout: FullstackLayout) => Linter.Config[]);
     /** The project's own blocks — the per-area `no-restricted-syntax`/`no-restricted-imports` wiring. Appended last, before Prettier. */
     overrides?: Linter.Config[];
 };
@@ -107,6 +121,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
     const {
         preset,
         rootDir,
+        workspaces = {},
         paths: pathOverrides = {},
         vue: useVue = true,
         importExtensions = false,
@@ -117,7 +132,16 @@ export function larry(options: LarryOptions): Linter.Config[] {
         overrides = [],
     } = options;
 
-    const paths = resolvePaths(preset, pathOverrides);
+    if (preset !== 'fullstack' && Object.keys(workspaces).length)
+        throw new Error(`larry({ workspaces }) is for the full-stack preset; '${preset}' has no workspaces.`);
+    if (preset !== 'fullstack' && typeof standards === 'function')
+        throw new Error(`fullstackStandards() needs preset: 'fullstack', not '${preset}'.`);
+
+    const layout = fullstackLayout(workspaces);
+    if (preset === 'fullstack') assertWorkspacesCovered(rootDir, layout.workspaces);
+
+    const paths = resolvePaths(preset, pathOverrides, workspaces);
+    const standardBlocks = typeof standards === 'function' ? standards(layout) : standards;
 
     // Type-aware presets only reach files a tsconfig covers — locale JSON and config files are not.
     const typedOnly = (blocks: Linter.Config[]): Linter.Config[] =>
@@ -244,7 +268,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
         ...(importExtensions ? importExtensionBlocks(importExtensions) : []),
 
         // ── The project's own standards and per-area wiring ──────────────────
-        ...standards,
+        ...standardBlocks,
         ...overrides,
 
         // ── Tests, last, so the relaxations actually win ─────────────────────
@@ -275,5 +299,5 @@ export function larry(options: LarryOptions): Linter.Config[] {
     ];
 }
 
-export { PRESETS, resolvePaths } from './presets.ts';
+export { PRESETS, FULLSTACK_WORKSPACES, fullstackLayout, resolvePaths } from './presets.ts';
 export { NAMING_CONVENTION } from './rules/naming.ts';

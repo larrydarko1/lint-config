@@ -1,9 +1,10 @@
+import { bannedPackages } from './banned-packages.ts';
+
 export const noStoreLibraryPatterns = [
-    {
-        group: ['pinia', 'vuex', 'pinia/*', 'vuex/*'],
-        message:
-            'No store library by default — state lives in composables. Reach for a store only when state is genuinely cross-view and shared by 3+ unrelated components, and add the exception here deliberately.',
-    },
+    bannedPackages(
+        ['pinia', 'vuex'],
+        'No store library by default — state lives in composables. Reach for a store only when state is genuinely cross-view and shared by 3+ unrelated components, and add the exception here deliberately.',
+    ),
 ];
 
 export const aliasOnlyImportPatterns = [

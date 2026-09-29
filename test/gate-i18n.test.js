@@ -28,10 +28,11 @@ export const i18n = createI18n({
  * @param {object} [opts]
  * @param {string | null} [opts.config] createI18n source, or null to omit the file.
  * @param {Record<string, string>} [opts.configNotes]
+ * @param {string[]} [opts.customLocales]
  * @returns {import('../src/gates/i18n.ts').I18nGateResult}
  */
 const run = (locales, opts = {}) => {
-    const { config = GOOD_CONFIG, configNotes } = opts;
+    const { config = GOOD_CONFIG, configNotes, customLocales } = opts;
     const root = mkdtempSync(path.join(tmpdir(), 'lint-config-i18n-'));
     try {
         mkdirSync(path.join(root, 'locales'));
@@ -40,7 +41,7 @@ const run = (locales, opts = {}) => {
             writeFileSync(path.join(root, 'locales', `${name}.json`), body);
         }
         if (config !== null) writeFileSync(path.join(root, 'i18n.ts'), config);
-        return inspectI18n({ root, localeDir: 'locales', configFile: 'i18n.ts', configNotes });
+        return inspectI18n({ root, localeDir: 'locales', configFile: 'i18n.ts', configNotes, customLocales });
     } finally {
         rmSync(root, { recursive: true, force: true });
     }
@@ -56,6 +57,22 @@ test('locales that agree produce no errors', () => {
     assert.deepEqual(res.locales.sort(), ['en', 'it']);
     // `reasons[]` is bookkeeping, not a translatable key, so it must not be counted.
     assert.equal(res.keyCount, 4);
+});
+
+test('NEGATIVE: a locale named with a region is reported', () => {
+    const res = run({ 'en': { a: 'x' }, 'pt-BR': { a: 'y' } });
+    assert.equal(res.errors.length, 1);
+    assert.match(res.errors[0], /^\[pt-BR\] filename is not a two-letter ISO 639-1 code/);
+});
+
+test('NEGATIVE: a three-letter code is reported', () => {
+    const res = run({ en: { a: 'x' }, fil: { a: 'y' } });
+    assert.match(res.errors.join('\n'), /^\[fil\] filename is not a two-letter/);
+});
+
+test('customLocales lets a locale that is not a language code through', () => {
+    const res = run({ en: { a: 'x' }, pirate: { a: 'y' } }, { customLocales: ['pirate'] });
+    assert.deepEqual(res.errors, []);
 });
 
 test('NEGATIVE: a missing plural segment is reported', () => {

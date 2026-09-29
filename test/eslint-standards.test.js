@@ -6,7 +6,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ESLint } from 'eslint';
+import { ESLint, Linter } from 'eslint';
 
 import { larry } from '../src/eslint/index.ts';
 import * as electron from '../src/eslint/electron/index.ts';
@@ -95,7 +95,10 @@ test('globalStylesheet defaults to the family’s and can be set in either', asy
     assert.equal(await plainAllowed(electronConfig(), 'src/renderer/App.vue'), true);
     assert.equal(await plainAllowed(fullstackConfig(), 'frontend/src/App.vue'), false);
     assert.equal(
-        await plainAllowed(fullstackConfig({ html: { globalStylesheet: ['frontend/src/App.vue'] } }), 'frontend/src/App.vue'),
+        await plainAllowed(
+            fullstackConfig({ html: { globalStylesheet: ['frontend/src/App.vue'] } }),
+            'frontend/src/App.vue',
+        ),
         true,
     );
 });
@@ -118,4 +121,39 @@ test('both families ban same-directory relative imports, not only parent ones', 
     const groups = electron.aliasOnlyImportPatterns.flatMap((pattern) => pattern.group);
     assert.ok(groups.includes('./*'));
     assert.ok(groups.includes('../*'));
+});
+
+/** Whether `patterns` bans an import of `specifier`, asked of ESLint's own rule. */
+const bans = (patterns, specifier) =>
+    new Linter({ configType: 'flat' }).verify(`import x from '${specifier}';`, [
+        {
+            languageOptions: { sourceType: 'module' },
+            rules: { 'no-restricted-imports': ['error', { patterns }] },
+        },
+    ]).length > 0;
+
+test('a package ban covers the package and its subpaths, not a local module of the same name', () => {
+    const cases = [
+        [
+            electron.rendererBannedImports.patterns,
+            ['electron', 'electron/main', 'fs/promises', 'node:fs'],
+            ['@/schemas/electron', './fs', '@/utils/path'],
+        ],
+        [
+            electron.schemasBannedImports.patterns,
+            ['vue', '@vue/reactivity', 'electron-log/main'],
+            ['@/renderer/vue', 'vue-demi'],
+        ],
+        [electron.mainBannedImports.patterns, ['vue', '@/renderer/App.vue'], ['@/main/vue-bridge']],
+        [
+            fullstack.sharedPackageBannedImports.patterns,
+            ['mongodb', 'mongodb/lib/x', 'vue-router', '@types/express'],
+            ['@/lib/mongodb', './express', 'vue-demi'],
+        ],
+        [fullstack.noStoreLibraryPatterns, ['pinia', 'vuex/dist/vuex'], ['@/composables/pinia']],
+    ];
+    for (const [patterns, banned, allowed] of cases) {
+        for (const specifier of banned) assert.ok(bans(patterns, specifier), `${specifier} should be banned`);
+        for (const specifier of allowed) assert.ok(!bans(patterns, specifier), `${specifier} should be allowed`);
+    }
 });

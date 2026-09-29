@@ -123,6 +123,27 @@ workspace boundaries, its logger, and the full-stack api, database and websocket
 `html.globalStylesheet`, `refactoring.markerFiles` and `i18n` (or `i18n: false`).
 `fullstackStandards()` also accepts `logging.consoleAllowed`.
 
+**Full-stack workspaces are roles.** The full-stack rules are written against four roles, not
+folder names: `frontend` (the Vue app), `api` (the HTTP service), `services` (Node processes
+outside the request cycle: a queue consumer, a feed ingestor) and `shared` (packages the others
+import). The defaults are `frontend`, `api`, `['worker']` and `['packages/shared']`. A project
+with another workspace names it once, and every rule for that role reaches it:
+
+```js
+export default larry({
+    preset: 'fullstack',
+    rootDir: import.meta.dirname,
+    workspaces: { services: ['worker', 'ingestor'] },
+    standards: fullstackStandards(),
+});
+```
+
+`larry()` builds the preset's paths and the standards from the same `workspaces`, and holds them
+to `package.json`. A workspace with a `src/` and no role fails the config, and so does a role
+naming a folder with no `src/`. So adding a workspace without giving it a role is an error, not a
+workspace that silently gets only the base rules. `fullstackLayout(workspaces)` returns each
+role's globs for the project's own blocks in `overrides`.
+
 **`rootDir` is required.** It becomes `tsconfigRootDir` and must be the project's directory. A
 default taken from inside this package would point at the package, and every type-aware rule would
 quietly find no tsconfig.
@@ -131,6 +152,7 @@ quietly find no tsconfig.
 | ------------------ | ------------ | ----------------------------------------------------------------------- |
 | `preset`           | —            | `'electron'` or `'fullstack'`                                           |
 | `rootDir`          | —            | the project root; **required**                                          |
+| `workspaces`       | the four     | full-stack only: which workspace plays which role                       |
 | `paths`            | the preset's | override `source`, `tests`, `browser`, `node`, `ignores`, …             |
 | `vue`              | `true`       | load the Vue plugin and parse `.vue` files                              |
 | `importExtensions` | `false`      | enforce import specifiers; `{ nodeRun }` for folders Node runs directly |
@@ -216,7 +238,7 @@ its source roots, its services, and exceptions it has approved, each with a stat
 | `declaration-order`        | both      | the order of imports, types, constants and functions in a module         |
 | `duplication`              | both      | copy-paste ceilings per format and a cap on clone size (jscpd)           |
 | `html-standards`           | both      | `index.html`: shell, CSP, entry module, remote resources, reduced motion |
-| `i18n`                     | both      | locales agree on plurals, placeholders and arrays; `createI18n` options  |
+| `i18n`                     | both      | two-letter locale files; plurals, placeholders and arrays agree; options |
 | `package-json`             | both      | manifest fields, version ranges, and the toolchain rule below            |
 | `pipeline`                 | both      | every gate runs in CI; timeouts, permissions, SHA-pinned actions, …      |
 | `refactoring`              | both      | no deferral markers left in code                                         |

@@ -1,3 +1,5 @@
+import type { FullstackLayout } from '../presets.ts';
+
 const noThrowObject = {
     selector: 'ThrowStatement > ObjectExpression',
     message:
@@ -124,36 +126,36 @@ export const apiBannedImports = [
 /** Frontend selectors — the client side of the same wire contract. */
 export const frontendSelectors = [noApiErrorsFieldType, noApiErrorsRender];
 
-export const apiStandards = [
+export const apiStandards = (layout: FullstackLayout) => [
     {
-        files: ['api/src/**/*.ts'],
+        files: layout.api,
         ignores: ['**/__tests__/**', '**/lib/config.ts'],
         rules: {
             'no-restricted-syntax': ['error', ...apiSourceSelectors],
         },
     },
     {
-        files: ['worker/src/**/*.ts'],
+        files: layout.services,
         ignores: ['**/__tests__/**', '**/lib/config.ts'],
         rules: {
             'no-restricted-syntax': ['error', ...outboundCallSelectors],
         },
     },
     {
-        files: ['api/src/**/*.ts', 'worker/src/**/*.ts'],
+        files: layout.backend,
         rules: {
             'no-restricted-imports': ['error', { paths: apiBannedImports }],
         },
     },
     {
-        files: ['api/src/routes/**/*.ts'],
+        files: [`${layout.workspaces.api}/src/routes/**/*.ts`],
         ignores: ['**/__tests__/**'],
         rules: {
             'no-restricted-syntax': ['error', ...apiSourceSelectors, ...apiRoutesOnlySelectors],
         },
     },
     {
-        files: ['frontend/src/**/*.{ts,vue}'],
+        files: layout.frontend,
         ignores: ['**/__tests__/**'],
         rules: {
             'no-restricted-syntax': ['error', ...frontendSelectors],

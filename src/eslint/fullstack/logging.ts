@@ -1,3 +1,5 @@
+import type { FullstackLayout } from '../presets.ts';
+
 export const noDirectErrorResponse = {
     selector: "CallExpression[callee.object.name='res'][callee.property.name='status'] > Literal[value>=400]",
     message:
@@ -23,22 +25,23 @@ export const loggerCallSelectors = [
 ];
 
 /**
+ * @param layout The full-stack workspaces; `console` is banned on the Node side and in the frontend.
  * @param [options.consoleAllowed=[]] Files where `console` is the point — the app shell
  *   reporting a boot failure it cannot yet log any other way.
  */
-export const loggingStandards = (options: { consoleAllowed?: string[] } = {}) => {
+export const loggingStandards = (layout: FullstackLayout, options: { consoleAllowed?: string[] } = {}) => {
     const { consoleAllowed = [] } = options;
 
     return [
         {
-            files: ['api/src/**/*.ts', 'worker/src/**/*.ts'],
+            files: layout.backend,
             ignores: ['**/__tests__/**'],
             rules: {
                 'no-console': 'error',
             },
         },
         {
-            files: ['frontend/src/**/*.{ts,vue}'],
+            files: layout.frontend,
             ignores: ['**/__tests__/**'],
             rules: {
                 'no-console': 'error',

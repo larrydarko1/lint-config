@@ -1,6 +1,6 @@
 {
     "name": "@larrydarko/lint-config",
-    "version": "0.1.0",
+    "version": "0.1.0-beta.1",
     "type": "module",
     "description": "Shared formatting, commit and style configuration for my projects.",
     "license": "MIT",
@@ -186,7 +186,6 @@
         "typecheck": "tsc -p tsconfig.json",
         "prepack": "npm run build",
         "prepublishOnly": "npm run typecheck && npm test && npm run check:package",
-        "verify": "node scripts/verify.js",
         "test": "node --test test/*.test.js",
         "snapshot": "node scripts/eslint-snapshot.js",
         "check:package": "node scripts/check-package.js"
