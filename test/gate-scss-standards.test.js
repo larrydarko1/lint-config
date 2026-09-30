@@ -75,13 +75,11 @@ const THEME = `@use '@/styles/variables' as *;
 }
 `;
 
-const INDEX = `@forward '@/styles/variables';
-
-@use '@/styles/theme' as *;
+const INDEX = `@use '@/styles/theme' as *;
 @use '@/styles/base' as *;
 `;
 
-/** The full-stack layout: one barrel, the token module injected. */
+/** The one layout: index.scss is the entry, _variables.scss is injected. */
 const good = (overrides = {}) => ({
     'src/styles/index.scss': INDEX,
     'src/styles/_variables.scss': VARIABLES,
@@ -123,16 +121,21 @@ test('a clean tree has no problems', (t) => {
     assert.equal(result.tokenCount, 2);
 });
 
-// ── 1. The barrel forwards the tokens ───────────────────────────────────────
-test('a barrel that @uses its tokens instead of @forwarding them fails', (t) => {
-    const result = run(t, good({ 'src/styles/index.scss': INDEX.replace('@forward', '@use') }));
-    assert.match(whats(result), /index\.scss: does not `@forward` variables/);
+// ── 1. The entry forwards nothing ───────────────────────────────────────────
+test('an entry that @forwards the tokens fails as dead code', (t) => {
+    const result = run(t, good({ 'src/styles/index.scss': `@forward '@/styles/variables';\n\n${INDEX}` }));
+    assert.match(whats(result), /index\.scss: `@forward`s `@\/styles\/variables`, but nothing `@use`s this file/);
 });
 
-test('a missing barrel is named as the barrel', (t) => {
+test('a @forward named only in a comment of the entry passes', (t) => {
+    const result = run(t, good({ 'src/styles/index.scss': `// no @forward '@/styles/variables' here\n${INDEX}` }));
+    assert.equal(result.problems.length, 0, whats(result));
+});
+
+test('a missing entry is named as the entry point', (t) => {
     const files = good();
     delete files['src/styles/index.scss'];
-    assert.match(whats(run(t, files)), /index\.scss: does not exist, but is this project's barrel/);
+    assert.match(whats(run(t, files)), /index\.scss: does not exist, but is this project's entry point/);
 });
 
 test('a missing injected module is named as the injected module', (t) => {
@@ -146,25 +149,6 @@ test('an entry that does not @use an emitting module fails, with that module’s
     const result = run(t, good({ 'src/styles/index.scss': INDEX.replace("@use '@/styles/base' as *;\n", '') }));
     assert.match(whats(result), /index\.scss: does not `@use` base/);
     assert.equal(result.problems.find((p) => p.what.includes('base'))?.why, 'the reset');
-});
-
-test('the entry is a second file when the barrel itself is injected', (t) => {
-    const result = run(
-        t,
-        good({
-            'src/styles/index.scss': "@forward '@/styles/variables';\n",
-            'src/styles/global.scss': "@use '@/styles/theme' as *;\n@use '@/styles/base' as *;\n",
-            'src/main.ts': "import '@/styles/global.scss';\n",
-            'vite.barrel.ts': VITE.replace('@/styles/variables', '@/styles'),
-        }),
-        {
-            entry: 'global.scss',
-            injected: 'index.scss',
-            injectedSpecifier: '@/styles',
-            viteConfigs: ['vite.barrel.ts'],
-        },
-    );
-    assert.equal(result.problems.length, 0, whats(result));
 });
 
 // ── 3. main.ts imports exactly one stylesheet ───────────────────────────────
@@ -307,6 +291,13 @@ test('injecting without `as *` fails', (t) => {
 test('injecting a module other than the one walked for purity fails', (t) => {
     const result = run(t, good({ 'vite.config.ts': VITE.replace('@/styles/variables', '@/styles/other') }));
     assert.match(whats(result), /additionalData does not inject `@use '@\/styles\/variables' as \*`/);
+});
+
+test('injecting the styles folder, which resolves to the entry, fails', (t) => {
+    const result = run(t, good({ 'vite.config.ts': VITE.replace('@/styles/variables', '@/styles') }), {
+        injectedSpecifier: '@/styles',
+    });
+    assert.match(whats(result), /vite\.config\.ts: injects `@\/styles`, which is not src\/styles\/_variables\.scss/);
 });
 
 test('an injection that does not exempt the styles directory fails', (t) => {

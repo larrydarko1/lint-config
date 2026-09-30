@@ -1,9 +1,10 @@
 /**
- * SCSS architecture. Two modules matter: the INJECTED one (`additionalData`,
- * compiled once per SFC) and the ENTRY one (imported once by `main.ts`). Anything
- * reachable from the injected module that emits CSS ships once per component.
+ * SCSS architecture. Two modules matter: the INJECTED one, `_variables.scss`
+ * (`additionalData`, compiled once per SFC), and the ENTRY one, `index.scss`
+ * (imported once by `main.ts`). Anything reachable from the injected module that
+ * emits CSS ships once per component.
  * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
- *   1. The barrel `@forward`s the tokens.
+ *   1. The entry forwards nothing.
  *   2. The entry `@use`s every emitting module.
  *   3. main.ts imports exactly one stylesheet.
  *   4. Nothing reachable from the injected module emits.
@@ -25,30 +26,24 @@ import { createGateReport, type GateFailure } from './lib/report.ts';
 export type ScssStandardsOptions = {
     /** Defaults to the repo root resolved from the process cwd. */
     root?: string;
-    /** The styles directory, repo-relative. Every file option below is relative to it. */
+    /**
+     * The styles directory, repo-relative. Its `index.scss` is the entry and its
+     * `_variables.scss` the injected module; neither name is configurable.
+     */
     styles: string;
     /** The source tree swept for SFCs and stylesheets, repo-relative. */
     src: string;
-    /** The file holding the `@forward`s. Defaults to `index.scss`. */
-    barrel?: string;
-    /** The file `main.ts` imports, which `@use`s the emitting modules. Defaults to the barrel. */
-    entry?: string;
-    /** The module Vite prepends to every SFC. Defaults to `_variables.scss`. */
-    injected?: string;
     /** The script that imports the entry point, repo-relative. */
     mainScript: string;
     /** Every Vite config that compiles these SFCs. More than one means more than one build target. */
     viteConfigs: string[];
-    /** The specifier `additionalData` must inject, exactly as written there. */
+    /** The specifier `additionalData` must inject, exactly as written there. It must resolve to `_variables.scss`. */
     injectedSpecifier: string;
     /**
-     * Text the `additionalData` guard must contain, besides the injected specifier.
-     * Guard on the entry's filename, or on the whole folder when the barrel is
-     * injected. Defaults to `'styles'`.
+     * Text the `additionalData` guard must contain, besides the injected specifier:
+     * the entry's filename, or the styles folder. Defaults to `'styles'`.
      */
     injectionGuard?: string;
-    /** Modules the barrel must `@forward`. Defaults to `['variables']`. */
-    forwarded?: string[];
     /** Modules the entry point must `@use`, since nothing else can reach them. */
     emitters?: EmittingModule[];
     themes: ThemeSource;
@@ -125,7 +120,6 @@ type JsonPresetThemes = {
     fallbackFile: string;
 };
 
-
 type ScssStandardsInput = Omit<ScssStandardsOptions, 'root'> & { root: string };
 
 /** Sass constructs that declare something and emit nothing until it is used. */
@@ -144,14 +138,10 @@ export function inspectScssStandards({
     root,
     styles,
     src,
-    barrel = 'index.scss',
-    entry = barrel,
-    injected = '_variables.scss',
     mainScript,
     viteConfigs,
     injectedSpecifier,
     injectionGuard = 'styles',
-    forwarded = ['variables'],
     emitters = [],
     themes,
     componentLocalVars = {},
@@ -168,16 +158,10 @@ export function inspectScssStandards({
     const exists = (rel: string) => fs.existsSync(abs(rel));
     const read = (rel: string) => fs.readFileSync(abs(rel), 'utf8');
 
-    const barrelPath = `${styles}/${barrel}`;
-    const entryPath = `${styles}/${entry}`;
-    const injectedPath = `${styles}/${injected}`;
+    const entryPath = `${styles}/index.scss`;
+    const injectedPath = `${styles}/_variables.scss`;
 
     for (const [role, rel, why] of [
-        [
-            'barrel',
-            barrelPath,
-            'It is the file that `@forward`s the design system; SFCs resolve `@use` of the styles folder through it.',
-        ],
         [
             'entry point',
             entryPath,
@@ -192,19 +176,18 @@ export function inspectScssStandards({
         if (!exists(rel)) fail(rel, `does not exist, but is this project's ${role}`, why);
     }
 
-    const barrelSrc = exists(barrelPath) ? read(barrelPath) : '';
     const entrySrc = exists(entryPath) ? read(entryPath) : '';
 
-    // ── 1. The barrel forwards the tokens ────────────────────────────────
-    // `@use` would keep the members private to the barrel.
-    for (const module of forwarded) {
-        if (!new RegExp(String.raw`@forward\s+['"][^'"]*${module}['"]`).test(barrelSrc)) {
-            fail(
-                barrelPath,
-                `does not \`@forward\` ${module}`,
-                `Every SFC reaches the design system through this file and nothing else. Un-forwarded, each \`$\`-name in _${module}.scss is an undefined-variable error in every component at once.`,
-            );
-        }
+    // ── 1. The entry forwards nothing ───────────────────────────────────────
+    // A `@forward` only reaches a file that `@use`s this one, and nothing does:
+    // the SFCs get their tokens from the injection, and main.ts imports the entry
+    // as plain CSS.
+    for (const [, spec = ''] of stripComments(entrySrc).matchAll(/@forward\s+['"]([^'"]+)['"]/g)) {
+        fail(
+            entryPath,
+            `\`@forward\`s \`${spec}\`, but nothing \`@use\`s this file`,
+            'Vite injects _variables.scss into every SFC directly, and main.ts imports this file as plain CSS, where a `@forward` does nothing. It reads like the thing keeping the tokens in scope, so removing it looks dangerous when it is dead code.',
+        );
     }
 
     // ── 2. The entry @uses every emitting module ────────────────────────────
@@ -221,7 +204,7 @@ export function inspectScssStandards({
         fail(
             mainScript,
             'imports no stylesheet',
-            `The entry point has exactly one importer, and it is this file: \`import '…/${entry}'\`.`,
+            "The entry point has exactly one importer, and it is this file: `import '…/index.scss'`.",
         );
     } else if (styleImports.length > 1) {
         fail(
@@ -310,6 +293,13 @@ export function inspectScssStandards({
                 'It is what prepends the token `@use` to every SFC style block. Without it every `$`-variable in every component is an undefined-variable error.',
             );
             continue;
+        }
+        if (resolveSpecifier(injectedSpecifier) !== injectedPath) {
+            fail(
+                viteConfig,
+                `injects \`${injectedSpecifier}\`, which is not ${injectedPath}`,
+                'Only _variables.scss is safe to prepend to every SFC, because it only declares. Inject the folder and Sass loads index.scss, which emits every global rule once per component.',
+            );
         }
         if (!new RegExp(String.raw`@use\s+['"]${escapeRe(injectedSpecifier)}['"]\s+as\s+\*`).test(configSrc)) {
             fail(
@@ -443,7 +433,7 @@ export function inspectScssStandards({
     }
 
     // ── 10. Self-hosted fonts ───────────────────────────────────────────────
-    for (const rel of [...new Set([...styleFiles, ...html, barrelPath, entryPath])].filter((r) => exists(r))) {
+    for (const rel of [...new Set([...styleFiles, ...html, entryPath])].filter((r) => exists(r))) {
         for (const [hit] of read(rel).matchAll(REMOTE_ASSET)) {
             fail(
                 rel,
@@ -788,7 +778,7 @@ export function checkScssStandards({ root = REPO_ROOT, ...rest }: ScssStandardsO
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
     report.done({
-        summary: `barrel and injection intact with nothing emitting from the injected module, ${palettes.length} palettes agreeing on ${tokenCount} tokens, ${styleFiles.length} style files with no Sass maths on a token, no @extend in an SFC and no remote font.`,
+        summary: `entry and injection intact with nothing emitting from the injected module, ${palettes.length} palettes agreeing on ${tokenCount} tokens, ${styleFiles.length} style files with no Sass maths on a token, no @extend in an SFC and no remote font.`,
         notMachineChecked:
             'Whether a token is the RIGHT token, whether a palette is legible, whether a pattern had earned promotion to a partial, grid-vs-flex, line-height judgement. stylelint owns BEM, unit allow-lists and declaration-strict-value.',
     });

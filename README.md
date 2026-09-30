@@ -242,7 +242,7 @@ its source roots, its services, and exceptions it has approved, each with a stat
 | `package-json`             | both      | manifest fields, version ranges, and the toolchain rule below            |
 | `pipeline`                 | both      | every gate runs in CI; timeouts, permissions, SHA-pinned actions, …      |
 | `refactoring`              | both      | no deferral markers left in code                                         |
-| `scss-standards`           | both      | the token barrel, Vite injection, theme parity, self-hosted fonts        |
+| `scss-standards`           | both      | the entry, Vite injection, theme parity, self-hosted fonts               |
 | `testing`                  | both      | suite layout, `.only`/`.skip`, duplicate titles, coverage ratchet        |
 | `tsconfigs`                | both      | compiler flags stay at the standard                                      |
 | `electron-security`        | electron  | `webPreferences`, navigation, permissions, `v-html`, TLS overrides       |
