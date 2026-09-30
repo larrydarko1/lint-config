@@ -6,6 +6,7 @@
  * zone pins in place, and the only way to know that exception still works is to
  * assert a module that uses it stays green.
  */
+import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
@@ -420,6 +421,53 @@ test('.d.ts files are not walked', (t) => {
 test('a source root that does not exist is skipped rather than throwing', (t) => {
     const { out, failed } = run(project(t, { 'src/a.ts': ORDERED }), { sourceRoots: ['src', 'worker/src'] });
     assert.equal(failed, false);
+    assert.match(out, /1 modules/);
+});
+
+/** A module whose type sits below a constant: one misplaced statement. */
+const MISPLACED = 'const LIMIT = 1;\n\ntype Thing = { a: number };\n\nexport const t: Thing = { a: LIMIT };\n';
+
+/** `project`, made a git repo, so the default scope has something to list. */
+const gitProject = (t, files) => {
+    const root = project(t, files);
+    execFileSync('git', ['init', '-q'], { cwd: root });
+    return root;
+};
+
+test('without sourceRoots every file git knows about is checked, so a new folder needs no listing', (t) => {
+    // The Orchid miss: scripts/ turned TypeScript after the roots were listed, and nothing checked it.
+    const root = gitProject(t, { 'src/a.ts': ORDERED, 'scripts/lib/env.ts': MISPLACED });
+    const { err, failed } = run(root, { sourceRoots: undefined });
+    assert.equal(failed, true);
+    assert.match(err, /scripts\/lib\/env\.ts/);
+    assert.match(err, /constants "LIMIT" belongs after types "Thing"/);
+});
+
+test('without sourceRoots a gitignored file is not checked', (t) => {
+    const root = gitProject(t, { '.gitignore': 'dist/\n', 'src/a.ts': ORDERED, 'dist/a.ts': MISPLACED });
+    const { out, failed } = run(root, { sourceRoots: undefined });
+    assert.equal(failed, false, out);
+    assert.match(out, /1 modules/);
+});
+
+test('exclude drops a directory and everything under it', (t) => {
+    const root = gitProject(t, { 'src/a.ts': ORDERED, 'db/migrations/001.ts': MISPLACED });
+    const { out, failed } = run(root, { sourceRoots: undefined, exclude: ['db/migrations'] });
+    assert.equal(failed, false, out);
+    assert.match(out, /1 modules/);
+});
+
+test('exclude matches whole path segments, not a name that merely starts the same', (t) => {
+    const root = gitProject(t, { 'db/migrations/001.ts': ORDERED, 'db/migrations-old/001.ts': MISPLACED });
+    const { err, failed } = run(root, { sourceRoots: undefined, exclude: ['db/migrations/'] });
+    assert.equal(failed, true);
+    assert.match(err, /db\/migrations-old\/001\.ts/);
+});
+
+test('exclude drops a single file, and applies alongside sourceRoots too', (t) => {
+    const root = project(t, { 'src/a.ts': ORDERED, 'src/legacy.ts': MISPLACED });
+    const { out, failed } = run(root, { exclude: ['src/legacy.ts'] });
+    assert.equal(failed, false, out);
     assert.match(out, /1 modules/);
 });
 

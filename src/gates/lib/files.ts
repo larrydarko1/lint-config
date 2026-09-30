@@ -1,8 +1,10 @@
 /**
- * The shared source-tree walk. Filters see the path relative to the repo root, not
+ * The shared source-tree walks. Filters see the path relative to the repo root, not
  * the file name, so they can exclude directories. Missing directories are skipped,
- * so one options object fits projects with different services.
+ * so one options object fits projects with different services. `repoFiles` is the
+ * other way in: everything git knows about, so nothing has to be listed to be seen.
  */
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -45,4 +47,18 @@ export function walkFiles(root: string, dirs: string | string[], options: WalkOp
 
     for (const dir of Array.isArray(dirs) ? dirs : [dirs]) visit(dir);
     return out.sort();
+}
+
+/** Every tracked or untracked-but-not-ignored file that still exists on disk. */
+export function repoFiles(root: string): string[] {
+    return (
+        execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
+            cwd: root,
+            encoding: 'utf8',
+        })
+            .split('\n')
+            .filter(Boolean)
+            // `--cached` still lists files deleted but not yet committed.
+            .filter((rel) => fs.existsSync(path.join(root, rel)))
+    );
 }

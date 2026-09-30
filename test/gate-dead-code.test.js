@@ -5,7 +5,7 @@
  * What IS this gate is everything around the run: how a report is flattened, how the
  * two passes are combined, and which categories are counted. Those are the parts
  * that drifted between the five copies, so those are the parts with tests.
- * - The two-pass tests are the ones worth reading. The second pass exists because
+ * - The pass tests are the ones worth reading. The second pass exists because
  * knip's default graph counts a test file as a consumer, so an export that only its
  * own test imports looks alive — and it is subtracted from the first pass so one
  * dead export is not reported twice under two different names.
@@ -15,6 +15,7 @@ import { test } from 'node:test';
 
 import {
     CATEGORIES,
+    LOCAL_ONLY_TYPES,
     TEST_ONLY,
     collectHits,
     deadCodeProblems,
@@ -168,6 +169,36 @@ test('every second-pass category flows into the one bucket', () => {
     assert.equal(inspectDeadCode(knip)[TEST_ONLY.key].length, 2);
 });
 
+// ── inspectDeadCode: the third pass ─────────────────────────────────────────
+// What the pass finds is tested in gate-local-only-types.test.js; here, only how it joins.
+test('the local-only types land in their own bucket', () => {
+    const found = inspectDeadCode(knipStub({}), () => [{ file: 'src/a.ts', name: 'Shape', line: 1 }]);
+    assert.deepEqual(names(found[LOCAL_ONLY_TYPES.key]), ['src/a.ts:1 Shape']);
+});
+
+test('without a third pass the bucket is empty, not missing', () => {
+    assert.deepEqual(inspectDeadCode(knipStub({}))[LOCAL_ONLY_TYPES.key], []);
+});
+
+test('a type knip already reports as unused is not reported again as local-only', () => {
+    const shape = { file: 'src/a.ts', name: 'Shape', line: 1 };
+    const found = inspectDeadCode(knipStub({ types: [shape] }), () => [{ ...shape }]);
+    assert.deepEqual(found[LOCAL_ONLY_TYPES.key], []);
+});
+
+test('a type the --production pass named is not reported again as local-only', () => {
+    const shape = { file: 'src/a.ts', name: 'Shape', line: 1 };
+    const found = inspectDeadCode(knipStub({}, { types: [shape] }), () => [{ ...shape }]);
+    assert.equal(found[TEST_ONLY.key].length, 1);
+    assert.deepEqual(found[LOCAL_ONLY_TYPES.key], []);
+});
+
+test('the local-only pass is reported last, and budgeted like any other category', () => {
+    const found = { [TEST_ONLY.key]: [hit('src/b.ts', 'b', 1)], [LOCAL_ONLY_TYPES.key]: [hit('src/a.ts', 'Shape', 1)] };
+    assert.match(deadCodeProblems(found).at(-1)?.what ?? '', /^Exported types only their own file names: 1 exceeds/);
+    assert.equal(deadCodeProblems(found, { [TEST_ONLY.key]: 1, [LOCAL_ONLY_TYPES.key]: 1 }).length, 0);
+});
+
 // ── deadCodeProblems: the budgets ───────────────────────────────────────────
 const hit = (file, name, line) => ({ file, name, line });
 
@@ -243,14 +274,14 @@ test('a budget naming no category is reported, not ignored', () => {
 
 // ── deadCodeSummary ─────────────────────────────────────────────────────────
 test('the summary says all at 0 only when every category is', () => {
-    assert.equal(deadCodeSummary({}), 'No dead code or import-graph drift — 16 categories, all at 0.');
+    assert.equal(deadCodeSummary({}), 'No dead code or import-graph drift — 17 categories, all at 0.');
 });
 
 test('the summary names a budget still in use', () => {
     const found = { cycles: [hit('src/a.ts', 'a', 1), hit('src/b.ts', 'b', 1), hit('src/c.ts', 'c', 1)] };
     assert.equal(
         deadCodeSummary(found, { cycles: 4 }),
-        'No dead code or import-graph drift — 16 categories, 15 at 0; within budget: circular imports 3 of 4.',
+        'No dead code or import-graph drift — 17 categories, 16 at 0; within budget: circular imports 3 of 4.',
     );
 });
 
@@ -273,8 +304,10 @@ test('every category has a label and a fix', () => {
     }
 });
 
-test('testOnlyExports is not a knip issue type', () => {
+test('testOnlyExports and localOnlyTypes are not knip issue types', () => {
     assert.ok(!Object.keys(CATEGORIES).includes(TEST_ONLY.key));
+    assert.ok(!Object.keys(CATEGORIES).includes(LOCAL_ONLY_TYPES.key));
+    assert.ok(LOCAL_ONLY_TYPES.fix.length > 20);
 });
 
 test('the three dependency categories are all gated', () => {

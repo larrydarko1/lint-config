@@ -24,15 +24,21 @@ import path from 'node:path';
 import { parse as parseSfc } from '@vue/compiler-sfc';
 import ts from 'typescript';
 
-import { walkFiles } from './lib/files.ts';
+import { repoFiles, walkFiles } from './lib/files.ts';
 import { createImportOrder, type ImportOrderOptions } from './import-order.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 
 export type DeclarationOrderOptions = {
     /** Repository root. Defaults to the caller's repo root. */
     root?: string;
-    /** Directories to walk, relative to `root`. */
-    sourceRoots: string[];
+    /**
+     * Directories to walk, relative to `root`. Defaults to every file git tracks or would
+     * track: a list of folders goes stale silently when a new one appears, and the
+     * default checks it the day it does.
+     */
+    sourceRoots?: string[];
+    /** Directories or files to leave out, relative to `root`. Say why next to each one. */
+    exclude?: string[];
     /** Forwarded to `createImportOrder` for the import-sorting pass. */
     importOrder?: ImportOrderOptions;
 };
@@ -454,7 +460,7 @@ export function analyzeFile(rel: string, root: string, profile: Profile = profil
 }
 
 export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
-    const { root = REPO_ROOT, sourceRoots, importOrder = {} } = options;
+    const { root = REPO_ROOT, sourceRoots, exclude = [], importOrder = {} } = options;
     const { IMPORT_GROUPS, checkImportsInFile, fixImportsInFile } = createImportOrder(importOrder);
 
     const FIX = process.argv.includes('--fix');
@@ -468,9 +474,10 @@ export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
         why: string;
     }[] = [];
 
-    const discovered = walkFiles(root, sourceRoots, {
-        match: (rel) => /\.(ts|vue)$/.test(rel) && !rel.endsWith('.d.ts'),
-    });
+    const excluded = (rel: string) => exclude.some((p) => rel === p || rel.startsWith(`${p.replace(/\/$/, '')}/`));
+    const discovered = (sourceRoots === undefined ? repoFiles(root).sort() : walkFiles(root, sourceRoots)).filter(
+        (rel) => /\.(ts|vue)$/.test(rel) && !rel.endsWith('.d.ts') && !excluded(rel),
+    );
     const files = discovered.filter((rel) => !isTestPath(rel));
     // .vue is production-only; a suite is always a .ts module.
     const testFiles = discovered.filter((rel) => isTestPath(rel) && rel.endsWith('.ts'));

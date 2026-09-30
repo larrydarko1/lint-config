@@ -1,7 +1,9 @@
 /**
  * Dead code across the import graph, via knip. Two runs: the default graph, then
  * `--production`, which drops tests so an export only its own test imports shows up
- * as `testOnlyExports` (reported once, minus what the first run named).
+ * as `testOnlyExports` (reported once, minus what the first run named). A third pass,
+ * `localOnlyTypes`, asks the TypeScript checker for exported types no other file
+ * names — knip counts those as used when they sit in a used export's signature.
  * Also gated, though none of it is dead code: the other half of knip's graph — an
  * import the manifest does not declare, a binary nothing installs, an import that
  * resolves to nothing, and circular imports. Only pnpm `catalog` findings are not
@@ -11,6 +13,7 @@
 import { execFileSync } from 'node:child_process';
 
 import { packageBin } from './lib/bin.ts';
+import { findLocalOnlyTypes } from './lib/local-only-types.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport } from './lib/report.ts';
 
@@ -113,6 +116,13 @@ export const TEST_ONLY: DeadCodeCategory & { key: string } = {
     fix: "Production code never imports this; only a test does. Decide which of the four it is: unwired production code (delete it, or wire it), a real part of the module's contract (tag `/** @public */`), an internal reached past the front door (unexport, and test it through the caller that uses it), or an expected value the test should write down as a literal instead of importing (an assertion fed from the code under test cannot fail).",
 };
 
+/** The third pass. Not a knip issue type either: knip counts these as used. */
+export const LOCAL_ONLY_TYPES: DeadCodeCategory & { key: string } = {
+    key: 'localOnlyTypes',
+    label: 'Exported types only their own file names',
+    fix: "No other file writes this type's name. knip counts it as used because it sits in the signature of an export that is used, but a caller receiving a shape is not a caller naming it. Drop the `export` (and any barrel line re-exporting it): the function stays callable, and TypeScript still checks every caller against the shape. If another file does need the name, import it there; if it is public by design, tag it `/** @public */`.",
+};
+
 /** Only exports: under `--production` test helpers and test deps would all read as unused. */
 const PROD_INCLUDE = ['exports', 'types', 'nsExports', 'nsTypes', 'namespaceMembers', 'enumMembers'];
 const PROD_ARGS = ['--production', '--include-entry-exports'];
@@ -190,21 +200,34 @@ export function collectHits(report: KnipReport, include: string[]): Record<strin
     return found;
 }
 
-/** Pass one, then pass two minus whatever pass one already named. */
+/**
+ * Pass one, then pass two minus whatever pass one already named, then the local-only
+ * types minus whatever either pass named — an exported type nothing uses at all is
+ * knip's `types` finding, and one dead type is reported once.
+ */
 export function inspectDeadCode(
     knip: (include: string[], extra?: string[]) => Record<string, DeadCodeHit[]>,
+    localOnlyTypes: () => DeadCodeHit[] = () => [],
 ): Record<string, DeadCodeHit[]> {
     const found = knip(Object.keys(CATEGORIES));
 
     const alreadyReported = new Set(Object.values(found).flat().map(identity));
-    found[TEST_ONLY.key] = Object.values(knip(PROD_INCLUDE, PROD_ARGS))
+    const testOnly = Object.values(knip(PROD_INCLUDE, PROD_ARGS))
         .flat()
         .filter((hit) => !alreadyReported.has(identity(hit)));
+    found[TEST_ONLY.key] = testOnly;
+
+    for (const hit of testOnly) alreadyReported.add(identity(hit));
+    found[LOCAL_ONLY_TYPES.key] = localOnlyTypes().filter((hit) => !alreadyReported.has(identity(hit)));
 
     return found;
 }
 
-const ALL_CATEGORIES: [string, DeadCodeCategory][] = [...Object.entries(CATEGORIES), [TEST_ONLY.key, TEST_ONLY]];
+const ALL_CATEGORIES: [string, DeadCodeCategory][] = [
+    ...Object.entries(CATEGORIES),
+    [TEST_ONLY.key, TEST_ONLY],
+    [LOCAL_ONLY_TYPES.key, LOCAL_ONLY_TYPES],
+];
 
 /**
  * The categories over budget, in CATEGORIES order with the second pass last, then the
@@ -295,7 +318,10 @@ export function checkDeadCode(options: DeadCodeOptions = {}): void {
     let found;
     try {
         const bin = packageBin('knip');
-        found = inspectDeadCode((include, extra) => runKnip({ root, bin, include, extra }));
+        found = inspectDeadCode(
+            (include, extra) => runKnip({ root, bin, include, extra }),
+            () => findLocalOnlyTypes(root),
+        );
     } catch (error) {
         console.error(`✗ Dead code check failed — ${error instanceof Error ? error.message : String(error)}`);
         process.exitCode = 1;

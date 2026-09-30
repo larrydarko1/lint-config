@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { duplicateTitles, inspectTesting, repoFiles } from '../src/gates/testing.ts';
+import { repoFiles } from '../src/gates/lib/files.ts';
+import { duplicateTitles, inspectTesting } from '../src/gates/testing.ts';
 
 const CONFIG = [
     'export default {',

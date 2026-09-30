@@ -12,10 +12,10 @@
  *   9. The DOM environment the standard names.
  * Not checked: test quality, assertion presence, what to write next.
  */
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { repoFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './lib/report.ts';
 
@@ -115,20 +115,6 @@ const PATCHED_TRANSPORT =
     /vi\.mock\(\s*['"](?:axios|node-fetch|cross-fetch)['"]|(?:global|globalThis)\.fetch\s*=|stubGlobal\(\s*['"]fetch['"]/;
 
 const VM_ACCESS = /\.vm\.[a-zA-Z_][a-zA-Z0-9_]*/;
-
-/** Every tracked or untracked-but-not-ignored file that still exists on disk. */
-export function repoFiles(root: string): string[] {
-    return (
-        execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
-            cwd: root,
-            encoding: 'utf8',
-        })
-            .split('\n')
-            .filter(Boolean)
-            // `--cached` still lists files deleted but not yet committed.
-            .filter((rel) => fs.existsSync(path.join(root, rel)))
-    );
-}
 
 /** Duplicate case titles within one `describe`. `it.each` titles are skipped (they expand at run time). */
 export function duplicateTitles(source: string): { title: string; count: number }[] {
