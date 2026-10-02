@@ -22,6 +22,7 @@ projects is an option, and everything else is fixed.
 - [ESLint](#eslint)
 - [Stylelint, commitlint, lint-staged](#stylelint-commitlint-lint-staged)
 - [CI gates](#ci-gates)
+- [Response schemas](#response-schemas)
 - [Response-leak tripwire](#response-leak-tripwire)
 - [The toolchain](#the-toolchain)
 - [Working on this package](#working-on-this-package)
@@ -249,7 +250,7 @@ its source roots, its services, and exceptions it has approved, each with a stat
 | `electron-security`        | electron  | `webPreferences`, navigation, permissions, `v-html`, TLS overrides       |
 | `error-handling/electron`  | electron  | IPC handlers contain failures, process backstops, cleanup on quit        |
 | `ipc-standards`            | electron  | the channel list, documentation and preload surface agree                |
-| `api-standards`            | fullstack | route map, middleware order, rate limits                                 |
+| `api-standards`            | fullstack | route map, middleware order, rate limits, response schemas               |
 | `db-drift`                 | fullstack | collection registry, indexes, migrations, drain order, ops scripts       |
 | `docker`                   | fullstack | image rules that need no Docker daemon, including no secrets in layers   |
 | `env-drift`                | fullstack | the env schema and `.env.example` files agree; secrets have no default   |
@@ -265,6 +266,63 @@ Don't list `html` there, because jscpd rejects it.
 `gates/lib/repo-root`, `gates/lib/strip-comments`, `gates/lib/source`, `gates/lib/files`,
 `gates/lib/report` and `gates/lib/swallowed-errors` are the helpers the gates are built from, and
 they are exported for your own gates.
+
+## Response schemas
+
+An API response should carry only the fields the frontend uses. The reliable way to get that is
+an allowlist that runs on every response: a Zod schema per response, parsed just before the data
+is sent. A Zod object drops every key it does not declare, so a whole database document passed by
+mistake, or a field added to the collection next month, never reaches the wire. The frontend
+infers its types from the same schemas, so the two sides cannot drift.
+
+The project owns the helper, because it runs in production and this package is a dev dependency:
+
+```ts
+// api/src/lib/send.ts
+export function send<TSchema extends z.ZodType>(res: Response, schema: TSchema, data: z.input<TSchema>): void {
+    const parsed = schema.safeParse(data);
+    // A server bug, not a bad request: never let it reach a ZodError → 422 handler.
+    if (!parsed.success) throw new AppError(500, 'INTERNAL', 'Response did not match its schema');
+    res.json(parsed.data);
+}
+
+// a route
+send(res, videoMetaSchema, video);
+send(res.status(202), uploadAcceptedSchema, result);
+```
+
+`api-standards` enforces it once the project states `responses`:
+
+```ts
+checkApiStandards({
+    // ...the other paths
+    responses: {
+        helper: 'api/src/lib/send.ts',
+        schemasDir: 'packages/shared/src/responses',
+        pending: {
+            'api/src/routes/admin.ts': 'moderation shapes not migrated yet',
+        },
+    },
+});
+```
+
+- **No raw responses in route files.** `res.json(…)`, `res.send(…)` and `res.end(…)` with a payload
+  fail, each at its line. `{ error: CODE }` bodies and an empty `res.status(204).end()` are fine,
+  since they carry no data.
+- **The helper parses.** It must exist and call `.parse(` or `.safeParse(`.
+- **No loose response schemas.** Every file under `schemasDir` is checked for `z.looseObject`,
+  `.passthrough()`, `.loose()`, `.catchall()`, `z.any()`, `z.unknown()`, `z.json()`,
+  `z.custom()` and a record of strings. Each of these lets through a field nobody declared.
+- **`pending` only shrinks.** It lists the route files not migrated yet, each with a reason. A
+  listed file with no raw response left fails, and so does an entry naming no route file. When the
+  list is empty, delete the key.
+
+A project adopting this lists every route file with a raw response in `pending` on day one, so the
+gate passes. It then migrates one area at a time. With `exactOptionalPropertyTypes`, declare
+optional fields with `.exactOptional()`: `.optional()` infers `?: T | undefined`.
+
+The gate reads text, so it does not see a response parameter named something other than `res`,
+or a schema helper imported under another name.
 
 ## Response-leak tripwire
 
@@ -319,8 +377,9 @@ the test registered is covered. Strings shorter than `minValueLength` (default 8
 value-matched, since they collide with ordinary text. Leave out `db` and only names are checked.
 
 Leave out any field that is sent on purpose to one audience, such as recovery codes shown once,
-or a ban reason shown to staff. Both checks are denylists, so a mapper per response is still the
-real defence. The tripwire catches a route that skipped one, on the routes the suite visits.
+or a ban reason shown to staff. Both checks are denylists, so [response schemas](#response-schemas)
+are still the real defence. The tripwire catches what a schema cannot: a secret under a field
+name the schema does list, on the routes the suite visits.
 The module has no dependencies. It accepts any object shaped like a MongoDB `Db` and a Playwright
 `BrowserContext`.
 

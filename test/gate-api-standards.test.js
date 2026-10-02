@@ -190,7 +190,7 @@ test('an API that satisfies every rule reports nothing', (t) => {
 
 test('the counts describe what was walked', (t) => {
     const { counts } = run(tree(t, good()));
-    assert.deepEqual(counts, { routes: 5, files: 2, mounts: 2 });
+    assert.deepEqual(counts, { routes: 5, files: 2, mounts: 2, pending: 0 });
 });
 
 test('a router with neither routes nor a route map is skipped rather than failed', (t) => {
@@ -810,4 +810,187 @@ test('withCredentials inside a comment does not satisfy the rule', (t) => {
         }),
     );
     assert.ok(whats(root).some((what) => what.includes('missing `withCredentials: true`')));
+});
+
+// ─── 10. Responses go through a schema ───────────────────────────────────────
+
+const SEND = `import type { Response } from 'express';
+import type { z } from 'zod';
+
+export function send<S extends z.ZodType>(res: Response, schema: S, data: z.input<S>): void {
+    res.json(schema.parse(data));
+}
+`;
+
+const RESPONSE_SCHEMAS = `import { z } from 'zod';
+
+export const videoSchema = z.object({
+    videoId: z.string(),
+    title: z.string(),
+    captionJobs: z.record(z.string(), z.object({ status: z.enum(['queued', 'failed']) })).optional(),
+});
+`;
+
+const SCHEMAED_VIDEOS = VIDEOS.replaceAll(/res(\.status\(201\))?\.json\(([^;]*)\);/g, 'send(res$1, videoSchema, $2);');
+const SCHEMAED_CHANNELS = CHANNELS.replace(
+    'res.json(await getChannel(req.params.handle));',
+    'send(res, channelSchema, await getChannel(req.params.handle));',
+);
+
+const schemaed = (overrides = {}) =>
+    good({
+        'api/src/routes/videos.ts': SCHEMAED_VIDEOS,
+        'api/src/routes/channels.ts': SCHEMAED_CHANNELS,
+        'api/src/lib/send.ts': SEND,
+        'packages/shared/src/schemas/media.ts': RESPONSE_SCHEMAS,
+        ...overrides,
+    });
+
+const RESPONSES = { helper: 'api/src/lib/send.ts', schemasDir: 'packages/shared/src/schemas' };
+const withResponses = (extra = {}) => ({ responses: { ...RESPONSES, ...extra } });
+
+test('routes answering through the schema helper report nothing', (t) => {
+    assert.deepEqual(whats(tree(t, schemaed()), withResponses()), []);
+});
+
+test('a repo that states no responses is not graded on them', (t) => {
+    assert.deepEqual(whats(tree(t, good())), []);
+});
+
+test('a raw res.json is reported at its line', (t) => {
+    const root = tree(t, schemaed({ 'api/src/routes/channels.ts': CHANNELS }));
+    const problems = run(root, withResponses()).problems;
+    assert.deepEqual(
+        problems.map((problem) => `${problem.file} ${problem.what}`),
+        ['api/src/routes/channels.ts:10 sends a response without its schema'],
+    );
+});
+
+test('a raw res.status(201).json is reported', (t) => {
+    const raw = SCHEMAED_VIDEOS.replace(
+        'send(res.status(201), videoSchema, await createVideo(req.body));',
+        'res.status(201).json(await createVideo(req.body));',
+    );
+    const root = tree(t, schemaed({ 'api/src/routes/videos.ts': raw }));
+    assert.deepEqual(whats(root, withResponses()), ['sends a response without its schema']);
+});
+
+test('a res chain split over lines is still found', (t) => {
+    const raw = `${SCHEMAED_CHANNELS}res\n    .status(200)\n    .json(channel);\n`;
+    const root = tree(t, schemaed({ 'api/src/routes/channels.ts': raw }));
+    assert.deepEqual(whats(root, withResponses()), ['sends a response without its schema']);
+});
+
+test('res.send and res.end with a payload are raw too', (t) => {
+    const raw = `${SCHEMAED_CHANNELS}res.send(channel);\nres.end(JSON.stringify(channel));\n`;
+    const root = tree(t, schemaed({ 'api/src/routes/channels.ts': raw }));
+    assert.equal(whats(root, withResponses()).length, 2);
+});
+
+test('an empty res.status(204).end() sends nothing and is fine', (t) => {
+    assert.ok(SCHEMAED_VIDEOS.includes('res.status(204).end();'));
+    assert.deepEqual(whats(tree(t, schemaed()), withResponses()), []);
+});
+
+test('an error body is exempt: it carries a code, never data', (t) => {
+    const errors = `${SCHEMAED_CHANNELS}res.status(502).json({ error: 'STORAGE_UNAVAILABLE' });\nres.status(422).json({\n    error: 'VALIDATION_FAILED',\n    errors,\n});\n`;
+    const root = tree(t, schemaed({ 'api/src/routes/channels.ts': errors }));
+    assert.deepEqual(whats(root, withResponses()), []);
+});
+
+test('a body with error beside data is not an error body', (t) => {
+    const raw = `${SCHEMAED_CHANNELS}res.json({ channel, error: null });\n`;
+    const root = tree(t, schemaed({ 'api/src/routes/channels.ts': raw }));
+    assert.deepEqual(whats(root, withResponses()), ['sends a response without its schema']);
+});
+
+test('.json() on something other than res is not a response', (t) => {
+    const other = `${SCHEMAED_CHANNELS}const body = await upstream.json();\n`;
+    const root = tree(t, schemaed({ 'api/src/routes/channels.ts': other }));
+    assert.deepEqual(whats(root, withResponses()), []);
+});
+
+test('a raw response inside a comment is not reported', (t) => {
+    const commented = `${SCHEMAED_CHANNELS}// res.json(channel);\n`;
+    const root = tree(t, schemaed({ 'api/src/routes/channels.ts': commented }));
+    assert.deepEqual(whats(root, withResponses()), []);
+});
+
+test('a pending file may still answer raw', (t) => {
+    const root = tree(t, schemaed({ 'api/src/routes/channels.ts': CHANNELS }));
+    const pending = { 'api/src/routes/channels.ts': 'not migrated yet' };
+    assert.deepEqual(whats(root, withResponses({ pending })), []);
+});
+
+test('a pending file with no raw response left must leave the list', (t) => {
+    const pending = { 'api/src/routes/channels.ts': 'not migrated yet' };
+    assert.deepEqual(whats(tree(t, schemaed()), withResponses({ pending })), [
+        'answers through the schema helper now, but is still in `responses.pending`',
+    ]);
+});
+
+test('a pending entry naming no route file is reported', (t) => {
+    const pending = { 'api/src/routes/gone.ts': 'deleted since' };
+    assert.deepEqual(whats(tree(t, schemaed()), withResponses({ pending })), [
+        'is in `responses.pending` but is not a route file',
+    ]);
+});
+
+test('the counts include the pending files', (t) => {
+    const root = tree(t, schemaed({ 'api/src/routes/channels.ts': CHANNELS }));
+    const pending = { 'api/src/routes/channels.ts': 'not migrated yet' };
+    assert.equal(run(root, withResponses({ pending })).counts.pending, 1);
+});
+
+test('a missing helper is reported', (t) => {
+    const root = tree(t, schemaed());
+    fs.rmSync(path.join(root, 'api/src/lib/send.ts'));
+    assert.deepEqual(whats(root, withResponses()), ['missing']);
+});
+
+test('a helper that never parses is reported', (t) => {
+    const lazy = SEND.replace('res.json(schema.parse(data));', 'res.json(data);');
+    const root = tree(t, schemaed({ 'api/src/lib/send.ts': lazy }));
+    assert.deepEqual(whats(root, withResponses()), ['never parses the data with a schema']);
+});
+
+test('a helper using safeParse counts as parsing', (t) => {
+    const safe = SEND.replace('res.json(schema.parse(data));', 'res.json(schema.safeParse(data).data);');
+    const root = tree(t, schemaed({ 'api/src/lib/send.ts': safe }));
+    assert.deepEqual(whats(root, withResponses()), []);
+});
+
+for (const [name, loose] of [
+    ['`z.looseObject()`', 'z.looseObject({ id: z.string() })'],
+    ['`.passthrough()`', 'z.object({ id: z.string() }).passthrough()'],
+    ['`.loose()`', 'z.object({ id: z.string() }).loose()'],
+    ['`.catchall()`', 'z.object({ id: z.string() }).catchall(z.string())'],
+    ['`z.any()`', 'z.object({ extra: z.any() })'],
+    ['`z.unknown()`', 'z.object({ extra: z.unknown() })'],
+    ['`z.json()`', 'z.object({ extra: z.json() })'],
+    ['`z.custom()`', 'z.object({ extra: z.custom() })'],
+]) {
+    test(`a response schema using ${name} is reported`, (t) => {
+        const schemas = `${RESPONSE_SCHEMAS}export const looseSchema = ${loose};\n`;
+        const root = tree(t, schemaed({ 'packages/shared/src/schemas/media.ts': schemas }));
+        assert.ok(whats(root, withResponses()).includes(`a response schema uses ${name}`));
+    });
+}
+
+test('a record of strings is reported', (t) => {
+    const schemas = `${RESPONSE_SCHEMAS}export const bagSchema = z.record(z.string(), z.string());\n`;
+    const root = tree(t, schemaed({ 'packages/shared/src/schemas/media.ts': schemas }));
+    assert.deepEqual(whats(root, withResponses()), ['a response schema uses a record of strings']);
+});
+
+test('a record of numbers or objects is fine', (t) => {
+    const schemas = `${RESPONSE_SCHEMAS}export const countsSchema = z.record(z.string(), z.number());\n`;
+    const root = tree(t, schemaed({ 'packages/shared/src/schemas/media.ts': schemas }));
+    assert.deepEqual(whats(root, withResponses()), []);
+});
+
+test('a loose schema inside a comment is not reported', (t) => {
+    const schemas = `${RESPONSE_SCHEMAS}// z.looseObject({}) would let anything through\n`;
+    const root = tree(t, schemaed({ 'packages/shared/src/schemas/media.ts': schemas }));
+    assert.deepEqual(whats(root, withResponses()), []);
 });

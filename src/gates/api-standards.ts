@@ -11,6 +11,8 @@
  *   7. The token-bucket contract, and no fixed-window limiter library beside it.
  *   8. Pagination is capped through the shared schema, never raw `parseInt` on `req.query`.
  *   9. CORS credentials on both the server and the shared client instance.
+ *  10. Responses leave through one helper that parses the data with a Zod schema,
+ *      and no response schema lets unknown fields through (opt-in: `responses`).
  * Also: `optionalAuth` before the limited mounts (they key on `req.userId`), and no
  * `{ ok: true, data }` success envelope.
  */
@@ -48,11 +50,22 @@ export type ApiStandardsOptions = {
     optionalAuth?: string;
     /** What builds the shared client instance. Defaults to `axios.create(`. */
     clientFactory?: string;
+    /** Response schemas (rule 10). A repo that states none is not graded on it. */
+    responses?: ResponseSchemaOptions;
+};
+
+export type ResponseSchemaOptions = {
+    /** The module holding the helper every route answers through. It must parse with a schema. */
+    helper: string;
+    /** The directory of response schemas, checked for shapes that let unknown fields through. */
+    schemasDir: string;
+    /** Route files still answering raw, each with a reason. A ratchet: remove entries, never add. */
+    pending?: Record<string, string>;
 };
 
 type ApiStandardsInspection = {
     problems: GateFailure[];
-    counts: { routes: number; files: number; mounts: number };
+    counts: { routes: number; files: number; mounts: number; pending: number };
 };
 
 /** The three tiers the standard names. A repo with more states its own list. */
@@ -70,6 +83,55 @@ const ROUTE_DECLARATION = /^router\.(get|post|put|patch|delete)\(\s*\n?\s*'([^']
 /** Route lines in a JSDoc header: ` * GET /videos/:id — one clause`. */
 const ROUTE_DOCUMENTATION = /^\s*\*\s+(GET|POST|PUT|PATCH|DELETE)\s+(\/\S*)/gm;
 
+/** A `res` chain right before the call: `res.`, `res.status(201).`, `res.set('X', 'y').`. */
+const RES_RECEIVER = /\bres(?:\s*\.\s*\w+\s*\([^()]*\))*\s*\.\s*$/;
+
+/** An error body: `{ error: 'CODE' }` carries a machine code, never data. */
+const ERROR_BODY = /^\s*\{\s*error\s*[:,}]/;
+
+/** Schema escape hatches: each one lets a field through that no one declared. */
+const LOOSE_SCHEMA: [RegExp, string][] = [
+    [/\bz\.looseObject\(/, '`z.looseObject()`'],
+    [/\.passthrough\(/, '`.passthrough()`'],
+    [/\.loose\(/, '`.loose()`'],
+    [/\.catchall\(/, '`.catchall()`'],
+    [/\bz\.any\(/, '`z.any()`'],
+    [/\bz\.unknown\(/, '`z.unknown()`'],
+    [/\bz\.json\(/, '`z.json()`'],
+    [/\bz\.custom\(/, '`z.custom()`'],
+];
+
+/** The last top-level argument in an argument list: the value schema of `z.record(key, value)`. */
+const lastArgument = (args: string): string => {
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < args.length; i++) {
+        const ch = args[i];
+        if (ch === '(' || ch === '{' || ch === '[') depth++;
+        else if (ch === ')' || ch === '}' || ch === ']') depth--;
+        else if (ch === ',' && depth === 0) start = i + 1;
+    }
+    return args.slice(start).trim();
+};
+
+/**
+ * Every response a route sends without the schema helper, as its line number:
+ * `res.json(…)` with anything but an error body, `res.send(…)` and `res.end(…)`
+ * with a payload. A bare `res.status(204).end()` sends nothing, so it is fine.
+ */
+function rawResponses(source: string): number[] {
+    const lines: number[] = [];
+    for (const method of ['json', 'send', 'end']) {
+        for (const site of callSites(source, `.${method}(`)) {
+            if (!RES_RECEIVER.test(source.slice(Math.max(0, site.index - 120), site.index + 1))) continue;
+            if (site.args.trim() === '') continue;
+            if (method === 'json' && ERROR_BODY.test(site.args)) continue;
+            lines.push(source.slice(0, site.index).split('\n').length);
+        }
+    }
+    return lines.sort((a, b) => a - b);
+}
+
 /** Every problem found, without printing. */
 export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsInspection {
     const {
@@ -85,6 +147,7 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
         mountPrefix = '/api/',
         optionalAuth,
         clientFactory = 'axios.create(',
+        responses,
     } = input;
 
     const problems: GateFailure[] = [];
@@ -422,9 +485,85 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
         }
     }
 
+    // ── 10. Responses go through a schema ───────────────────────────────────
+    if (responses !== undefined) {
+        const { helper, schemasDir, pending = {} } = responses;
+
+        if (!exists(helper)) {
+            fail(
+                helper,
+                'missing',
+                'It is the one door every response leaves through. Without it there is nowhere to check that a response was cut down to its schema.',
+            );
+        } else if (!/\.(?:safeParse|parse)\(/.test(code(helper))) {
+            fail(
+                helper,
+                'never parses the data with a schema',
+                'Parsing is the part that matters: a Zod object drops every field it does not declare, so a response can only carry what its schema lists. A helper that just calls `res.json()` checks nothing.',
+            );
+        }
+
+        for (const rel of routeFiles) {
+            const raw = rawResponses(code(rel));
+            if (rel in pending) {
+                if (raw.length === 0) {
+                    fail(
+                        rel,
+                        'answers through the schema helper now, but is still in `responses.pending`',
+                        'Remove the entry. A file left on the list is allowed to send raw responses again, and nothing would notice.',
+                    );
+                }
+                continue;
+            }
+            for (const line of raw) {
+                fail(
+                    `${rel}:${line}`,
+                    'sends a response without its schema',
+                    'Whatever the service returned goes on the wire, including a field added to the database tomorrow. Answer with the schema helper, which drops every field the schema does not list. Error bodies (`{ error: CODE }`) are exempt: they carry a code, never data.',
+                );
+            }
+        }
+
+        for (const rel of Object.keys(pending).sort()) {
+            if (!routeFiles.includes(rel)) {
+                fail(
+                    rel,
+                    'is in `responses.pending` but is not a route file',
+                    'It was moved or deleted. Remove the entry, or fix the path, so the list only names files it is really excusing.',
+                );
+            }
+        }
+
+        const schemaFiles = walkFiles(root, schemasDir, {
+            match: /\.ts$/,
+            exclude: (rel) => rel.includes('__tests__'),
+        });
+        for (const rel of schemaFiles) {
+            const source = code(rel);
+            for (const [pattern, name] of LOOSE_SCHEMA) {
+                if (pattern.test(source)) {
+                    fail(
+                        rel,
+                        `a response schema uses ${name}`,
+                        'It lets through fields no one declared, so the schema stops being a list of what may leave the server. Name every field instead.',
+                    );
+                }
+            }
+            if (callArgs(source, 'z.record(').some((args) => lastArgument(args).startsWith('z.string('))) {
+                fail(
+                    rel,
+                    'a response schema uses a record of strings',
+                    'A map from any key to any string is a bag a secret fits in, unnamed. Use an object with named fields, or a record whose values are numbers, enums or objects.',
+                );
+            }
+        }
+    }
+
     const routes = routeFiles.reduce((total, rel) => total + [...code(rel).matchAll(ROUTE_DECLARATION)].length, 0);
 
-    return { problems, counts: { routes, files: routeFiles.length, mounts: mounts.length } };
+    const pending = Object.keys(responses?.pending ?? {}).length;
+
+    return { problems, counts: { routes, files: routeFiles.length, mounts: mounts.length, pending } };
 }
 
 /** Run the gate and print. */
@@ -434,12 +573,20 @@ export function checkApiStandards(options: ApiStandardsOptions): void {
 
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
+    const responses =
+        options.responses === undefined
+            ? ''
+            : ` No raw responses in ${plural(counts.files - counts.pending, 'router file')}, the response helper parses, no loose response schema` +
+              (counts.pending === 0 ? '.' : ` — ${counts.pending} router files still pending migration.`);
+
     report.done({
         summary:
             `REST API architecture OK — ${plural(counts.routes, 'route')} across ${plural(counts.files, 'router file')}, ` +
             `each one documented in its own header; middleware ordered with the error handler last, ` +
-            `${plural(counts.mounts, 'mount')} all carrying a rate-limit tier, token bucket atomic and fail-open, pagination capped.`,
+            `${plural(counts.mounts, 'mount')} all carrying a rate-limit tier, token bucket atomic and fail-open, pagination capped.` +
+            responses,
         notMachineChecked:
-            'Whether a status code is the RIGHT one, whether independent awaits were parallelised, cache TTL judgement, or whether a given POST is idempotent. Nor whether a route header describes what the route actually does — only that the two lists match.',
+            'Whether a status code is the RIGHT one, whether independent awaits were parallelised, cache TTL judgement, or whether a given POST is idempotent. Nor whether a route header describes what the route actually does — only that the two lists match. ' +
+            'Nor whether a field a schema DOES declare should be public — a secret under a declared name passes; the response-leak tripwire is what catches that.',
     });
 }
