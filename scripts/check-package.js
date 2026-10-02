@@ -21,8 +21,11 @@ try {
     fs.mkdirSync(path.join(work, '.git'));
 
     // ── Pack and unpack, as a registry install would ────────────────────────
+    // Under `npm publish --dry-run` the flag reaches this script as npm_config_dry_run, and a
+    // dry-run pack reports a filename without writing the tarball, so it is dropped here.
+    const { npm_config_dry_run: _dryRun, ...env } = process.env;
     const [{ filename }] = JSON.parse(
-        execFileSync('npm', ['pack', '--json', '--pack-destination', work], { cwd: ROOT, encoding: 'utf8' }),
+        execFileSync('npm', ['pack', '--json', '--pack-destination', work], { cwd: ROOT, encoding: 'utf8', env }),
     );
     const installed = path.join(work, 'node_modules', ...pkg.name.split('/'));
     fs.mkdirSync(installed, { recursive: true });
