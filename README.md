@@ -22,6 +22,7 @@ projects is an option, and everything else is fixed.
 - [ESLint](#eslint)
 - [Stylelint, commitlint, lint-staged](#stylelint-commitlint-lint-staged)
 - [CI gates](#ci-gates)
+- [Response-leak tripwire](#response-leak-tripwire)
 - [The toolchain](#the-toolchain)
 - [Working on this package](#working-on-this-package)
 
@@ -264,6 +265,64 @@ Don't list `html` there, because jscpd rejects it.
 `gates/lib/repo-root`, `gates/lib/strip-comments`, `gates/lib/source`, `gates/lib/files`,
 `gates/lib/report` and `gates/lib/swallowed-errors` are the helpers the gates are built from, and
 they are exported for your own gates.
+
+## Response-leak tripwire
+
+`@larrydarko/lint-config/response-leaks` checks every JSON response an E2E suite receives from the
+API for fields that must never leave the server. The project lists those fields per collection,
+and every response is checked two ways:
+
+- **by key**: a property with one of those names, at any depth.
+- **by value**: a string equal to what one of those fields holds in the test database at that
+  moment, under any name. `{ ref: user.stripeCustomerId }` passes the key check and fails this one.
+
+It is a test fixture, not a gate, because it needs the real API and database running: route tests
+that mock the service layer only ever see the data the test made up. Plug it into the Playwright
+fixtures every test imports:
+
+```ts
+// e2e/support/fixtures.ts
+import { createLeakRecorder, type LeakRecorder } from '@larrydarko/lint-config/response-leaks';
+
+const SENSITIVE_FIELDS = {
+    Users: ['password', 'totpSecret', 'emailEncrypted', 'stripeCustomerId'],
+    Media: ['rawObjectKey'],
+};
+
+export const test = base.extend<{ noResponseLeaks: void }, { leaks: LeakRecorder }>({
+    leaks: [
+        async ({}, use) => {
+            const client = await new MongoClient(MONGO_URI).connect();
+            await use(createLeakRecorder({ sensitive: SENSITIVE_FIELDS, db: client.db(MONGO_DB) }));
+            await client.close();
+        },
+        { scope: 'worker' },
+    ],
+    noResponseLeaks: [
+        async ({ leaks }, use) => {
+            await use();
+            expect(await leaks.drain(), 'API responses carried server-only fields').toEqual([]);
+        },
+        { auto: true },
+    ],
+    context: async ({ context, leaks }, use) => {
+        leaks.watch(context);
+        await use(context);
+    },
+});
+```
+
+A failure names the route, the JSON path and how it matched:
+`GET /api/profile/alice → $.user.emailIndex (key of Users.emailIndex)`. A dotted field name
+(`billing.customerId`) reaches into a subdocument. Values are read when `drain()` runs, so a user
+the test registered is covered. Strings shorter than `minValueLength` (default 8) are not
+value-matched, since they collide with ordinary text. Leave out `db` and only names are checked.
+
+Leave out any field that is sent on purpose to one audience, such as recovery codes shown once,
+or a ban reason shown to staff. Both checks are denylists, so a mapper per response is still the
+real defence. The tripwire catches a route that skipped one, on the routes the suite visits.
+The module has no dependencies. It accepts any object shaped like a MongoDB `Db` and a Playwright
+`BrowserContext`.
 
 ## The toolchain
 

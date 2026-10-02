@@ -173,6 +173,10 @@
             "types": "./dist/prettier.d.ts",
             "default": "./dist/prettier.js"
         },
+        "./response-leaks": {
+            "types": "./dist/response-leaks.d.ts",
+            "default": "./dist/response-leaks.js"
+        },
         "./stylelint": {
             "types": "./dist/stylelint.d.ts",
             "default": "./dist/stylelint.js"
