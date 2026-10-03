@@ -13,6 +13,7 @@ import { securityStandards, type SecurityOptions } from '../rules/security.ts';
 import { testingStandards } from '../rules/testing.ts';
 import { typescriptStandards } from '../rules/typescript.ts';
 import { vueStandards } from '../rules/vue.ts';
+import { errorHandlingStandards } from './error-handling.ts';
 import { loggingStandards } from './logging.ts';
 
 export { bannedCryptoModules } from '../rules/security.ts';
@@ -49,6 +50,7 @@ export function electronStandards(options: ElectronStandardsOptions = {}) {
     return [
         ...securityStandards({ code: SOURCE, vue }, security),
         ...loggingStandards,
+        ...errorHandlingStandards,
         ...typescriptStandards({ source: SOURCE, code: [...SOURCE, ...TESTS], defaultExportAllowed: [] }),
         ...envStandards(['**/lib/config.ts', ...TESTS, 'vitest.setup.ts', 'scripts/**/*.ts', 'build/**/*.cjs']),
         ...htmlStandards({ vue, globalStylesheet: ['src/renderer/App.vue'] }, html),

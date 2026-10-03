@@ -125,6 +125,25 @@ workspace boundaries, its logger, and the full-stack api, database and websocket
 `html.globalStylesheet`, `refactoring.markerFiles` and `i18n` (or `i18n: false`).
 `fullstackStandards()` also accepts `logging.consoleAllowed`.
 
+**No `any`, no unchecked casts, tests included.** `no-explicit-any`, the `no-unsafe-*` family and
+`no-unsafe-type-assertion` are errors in every typed file. A cast that narrows (`as never`, `as unknown as T`,
+`event.target as HTMLInputElement`) labels a value with a type nothing checked; in a test, that is how a fake
+with the wrong shape compiles. Narrow with a check (`instanceof`, a type guard, a Zod parse) or type the fake
+in full. The typed rules read a Vue file's `<script>` only, so `vue/no-restricted-syntax` refuses `as` in
+its `<template>` too.
+
+**Every disable comment names its rule and says why**: `// eslint-disable-next-line rule -- reason`.
+`@eslint-community/eslint-comments` enforces it (`require-description`, `no-unlimited-disable`,
+`disable-enable-pair`), everywhere, typed or not. A block disable needs its enable, unless it is a
+whole-file exception at the very top.
+
+**A rule of the package's own**, under the `larry/` prefix, needs no wiring:
+
+- `larry/no-caught-message-leak` — a caught error's `message` or `stack` may reach a logger, an error's message
+  argument or AppError's `logContext`, and nothing else: not a return value, a call, or a property write. On in
+  the full-stack api and services, and the Electron main and preload processes. AppError takes its message
+  third; pass `{ messageArgs: { MyError: 1 } }` for another class that does not take it first.
+
 **Full-stack workspaces are roles.** The full-stack rules are written against four roles, not
 folder names: `frontend` (the Vue app), `api` (the HTTP service), `services` (Node processes
 outside the request cycle: a queue consumer, a feed ingestor) and `shared` (packages the others

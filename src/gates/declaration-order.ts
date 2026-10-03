@@ -481,6 +481,19 @@ export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
     const files = discovered.filter((rel) => !isTestPath(rel));
     // .vue is production-only; a suite is always a .ts module.
     const testFiles = discovered.filter((rel) => isTestPath(rel) && rel.endsWith('.ts'));
+
+    // A gate that read nothing must not print the same line as one that read everything.
+    // `sourceRoots: []` is the way in: it reads as "no restriction" and means "no folders".
+    if (discovered.length === 0) {
+        console.error(
+            sourceRoots?.length === 0
+                ? '✗ Declaration order check read no files: `sourceRoots: []` names no folders. Leave it out to check every file git knows about.'
+                : '✗ Declaration order check read no files. Check `sourceRoots` and `exclude` — a gate with nothing to read is not a pass.',
+        );
+        process.exitCode = 1;
+        return;
+    }
+
     let statementsChecked = 0;
 
     for (const rel of [...files, ...testFiles]) {

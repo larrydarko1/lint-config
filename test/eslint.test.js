@@ -7,9 +7,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ESLint } from 'eslint';
+import vuePlugin from 'eslint-plugin-vue';
+import ts from 'typescript-eslint';
 
 import { larry } from '../src/eslint/index.ts';
 import { PRESETS, resolvePaths } from '../src/eslint/presets.ts';
+import { vueStandards } from '../src/eslint/rules/vue.ts';
 
 const ROOT = '/tmp/lint-config-eslint-test';
 
@@ -44,12 +47,27 @@ test('the catch-all block cannot undo the strict block that follows it', async (
     assert.equal(await severityOf(config, 'src/renderer/App.vue', '@typescript-eslint/no-explicit-any'), 2);
 });
 
-test('tests relax the strict type rules, and the relaxation is what wins', async () => {
+test('tests relax some strict rules, and the relaxation is what wins', async () => {
     const config = base();
-    assert.equal(await severityOf(config, 'tests/thing.test.ts', '@typescript-eslint/no-explicit-any'), 0);
-    assert.equal(await severityOf(config, 'tests/thing.test.ts', '@typescript-eslint/no-unsafe-call'), 0);
+    assert.equal(await severityOf(config, 'tests/thing.test.ts', '@typescript-eslint/no-non-null-assertion'), 0);
     // …but a rule nobody relaxed stays on in tests.
     assert.equal(await severityOf(config, 'tests/thing.test.ts', '@typescript-eslint/no-floating-promises'), 2);
+});
+
+test('any and unchecked casts stay banned in tests, where a fake with the wrong shape would hide behind them', async () => {
+    const config = base();
+    for (const rule of [
+        'no-explicit-any',
+        'no-unsafe-assignment',
+        'no-unsafe-member-access',
+        'no-unsafe-call',
+        'no-unsafe-return',
+        'no-unsafe-argument',
+        'no-unsafe-type-assertion',
+    ]) {
+        assert.equal(await severityOf(config, 'tests/thing.test.ts', `@typescript-eslint/${rule}`), 2, rule);
+        assert.equal(await severityOf(config, 'src/main/index.ts', `@typescript-eslint/${rule}`), 2, rule);
+    }
 });
 
 test('testRules are merged after the defaults, so a project can relax one more', async () => {
@@ -132,4 +150,59 @@ test('both presets produce a config ESLint accepts end to end', async () => {
         const resolved = await eslint.calculateConfigForFile(`${ROOT}/scripts/thing.ts`);
         assert.ok(Object.keys(resolved.rules).length > 100, `${preset} resolved too few rules`);
     }
+});
+
+test('a disable comment must name its rule and say why', async () => {
+    const eslint = new ESLint({ overrideConfigFile: true, baseConfig: base(), cwd: ROOT });
+    const ruleIds = async (code) =>
+        (await eslint.lintText(code, { filePath: `${ROOT}/thing.js` }))[0].messages.map((m) => m.ruleId);
+
+    assert.ok(
+        (await ruleIds('// eslint-disable-next-line no-console\nconsole.log(1);\n')).includes(
+            '@eslint-community/eslint-comments/require-description',
+        ),
+    );
+    assert.ok(
+        (await ruleIds('/* eslint-disable */\nconsole.log(1);\n')).includes(
+            '@eslint-community/eslint-comments/no-unlimited-disable',
+        ),
+    );
+    assert.ok(
+        (await ruleIds('const a = 1;\n/* eslint-disable no-console -- startup banner */\nconsole.log(a);\n')).includes(
+            '@eslint-community/eslint-comments/disable-enable-pair',
+        ),
+    );
+    // At the very top, a block disable is a whole-file exception: allowed, with its reason.
+    assert.ok(
+        !(await ruleIds('/* eslint-disable no-console -- a CLI script */\nconsole.log(1);\n')).includes(
+            '@eslint-community/eslint-comments/disable-enable-pair',
+        ),
+    );
+    assert.deepEqual(
+        (await ruleIds('// eslint-disable-next-line no-console -- startup banner\nconsole.log(1);\n')).filter((id) =>
+            id?.startsWith('@eslint-community/'),
+        ),
+        [],
+    );
+});
+
+test('a cast in a Vue template is an error, since the typed cast rule only reads <script>', async () => {
+    const config = [
+        ...vuePlugin.configs['flat/recommended'],
+        { files: ['**/*.vue'], languageOptions: { parserOptions: { parser: ts.parser } } },
+        ...vueStandards({ vue: ['**/*.vue'], frontend: ['**/*.vue'] }),
+    ];
+    const eslint = new ESLint({ overrideConfigFile: true, baseConfig: config, cwd: ROOT });
+    const ruleIds = async (template) =>
+        (
+            await eslint.lintText(
+                `<script setup lang="ts">\nconst p: unknown = 1;\n</script>\n\n<template>\n    ${template}\n</template>\n`,
+                {
+                    filePath: `${ROOT}/src/renderer/Thing.vue`,
+                },
+            )
+        )[0].messages.map((m) => m.ruleId);
+
+    assert.ok((await ruleIds('<p>{{ (p as number) + 1 }}</p>')).includes('vue/no-restricted-syntax'));
+    assert.ok(!(await ruleIds('<p>{{ p }}</p>')).includes('vue/no-restricted-syntax'));
 });

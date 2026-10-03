@@ -424,6 +424,20 @@ test('a source root that does not exist is skipped rather than throwing', (t) =>
     assert.match(out, /1 modules/);
 });
 
+test('an empty sourceRoots fails rather than passing on nothing', (t) => {
+    // `[]` reads like "no restriction" and means "no folders": the gate once printed a
+    // pass over 0 modules for a whole monorepo this way.
+    const { err, failed } = run(project(t, { 'src/a.ts': ORDERED }), { sourceRoots: [] });
+    assert.equal(failed, true);
+    assert.match(err, /`sourceRoots: \[\]` names no folders/);
+});
+
+test('roots that hold no .ts or .vue file fail too', (t) => {
+    const { err, failed } = run(project(t, { 'src/a.js': 'export const a = 1;\n' }));
+    assert.equal(failed, true);
+    assert.match(err, /read no files/);
+});
+
 /** A module whose type sits below a constant: one misplaced statement. */
 const MISPLACED = 'const LIMIT = 1;\n\ntype Thing = { a: number };\n\nexport const t: Thing = { a: LIMIT };\n';
 

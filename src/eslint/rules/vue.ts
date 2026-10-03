@@ -36,6 +36,14 @@ export const vueStandards = (layout: { vue: string[]; frontend: string[] }) => [
             'vue/prefer-true-attribute-shorthand': 'error',
             'vue/prefer-separate-static-class': 'error',
             'vue/no-unused-refs': 'error',
+            'vue/no-restricted-syntax': [
+                'error',
+                {
+                    selector: 'TSAsExpression',
+                    message:
+                        'No `as` in a template: the type rules cannot see it there. Move the expression into `<script setup>` and narrow it with a check — `targetOf(e, HTMLInputElement)`, a typed computed, a typed helper.',
+                },
+            ],
         },
     },
     {

@@ -3,8 +3,9 @@
  * relaxations. Per-area wiring (which selectors apply to which folder) stays in the
  * project's config and is passed in as `overrides`.
  */
+import { rules as eslintCommentRules } from '@eslint-community/eslint-plugin-eslint-comments';
 import js from '@eslint/js';
-import type { Linter } from 'eslint';
+import type { ESLint, Linter } from 'eslint';
 import prettier from 'eslint-config-prettier';
 import { createTypeScriptImportResolver } from 'eslint-import-resolver-typescript';
 import importX from 'eslint-plugin-import-x';
@@ -20,6 +21,7 @@ import {
     type PresetName,
     type PresetPaths,
 } from './presets.ts';
+import { larryPlugin } from './rules/larry-plugin.ts';
 import { NAMING_CONVENTION } from './rules/naming.ts';
 import { assertWorkspacesCovered } from './workspace-guard.ts';
 
@@ -57,15 +59,12 @@ type ImportExtensionsOptions = {
     nodeRun?: string[];
 };
 
-
-/** Rules relaxed in tests, where mocks and fixtures legitimately do what shipped code must not. */
+/**
+ * Rules relaxed in tests, where mocks and fixtures legitimately do what shipped code must not.
+ * `any` and unchecked casts are not among them: a fake that skips the type check is how a test
+ * passes against a shape the real code never has.
+ */
 const TEST_RELAXATIONS: Linter.RulesRecord = {
-    '@typescript-eslint/no-explicit-any': 'off',
-    '@typescript-eslint/no-unsafe-assignment': 'off',
-    '@typescript-eslint/no-unsafe-member-access': 'off',
-    '@typescript-eslint/no-unsafe-call': 'off',
-    '@typescript-eslint/no-unsafe-return': 'off',
-    '@typescript-eslint/no-unsafe-argument': 'off',
     '@typescript-eslint/unbound-method': 'off',
     '@typescript-eslint/consistent-type-imports': 'off',
     '@typescript-eslint/strict-boolean-expressions': 'off',
@@ -188,7 +187,14 @@ export function larry(options: LarryOptions): Linter.Config[] {
         // ── Everywhere, typed or not ─────────────────────────────────────────
         // First on purpose: it matches everything, and flat config is last-match-wins.
         {
+            plugins: {
+                'larry': larryPlugin as unknown as ESLint.Plugin,
+                '@eslint-community/eslint-comments': { rules: eslintCommentRules },
+            },
             rules: {
+                '@eslint-community/eslint-comments/require-description': 'error',
+                '@eslint-community/eslint-comments/no-unlimited-disable': 'error',
+                '@eslint-community/eslint-comments/disable-enable-pair': ['error', { allowWholeFile: true }],
                 '@typescript-eslint/consistent-type-definitions': ['error', 'type'],
                 '@typescript-eslint/no-empty-object-type': 'error',
                 ...(useVue
@@ -217,6 +223,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
                 '@typescript-eslint/no-unsafe-call': 'error',
                 '@typescript-eslint/no-unsafe-return': 'error',
                 '@typescript-eslint/no-unsafe-argument': 'error',
+                '@typescript-eslint/no-unsafe-type-assertion': 'error',
                 '@typescript-eslint/no-floating-promises': 'error',
                 '@typescript-eslint/await-thenable': 'error',
                 '@typescript-eslint/no-misused-promises': 'error',

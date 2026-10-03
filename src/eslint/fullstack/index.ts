@@ -20,6 +20,7 @@ import { typescriptStandards } from '../rules/typescript.ts';
 import { vueStandards } from '../rules/vue.ts';
 import { apiStandards } from './api.ts';
 import { dbStandards } from './db.ts';
+import { errorHandlingStandards } from './error-handling.ts';
 import { loggingStandards } from './logging.ts';
 
 export { bannedCryptoModules } from '../rules/security.ts';
@@ -73,6 +74,7 @@ export function fullstackStandards(options: FullstackStandardsOptions = {}): Ful
             ...dbStandards(layout),
             ...securityStandards({ code: [...layout.backend, ...sharedCode, ...frontend], vue }, security),
             ...loggingStandards(layout, logging),
+            ...errorHandlingStandards(layout),
             ...typescriptStandards({
                 source: [...source, 'e2e/**/*.ts'],
                 code: [...source, 'e2e/**/*.ts'],
