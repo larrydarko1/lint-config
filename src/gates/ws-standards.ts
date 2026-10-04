@@ -14,6 +14,8 @@
  *      after the event) and rate limited.
  *  10. The frontend: one client, listeners torn down (`onScopeDispose` or
  *      `onUnmounted`), the socket dropped on sign-out.
+ *  11. Outbound payloads have schemas (opt-in: `events`): the shared event table
+ *      lists exactly the events the gateway emits, and the gateway reads it.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -55,6 +57,12 @@ export type WsStandardsOptions = {
     teardownFn?: string;
     /** The session hook the teardown registers with. Absent means "called from the sign-out path". */
     sessionTeardown?: string;
+    /**
+     * The shared table of outbound events and their payload schemas (rule 11):
+     * `file` holds `export const <table> = { 'event:name': schema, … }`. A repo that
+     * states none is not graded on it.
+     */
+    events?: { file: string; table: string };
 };
 
 /**
@@ -73,7 +81,6 @@ type RedisAdapterRule =
 
 /** How this gateway addresses its clients. */
 type RoomRule = { join: 'personal'; prefix: string } | { join: 'helpers' };
-
 
 type WsStandardsInspection = {
     problems: GateFailure[];
@@ -123,6 +130,7 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
         tokenAccessor = 'findAccessToken',
         teardownFn = 'disconnectSocket',
         sessionTeardown,
+        events,
     } = input;
 
     const problems: GateFailure[] = [];
@@ -430,6 +438,45 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
 
     // ── 8. The header contract matches the wire, in both directions ─────────
     const outbound = new Set([...body.matchAll(/\.emit\(\s*'([^']+)'/g)].map((match) => match[1] ?? ''));
+
+    // ── 11. Every outbound event has a payload schema ───────────────────────
+    if (events !== undefined) {
+        const tablePath = path.join(root, events.file);
+        if (!fs.existsSync(tablePath)) {
+            fail(
+                events.file,
+                'missing',
+                'It holds the schema every pushed payload is checked against, and the type the frontend socket is built from. Without it a payload is whatever the emitting service happened to build.',
+            );
+        } else {
+            const tableSource = stripComments(fs.readFileSync(tablePath, 'utf8'));
+            const block = braceBlock(tableSource, new RegExp(`const\\s+${events.table}\\s*=\\s*\\{`));
+            const tabled = new Set(
+                [...block.matchAll(/['"]([a-z][\w-]*:[\w-]+)['"]\s*:/g)].map((match) => match[1] ?? ''),
+            );
+            for (const event of [...outbound].filter((name) => !tabled.has(name)).sort()) {
+                fail(
+                    gateway,
+                    `emits \`${event}\`, which ${events.table} does not list`,
+                    'Its payload goes out unchecked: no schema trims it, so a field the service added reaches every connected client, and the frontend types its listener by hand. Add the event and its payload schema to the table.',
+                );
+            }
+            for (const event of [...tabled].filter((name) => !outbound.has(name)).sort()) {
+                fail(
+                    events.file,
+                    `${events.table} lists \`${event}\`, which the gateway never emits`,
+                    'The frontend can listen for it, typed and all, and nothing will ever arrive. Remove it, or emit it.',
+                );
+            }
+            if (!new RegExp(`\\b${events.table}\\b`).test(body)) {
+                fail(
+                    gateway,
+                    `never reads ${events.table}`,
+                    'The table only protects the wire if every push is parsed through it. A gateway that does not read it sends payloads exactly as the services built them.',
+                );
+            }
+        }
+    }
     const inbound = [...body.matchAll(/socket\.on\(\s*'([^']+)'/g)]
         .map((match) => match[1] ?? '')
         .filter((event) => !LIFECYCLE.has(event));

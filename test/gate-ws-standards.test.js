@@ -1207,3 +1207,55 @@ test('a component file with no listeners is skipped', (t) => {
     const root = tree(t, good({ 'frontend/src/components/Plain.vue': '<template><div /></template>\n' }));
     assert.deepEqual(whats(root), []);
 });
+
+// ─── 11. Every outbound event has a payload schema ───────────────────────────
+
+const EVENTS = `import { z } from 'zod';
+
+const notificationEventSchema = z.object({ _id: z.string(), count: z.number() });
+
+export const SERVER_EVENTS = {
+    'notification:new': notificationEventSchema,
+} as const;
+`;
+
+/** The fixture gateway, parsing each push through the table before it emits. */
+const CHECKED_GATEWAY = GATEWAY.replace(
+    ".emit('notification:new', payload);",
+    ".emit('notification:new', SERVER_EVENTS['notification:new'].parse(payload));",
+);
+const EVENT_OPTIONS = { events: { file: 'packages/shared/src/events.ts', table: 'SERVER_EVENTS' } };
+
+const evented = (overrides = {}) =>
+    good({
+        'api/src/gateway/socket.ts': CHECKED_GATEWAY,
+        'packages/shared/src/events.ts': EVENTS,
+        ...overrides,
+    });
+
+test('a gateway emitting only tabled events, through the table, reports nothing', (t) => {
+    assert.notEqual(CHECKED_GATEWAY, GATEWAY);
+    assert.deepEqual(whats(tree(t, evented()), EVENT_OPTIONS), []);
+});
+
+test('an emitted event the table does not list is reported', (t) => {
+    const root = tree(
+        t,
+        evented({ 'packages/shared/src/events.ts': EVENTS.replace("'notification:new'", "'notification:read'") }),
+    );
+    assert.deepEqual(whats(root, EVENT_OPTIONS), [
+        'emits `notification:new`, which SERVER_EVENTS does not list',
+        'SERVER_EVENTS lists `notification:read`, which the gateway never emits',
+    ]);
+});
+
+test('a gateway that never reads the table is reported', (t) => {
+    const root = tree(t, evented({ 'api/src/gateway/socket.ts': GATEWAY }));
+    assert.deepEqual(whats(root, EVENT_OPTIONS), ['never reads SERVER_EVENTS']);
+});
+
+test('a missing event table is reported', (t) => {
+    const root = tree(t, evented());
+    fs.rmSync(path.join(root, 'packages/shared/src/events.ts'));
+    assert.deepEqual(whats(root, EVENT_OPTIONS), ['missing']);
+});

@@ -10,6 +10,9 @@
  *   7. No transport patching.
  *   8. `wrapper.vm` reads, as a ratchet.
  *   9. The DOM environment the standard names.
+ *  10. The E2E run fails on a server error (opt-in: `serverErrors`): the fixtures
+ *      record every 5xx with the API's log, the teardown reads the log for every
+ *      error, the config wires both, and every spec takes `test` from the fixtures.
  * Not checked: test quality, assertion presence, what to write next.
  */
 import fs from 'node:fs';
@@ -18,6 +21,8 @@ import path from 'node:path';
 import { repoFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { callArgs } from './lib/source.ts';
+import { stripComments } from './lib/strip-comments.ts';
 
 export type TestingOptions = {
     root?: string;
@@ -33,8 +38,9 @@ export type TestingOptions = {
     domEnvironment?: DomEnvironment;
     /** Sites reading a component through `wrapper.vm`, as a ratchet. Raise it with a reason. */
     vmBaseline?: number;
+    /** The E2E server-error tripwire (rule 10; needs `e2e`). A repo that states none is not graded on it. */
+    serverErrors?: ServerErrorWiring;
 };
-
 
 /** Where this project put its suites. The pattern is data; the rule is the same either way. */
 type TestLayout =
@@ -46,6 +52,17 @@ type TestLayout =
           /** The `src/` directories it mirrors one-for-one. Omit to allow any. */
           areas?: string[];
       };
+
+/** Where the E2E tripwire for server errors is wired. */
+type ServerErrorWiring = {
+    /**
+     * The fixtures module every spec imports `test` from. It must create the
+     * recorder with the API's `logFile`, watch the browser context, and drain it.
+     */
+    fixtures: string;
+    /** The Playwright global teardown. It must read the API's log with `logErrors`. */
+    teardown: string;
+};
 
 /** Where the E2E suite lives, or `false` where there deliberately is none. */
 type E2eLayout = false | { dir: string; config: string };
@@ -116,6 +133,9 @@ const PATCHED_TRANSPORT =
 
 const VM_ACCESS = /\.vm\.[a-zA-Z_][a-zA-Z0-9_]*/;
 
+/** A named import from Playwright itself: `import { test, expect } from '@playwright/test'`. */
+const PLAYWRIGHT_IMPORT = /import\s*\{([^}]*)\}\s*from\s*['"]@playwright\/test['"]/g;
+
 /** Duplicate case titles within one `describe`. `it.each` titles are skipped (they expand at run time). */
 export function duplicateTitles(source: string): { title: string; count: number }[] {
     const stack = [];
@@ -155,6 +175,7 @@ export function inspectTesting(input: TestingInput): TestingInspection {
         coverageSummary = 'coverage/coverage-summary.json',
         domEnvironment,
         vmBaseline = 0,
+        serverErrors,
     } = input;
 
     const problems: GateFailure[] = [];
@@ -417,7 +438,123 @@ export function inspectTesting(input: TestingInput): TestingInspection {
         }
     }
 
+    // ── 10. A server error fails the E2E run ────────────────────────────────
+    if (serverErrors !== undefined) {
+        inspectServerErrors(serverErrors, e2e, specs, { read, exists, fail });
+    }
+
     return { problems, suites: unitTests.length, specs: specs.length, measured, uncovered, haveCoverage };
+}
+
+/**
+ * The name the recorder is reached by: the fixture key or the variable its
+ * `createServerErrorRecorder(` call sits under. Another recorder's `.watch(` —
+ * the response-leak one, say — must not answer for this one.
+ */
+function recorderName(source: string): string {
+    const before = source.slice(0, source.indexOf('createServerErrorRecorder('));
+    const bindings = [...before.matchAll(/(\w+)\s*(?::\s*\[|:\s*async\b|=(?![=>]))/g)];
+    return bindings.at(-1)?.[1] ?? '\\w+';
+}
+
+type FileAccess = {
+    read: (rel: string) => string;
+    exists: (rel: string) => boolean;
+    fail: (file: string, what: string, why: string) => void;
+};
+
+/** Rule 10: the recorder, the teardown, the config that wires them, and specs that use them. */
+function inspectServerErrors(wiring: ServerErrorWiring, e2e: E2eLayout, specs: string[], io: FileAccess): void {
+    const { read, exists, fail } = io;
+    const { fixtures, teardown } = wiring;
+
+    if (e2e === false) {
+        fail(
+            fixtures,
+            '`serverErrors` is stated but there is no E2E suite',
+            'The tripwire runs inside the E2E suite: it needs the real API serving the browser. State `e2e` first, or drop `serverErrors`.',
+        );
+        return;
+    }
+
+    if (!exists(fixtures)) {
+        fail(
+            fixtures,
+            'missing',
+            'It is the fixtures module every spec imports `test` from, where the recorder lives.',
+        );
+    } else {
+        const source = stripComments(read(fixtures));
+        const created = callArgs(source, 'createServerErrorRecorder(');
+        if (created.length === 0) {
+            fail(
+                fixtures,
+                'never creates a server-error recorder',
+                'A test that checks what it came to check walks straight past a 500 on the side: the page still renders, a spinner just never stops. The recorder watches every API response and fails the test that received a 5xx.',
+            );
+        } else {
+            if (!created.some((args) => /\blogFile\b/.test(args))) {
+                fail(
+                    fixtures,
+                    "creates the server-error recorder without the API's `logFile`",
+                    'Without the log, a failure says that a request failed but not why. With it, the failure carries what the API logged for that request id: the error, its message and the line it came from.',
+                );
+            }
+            const name = recorderName(source);
+            for (const [method, what] of [
+                ['watch', 'never watches a browser context'],
+                ['drain', 'never drains the recorder'],
+            ] as const) {
+                if (!new RegExp(`\\b${name}\\s*\\.\\s*${method}\\s*\\(`).test(source)) {
+                    fail(
+                        fixtures,
+                        `${what} for server errors`,
+                        'The recorder sees only the contexts it watches, and fails a test only when it is drained after it. Watch the context every test gets, and drain in an `auto` fixture.',
+                    );
+                }
+            }
+        }
+    }
+
+    if (!exists(teardown)) {
+        fail(teardown, 'missing', 'It is where the run reads the API log for errors no test saw as a 5xx.');
+    } else if (!/\blogErrors\s*\(/.test(stripComments(read(teardown)))) {
+        fail(
+            teardown,
+            'never reads the API log with `logErrors`',
+            'Some failures never become a 5xx: a socket push its schema refused, a job that died in the background, an error logged inside a request that still answered 2xx. The teardown is the net for those — read every error-level line of the run and fail on any.',
+        );
+    }
+
+    const config = stripComments(read(e2e.config));
+    const teardownName = path.basename(teardown).replace(/\.[cm]?[jt]s$/, '');
+    if (!new RegExp(`globalTeardown\\s*:\\s*['"][^'"]*${teardownName}`).test(config)) {
+        fail(
+            e2e.config,
+            `does not run \`${teardown}\` as its globalTeardown`,
+            'A teardown nothing registers never runs, and the run passes over every error the API logged.',
+        );
+    }
+    if (!/\bLOG_FILE\b/.test(config)) {
+        fail(
+            e2e.config,
+            'does not hand the API a `LOG_FILE`',
+            'The API writes the JSON log the recorder and the teardown read only when `LOG_FILE` is set. Set it in the `webServer` env the suite boots the API with.',
+        );
+    }
+
+    for (const rel of specs.filter((spec) => spec.startsWith(`${e2e.dir}/`))) {
+        const source = stripComments(read(rel));
+        for (const match of source.matchAll(PLAYWRIGHT_IMPORT)) {
+            const names = (match[1] ?? '').split(',').map((name) => name.trim());
+            if (!names.includes('test')) continue;
+            fail(
+                `${rel}:${source.slice(0, match.index).split('\n').length}`,
+                'imports `test` from @playwright/test, not from the fixtures',
+                `Playwright's own \`test\` runs none of the project's fixtures, so this spec is watched by no tripwire: a 5xx, a leaked field, anything the \`auto\` fixtures check passes unseen. Import \`test\` from ${fixtures}.`,
+            );
+        }
+    }
 }
 
 export function checkTesting(options: TestingOptions): void {
@@ -427,7 +564,7 @@ export function checkTesting(options: TestingOptions): void {
     const { problems, suites, specs, measured, uncovered, haveCoverage } = inspectTesting({ root, ...rest });
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
-    const { layout, e2e = false, thresholds, excludes = {}, domEnvironment } = rest;
+    const { layout, e2e = false, thresholds, excludes = {}, domEnvironment, serverErrors } = rest;
     const placement =
         layout.kind === 'colocated'
             ? 'all co-located in `__tests__/`'
@@ -445,7 +582,8 @@ export function checkTesting(options: TestingOptions): void {
             `${thresholds?.statements ?? 80}% floor, ${plural(Object.keys(excludes).length, 'coverage exclude')} all ` +
             'accounted for, no transport patched around the network mock, no `.only`/`.skip`/bare `test()`/' +
             'commented-out or duplicate cases, no test reading component internals' +
-            `${domEnvironment === undefined ? '' : `, all on ${domEnvironment.name}`}.` +
+            `${domEnvironment === undefined ? '' : `, all on ${domEnvironment.name}`}` +
+            `${serverErrors === undefined ? '' : ', every spec held to the server-error tripwire'}.` +
             (haveCoverage
                 ? `\n  Coverage report: ${plural(measured, 'file')} measured, ${uncovered} with no test at all.`
                 : '\n  Coverage report: not present — the 0%-file check was SKIPPED. Run the coverage script first to include it.'),

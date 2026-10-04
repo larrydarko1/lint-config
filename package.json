@@ -177,6 +177,10 @@
             "types": "./dist/response-leaks.d.ts",
             "default": "./dist/response-leaks.js"
         },
+        "./server-errors": {
+            "types": "./dist/server-errors.d.ts",
+            "default": "./dist/server-errors.js"
+        },
         "./stylelint": {
             "types": "./dist/stylelint.d.ts",
             "default": "./dist/stylelint.js"

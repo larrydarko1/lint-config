@@ -78,7 +78,7 @@ export function fullstackStandards(options: FullstackStandardsOptions = {}): Ful
             ...typescriptStandards({
                 source: [...source, 'e2e/**/*.ts'],
                 code: [...source, 'e2e/**/*.ts'],
-                defaultExportAllowed: ['e2e/playwright.config.ts', 'e2e/support/global-setup.ts'],
+                defaultExportAllowed: ['e2e/playwright.config.ts', 'e2e/support/global-setup.ts', 'e2e/support/global-teardown.ts'],
             }),
             ...envStandards([
                 '**/lib/config.ts',

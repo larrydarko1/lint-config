@@ -12,7 +12,14 @@
  *   8. Pagination is capped through the shared schema, never raw `parseInt` on `req.query`.
  *   9. CORS credentials on both the server and the shared client instance.
  *  10. Responses leave through one helper that parses the data with a Zod schema,
- *      and no response schema lets unknown fields through (opt-in: `responses`).
+ *      and no response schema lets unknown fields through (opt-in: `responses`);
+ *      with `devFlag`, the helper fails on a field its schema dropped outside
+ *      production and logs it in production.
+ *  11. One API contract (opt-in: `contract`): its keys are exactly the routes the
+ *      routers serve, both ways; a router validates bodies and queries with
+ *      schemas from the shared package, never ones of its own; the frontend
+ *      calls the API only through its typed caller; the validator refuses a key
+ *      a schema does not declare; and the test setups hold every exchange to it.
  * Also: `optionalAuth` before the limited mounts (they key on `req.userId`), and no
  * `{ ok: true, data }` success envelope.
  */
@@ -52,6 +59,39 @@ export type ApiStandardsOptions = {
     clientFactory?: string;
     /** Response schemas (rule 10). A repo that states none is not graded on it. */
     responses?: ResponseSchemaOptions;
+    /**
+     * The middleware that gives each request its id and its logger (rule 5). Stated,
+     * it must be registered before the body parser, so a body that will not parse
+     * still reaches the error handler with an id and somewhere to log.
+     */
+    requestId?: string;
+    /** The API contract (rule 11). A repo that states none is not graded on it. */
+    contract?: ContractOptions;
+};
+
+export type ContractOptions = {
+    /** The module holding the contract table: one `'METHOD /api/path': { … }` key per route. */
+    file: string;
+    /** The package routers import their request schemas from, e.g. `@acme/shared`. */
+    sharedPackage: string;
+    /**
+     * The frontend's typed caller lives in `apiClient`; no other frontend module may
+     * call the axios `instance` directly, since that is where a response type is
+     * written by hand. `dir` is the frontend source root.
+     */
+    caller?: { instance: string; dir: string };
+    /**
+     * The request validator. It must refuse a key the schema does not declare with
+     * the rest of the 422, so it must call the shared `droppedKeys`: a Zod object
+     * alone strips the key and answers 2xx.
+     */
+    validator?: string;
+    /**
+     * The test setups that hold exchanges to the contract: the frontend's mock
+     * server and the API's test app. Each must call the shared `requestProblems`
+     * and `responseProblems`.
+     */
+    testChecks?: string[];
 };
 
 export type ResponseSchemaOptions = {
@@ -61,6 +101,12 @@ export type ResponseSchemaOptions = {
     schemasDir: string;
     /** Route files still answering raw, each with a reason. A ratchet: remove entries, never add. */
     pending?: Record<string, string>;
+    /**
+     * The expression that is true outside production, e.g. `config.isDev`. Stated,
+     * the helper must name the fields its schema dropped (`droppedKeys`), throw on
+     * them when this holds, and log them at error level otherwise.
+     */
+    devFlag?: string;
 };
 
 type ApiStandardsInspection = {
@@ -100,6 +146,15 @@ const LOOSE_SCHEMA: [RegExp, string][] = [
     [/\bz\.json\(/, '`z.json()`'],
     [/\bz\.custom\(/, '`z.custom()`'],
 ];
+
+/** A contract key: `'GET /api/videos/:id': {`. */
+const CONTRACT_KEY = /['"]((?:GET|POST|PUT|PATCH|DELETE) \/[^'"]*)['"]\s*:/g;
+
+/** The shared contract checks the test setups call. */
+const CONTRACT_CHECKS = ['requestProblems', 'responseProblems'];
+
+/** A `body:` or `query:` key in a validator's schema object, and the first token of its value. */
+const REQUEST_SCHEMA_SLOT = /(?<![\w.$])(body|query)\s*:\s*([A-Za-z_$][\w$]*)(\s*[.(]?)/g;
 
 /** The last top-level argument in an argument list: the value schema of `z.record(key, value)`. */
 const lastArgument = (args: string): string => {
@@ -148,6 +203,8 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
         optionalAuth,
         clientFactory = 'axios.create(',
         responses,
+        requestId,
+        contract,
     } = input;
 
     const problems: GateFailure[] = [];
@@ -304,6 +361,22 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
             'registers helmet() after the first route',
             'Headers set after a route has already responded are set on nothing. helmet must be the first middleware.',
         );
+    }
+    if (requestId !== undefined && jsonAt !== -1) {
+        const requestIdAt = installedAt(`app.use(${requestId})`);
+        if (requestIdAt === -1) {
+            fail(
+                indexFile,
+                `does not register \`${requestId}\` globally`,
+                'Every log line about a request carries its id, and every response returns it — that is how a 5xx a user reports is found in the logs. Without it, a failure is a time and a guess.',
+            );
+        } else if (requestIdAt > jsonAt) {
+            fail(
+                indexFile,
+                `registers \`${requestId}\` after express.json()`,
+                'A body that will not parse fails inside the parser, before the id and the request logger exist. The error handler then has no logger to call, crashes itself, and Express answers a bare 500 with the stack on stderr: a client typo becomes an untraceable server error.',
+            );
+        }
     }
     if (corsAt !== -1 && jsonAt !== -1 && corsAt > jsonAt) {
         fail(
@@ -487,7 +560,7 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
 
     // ── 10. Responses go through a schema ───────────────────────────────────
     if (responses !== undefined) {
-        const { helper, schemasDir, pending = {} } = responses;
+        const { helper, schemasDir, pending = {}, devFlag } = responses;
 
         if (!exists(helper)) {
             fail(
@@ -495,12 +568,16 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
                 'missing',
                 'It is the one door every response leaves through. Without it there is nowhere to check that a response was cut down to its schema.',
             );
-        } else if (!/\.(?:safeParse|parse)\(/.test(code(helper))) {
-            fail(
-                helper,
-                'never parses the data with a schema',
-                'Parsing is the part that matters: a Zod object drops every field it does not declare, so a response can only carry what its schema lists. A helper that just calls `res.json()` checks nothing.',
-            );
+        } else {
+            const source = code(helper);
+            if (!/\.(?:safeParse|parse)\(/.test(source)) {
+                fail(
+                    helper,
+                    'never parses the data with a schema',
+                    'Parsing is the part that matters: a Zod object drops every field it does not declare, so a response can only carry what its schema lists. A helper that just calls `res.json()` checks nothing.',
+                );
+            }
+            if (devFlag !== undefined) inspectLoudDrops(helper, source, devFlag, fail);
         }
 
         for (const rel of routeFiles) {
@@ -559,11 +636,222 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
         }
     }
 
+    // ── 11. One API contract ────────────────────────────────────────────────
+    if (contract !== undefined) {
+        inspectContract(contract, { routeFiles, read, code, exists, fail, apiClient, root });
+    }
+
     const routes = routeFiles.reduce((total, rel) => total + [...code(rel).matchAll(ROUTE_DECLARATION)].length, 0);
 
     const pending = Object.keys(responses?.pending ?? {}).length;
 
     return { problems, counts: { routes, files: routeFiles.length, mounts: mounts.length, pending } };
+}
+
+type ContractContext = {
+    routeFiles: string[];
+    read: (rel: string) => string;
+    code: (rel: string) => string;
+    exists: (rel: string) => boolean;
+    fail: (file: string | null, what: string, why: string) => void;
+    apiClient: string | undefined;
+    root: string;
+};
+
+/** Rule 11: the contract's keys, the routers' request schemas, the frontend's one caller. */
+function inspectContract(contract: ContractOptions, ctx: ContractContext): void {
+    const { routeFiles, read, code, exists, fail, apiClient, root } = ctx;
+    const { file, sharedPackage, caller, validator, testChecks = [] } = contract;
+
+    if (!exists(file)) {
+        fail(
+            file,
+            'missing',
+            'It is the one place that says what each route takes and answers. Both test suites check against it; without it each mocks an API of its own.',
+        );
+        return;
+    }
+
+    // The routes the routers serve, by their full path: the header's mount plus the declared path.
+    const served = new Map<string, string>();
+    for (const rel of routeFiles) {
+        const header = /^\/\*\*[\s\S]*?\*\//.exec(read(rel))?.[0] ?? '';
+        const mount = (/mounted at (\/\S*)/.exec(header)?.[1] ?? '').replace(/[.,;:)]+$/, '');
+        const declared = [...code(rel).matchAll(ROUTE_DECLARATION)];
+        if (declared.length === 0) continue;
+        if (mount === '') {
+            fail(
+                rel,
+                'states no `mounted at` path in its header',
+                'The contract keys every route by its full path, and the header is where this router says where it sits.',
+            );
+            continue;
+        }
+        for (const [, verb = '', routePath = ''] of declared) {
+            served.set(`${verb.toUpperCase()} ${mount}${routePath === '/' ? '' : routePath}`, rel);
+        }
+    }
+
+    const listed = new Set([...code(file).matchAll(CONTRACT_KEY)].map(([, key = '']) => key));
+    const unlisted = [...served.keys()].filter((route) => !listed.has(route)).sort();
+    const unserved = [...listed].filter((route) => !served.has(route)).sort();
+    if (unlisted.length > 0) {
+        fail(
+            file,
+            `does not list ${plural(unlisted.length, 'route')} the routers serve: ${unlisted.join(', ')}`,
+            'A route missing from the contract is one the frontend cannot call through its typed caller and its tests cannot mock. Add it, with the schemas its router validates and answers with.',
+        );
+    }
+    if (unserved.length > 0) {
+        fail(
+            file,
+            `lists ${plural(unserved.length, 'route')} no router serves: ${unserved.join(', ')}`,
+            'The route was renamed or removed and the contract was not. Every test that mocks it is testing the frontend against an API that does not exist.',
+        );
+    }
+
+    // A router validates with the shared request schemas: the frontend builds its requests from the same ones.
+    for (const rel of routeFiles) {
+        const source = code(rel);
+        const shared = importedFrom(source, sharedPackage);
+        for (const match of source.matchAll(REQUEST_SCHEMA_SLOT)) {
+            const [, slot = '', value = '', after = ''] = match;
+            if (after.trim() === '' && shared.has(value)) continue;
+            fail(
+                `${rel}:${source.slice(0, match.index).split('\n').length}`,
+                `validates its ${slot} with a schema of its own, not one from ${sharedPackage}`,
+                `The frontend builds this ${slot} from the shared schemas. A schema written in the router is a second definition the frontend never sees: rename a field here and the frontend keeps sending the old one, refused with a 422 nobody tested. Move it to the shared package and import it.`,
+            );
+        }
+    }
+
+    // The frontend calls the API through its typed caller only.
+    if (caller !== undefined && apiClient !== undefined) {
+        const direct = new RegExp(
+            `\\b${caller.instance}\\s*\\.\\s*(?:get|post|put|patch|delete|head|options|request)\\s*[<(]`,
+            'g',
+        );
+        const frontendFiles = walkFiles(root, caller.dir, {
+            match: /\.(?:ts|vue)$/,
+            exclude: (rel) => rel.includes('__tests__') || /\.(?:test|spec)\.ts$/.test(rel),
+        });
+        for (const rel of frontendFiles) {
+            if (rel === apiClient) continue;
+            const source = code(rel);
+            for (const match of source.matchAll(direct)) {
+                fail(
+                    `${rel}:${source.slice(0, match.index).split('\n').length}`,
+                    `calls \`${caller.instance}\` directly`,
+                    'A direct call names its path as a string and its response type by hand — the drift the contract exists to stop. Call the route through the typed caller by its contract key, which types the body, the query and the answer from the schemas the API uses.',
+                );
+            }
+        }
+    }
+
+    // The validator refuses what a schema does not declare.
+    if (validator !== undefined) {
+        const missing = missingSharedCalls(validator, ['droppedKeys'], sharedPackage, ctx);
+        if (missing === null) {
+            fail(
+                validator,
+                'missing',
+                'Every request body and query passes through it; without it nothing is validated.',
+            );
+        } else if (missing.length > 0) {
+            fail(
+                validator,
+                `never calls \`droppedKeys\` from ${sharedPackage}`,
+                'A Zod object strips a key it does not declare and the request goes on to a 2xx. The client meant something by that key — a renamed field, a stale form, a probe for `role` — and the 2xx tells it the change was saved. Name the stripped keys with `droppedKeys` and refuse them with the rest of the 422.',
+            );
+        }
+    }
+
+    // The test setups hold every exchange to the contract.
+    for (const rel of testChecks) {
+        const missing = missingSharedCalls(rel, CONTRACT_CHECKS, sharedPackage, ctx);
+        if (missing === null) {
+            fail(
+                rel,
+                'missing',
+                'It is listed in `contract.testChecks` as a test setup that holds exchanges to the contract. Fix the path, or remove the entry if the setup moved.',
+            );
+        } else if (missing.length > 0) {
+            fail(
+                rel,
+                `never calls ${missing.map((name) => `\`${name}\``).join(' or ')} from ${sharedPackage}`,
+                'A test double is a second, hand-written copy of the API. Unchecked, it drifts from the real one while every test stays green: a mock answers a route the API does not serve, or a body the API never sends. Check every exchange the setup answers against the contract.',
+            );
+        }
+    }
+}
+
+/**
+ * The names `source` imports from `pkg`, by the local name each is used under.
+ * Type-only imports count too: a schema imported as a type is still the shared one.
+ */
+function importedFrom(source: string, pkg: string): Set<string> {
+    const escaped = pkg.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+    const sharedImport = new RegExp(`import\\s*(?:type\\s*)?\\{([^}]*)\\}\\s*from\\s*['"]${escaped}['"]`, 'g');
+    return new Set(
+        [...source.matchAll(sharedImport)].flatMap(([, names = '']) =>
+            names
+                .split(',')
+                .map(
+                    (name) =>
+                        name
+                            .trim()
+                            .replace(/^type\s+/, '')
+                            .split(/\s+as\s+/)
+                            .pop() ?? '',
+                )
+                .filter((name) => name !== ''),
+        ),
+    );
+}
+
+/**
+ * The names `rel` does not both import from `pkg` and call: a name imported and
+ * never called checks nothing. `null` when the file does not exist.
+ */
+function missingSharedCalls(rel: string, names: string[], pkg: string, ctx: ContractContext): string[] | null {
+    if (!ctx.exists(rel)) return null;
+    const source = ctx.code(rel);
+    const shared = importedFrom(source, pkg);
+    return names.filter((name) => !shared.has(name) || !new RegExp(`\\b${name}\\s*\\(`).test(source));
+}
+
+/** Rule 10 with `devFlag`: a dropped field fails outside production and is logged inside it. */
+function inspectLoudDrops(
+    helper: string,
+    source: string,
+    devFlag: string,
+    fail: (file: string | null, what: string, why: string) => void,
+): void {
+    if (!/\bdroppedKeys\s*\(/.test(source)) {
+        fail(
+            helper,
+            'never names the fields its schema dropped (`droppedKeys`)',
+            'The schema keeps an undeclared field off the wire, silently. Nothing leaks, but nobody learns that a mapper hands over a whole document or a field nobody listed — and a schema that is quietly wrong stays wrong forever. Compare the data with what the schema kept.',
+        );
+        return;
+    }
+    // The throw must be the dev branch's own: the helper already throws when the data does not fit.
+    const flag = devFlag.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+    const devThrow = new RegExp(`\\bif\\s*\\([^)]*${flag}[^)]*\\)\\s*(?:\\{[^}]*?)?\\bthrow\\b`);
+    if (!devThrow.test(source)) {
+        fail(
+            helper,
+            `does not fail on a dropped field when \`${devFlag}\` holds`,
+            'Outside production a dropped field must fail the response, so the unit test, the E2E run or the developer clicking through meets it the day it appears. A log line in development is read by nobody.',
+        );
+    }
+    if (!/\.error\s*\(/.test(source)) {
+        fail(
+            helper,
+            'does not log a dropped field at error level',
+            'In production the user keeps a working page with the field dropped. The error log is then the only place the field is named; without it the bug lives on unseen.',
+        );
+    }
 }
 
 /** Run the gate and print. */
@@ -573,18 +861,30 @@ export function checkApiStandards(options: ApiStandardsOptions): void {
 
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
+    const contract =
+        options.contract === undefined
+            ? ''
+            : ' The contract lists every served route, and routers validate with the shared schemas' +
+              (options.contract.validator === undefined ? '' : '; unknown request keys are refused') +
+              (options.contract.testChecks === undefined
+                  ? '.'
+                  : `; every exchange in ${plural(options.contract.testChecks.length, 'test setup')} is checked against it.`);
     const responses =
         options.responses === undefined
             ? ''
             : ` No raw responses in ${plural(counts.files - counts.pending, 'router file')}, the response helper parses, no loose response schema` +
-              (counts.pending === 0 ? '.' : ` — ${counts.pending} router files still pending migration.`);
+              (counts.pending === 0 ? '.' : ` — ${counts.pending} router files still pending migration.`) +
+              (options.responses.devFlag === undefined
+                  ? ''
+                  : ' A dropped field fails outside production and is logged inside it.');
 
     report.done({
         summary:
             `REST API architecture OK — ${plural(counts.routes, 'route')} across ${plural(counts.files, 'router file')}, ` +
             `each one documented in its own header; middleware ordered with the error handler last, ` +
             `${plural(counts.mounts, 'mount')} all carrying a rate-limit tier, token bucket atomic and fail-open, pagination capped.` +
-            responses,
+            responses +
+            contract,
         notMachineChecked:
             'Whether a status code is the RIGHT one, whether independent awaits were parallelised, cache TTL judgement, or whether a given POST is idempotent. Nor whether a route header describes what the route actually does — only that the two lists match. ' +
             'Nor whether a field a schema DOES declare should be public — a secret under a declared name passes; the response-leak tripwire is what catches that.',

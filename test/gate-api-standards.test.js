@@ -994,3 +994,312 @@ test('a loose schema inside a comment is not reported', (t) => {
     const root = tree(t, schemaed({ 'packages/shared/src/schemas/media.ts': schemas }));
     assert.deepEqual(whats(root, withResponses()), []);
 });
+
+// ─── 10. A dropped field fails loudly outside production ─────────────────────
+
+const LOUD_SEND = `import type { Response } from 'express';
+import type { z } from 'zod';
+
+import { droppedKeys } from '@acme/shared';
+
+import { config } from '@/lib/config.js';
+
+export function send<S extends z.ZodType>(res: Response, schema: S, data: z.input<S>): void {
+    const parsed = schema.parse(data);
+    const dropped = droppedKeys(data, parsed);
+    if (dropped.length > 0) {
+        if (config.isDev) throw new AppError(500, 'INTERNAL', 'Response carried undeclared fields');
+        res.req.log.error({ dropped }, 'Response carried undeclared fields');
+    }
+    res.json(parsed);
+}
+`;
+
+const loud = (helper = LOUD_SEND) => schemaed({ 'api/src/lib/send.ts': helper });
+const withDevFlag = () => withResponses({ devFlag: 'config.isDev' });
+
+test('a helper that fails in development and logs in production reports nothing', (t) => {
+    assert.deepEqual(whats(tree(t, loud()), withDevFlag()), []);
+});
+
+test('a helper that never compares what its schema dropped is reported', (t) => {
+    assert.deepEqual(whats(tree(t, schemaed()), withDevFlag()), [
+        'never names the fields its schema dropped (`droppedKeys`)',
+    ]);
+});
+
+test('a helper that only logs a dropped field, even in development, is reported', (t) => {
+    const quiet = LOUD_SEND.replace(
+        "        if (config.isDev) throw new AppError(500, 'INTERNAL', 'Response carried undeclared fields');\n",
+        '',
+    );
+    assert.deepEqual(whats(tree(t, loud(quiet)), withDevFlag()), [
+        'does not fail on a dropped field when `config.isDev` holds',
+    ]);
+});
+
+test('a throw elsewhere in the helper does not count as failing on a dropped field', (t) => {
+    const elsewhere = LOUD_SEND.replace(
+        "        if (config.isDev) throw new AppError(500, 'INTERNAL', 'Response carried undeclared fields');\n",
+        '        if (config.isDev) res.req.log.warn({ dropped }, "dropped");\n',
+    ).replace(
+        '    const parsed = schema.parse(data);\n',
+        "    const parsed = schema.parse(data);\n    if (parsed === undefined) throw new AppError(500, 'INTERNAL', 'No data');\n",
+    );
+    assert.deepEqual(whats(tree(t, loud(elsewhere)), withDevFlag()), [
+        'does not fail on a dropped field when `config.isDev` holds',
+    ]);
+});
+
+test('a dev branch written as a block still counts', (t) => {
+    const block = LOUD_SEND.replace(
+        "        if (config.isDev) throw new AppError(500, 'INTERNAL', 'Response carried undeclared fields');\n",
+        "        if (config.isDev) {\n            throw new AppError(500, 'INTERNAL', 'Response carried undeclared fields');\n        }\n",
+    );
+    assert.deepEqual(whats(tree(t, loud(block)), withDevFlag()), []);
+});
+
+test('a helper that never logs a dropped field in production is reported', (t) => {
+    const unlogged = LOUD_SEND.replace(
+        "        res.req.log.error({ dropped }, 'Response carried undeclared fields');\n",
+        '',
+    );
+    assert.deepEqual(whats(tree(t, loud(unlogged)), withDevFlag()), ['does not log a dropped field at error level']);
+});
+
+test('a helper is not graded on dropped fields until a devFlag is stated', (t) => {
+    assert.deepEqual(whats(tree(t, schemaed()), withResponses()), []);
+});
+
+// ─── 5. The request id comes before the body parser ─────────────────────────
+
+const WITH_REQUEST_ID = INDEX.replace('app.use(cookieParser());', 'app.use(cookieParser());\napp.use(requestId);');
+const REQUEST_ID_FIRST = INDEX.replace('app.use(\n    cors({', 'app.use(requestId);\n\napp.use(\n    cors({');
+
+test('a request id registered before the body parser is fine', (t) => {
+    const root = tree(t, good({ 'api/src/index.ts': REQUEST_ID_FIRST }));
+    assert.deepEqual(whats(root, { requestId: 'requestId' }), []);
+});
+
+test('a request id registered after the body parser is reported', (t) => {
+    const root = tree(t, good({ 'api/src/index.ts': WITH_REQUEST_ID }));
+    assert.deepEqual(whats(root, { requestId: 'requestId' }), ['registers `requestId` after express.json()']);
+});
+
+test('a stated request id that is never registered is reported', (t) => {
+    assert.deepEqual(whats(tree(t, good()), { requestId: 'requestId' }), ['does not register `requestId` globally']);
+});
+
+// ─── 11. One API contract ────────────────────────────────────────────────────
+
+const CONTRACT_VIDEOS = VIDEOS.replace(
+    "import { Router } from 'express';",
+    "import { Router } from 'express';\n\nimport { createVideoBody, videosQuery } from '@acme/shared';",
+)
+    .replace('validate({ query: makePaginationQuery() })', 'validate({ query: videosQuery })')
+    .replace(
+        "router.post('/', requireAuth, async",
+        "router.post('/', requireAuth, validate({ body: createVideoBody }), async",
+    );
+
+const CONTRACT = `export const API_ROUTES = {
+    'GET /api/videos': { query: videosQuery, response: videoPageSchema },
+    'POST /api/videos': { body: createVideoBody, response: videoSchema },
+    'GET /api/videos/:id': { response: videoSchema },
+    'DELETE /api/videos/:id': { response: null },
+    'GET /api/channels/:handle': { response: channelSchema },
+};
+`;
+
+const contracted = (overrides = {}) =>
+    good({
+        'api/src/routes/videos.ts': CONTRACT_VIDEOS,
+        'packages/shared/src/contract.ts': CONTRACT,
+        ...overrides,
+    });
+
+const CONTRACT_OPTIONS = {
+    contract: {
+        file: 'packages/shared/src/contract.ts',
+        sharedPackage: '@acme/shared',
+        caller: { instance: 'api', dir: 'frontend/src' },
+    },
+};
+
+test('a contract listing exactly the served routes, with shared request schemas, reports nothing', (t) => {
+    assert.deepEqual(whats(tree(t, contracted()), CONTRACT_OPTIONS), []);
+});
+
+test('a served route missing from the contract is reported', (t) => {
+    const root = tree(
+        t,
+        contracted({ 'packages/shared/src/contract.ts': CONTRACT.replace(/ {4}'DELETE[^\n]*\n/, '') }),
+    );
+    assert.deepEqual(whats(root, CONTRACT_OPTIONS), [
+        'does not list 1 route the routers serve: DELETE /api/videos/:id',
+    ]);
+});
+
+test('a contract key no router serves is reported', (t) => {
+    const stale = CONTRACT.replace('};', "    'GET /api/videos/:id/likes': { response: likesSchema },\n};");
+    const root = tree(t, contracted({ 'packages/shared/src/contract.ts': stale }));
+    assert.deepEqual(whats(root, CONTRACT_OPTIONS), ['lists 1 route no router serves: GET /api/videos/:id/likes']);
+});
+
+test('a missing contract file is reported', (t) => {
+    const root = tree(t, contracted());
+    fs.rmSync(path.join(root, 'packages/shared/src/contract.ts'));
+    assert.deepEqual(whats(root, CONTRACT_OPTIONS), ['missing']);
+});
+
+test('a request schema written in the router is reported at its line', (t) => {
+    const root = tree(
+        t,
+        contracted({
+            'api/src/routes/videos.ts': VIDEOS.replace(
+                "import { Router } from 'express';",
+                "import { Router } from 'express';\n\nimport { createVideoBody } from '@acme/shared';",
+            ).replace(
+                "router.post('/', requireAuth, async",
+                "router.post('/', requireAuth, validate({ body: createVideoBody }), async",
+            ),
+        }),
+    );
+    const problems = run(root, CONTRACT_OPTIONS).problems;
+    assert.deepEqual(
+        problems.map((problem) => `${problem.file} ${problem.what}`),
+        ['api/src/routes/videos.ts:14 validates its query with a schema of its own, not one from @acme/shared'],
+    );
+});
+
+test('a schema the router did not import from the shared package is reported', (t) => {
+    const local = CONTRACT_VIDEOS.replace(
+        "import { createVideoBody, videosQuery } from '@acme/shared';",
+        "import { videosQuery } from '@acme/shared';\nimport { createVideoBody } from '@/lib/schemas.js';",
+    );
+    const root = tree(t, contracted({ 'api/src/routes/videos.ts': local }));
+    assert.deepEqual(whats(root, CONTRACT_OPTIONS), [
+        'validates its body with a schema of its own, not one from @acme/shared',
+    ]);
+});
+
+test('a frontend module calling the axios instance directly is reported; the client and tests may', (t) => {
+    const component = `import { api } from '@/api/client';\n\nexport async function load() {\n    return api.get<Video[]>('/videos');\n}\n`;
+    const root = tree(
+        t,
+        contracted({
+            'frontend/src/views/Videos.ts': component,
+            'frontend/src/views/__tests__/Videos.test.ts': component,
+        }),
+    );
+    const problems = run(root, CONTRACT_OPTIONS).problems;
+    assert.deepEqual(
+        problems.map((problem) => `${problem.file} ${problem.what}`),
+        ['frontend/src/views/Videos.ts:4 calls `api` directly'],
+    );
+});
+
+const VALIDATOR = `import { droppedKeys } from '@acme/shared';
+
+export function validate(schemas) {
+    return (req, res, next) => {
+        const result = schemas.body.safeParse(req.body);
+        const unknown = droppedKeys(req.body, result.data);
+        if (unknown.length > 0) return res.status(422).json({ error: 'VALIDATION_FAILED' });
+        next();
+    };
+}
+`;
+
+const MOCK_SERVER = `import { requestProblems, responseProblems, routeOf } from '@acme/shared';
+
+server.events.on('response:mocked', ({ request, response }) => {
+    const route = routeOf(request.method, new URL(request.url).pathname);
+    problems.push(...responseProblems(route, response.status, body));
+    problems.push(...requestProblems(route, { body: sent }));
+});
+`;
+
+const TEST_APP = `import { requestProblems, responseProblems } from '@acme/shared';
+
+res.on('finish', () => {
+    problems.push(...responseProblems(key, res.statusCode, answered));
+    problems.push(...requestProblems(key, { body: sentBody }));
+});
+`;
+
+const WIRED = {
+    'api/src/middleware/validate.ts': VALIDATOR,
+    'frontend/src/__tests__/server.ts': MOCK_SERVER,
+    'api/src/__tests__/test-app.ts': TEST_APP,
+};
+
+const WIRED_OPTIONS = {
+    contract: {
+        ...CONTRACT_OPTIONS.contract,
+        validator: 'api/src/middleware/validate.ts',
+        testChecks: ['frontend/src/__tests__/server.ts', 'api/src/__tests__/test-app.ts'],
+    },
+};
+
+test('a strict validator and test setups checking against the contract report nothing', (t) => {
+    assert.deepEqual(whats(tree(t, contracted(WIRED)), WIRED_OPTIONS), []);
+});
+
+test('a validator that lets an unknown key through is reported', (t) => {
+    const stripping = `export function validate(schemas) {
+    return (req, res, next) => {
+        req.body = schemas.body.parse(req.body);
+        next();
+    };
+}
+`;
+    const root = tree(t, contracted({ ...WIRED, 'api/src/middleware/validate.ts': stripping }));
+    assert.deepEqual(whats(root, WIRED_OPTIONS), ['never calls `droppedKeys` from @acme/shared']);
+});
+
+test('a validator that imports droppedKeys but never calls it is reported', (t) => {
+    const unused = `import { droppedKeys } from '@acme/shared';\n\nexport const validate = (schemas) => schemas;\n`;
+    const root = tree(t, contracted({ ...WIRED, 'api/src/middleware/validate.ts': unused }));
+    assert.deepEqual(whats(root, WIRED_OPTIONS), ['never calls `droppedKeys` from @acme/shared']);
+});
+
+test('a droppedKeys of its own is not the shared one', (t) => {
+    const local = VALIDATOR.replace("from '@acme/shared'", "from '@/lib/dropped.js'");
+    const root = tree(t, contracted({ ...WIRED, 'api/src/middleware/validate.ts': local }));
+    assert.deepEqual(whats(root, WIRED_OPTIONS), ['never calls `droppedKeys` from @acme/shared']);
+});
+
+test('a missing validator is reported', (t) => {
+    const { 'api/src/middleware/validate.ts': _gone, ...rest } = WIRED;
+    assert.deepEqual(whats(tree(t, contracted(rest)), WIRED_OPTIONS), ['missing']);
+});
+
+test('a mock server that checks only the responses is reported', (t) => {
+    const half = MOCK_SERVER.replace('    problems.push(...requestProblems(route, { body: sent }));\n', '').replace(
+        'requestProblems, ',
+        '',
+    );
+    const root = tree(t, contracted({ ...WIRED, 'frontend/src/__tests__/server.ts': half }));
+    const problems = run(root, WIRED_OPTIONS).problems;
+    assert.deepEqual(
+        problems.map((problem) => `${problem.file} ${problem.what}`),
+        ['frontend/src/__tests__/server.ts never calls `requestProblems` from @acme/shared'],
+    );
+});
+
+test('a test setup that checks nothing names both checks', (t) => {
+    const root = tree(t, contracted({ ...WIRED, 'api/src/__tests__/test-app.ts': 'export const app = {};\n' }));
+    assert.deepEqual(whats(root, WIRED_OPTIONS), [
+        'never calls `requestProblems` or `responseProblems` from @acme/shared',
+    ]);
+});
+
+test('a test setup listed but not on disk is reported', (t) => {
+    const { 'api/src/__tests__/test-app.ts': _gone, ...rest } = WIRED;
+    assert.deepEqual(whats(tree(t, contracted(rest)), WIRED_OPTIONS), ['missing']);
+});
+
+test('a repo that states no contract is not graded on it', (t) => {
+    assert.deepEqual(whats(tree(t, good())), []);
+});

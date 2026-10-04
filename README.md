@@ -23,7 +23,9 @@ projects is an option, and everything else is fixed.
 - [Stylelint, commitlint, lint-staged](#stylelint-commitlint-lint-staged)
 - [CI gates](#ci-gates)
 - [Response schemas](#response-schemas)
+- [The API contract](#the-api-contract)
 - [Response-leak tripwire](#response-leak-tripwire)
+- [Server-error tripwire](#server-error-tripwire)
 - [The toolchain](#the-toolchain)
 - [Working on this package](#working-on-this-package)
 
@@ -264,12 +266,12 @@ its source roots, its services, and exceptions it has approved, each with a stat
 | `pipeline`                 | both      | every gate runs in CI; timeouts, permissions, SHA-pinned actions, …      |
 | `refactoring`              | both      | no deferral markers left in code                                         |
 | `scss-standards`           | both      | the entry, Vite injection, theme parity, self-hosted fonts               |
-| `testing`                  | both      | suite layout, `.only`/`.skip`, duplicate titles, coverage ratchet        |
+| `testing`                  | both      | suite layout, `.only`/`.skip`, coverage ratchet, E2E server-error wiring |
 | `tsconfigs`                | both      | compiler flags stay at the standard                                      |
 | `electron-security`        | electron  | `webPreferences`, navigation, permissions, `v-html`, TLS overrides       |
 | `error-handling/electron`  | electron  | IPC handlers contain failures, process backstops, cleanup on quit        |
 | `ipc-standards`            | electron  | the channel list, documentation and preload surface agree                |
-| `api-standards`            | fullstack | route map, middleware order, rate limits, response schemas               |
+| `api-standards`            | fullstack | route map, middleware order, rate limits, response schemas, the contract |
 | `db-drift`                 | fullstack | collection registry, indexes, migrations, drain order, ops scripts       |
 | `docker`                   | fullstack | image rules that need no Docker daemon, including no secrets in layers   |
 | `env-drift`                | fullstack | the env schema and `.env.example` files agree; secrets have no default   |
@@ -302,6 +304,13 @@ export function send<TSchema extends z.ZodType>(res: Response, schema: TSchema, 
     const parsed = schema.safeParse(data);
     // A server bug, not a bad request: never let it reach a ZodError → 422 handler.
     if (!parsed.success) throw new AppError(500, 'INTERNAL', 'Response did not match its schema');
+    // A field the schema does not declare is a bug too. Off the wire either way; the question is
+    // who finds out: outside production the answer fails, in production it is logged by name.
+    const dropped = droppedKeys(data, parsed.data);
+    if (dropped.length > 0) {
+        if (config.isDev) throw new AppError(500, 'INTERNAL', 'Response carried undeclared fields');
+        res.req.log.error({ dropped }, 'Response carried undeclared fields');
+    }
     res.json(parsed.data);
 }
 
@@ -318,6 +327,7 @@ checkApiStandards({
     responses: {
         helper: 'api/src/lib/send.ts',
         schemasDir: 'packages/shared/src/responses',
+        devFlag: 'config.isDev',
         pending: {
             'api/src/routes/admin.ts': 'moderation shapes not migrated yet',
         },
@@ -332,6 +342,10 @@ checkApiStandards({
 - **No loose response schemas.** Every file under `schemasDir` is checked for `z.looseObject`,
   `.passthrough()`, `.loose()`, `.catchall()`, `z.any()`, `z.unknown()`, `z.json()`,
   `z.custom()` and a record of strings. Each of these lets through a field nobody declared.
+- **A dropped field is loud** (`devFlag`). The helper must call `droppedKeys(`, throw when the
+  stated expression holds (outside production), and log at error level otherwise. Without it a
+  schema that is quietly wrong stays wrong: nothing leaks, but nobody learns the mapper hands over a
+  field nobody listed.
 - **`pending` only shrinks.** It lists the route files not migrated yet, each with a reason. A
   listed file with no raw response left fails, and so does an entry naming no route file. When the
   list is empty, delete the key.
@@ -342,6 +356,70 @@ optional fields with `.exactOptional()`: `.optional()` infers `?: T | undefined`
 
 The gate reads text, so it does not see a response parameter named something other than `res`,
 or a schema helper imported under another name.
+
+## The API contract
+
+Response schemas stop the API sending a field it should not. They do not stop the frontend and
+the API disagreeing about what a route takes or answers: the frontend's mocks, its request types
+and its socket listeners are each a second, hand-written copy of the API, and any of them can
+drift while every test stays green. The contract is one table in the shared package, one entry
+per route, naming the schemas the router validates and answers with:
+
+```ts
+// packages/shared/src/contract.ts
+export const API_ROUTES = {
+    'GET /api/videos/:id': { response: videoMetaSchema },
+    'PUT /api/videos/:id': { body: updateVideoBody, response: videoMetaSchema },
+    'GET /api/videos': { query: ownVideosQuery, response: ownMediaPageSchema },
+    'DELETE /api/videos/:id': { response: null }, // no body
+    'GET /api/videos/:id/download': { response: 'raw' }, // a file
+} as const satisfies Record<string, Endpoint>;
+```
+
+Everything else reads it: the frontend's one caller types the body, query and answer from the key
+(`call('PUT /api/videos/:id', { params: { id }, body })`); the frontend's test server checks every
+mocked exchange against it, and the API's route tests check every answer a router gives. Both
+sides are strict: a key a schema does not declare is a problem, and the API's validator refuses it
+with a 422 rather than dropping it.
+
+`api-standards` enforces the parts a test cannot, once the project states `contract`:
+
+```ts
+checkApiStandards({
+    // ...the other paths
+    requestId: 'requestId',
+    contract: {
+        file: 'packages/shared/src/contract.ts',
+        sharedPackage: '@acme/shared',
+        caller: { instance: 'api', dir: 'frontend/src' },
+        validator: 'api/src/middleware/validate.ts',
+        testChecks: ['frontend/src/__tests__/server.ts', 'api/src/__tests__/test-app.ts'],
+    },
+});
+```
+
+- **The keys are the served routes, both ways.** Each router's `mounted at` header plus its
+  declared paths must match the contract's keys exactly: a route missing from the table fails, and
+  so does a key no router serves.
+- **Request schemas come from the shared package.** A `body:` or `query:` handed to the validator
+  must be an identifier imported from `sharedPackage`; a schema written in the router is a second
+  definition the frontend never sees.
+- **The frontend calls through its typed caller.** Outside `apiClient` and tests, a direct
+  `api.get(…)` (or any method) on the axios instance fails at its line.
+- **The validator refuses unknown keys** (`validator`). It must import `droppedKeys` from
+  `sharedPackage` and call it: a Zod object alone strips the key and the request answers 2xx, which
+  tells a client sending a renamed or stale field that its change was saved.
+- **The test setups check against the contract** (`testChecks`). Each listed file, typically the
+  frontend's mock server and the API's test app, must import and call `requestProblems` and
+  `responseProblems` from `sharedPackage`. Unchecked, a mock is a second API that drifts from the
+  real one while every test stays green.
+- **The request id comes before the body parser** (`requestId`). A body that will not parse
+  otherwise reaches the error handler with no logger, crashes it, and becomes a bare 500.
+
+Socket pushes have the same problem and the same fix: `ws-standards` takes
+`events: { file, table }`, the shared table of outbound events and their payload schemas, and fails
+when the gateway emits an event the table does not list, the table lists one nothing emits, or the
+gateway never reads the table.
 
 ## Response-leak tripwire
 
@@ -401,6 +479,64 @@ are still the real defence. The tripwire catches what a schema cannot: a secret 
 name the schema does list, on the routes the suite visits.
 The module has no dependencies. It accepts any object shaped like a MongoDB `Db` and a Playwright
 `BrowserContext`.
+
+## Server-error tripwire
+
+`@larrydarko/lint-config/server-errors` fails an E2E test that received a 5xx from the API, and
+says why. A test that checks what it came to check walks straight past a 500 on the side: the page
+still renders, a spinner just never stops. The recorder watches every API response; on a 5xx it
+reads the API's JSON log (the API writes one when `LOG_FILE` is set) for the lines carrying the
+response's `x-request-id`, so the failure arrives with its cause:
+
+```
+POST /api/auth/login → 500 (request 4892a4bd-…)
+    error: Unhandled error {"requestId":"4892a4bd-…","err":"TypeError: x is undefined (at load (/app/src/a.ts:3:1))"}
+```
+
+```ts
+// e2e/support/fixtures.ts
+import { createServerErrorRecorder, type ServerErrorRecorder } from '@larrydarko/lint-config/server-errors';
+
+serverErrors: [async ({}, use) => use(createServerErrorRecorder({ logFile: API_LOG })), { scope: 'worker' }],
+noServerErrors: [
+    async ({ serverErrors }, use) => {
+        await use();
+        expect(await serverErrors.drain(), 'API requests failed with a server error').toEqual([]);
+    },
+    { auto: true },
+],
+context: async ({ context, serverErrors }, use) => {
+    serverErrors.watch(context);
+    await use(context);
+},
+```
+
+Point the API the suite boots at the log (`webServer.env: { LOG_FILE: API_LOG }`), empty it in the
+global setup, and read it once more in the global teardown with `logErrors(API_LOG)`: every
+error-level line of the run, including the ones no response showed, such as a socket push its
+schema refused, a job that died in the background, or an error logged inside a request that still
+answered 2xx. The logger may write a line after the response leaves, so `drain()` waits up to
+`logWaitMs` (default 2000) for it. Without `logFile`, an entry still names the route, the status
+and the request id.
+
+`testing` checks the wiring once the project states `serverErrors` (next to `e2e`):
+
+```ts
+checkTesting({
+    // ...the other options
+    e2e: { dir: 'e2e', config: 'e2e/playwright.config.ts' },
+    serverErrors: { fixtures: 'e2e/support/fixtures.ts', teardown: 'e2e/support/global-teardown.ts' },
+});
+```
+
+- **The fixtures record and drain.** `fixtures` must call `createServerErrorRecorder(` with a
+  `logFile`, `.watch(` a context and `.drain(` the recorder.
+- **The teardown reads the log.** `teardown` must call `logErrors(`.
+- **The config wires both.** The Playwright config must name the teardown as its
+  `globalTeardown` and pass `LOG_FILE` to the API it boots.
+- **Every spec takes `test` from the fixtures.** A spec importing `test` from `@playwright/test`
+  runs none of the project's `auto` fixtures, so no tripwire watches it. It fails at its line;
+  importing only `expect` from Playwright is fine.
 
 ## The toolchain
 

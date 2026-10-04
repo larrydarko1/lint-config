@@ -410,3 +410,157 @@ test("no domEnvironment means the environment is not this gate's business", (t) 
     const root = repo(t, good({ 'vitest.config.ts': CONFIG.replace("'jsdom'", "'happy-dom'") }));
     assert.deepEqual(run(root).problems, []);
 });
+
+// ── 10. A server error fails the E2E run ─────────────────────────────────────
+const E2E = { dir: 'e2e', config: 'e2e/playwright.config.ts' };
+const WIRING = { fixtures: 'e2e/support/fixtures.ts', teardown: 'e2e/support/global-teardown.ts' };
+
+const PLAYWRIGHT_CONFIG = [
+    'export default defineConfig({',
+    "    globalTeardown: './support/global-teardown.ts',",
+    '    webServer: [{ command: "npm run dev", env: { LOG_FILE: API_LOG } }],',
+    '});',
+    '',
+].join('\n');
+
+const FIXTURES = [
+    "import { createServerErrorRecorder } from '@larrydarko/lint-config/server-errors';",
+    "import { test as base, expect } from '@playwright/test';",
+    '',
+    'export const test = base.extend({',
+    "    serverErrors: [async ({}, use) => use(createServerErrorRecorder({ logFile: API_LOG })), { scope: 'worker' }],",
+    '    noServerErrors: [',
+    '        async ({ serverErrors }, use) => {',
+    '            await use();',
+    '            expect(await serverErrors.drain()).toEqual([]);',
+    '        },',
+    '        { auto: true },',
+    '    ],',
+    '    context: async ({ context, serverErrors }, use) => {',
+    '        serverErrors.watch(context);',
+    '        await use(context);',
+    '    },',
+    '});',
+    '',
+].join('\n');
+
+const TEARDOWN = [
+    "import { logErrors } from '@larrydarko/lint-config/server-errors';",
+    '',
+    'export default function globalTeardown() {',
+    '    if (logErrors(API_LOG).length > 0) throw new Error("the API logged errors");',
+    '}',
+    '',
+].join('\n');
+
+const SPEC = [
+    "import { test, expect } from '../support/fixtures';",
+    '',
+    "test('logs in', async ({ page }) => {",
+    "    await page.goto('/');",
+    '});',
+    '',
+].join('\n');
+
+const tripwired = (overrides = {}) =>
+    good({
+        'e2e/playwright.config.ts': PLAYWRIGHT_CONFIG,
+        'e2e/support/fixtures.ts': FIXTURES,
+        'e2e/support/global-teardown.ts': TEARDOWN,
+        'e2e/tests/login.spec.ts': SPEC,
+        ...overrides,
+    });
+
+const runTripwire = (root) => run(root, { e2e: E2E, serverErrors: WIRING });
+
+test('a suite wired to the server-error tripwire has no problems', (t) => {
+    assert.deepEqual(runTripwire(repo(t, tripwired())).problems, []);
+});
+
+test('fixtures without the recorder fail', (t) => {
+    const root = repo(t, tripwired({ 'e2e/support/fixtures.ts': "export { test } from '@playwright/test';\n" }));
+    assert.deepEqual(whats(runTripwire(root)), ['never creates a server-error recorder']);
+});
+
+test('a recorder without the API log fails, since its failures could not say why', (t) => {
+    const root = repo(t, tripwired({ 'e2e/support/fixtures.ts': FIXTURES.replace('{ logFile: API_LOG }', '') }));
+    assert.deepEqual(whats(runTripwire(root)), ["creates the server-error recorder without the API's `logFile`"]);
+});
+
+test('a recorder that is never drained fails', (t) => {
+    const root = repo(
+        t,
+        tripwired({ 'e2e/support/fixtures.ts': FIXTURES.replace('await serverErrors.drain()', '[]') }),
+    );
+    assert.deepEqual(whats(runTripwire(root)), ['never drains the recorder for server errors']);
+});
+
+test('a recorder that watches no context fails', (t) => {
+    const root = repo(
+        t,
+        tripwired({ 'e2e/support/fixtures.ts': FIXTURES.replace('        serverErrors.watch(context);\n', '') }),
+    );
+    assert.deepEqual(whats(runTripwire(root)), ['never watches a browser context for server errors']);
+});
+
+test("another recorder's watch does not answer for this one", (t) => {
+    const fixtures = FIXTURES.replace('        serverErrors.watch(context);\n', '        leaks.watch(context);\n');
+    const root = repo(t, tripwired({ 'e2e/support/fixtures.ts': fixtures }));
+    assert.deepEqual(whats(runTripwire(root)), ['never watches a browser context for server errors']);
+});
+
+test('a recorder held in a variable is found by that name', (t) => {
+    const fixtures = [
+        "import { createServerErrorRecorder } from '@larrydarko/lint-config/server-errors';",
+        '',
+        'const recorder = createServerErrorRecorder({ logFile: API_LOG });',
+        'export const test = base.extend({',
+        '    noServerErrors: [async ({ context }, use) => { recorder.watch(context); await use(); await recorder.drain(); }, { auto: true }],',
+        '});',
+        '',
+    ].join('\n');
+    assert.deepEqual(runTripwire(repo(t, tripwired({ 'e2e/support/fixtures.ts': fixtures }))).problems, []);
+});
+
+test('a teardown that never reads the log fails', (t) => {
+    const root = repo(t, tripwired({ 'e2e/support/global-teardown.ts': 'export default function teardown() {}\n' }));
+    assert.deepEqual(whats(runTripwire(root)), ['never reads the API log with `logErrors`']);
+});
+
+test('a config that never registers the teardown fails', (t) => {
+    const config = PLAYWRIGHT_CONFIG.replace("    globalTeardown: './support/global-teardown.ts',\n", '');
+    const root = repo(t, tripwired({ 'e2e/playwright.config.ts': config }));
+    assert.deepEqual(whats(runTripwire(root)), ['does not run `e2e/support/global-teardown.ts` as its globalTeardown']);
+});
+
+test('a config that boots the API without a log file fails', (t) => {
+    const config = PLAYWRIGHT_CONFIG.replace('LOG_FILE: API_LOG', 'NODE_ENV: "test"');
+    const root = repo(t, tripwired({ 'e2e/playwright.config.ts': config }));
+    assert.deepEqual(whats(runTripwire(root)), ['does not hand the API a `LOG_FILE`']);
+});
+
+test('a spec taking test from Playwright itself fails at its line; one taking only expect is fine', (t) => {
+    const root = repo(
+        t,
+        tripwired({
+            'e2e/tests/bare.spec.ts': SPEC.replace("from '../support/fixtures'", "from '@playwright/test'"),
+            'e2e/tests/expect.spec.ts': `import { expect } from '@playwright/test';\n\n${SPEC}`,
+        }),
+    );
+    const problems = runTripwire(root).problems.map((p) => `${p.file} ${p.what}`);
+    assert.deepEqual(problems, [
+        'e2e/tests/bare.spec.ts:1 imports `test` from @playwright/test, not from the fixtures',
+    ]);
+});
+
+test('the tripwire stated without an E2E suite fails', (t) => {
+    const root = repo(t, good());
+    assert.deepEqual(whats(run(root, { serverErrors: WIRING })), [
+        '`serverErrors` is stated but there is no E2E suite',
+    ]);
+});
+
+test('a missing fixtures module and teardown are each reported', (t) => {
+    const root = repo(t, good({ 'e2e/playwright.config.ts': PLAYWRIGHT_CONFIG, 'e2e/tests/login.spec.ts': SPEC }));
+    assert.deepEqual(whats(runTripwire(root)), ['missing', 'missing']);
+});
