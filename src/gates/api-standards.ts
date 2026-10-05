@@ -19,17 +19,32 @@
  *      routers serve, both ways; a router validates bodies and queries with
  *      schemas from the shared package, never ones of its own; the frontend
  *      calls the API only through its typed caller; the validator refuses a key
- *      a schema does not declare; and the test setups hold every exchange to it.
+ *      a schema does not declare; and the test setups hold every exchange to it,
+ *      refusals included. With `handlers`, each route validates its path,
+ *      body and query, answers and takes uploads with exactly what its
+ *      contract entry names.
+ *      With `coverage`, each setup records the routes it checked and each suite's
+ *      global setup fails the run on a route no test checked. With `fuzz`, the
+ *      fuzz run is built from the contract alone, its config is the one the
+ *      fuzzer reads, every route it names exists, every exception to it says
+ *      why, no exception forgives a server error, every tool it installs is
+ *      pinned, the API it starts is handed the run's own storage and queues
+ *      (`isolate`), and what a run writes is git-ignored.
+ *  12. One job contract (opt-in: `jobs`): queues are built only in the producer,
+ *      which parses what it queues against the registry and refuses dropped keys;
+ *      every worker runs its jobs through the processor that parses them and
+ *      fails a malformed one as unrecoverable; every queue is named from the
+ *      registry; and the registry's schemas tolerate a field they do not know.
  * Also: `optionalAuth` before the limited mounts (they key on `req.userId`), and no
  * `{ ok: true, data }` success envelope.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { walkFiles } from './lib/files.ts';
+import { gitIgnores, walkFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './lib/report.ts';
-import { callArgs, callSites } from './lib/source.ts';
+import { braceBlock, callArgs, callSites, declaredBody, splitTopLevel } from './lib/source.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
 export type ApiStandardsOptions = {
@@ -67,6 +82,8 @@ export type ApiStandardsOptions = {
     requestId?: string;
     /** The API contract (rule 11). A repo that states none is not graded on it. */
     contract?: ContractOptions;
+    /** The job contract between the API and its worker (rule 12). A repo that states none is not graded on it. */
+    jobs?: JobsOptions;
 };
 
 export type ContractOptions = {
@@ -88,10 +105,88 @@ export type ContractOptions = {
     validator?: string;
     /**
      * The test setups that hold exchanges to the contract: the frontend's mock
-     * server and the API's test app. Each must call the shared `requestProblems`
-     * and `responseProblems`.
+     * server and the API's test app. Each must call the shared `requestProblems`,
+     * `responseProblems` and `errorProblems`: a refusal is part of the contract
+     * too, and a mock answering with a code the API never sends tests a path no
+     * user can reach.
      */
     testChecks?: string[];
+    /**
+     * The contract-coverage log (needs `testChecks`). A route no test calls is
+     * never checked, so its schemas can be wrong while every test stays green.
+     * Each setup in `testChecks` must record the routes it checked, into the
+     * log its suite's global setup provides; that setup must fail the run on
+     * the routes nobody recorded.
+     */
+    coverage?: ContractCoverage;
+    /**
+     * The API fuzz run (Schemathesis). It sends generated requests to a real API
+     * and fails on a server error or an answer the contract refuses, so it is only
+     * as good as the document it reads and the exceptions its config allows.
+     */
+    fuzz?: ContractFuzz;
+    /**
+     * How a route names its schemas. Stated, every route declaration must hand
+     * the validator the `body` and `query` its contract entry names, answer
+     * through the helper with a schema its `response` names (and never for
+     * `null`), and take the upload fields its `files` names. Without it, a router
+     * can validate or answer with a schema the contract does not name, and only
+     * a test that happens to send the difference notices.
+     */
+    handlers?: ContractHandlers;
+};
+
+export type ContractHandlers = {
+    /** The validator a route hands `{ body, query, params }` and its handler, e.g. `validated`. */
+    validate: string;
+    /** The helper a route answers through, with the schema as its second argument, e.g. `send`. */
+    send: string;
+    /** Modules besides the router where a validator's schema object may be declared, e.g. shared params objects. */
+    objects?: string[];
+};
+
+export type ContractCoverage = {
+    /** The module `openCoverageLog`, `recordCheckedRoute` and `uncheckedRoutes` come from. */
+    module: string;
+    /** One per test suite: its Vitest config, and the global setup the config registers. */
+    suites: { config: string; setup: string }[];
+};
+
+export type ContractFuzz = {
+    /** The module that builds the OpenAPI document from the contract table, and the function it exports for that. */
+    document: { file: string; name: string };
+    /** The script that writes the document fresh and starts the fuzzer on it. */
+    runner: string;
+    /** The fuzzer's `schemathesis.toml`, which the runner must hand it by path. */
+    config: string;
+    /** The pip requirements file that pins the fuzzer, and anything the run starts beside it. Every line is pinned with `==`. */
+    requirements: string;
+    /**
+     * The env keys the runner must set itself for the API it starts: where the
+     * run's storage and queues are (`S3_ENDPOINT`, `REDIS_PORT`). An API fills a
+     * key it is not given from its dev env file, so a run that leaves one out
+     * writes its uploads and jobs into the dev services, where they outlive it.
+     */
+    isolate?: string[];
+    /**
+     * What a run writes besides the fuzzer's own cache: the virtualenv, the
+     * reports. Each must be git-ignored. The cache (`.schemathesis/`) is always
+     * checked, at the repository root and beside `config`.
+     */
+    outputs: string[];
+};
+
+export type JobsOptions = {
+    /** The registry module: one `{ queue, data }` entry per job. */
+    file: string;
+    /** The registry's exported name, e.g. `JOBS`. */
+    table: string;
+    /** The API module that builds the queues and adds every job to them. */
+    producer: string;
+    /** The worker's wrapper that parses `job.data` before a handler sees it. */
+    processor: { file: string; name: string };
+    /** The worker modules that build BullMQ `Worker`s. */
+    workers: string[];
 };
 
 export type ResponseSchemaOptions = {
@@ -151,10 +246,10 @@ const LOOSE_SCHEMA: [RegExp, string][] = [
 const CONTRACT_KEY = /['"]((?:GET|POST|PUT|PATCH|DELETE) \/[^'"]*)['"]\s*:/g;
 
 /** The shared contract checks the test setups call. */
-const CONTRACT_CHECKS = ['requestProblems', 'responseProblems'];
+const CONTRACT_CHECKS = ['requestProblems', 'responseProblems', 'errorProblems'];
 
-/** A `body:` or `query:` key in a validator's schema object, and the first token of its value. */
-const REQUEST_SCHEMA_SLOT = /(?<![\w.$])(body|query)\s*:\s*([A-Za-z_$][\w$]*)(\s*[.(]?)/g;
+/** A `params:`, `body:` or `query:` key in a validator's schema object, and the first token of its value. */
+const REQUEST_SCHEMA_SLOT = /(?<![\w.$])(params|body|query)\s*:\s*([A-Za-z_$][\w$]*)(\s*[.(]?)/g;
 
 /** The last top-level argument in an argument list: the value schema of `z.record(key, value)`. */
 const lastArgument = (args: string): string => {
@@ -205,6 +300,7 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
         responses,
         requestId,
         contract,
+        jobs,
     } = input;
 
     const problems: GateFailure[] = [];
@@ -641,6 +737,11 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
         inspectContract(contract, { routeFiles, read, code, exists, fail, apiClient, root });
     }
 
+    // ── 12. One job contract ────────────────────────────────────────────────
+    if (jobs !== undefined) {
+        inspectJobs(jobs, { routeFiles, read, code, exists, fail, apiClient, root });
+    }
+
     const routes = routeFiles.reduce((total, rel) => total + [...code(rel).matchAll(ROUTE_DECLARATION)].length, 0);
 
     const pending = Object.keys(responses?.pending ?? {}).length;
@@ -661,7 +762,7 @@ type ContractContext = {
 /** Rule 11: the contract's keys, the routers' request schemas, the frontend's one caller. */
 function inspectContract(contract: ContractOptions, ctx: ContractContext): void {
     const { routeFiles, read, code, exists, fail, apiClient, root } = ctx;
-    const { file, sharedPackage, caller, validator, testChecks = [] } = contract;
+    const { file, sharedPackage, caller, validator, testChecks = [], coverage, fuzz, handlers } = contract;
 
     if (!exists(file)) {
         fail(
@@ -674,6 +775,7 @@ function inspectContract(contract: ContractOptions, ctx: ContractContext): void 
 
     // The routes the routers serve, by their full path: the header's mount plus the declared path.
     const served = new Map<string, string>();
+    const mounts = new Map<string, string>();
     for (const rel of routeFiles) {
         const header = /^\/\*\*[\s\S]*?\*\//.exec(read(rel))?.[0] ?? '';
         const mount = (/mounted at (\/\S*)/.exec(header)?.[1] ?? '').replace(/[.,;:)]+$/, '');
@@ -687,6 +789,7 @@ function inspectContract(contract: ContractOptions, ctx: ContractContext): void 
             );
             continue;
         }
+        mounts.set(rel, mount);
         for (const [, verb = '', routePath = ''] of declared) {
             served.set(`${verb.toUpperCase()} ${mount}${routePath === '/' ? '' : routePath}`, rel);
         }
@@ -719,8 +822,10 @@ function inspectContract(contract: ContractOptions, ctx: ContractContext): void 
             if (after.trim() === '' && shared.has(value)) continue;
             fail(
                 `${rel}:${source.slice(0, match.index).split('\n').length}`,
-                `validates its ${slot} with a schema of its own, not one from ${sharedPackage}`,
-                `The frontend builds this ${slot} from the shared schemas. A schema written in the router is a second definition the frontend never sees: rename a field here and the frontend keeps sending the old one, refused with a 422 nobody tested. Move it to the shared package and import it.`,
+                `validates its ${slot === 'params' ? 'path parameters' : slot} with a schema of its own, not one from ${sharedPackage}`,
+                slot === 'params'
+                    ? 'The contract names the schema a path is held to, and only one from the shared package can be the same one. A rule written in the router is a second definition: tighten it here and the contract, the fuzz document and every client still describe the old one. Move it to the shared package and import it.'
+                    : `The frontend builds this ${slot} from the shared schemas. A schema written in the router is a second definition the frontend never sees: rename a field here and the frontend keeps sending the old one, refused with a 422 nobody tested. Move it to the shared package and import it.`,
             );
         }
     }
@@ -779,8 +884,724 @@ function inspectContract(contract: ContractOptions, ctx: ContractContext): void 
             fail(
                 rel,
                 `never calls ${missing.map((name) => `\`${name}\``).join(' or ')} from ${sharedPackage}`,
-                'A test double is a second, hand-written copy of the API. Unchecked, it drifts from the real one while every test stays green: a mock answers a route the API does not serve, or a body the API never sends. Check every exchange the setup answers against the contract.',
+                'A test double is a second, hand-written copy of the API. Unchecked, it drifts from the real one while every test stays green: a mock answers a route the API does not serve, a body the API never sends, or a refusal with a code the API does not have. Check every exchange the setup answers against the contract, refusals included.',
             );
+        }
+    }
+
+    if (coverage !== undefined) inspectContractCoverage(coverage, testChecks, ctx);
+    if (fuzz !== undefined) inspectContractFuzz(fuzz, file, listed, ctx);
+    if (handlers !== undefined) inspectContractHandlers(handlers, file, mounts, ctx);
+}
+
+/** Each contract entry's properties as source text: `{ body: 'loginBody', response: 'z.union([…])' }`. */
+function contractEntries(source: string): Map<string, Map<string, string>> {
+    const entries = new Map<string, Map<string, string>>();
+    for (const match of source.matchAll(CONTRACT_KEY)) {
+        const [, key = ''] = match;
+        const rest = source.slice(match.index + match[0].length);
+        if (!/^\s*\{/.test(rest)) continue;
+        entries.set(key, objectProperties(braceBlock(rest, /^\s*/)));
+    }
+    return entries;
+}
+
+/** An object literal's inside as `key → value source`; a shorthand `key` is its own value, a spread is keyed `...name`. */
+function objectProperties(inside: string): Map<string, string> {
+    const properties = new Map<string, string>();
+    for (const part of splitTopLevel(inside, ',')) {
+        const pair = /^([A-Za-z_$][\w$]*)\s*:\s*([\s\S]+)$/.exec(part);
+        if (pair !== null) properties.set(pair[1] ?? '', compact(pair[2] ?? ''));
+        else properties.set(part.startsWith('...') ? part.replace(/\s+/g, '') : part, part);
+    }
+    return properties;
+}
+
+/** Source text with its whitespace removed, so a wrapped expression compares equal to an unwrapped one. */
+const compact = (text: string): string => text.replace(/\s+/g, '');
+
+/** The upload fields a route's multer middleware takes: `.single('file')` is one, `.array('files', 10)` many. */
+function uploadFields(source: string): Map<string, string> {
+    const fields = new Map<string, string>();
+    for (const [, kind, name = ''] of source.matchAll(/\.(single|array)\(\s*['"]([^'"]+)['"]/g)) {
+        fields.set(name, kind === 'single' ? 'one' : 'many');
+    }
+    for (const args of callArgs(source, '.fields(')) {
+        for (const entry of args.match(/\{[^{}]*\}/g) ?? []) {
+            const name = /\bname\s*:\s*['"]([^'"]+)['"]/.exec(entry)?.[1];
+            if (name !== undefined) fields.set(name, /\bmaxCount\s*:\s*1\b/.test(entry) ? 'one' : 'many');
+        }
+    }
+    return fields;
+}
+
+/** Rule 11 with `handlers`: each route validates, answers and uploads with what its contract entry names. */
+function inspectContractHandlers(
+    handlers: ContractHandlers,
+    contractFile: string,
+    mounts: Map<string, string>,
+    ctx: ContractContext,
+): void {
+    const { code, exists, fail } = ctx;
+    const { validate, send, objects = [] } = handlers;
+    const entries = contractEntries(code(contractFile));
+    const objectSources = objects.filter(exists).map(code);
+
+    for (const [rel, mount] of mounts) {
+        const source = code(rel);
+        for (const declaration of source.matchAll(ROUTE_DECLARATION)) {
+            const [, verb = '', routePath = ''] = declaration;
+            const key = `${verb.toUpperCase()} ${mount}${routePath === '/' ? '' : routePath}`;
+            const entry = entries.get(key);
+            if (entry === undefined) continue; // reported as unlisted above
+            const call = callArgs(source.slice(declaration.index), `router.${verb}(`)[0] ?? '';
+            const at = `${rel}:${source.slice(0, declaration.index).split('\n').length}`;
+
+            // What the validator is handed, with spreads and named objects followed.
+            const handed = new Map<string, string>();
+            const unreadable: string[] = [];
+            const collect = (text: string, seen: Set<string>): void => {
+                const name = text.trim().replace(/^\.\.\./, '');
+                if (text.trim().startsWith('{')) {
+                    for (const [prop, value] of objectProperties(braceBlock(text, /^\s*/))) {
+                        if (prop.startsWith('...')) collect(prop, seen);
+                        else handed.set(prop, value);
+                    }
+                    return;
+                }
+                if (!/^[A-Za-z_$][\w$]*$/.test(name) || seen.has(name)) return;
+                seen.add(name);
+                const declared = new RegExp(`\\bconst\\s+${name}\\s*(?::[^=]+)?=\\s*(?=\\{)`);
+                const home = [source, ...objectSources].find((text2) => declared.test(text2));
+                if (home === undefined) {
+                    unreadable.push(name);
+                    return;
+                }
+                const match = declared.exec(home);
+                if (match !== null) collect(`{${braceBlock(home.slice(match.index), declared)}}`, seen);
+            };
+            const validated = callArgs(call, `${validate}(`)[0];
+            if (validated !== undefined) collect(splitTopLevel(validated, ',')[0] ?? '', new Set());
+            if (unreadable.length > 0) {
+                fail(
+                    at,
+                    `hands \`${validate}\` ${unreadable.map((name) => `\`${name}\``).join(', ')}, which this gate cannot read`,
+                    `The gate compares the schemas a route validates with the ones its contract entry names. Declare the object in the router, or list the module that declares it in \`contract.handlers.objects\`.`,
+                );
+            }
+            // The route's code: its own, and that of a handler it names, last in the route or
+            // last in the validator's arguments.
+            const handlerNames = [
+                splitTopLevel(call, ',').at(-1),
+                validated === undefined ? undefined : splitTopLevel(validated, ',').at(-1),
+            ]
+                .map((arg) => arg?.trim() ?? '')
+                .filter((arg) => /^[A-Za-z_$][\w$]*$/.test(arg));
+            const body = [call, ...handlerNames.map((name) => declaredBody(source, name))].join('\n');
+
+            // An object it cannot read is reported above; what it holds is unknown, not missing.
+            for (const slot of unreadable.length > 0 ? [] : ['params', 'body', 'query']) {
+                const named = entry.get(slot);
+                // A route may check its path itself, with the contract's schema: one that answers
+                // a bad path as a probe rather than a form to correct.
+                const checksItself =
+                    slot === 'params' &&
+                    named !== undefined &&
+                    /^[A-Za-z_$][\w$]*$/.test(named) &&
+                    new RegExp(`(?<![\\w$.])${named}\\.(?:safeParse|parse)\\(`).test(body);
+                const used = handed.get(slot) ?? (checksItself ? named : undefined);
+                if (named === used) continue;
+                const what = slot === 'params' ? 'path parameters' : slot;
+                const some = slot === 'params' ? what : `a ${slot}`;
+                fail(
+                    at,
+                    used === undefined
+                        ? `${key} validates no ${what}, but the contract names \`${named}\``
+                        : named === undefined
+                          ? `${key} validates ${some} with \`${used}\`, but the contract names none`
+                          : `${key} validates its ${what} with \`${used}\`, but the contract names \`${named}\``,
+                    slot === 'params'
+                        ? 'The contract says what a path may hold, and the fuzz document describes each route from it. A router validating with another schema refuses paths the contract allows, or takes ones it never declared, and no type error says so. Make the router and the contract name the same schema.'
+                        : `The frontend builds this ${slot} from the schema the contract names, and its tests are checked against it. A router validating with another one refuses what the frontend sends, or takes what it never declared, and no type error says so. Make the router and the contract name the same schema.`,
+                );
+            }
+
+            const answers = callArgs(body, `${send}(`).map((args) => compact(splitTopLevel(args, ',')[1] ?? ''));
+            const response = entry.get('response');
+            if (response === 'null') {
+                if (answers.length > 0) {
+                    fail(
+                        at,
+                        `${key} answers through \`${send}\`, but the contract says it answers with no body`,
+                        'The frontend is typed from the contract, so it never reads this body: whatever it carries is sent for nobody, and a client typed by hand may come to depend on it. Answer 204, or name the schema in the contract.',
+                    );
+                }
+            } else if (response !== undefined && response !== "'raw'" && response !== '"raw"') {
+                if (answers.length === 0) {
+                    fail(
+                        at,
+                        `${key} never answers through \`${send}\``,
+                        `The contract names a schema for this route's answer, and \`${send}\` is what holds the data to it. Answer through it with that schema.`,
+                    );
+                }
+                for (const schema of answers) {
+                    const escaped = schema.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+                    if (schema !== '' && new RegExp(`(?<![\\w$.])${escaped}(?![\\w$])`).test(response)) continue;
+                    fail(
+                        at,
+                        `${key} answers with \`${schema}\`, which its contract entry does not name`,
+                        'The frontend is typed from the schema the contract names. A route answering with another one sends fields the frontend never reads, or lacks ones it does, and only a test that checks this exact answer notices. Answer with the schema the contract names, or change the entry.',
+                    );
+                }
+            }
+
+            // What the route takes as files.
+            const listedFiles = new Map(
+                [...(entry.get('files') ?? '').matchAll(/([A-Za-z_$][\w$]*)\s*:\s*['"](one|many)['"]/g)].map(
+                    ([, name = '', kind = '']) => [name, kind],
+                ),
+            );
+            const taken = uploadFields(call);
+            const describe = (fields: Map<string, string>): string =>
+                fields.size === 0
+                    ? 'none'
+                    : [...fields]
+                          .sort(([a], [b]) => a.localeCompare(b))
+                          .map(([name, kind]) => `\`${name}\` (${kind})`)
+                          .join(', ');
+            if (describe(listedFiles) !== describe(taken)) {
+                fail(
+                    at,
+                    `${key} takes the upload fields ${describe(taken)}, but the contract names ${describe(listedFiles)}`,
+                    'The frontend appends its files under the names the contract gives them. The upload middleware refuses a field it was not told about, so a name that differs is an upload that fails for every user.',
+                );
+            }
+        }
+    }
+}
+
+/** The key a `provide('key', …)` or an `inject('key')` names, wherever it sits in `source`. */
+function providedKeys(source: string, call: 'provide' | 'inject'): Set<string> {
+    return new Set(
+        [...source.matchAll(new RegExp(`\\b${call}\\s*\\(\\s*['"]([^'"]+)['"]`, 'g'))].map(([, key = '']) => key),
+    );
+}
+
+/** Rule 11 with `coverage`: every setup records what it checked, every suite fails on what nobody did. */
+function inspectContractCoverage(coverage: ContractCoverage, testChecks: string[], ctx: ContractContext): void {
+    const { read, code, exists, fail } = ctx;
+    const { module, suites } = coverage;
+    const suiteOf = (rel: string) => suites.find(({ config }) => rel.startsWith(`${path.dirname(config)}/`));
+
+    // What each suite's recorders inject, so its setup can be checked to provide the same key.
+    const injected = new Map<string, Set<string>>();
+    for (const rel of testChecks) {
+        if (!exists(rel)) continue; // reported above
+        const missing = missingSharedCalls(rel, ['recordCheckedRoute'], module, ctx);
+        if (missing !== null && missing.length > 0) {
+            fail(
+                rel,
+                `never records the routes it checks with \`recordCheckedRoute\` from ${module}`,
+                'A route no test calls is never held to the contract, and the run stays green while its schemas are wrong. Record each route this setup checked, so the run can name the ones nobody checked.',
+            );
+            continue;
+        }
+        const recorded = callArgs(code(rel), 'recordCheckedRoute(');
+        const keys = new Set(recorded.flatMap((args) => [...providedKeys(args, 'inject')]));
+        if (keys.size === 0) {
+            fail(
+                rel,
+                'records the routes it checks into no log the suite provides',
+                "Each test worker records into the log its suite's global setup opened, reached with `inject('<key>')`. Pass that as the first argument; a path of its own is a log nobody reads.",
+            );
+            continue;
+        }
+        const suite = suiteOf(rel);
+        if (suite === undefined) {
+            fail(
+                rel,
+                'records into a log no suite in `contract.coverage.suites` reads',
+                "The routes it records are read back by its suite's global setup, which fails the run on the ones nobody checked. List the suite this setup runs in, with its config and that global setup.",
+            );
+            continue;
+        }
+        injected.set(suite.setup, new Set([...(injected.get(suite.setup) ?? []), ...keys]));
+    }
+
+    for (const { config, setup } of suites) {
+        const missing = missingSharedCalls(setup, ['openCoverageLog', 'uncheckedRoutes'], module, ctx);
+        if (missing === null) {
+            fail(
+                setup,
+                'missing',
+                `It is the global setup ${config} registers to open the coverage log and read it back.`,
+            );
+            continue;
+        }
+        if (missing.length > 0) {
+            fail(
+                setup,
+                `never calls ${missing.map((name) => `\`${name}\``).join(' or ')} from ${module}`,
+                'The global setup opens the log before any test runs and reads it once they all have. Without both, nothing is recorded or nothing is read.',
+            );
+        }
+        const source = code(setup);
+        if (!/\bthrow\b/.test(source)) {
+            fail(
+                setup,
+                'never fails the run on a route nobody checked',
+                'A list printed under a green run is a list nobody reads. Throw from the teardown with the routes `uncheckedRoutes` returned, so the run fails and names them.',
+            );
+        }
+        const provided = providedKeys(source, 'provide');
+        for (const key of injected.get(setup) ?? []) {
+            if (provided.has(key)) continue;
+            fail(
+                setup,
+                `never provides \`${key}\`, the log its suite's setups record into`,
+                'The recorders reach the log by this key. A key nobody provides is undefined in every worker, so nothing is recorded and every route looks unchecked — or, if the recorder skips on undefined, the whole check goes quiet.',
+            );
+        }
+        if (!exists(config)) {
+            fail(config, 'missing', `It is the suite config that registers ${setup} as a global setup.`);
+            continue;
+        }
+        const name = path.basename(setup).replace(/\.[cm]?[jt]s$/, '');
+        if (!new RegExp(`globalSetup\\s*:\\s*\\[?[^\\]]*['"][^'"]*${name}`).test(stripComments(read(config)))) {
+            fail(
+                config,
+                `does not register \`${setup}\` as a globalSetup`,
+                'A global setup nothing registers never runs: no log is opened, and a route nobody checked fails nothing.',
+            );
+        }
+    }
+}
+
+/** A route written as a string, keyed or listed: `'GET /api/videos'`. */
+const ROUTE_LITERAL = /['"`](?:GET|POST|PUT|PATCH|DELETE) \/[^'"`]*['"`]/g;
+
+/** The checks a fuzz run exists for. Never switched off, anywhere. */
+const FUZZ_CORE_CHECKS = ['not_a_server_error', 'response_schema_conformance'];
+
+/** The `schemathesis.toml` filters that name operations: by operation id (the contract key), by exact path, by path pattern. */
+const FUZZ_ID_FILTERS = ['include-operation-id', 'exclude-operation-id'];
+const FUZZ_PATH_FILTERS = ['include-path', 'exclude-path'];
+const FUZZ_PATTERN_FILTERS = ['include-path-regex', 'exclude-path-regex'];
+
+/** The exported name of the table the contract's route keys sit in: the last `export const` above the first key. */
+function contractTable(source: string): string | null {
+    const first = source.search(new RegExp(CONTRACT_KEY.source));
+    if (first === -1) return null;
+    return [...source.slice(0, first).matchAll(/\bexport\s+const\s+([A-Za-z_$][\w$]*)/g)].at(-1)?.[1] ?? null;
+}
+
+/** A TOML file with each comment blanked to the end of its line. A `#` inside a quoted string stays; line numbers do not move. */
+function tomlCode(source: string): string {
+    return source
+        .split('\n')
+        .map((line) => {
+            let quote: string | null = null;
+            for (let i = 0; i < line.length; i++) {
+                const ch = line[i];
+                if (quote === null) {
+                    if (ch === '#') return line.slice(0, i);
+                    if (ch === '"' || ch === "'") quote = ch;
+                } else if (ch === '\\' && quote === '"') i++;
+                else if (ch === quote) quote = null;
+            }
+            return line;
+        })
+        .join('\n');
+}
+
+/** A TOML basic string's contents, its escapes resolved: `"^\\d+$"` is the pattern `^\d+$`. */
+function tomlBasic(text: string): string {
+    try {
+        const value: unknown = JSON.parse(`"${text}"`);
+        return typeof value === 'string' ? value : text;
+    } catch {
+        return text; // an escape JSON does not share with TOML; the raw text is the closest reading
+    }
+}
+
+/** Every string assigned to `key` in a comment-free TOML file: `key = "a"`, or `key = ["a", "b"]` over any number of lines. */
+function tomlStrings(code: string, key: string): { line: number; values: string[] }[] {
+    const escaped = key.replace(/[.*+?^${}()|[\]\\/-]/g, '\\$&');
+    const assignment = new RegExp(
+        `^[ \\t]*${escaped}[ \\t]*=[ \\t]*(\\[[^\\]]*\\]|"(?:[^"\\\\]|\\\\.)*"|'[^']*')`,
+        'gm',
+    );
+    return [...code.matchAll(assignment)].map((match) => ({
+        line: code.slice(0, match.index).split('\n').length,
+        values: [...(match[1] ?? '').matchAll(/"((?:[^"\\]|\\.)*)"|'([^']*)'/g)].map(([, basic, literal]) =>
+            basic === undefined ? (literal ?? '') : tomlBasic(basic),
+        ),
+    }));
+}
+
+/** Rule 11 with `fuzz`: the fuzz run reads the contract as it is today, with exceptions that say why and forgive no 5xx. */
+function inspectContractFuzz(
+    fuzz: ContractFuzz,
+    contractFile: string,
+    listed: Set<string>,
+    ctx: ContractContext,
+): void {
+    const { root, read, code, exists, fail } = ctx;
+    const { document, runner, config, requirements, outputs, isolate = [] } = fuzz;
+
+    // The document is built from the contract table, so it lists exactly the routes the contract does.
+    if (!exists(document.file)) {
+        fail(document.file, 'missing', 'It turns the contract into the OpenAPI document the fuzzer reads.');
+    } else {
+        const source = code(document.file);
+        const table = contractTable(code(contractFile));
+        const body = source.replace(/^[ \t]*import\b[^;]*?\bfrom\s*['"][^'"]+['"];?/gm, '');
+        if (table !== null && !new RegExp(`(?<![\\w$])${table}\\b`).test(body)) {
+            fail(
+                document.file,
+                `never reads \`${table}\`, the contract table`,
+                'A document written by hand is a second copy of the API. The fuzzer tests the routes it lists rather than the ones the API serves, and a route added later is never fuzzed. Build every path from the contract table.',
+            );
+        }
+        for (const match of source.matchAll(ROUTE_LITERAL)) {
+            fail(
+                `${document.file}:${source.slice(0, match.index).split('\n').length}`,
+                `names the route ${match[0]} itself`,
+                'Every route the document holds comes from the contract table. One written here is fuzzed as it was the day someone wrote it, whatever the contract says now.',
+            );
+        }
+        const exported = new RegExp(
+            `\\bexport\\s+(?:async\\s+)?function\\s+${document.name}\\b|\\bexport\\s+const\\s+${document.name}\\b`,
+        );
+        if (!exported.test(source)) {
+            fail(
+                document.file,
+                `does not export \`${document.name}\``,
+                'The runner builds the document by calling it.',
+            );
+        }
+    }
+
+    // The runner builds the document on every run and hands the fuzzer its config by path.
+    if (!exists(runner)) {
+        fail(runner, 'missing', 'It writes the document and starts the fuzzer on it.');
+    } else {
+        const source = code(runner).replace(new RegExp(`\\bfunction\\s+${document.name}\\s*\\(`, 'g'), '');
+        if (!new RegExp(`(?<![\\w$])${document.name}\\s*\\(`).test(source)) {
+            fail(
+                runner,
+                `never calls \`${document.name}\``,
+                'A run must fuzz the contract as it is today. A document written once and read back from disk keeps the routes and schemas of the day it was written, and the fuzzer passes an API that has moved on.',
+            );
+        }
+        if (!/['"`]--config-file(?:=[^'"`]*)?['"`]/.test(source) || !source.includes(path.basename(config))) {
+            fail(
+                runner,
+                `never hands the fuzzer \`${config}\` with \`--config-file\``,
+                'Schemathesis looks for `schemathesis.toml` only in the directory it starts in and the ones above it. Started anywhere else it reads no config at all: every exception stops applying and the routes it kept out are fuzzed — a payment provider, a mail server — while the run looks the same.',
+            );
+        }
+        for (const key of isolate) {
+            const escaped = key.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+            if (
+                new RegExp(`(?<![\\w$])['"]?${escaped}['"]?\\s*:|\\[\\s*['"]${escaped}['"]\\s*\\]\\s*=(?!=)`).test(
+                    source,
+                )
+            ) {
+                continue;
+            }
+            fail(
+                runner,
+                `never sets \`${key}\` for the API it starts`,
+                "The API fills a key it is not given from its own dev env file, so the run would reach the dev service that key names: uploads land in the dev buckets, jobs wait in the dev queues, and both outlive the run. Start the run's own service and hand the API its address.",
+            );
+        }
+    }
+
+    if (!exists(requirements)) {
+        fail(requirements, 'missing', 'It pins the fuzzer the runner installs.');
+    } else {
+        const pinned = /^[\w.-]+(?:\[[^\]]*\])?[ \t]*==[ \t]*[\w.+!-]+[ \t]*(?:#.*)?$/;
+        const lines = read(requirements).split('\n');
+        if (!lines.some((line) => /^[ \t]*schemathesis(?:\[|[ \t]*[=<>~!]|[ \t]*$)/.test(line))) {
+            fail(requirements, 'does not list `schemathesis`', 'It is the fuzzer the runner installs from this file.');
+        }
+        for (const [i, line] of lines.entries()) {
+            const requirement = line.trim();
+            if (requirement === '' || requirement.startsWith('#') || pinned.test(requirement)) continue;
+            fail(
+                `${requirements}:${i + 1}`,
+                `\`${requirement}\` is not pinned to one version with \`==\``,
+                'Each release changes what the run does: the fuzzer adds checks and generates requests differently, a stand-in answers differently. Unpinned, a run turns red or green for a reason in no diff, and the seed a failed run printed no longer replays it.',
+            );
+        }
+    }
+
+    if (!exists(config)) {
+        fail(
+            config,
+            'missing',
+            'It says what the fuzz run judges and where a valid request may still be refused. Without it the runner has nothing to hand the fuzzer.',
+        );
+    } else {
+        inspectFuzzConfig(config, read(config), listed, fail);
+    }
+
+    // What a run writes stays out of git. The cache is the fuzzer's, wherever it ran from.
+    const caches = [...new Set(['.schemathesis', path.posix.join(path.posix.dirname(config), '.schemathesis')])];
+    for (const out of [...outputs, ...caches]) {
+        // Asked about a path inside it, so a directory-only pattern (`report/`) answers too.
+        const ignored = gitIgnores(root, `${out}/probe`);
+        if (ignored === null) {
+            fail(
+                '.gitignore',
+                `could not ask git whether \`${out}\` is ignored`,
+                'This rule asks git, which needs a repository. Run the gate inside one.',
+            );
+        } else if (!ignored) {
+            fail(
+                '.gitignore',
+                `does not ignore \`${out}\``,
+                caches.includes(out)
+                    ? 'Schemathesis keeps the requests that failed in `.schemathesis/`, in the directory it runs from, beside the absolute path of the document it read: a home folder and a user name. Committed, that is published along with a pile of failures nobody else can replay.'
+                    : 'A run writes it afresh every time. Committed, it shows up in every diff after a run, and a report holds the requests the fuzzer sent.',
+            );
+        }
+    }
+}
+
+/** The fuzz config: every route it names exists, every exception says why, and none forgives a server error. */
+function inspectFuzzConfig(
+    config: string,
+    raw: string,
+    listed: Set<string>,
+    fail: (file: string | null, what: string, why: string) => void,
+): void {
+    const source = tomlCode(raw);
+    const lines = raw.split('\n');
+    const codeLines = source.split('\n');
+    // A reason sits in the comment directly above, or at the end of the line itself.
+    const reasoned = (i: number) => lines[i - 1]?.trim().startsWith('#') === true || codeLines[i] !== lines[i];
+
+    let table = '';
+    for (const [i, line] of codeLines.entries()) {
+        const header = /^[ \t]*\[\[?[ \t]*([\w.-]+)[ \t]*\]\]?/.exec(line);
+        if (header !== null) {
+            table = header[1] ?? '';
+            if (/^[ \t]*\[\[[ \t]*operations[ \t]*\]\]/.test(line) && !reasoned(i)) {
+                fail(
+                    `${config}:${i + 1}`,
+                    'an `[[operations]]` group with no comment saying why',
+                    'Each group is an exception: routes the run treats differently from the rest. Without the reason, nobody can tell whether it still holds, so it outlives the state that made it true and quietly hides what the run was meant to find. Write the reason in a comment directly above it.',
+                );
+            }
+            continue;
+        }
+        const setting = /^[ \t]*([\w.-]+)[ \t]*=[ \t]*false[ \t]*$/.exec(line)?.[1];
+        if (setting === undefined) continue;
+        const key = [table.replace(/^operations\.?/, ''), setting].filter(Boolean).join('.');
+        if (!/(?:^|\.)enabled$/.test(key)) continue;
+        const check = /(?:^|\.)checks\.([\w-]+)\.enabled$/.exec(key)?.[1];
+        if (key === 'checks.enabled' || (check !== undefined && FUZZ_CORE_CHECKS.includes(check))) {
+            fail(
+                `${config}:${i + 1}`,
+                `switches \`${key}\` off`,
+                `${FUZZ_CORE_CHECKS.map((name) => `\`${name}\``).join(' and ')} are what the run is for: no request may crash the API, and no answer may break the contract. A route that cannot meet them is a bug to fix or a route to exclude with its reason, never a check to switch off.`,
+            );
+            continue;
+        }
+        if (table === 'operations') continue; // the group's own comment says why
+        if (!reasoned(i)) {
+            fail(
+                `${config}:${i + 1}`,
+                `switches \`${key}\` off with no comment saying why`,
+                'Every check is on unless the config turns it off, so each line turning one off is the whole record of what the run no longer judges. Write the reason in a comment directly above it.',
+            );
+        }
+    }
+
+    for (const match of source.matchAll(/^[ \t]*[\w.-]*expected-statuses[ \t]*=[ \t]*\[([^\]]*)\]/gm)) {
+        if (!/(?<![\w])5(?:\d\d|XX|xx)(?![\w])/.test(match[1] ?? '')) continue;
+        fail(
+            `${config}:${source.slice(0, match.index).split('\n').length}`,
+            'lets an exception expect a server error',
+            'A 5xx is the one answer the API never means to give, so the run fails on one everywhere. An exception allows the refusals a state the fuzzer cannot reach explains, never a crash.',
+        );
+    }
+
+    const paths = new Set(
+        [...listed].map((route) => route.slice(route.indexOf(' ') + 1).replace(/[:*](\w+)/g, '{$1}')),
+    );
+    const stale =
+        'The route was renamed or removed and the config was not. An exception for a route nobody serves is dead, and one meant for its replacement is missing, so the replacement is judged by rules the exception was written to relax.';
+    for (const key of FUZZ_ID_FILTERS) {
+        for (const { line, values } of tomlStrings(source, key)) {
+            for (const value of values.filter((id) => !listed.has(id))) {
+                fail(`${config}:${line}`, `names \`${value}\`, which the contract does not list`, stale);
+            }
+        }
+    }
+    for (const key of FUZZ_PATH_FILTERS) {
+        for (const { line, values } of tomlStrings(source, key)) {
+            for (const value of values.filter((p) => !paths.has(p))) {
+                fail(`${config}:${line}`, `names the path \`${value}\`, which the contract does not list`, stale);
+            }
+        }
+    }
+    for (const key of FUZZ_PATTERN_FILTERS) {
+        for (const { line, values } of tomlStrings(source, key)) {
+            for (const value of values) {
+                let pattern: RegExp;
+                try {
+                    pattern = new RegExp(value);
+                } catch {
+                    continue; // Python syntax JavaScript cannot read; the fuzzer reports a pattern that is wrong for it
+                }
+                if ([...paths].some((p) => pattern.test(p))) continue;
+                fail(`${config}:${line}`, `\`${value}\` matches no path the contract lists`, stale);
+            }
+        }
+    }
+}
+
+/** Rule 12: one job contract, parsed on both ends of the queue. */
+function inspectJobs(jobs: JobsOptions, ctx: ContractContext): void {
+    const { root, code, exists, fail } = ctx;
+    const { file, table, producer, processor, workers } = jobs;
+    const literal = /^['"`]/;
+
+    if (!exists(file)) {
+        fail(
+            file,
+            'missing',
+            'It is the one place that says which queue each job goes to and what data it carries. The API and the worker each parse against it.',
+        );
+    } else {
+        const source = code(file);
+        if (!new RegExp(`\\bexport\\s+const\\s+${table}\\b`).test(source)) {
+            fail(
+                file,
+                `does not export \`${table}\``,
+                'The producer and the worker reach each job by its entry in this table.',
+            );
+        }
+        const queues = [...source.matchAll(/\bqueue\s*:/g)].length;
+        const schemas = [...source.matchAll(/\bdata\s*:/g)].length;
+        if (queues !== schemas) {
+            fail(
+                file,
+                `names ${plural(queues, 'queue')} but ${plural(schemas, 'data schema')}`,
+                'Every job is a queue name and the schema of the data it carries. An entry without one is a job the worker cannot check, or a schema nothing is queued against.',
+            );
+        }
+        if (/\.strict\s*\(|\bz\.strictObject\s*\(/.test(source)) {
+            fail(
+                file,
+                'a job schema refuses fields it does not declare',
+                'A job waits in Redis while the API and the worker deploy one at a time. A worker that refuses an unknown field fails every job a newer API queued with one, through no fault of either. The producer already refuses fields its schema would drop, so the worker can safely ignore them.',
+            );
+        }
+    }
+
+    if (!exists(producer)) {
+        fail(producer, 'missing', 'It is the one module the API queues jobs through.');
+    } else {
+        const source = code(producer);
+        if (!new RegExp(`\\b${table}\\b`).test(source)) {
+            fail(
+                producer,
+                `never reads \`${table}\``,
+                'Queue names and job data both come from the registry, so the producer and the worker cannot disagree.',
+            );
+        }
+        if (!/\.(?:safeParse|parse)\s*\(/.test(source)) {
+            fail(
+                producer,
+                "never parses a job's data before queueing it",
+                'A malformed job fails in the request that made it when the producer parses it, with the caller still there to see why. Unparsed, it fails later in a worker log nobody connects to the request.',
+            );
+        }
+        if (!/\bdroppedKeys\s*\(/.test(source)) {
+            fail(
+                producer,
+                'never refuses a field the job schema would drop (`droppedKeys`)',
+                'The worker ignores fields it does not know, so a misspelt or stray field would travel through Redis unnoticed. Refusing it at the producer is what makes the tolerant worker safe.',
+            );
+        }
+    }
+
+    // A queue built anywhere else in the API is a way to add jobs nothing parses.
+    const workspace = producer.split('/')[0] ?? '';
+    const apiFiles = walkFiles(root, workspace, {
+        match: /\.ts$/,
+        exclude: (rel) => rel.includes('__tests__') || /\.(?:test|spec)\.ts$/.test(rel) || rel.includes('node_modules'),
+    });
+    for (const rel of apiFiles) {
+        if (rel === producer) continue;
+        const source = code(rel);
+        for (const site of callSites(source, 'new Queue(')) {
+            fail(
+                `${rel}:${source.slice(0, site.index).split('\n').length}`,
+                `builds a queue outside ${producer}`,
+                'Every job the API queues goes through the producer, which parses it against the registry. A queue built here adds jobs nothing checks.',
+            );
+        }
+    }
+
+    if (!exists(processor.file)) {
+        fail(
+            processor.file,
+            'missing',
+            `It holds \`${processor.name}\`, which parses each job before its handler runs.`,
+        );
+    } else {
+        const body = declaredBody(code(processor.file), processor.name);
+        if (body === '') {
+            fail(processor.file, `does not declare \`${processor.name}\``, 'Every worker runs its jobs through it.');
+        } else {
+            if (!/\.(?:safeParse|parse)\s*\(/.test(body)) {
+                fail(
+                    processor.file,
+                    `\`${processor.name}\` never parses the job's data`,
+                    'The job may have been queued by an older or newer API than this worker. A type says nothing about what is actually in Redis; parsing does.',
+                );
+            }
+            if (!/\bnew\s+UnrecoverableError\s*\(/.test(body)) {
+                fail(
+                    processor.file,
+                    `\`${processor.name}\` does not fail a malformed job as unrecoverable`,
+                    'Data that does not parse will not parse on the next attempt either. A plain error spends every retry on it and buries the reason under the retries; `UnrecoverableError` fails it once, with the reason.',
+                );
+            }
+        }
+    }
+
+    for (const rel of workers) {
+        if (!exists(rel)) {
+            fail(rel, 'missing', 'It is listed in `jobs.workers` as a module that builds workers.');
+            continue;
+        }
+        const source = code(rel);
+        const line = (index: number) => `${rel}:${source.slice(0, index).split('\n').length}`;
+        const sites = (['new Worker(', 'new Queue('] as const)
+            .flatMap((token) => callSites(source, token).map((site) => ({ ...site, token })))
+            .sort((a, b) => a.index - b.index);
+        for (const { token, ...site } of sites) {
+            const [name = '', handler = ''] = splitTopLevel(site.args, ',').map((arg) => arg.trim());
+            if (literal.test(name) || !name.startsWith(`${table}.`)) {
+                fail(
+                    line(site.index),
+                    `names its queue \`${name}\` instead of from \`${table}\``,
+                    'A queue name typed twice is two names: rename it in one place and the producer fills a queue no worker reads, with no error anywhere.',
+                );
+            }
+            if (token === 'new Worker(' && !handler.startsWith(`${processor.name}(`)) {
+                fail(
+                    line(site.index),
+                    `runs its jobs without \`${processor.name}\``,
+                    'The handler would read `job.data` as whatever it was declared to be, not what is actually in Redis. Wrap it, so a malformed job fails once, unrecoverable, before the handler sees it.',
+                );
+            }
         }
     }
 }
@@ -865,10 +1686,20 @@ export function checkApiStandards(options: ApiStandardsOptions): void {
         options.contract === undefined
             ? ''
             : ' The contract lists every served route, and routers validate with the shared schemas' +
+              (options.contract.handlers === undefined
+                  ? ''
+                  : ', each route with exactly the path parameters, body, query, answer and upload fields its entry names') +
               (options.contract.validator === undefined ? '' : '; unknown request keys are refused') +
               (options.contract.testChecks === undefined
                   ? '.'
-                  : `; every exchange in ${plural(options.contract.testChecks.length, 'test setup')} is checked against it.`);
+                  : `; every exchange in ${plural(options.contract.testChecks.length, 'test setup')} is checked against it, refusals included` +
+                    (options.contract.coverage === undefined
+                        ? '.'
+                        : `, and ${plural(options.contract.coverage.suites.length, 'suite')} fail on a route no test checked.`));
+    const jobs =
+        options.jobs === undefined
+            ? ''
+            : ` Jobs are parsed against \`${options.jobs.table}\` when queued and when run, with every queue named from it.`;
     const responses =
         options.responses === undefined
             ? ''
@@ -884,7 +1715,8 @@ export function checkApiStandards(options: ApiStandardsOptions): void {
             `each one documented in its own header; middleware ordered with the error handler last, ` +
             `${plural(counts.mounts, 'mount')} all carrying a rate-limit tier, token bucket atomic and fail-open, pagination capped.` +
             responses +
-            contract,
+            contract +
+            jobs,
         notMachineChecked:
             'Whether a status code is the RIGHT one, whether independent awaits were parallelised, cache TTL judgement, or whether a given POST is idempotent. Nor whether a route header describes what the route actually does — only that the two lists match. ' +
             'Nor whether a field a schema DOES declare should be public — a secret under a declared name passes; the response-leak tripwire is what catches that.',

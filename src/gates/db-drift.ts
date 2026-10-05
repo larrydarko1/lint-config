@@ -10,12 +10,12 @@
  * example keys. Omit the ops and backup groups where they do not apply, and say so
  * in the shim.
  */
-import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { gitIgnores } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './lib/report.ts';
 
@@ -183,16 +183,6 @@ function documentedFields(doc: string, collection: string): string[] | null {
     const next = rest.search(/\n#{2,4} /);
     const section = next === -1 ? rest : rest.slice(0, next);
     return [...section.matchAll(/^\| `(\w+)`\s*\|/gm)].map((m) => m[1] ?? '');
-}
-
-/** Whether git ignores a path, asked of `git check-ignore`. Null when git could not answer. */
-function gitIgnores(root: string, rel: string): boolean | null {
-    const { status, error } = spawnSync('git', ['check-ignore', '-q', '--no-index', rel], {
-        cwd: root,
-        stdio: 'ignore',
-    });
-    if (error !== undefined || status === null || status > 1) return null;
-    return status === 0;
 }
 
 /** Every `.ts` file under a directory, recursively. */

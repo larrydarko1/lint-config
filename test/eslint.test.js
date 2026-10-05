@@ -140,6 +140,19 @@ test('paths override the preset without having to restate the rest of it', () =>
     assert.deepEqual(paths.browser, PRESETS.electron.browser);
 });
 
+test("both presets leave a Python virtualenv's vendored JavaScript alone, wherever it sits", async () => {
+    for (const preset of Object.keys(PRESETS)) {
+        const eslint = new ESLint({
+            overrideConfigFile: true,
+            baseConfig: larry({ preset, rootDir: ROOT }),
+            cwd: ROOT,
+        });
+        const vendored = 'e2e/fuzz/.venv/lib/python3.14/site-packages/werkzeug/debug/shared/debugger.js';
+        assert.equal(await eslint.isPathIgnored(`${ROOT}/${vendored}`), true, preset);
+        assert.equal(await eslint.isPathIgnored(`${ROOT}/scripts/thing.ts`), false, preset);
+    }
+});
+
 test('both presets produce a config ESLint accepts end to end', async () => {
     for (const preset of Object.keys(PRESETS)) {
         const eslint = new ESLint({

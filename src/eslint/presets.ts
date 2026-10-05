@@ -35,7 +35,8 @@ const electron: PresetPaths = {
     /** Both sets of globals (an E2E runner driving a browser from Node). */
     nodeAndBrowser: [],
     vue: ['src/renderer/**/*.vue'],
-    ignores: ['out/', 'dist-electron/', 'node_modules/', 'models/', 'coverage/', 'build/'],
+    // A Python virtualenv (a tool installed with pip) is third-party code like node_modules, JS files and all.
+    ignores: ['out/', 'dist-electron/', 'node_modules/', '**/.venv/', 'models/', 'coverage/', 'build/'],
     /** The config files that quote rule patterns, so naming-convention is off there. */
     configFiles: ['eslint/**/*.js', 'eslint.config.js'],
 };
@@ -111,7 +112,8 @@ const fullstackPaths = (layout: FullstackLayout): PresetPaths => ({
     node: [...layout.backend, '**/*.setup.ts', 'scripts/**/*.ts', 'db/**/*.js'],
     nodeAndBrowser: ['e2e/**/*.ts'],
     vue: layout.vue,
-    ignores: ['**/dist/', '**/node_modules/', 'backups/', 'models/', 'coverage/', 'playwright-report/'],
+    // A Python virtualenv (the API fuzzer's, e2e/fuzz/.venv) is third-party code like node_modules, JS files and all.
+    ignores: ['**/dist/', '**/node_modules/', '**/.venv/', 'backups/', 'models/', 'coverage/', 'playwright-report/'],
     configFiles: ['eslint/**/*.js', 'eslint.config.js'],
 });
 

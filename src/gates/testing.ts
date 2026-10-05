@@ -7,7 +7,8 @@
  *   4. Coverage thresholds only rise; every exclude has a reason.
  *   5. No file at 0% (needs `coverage/coverage-summary.json`; skipped and said so without it).
  *   6. Suite hygiene: no `.only`/`.skip`, no commented-out cases, no duplicate titles.
- *   7. No transport patching.
+ *   7. No transport patching, and (with `apiClient`) no suite replacing an
+ *      export every API request goes through.
  *   8. `wrapper.vm` reads, as a ratchet.
  *   9. The DOM environment the standard names.
  *  10. The E2E run fails on a server error (opt-in: `serverErrors`): the fixtures
@@ -21,7 +22,7 @@ import path from 'node:path';
 import { repoFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './lib/report.ts';
-import { callArgs } from './lib/source.ts';
+import { callArgs, callSites, splitTopLevel } from './lib/source.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
 export type TestingOptions = {
@@ -40,6 +41,13 @@ export type TestingOptions = {
     vmBaseline?: number;
     /** The E2E server-error tripwire (rule 10; needs `e2e`). A repo that states none is not graded on it. */
     serverErrors?: ServerErrorWiring;
+    /**
+     * The API client module as a suite imports it, and the exports every request
+     * goes through on its way to the mock server — the typed caller and the HTTP
+     * instance under it (rule 7). The mock server checks each exchange against
+     * the API contract, so a suite that replaces either checks nothing.
+     */
+    apiClient?: { module: string; exports: string[] };
 };
 
 /** Where this project put its suites. The pattern is data; the rule is the same either way. */
@@ -136,6 +144,37 @@ const VM_ACCESS = /\.vm\.[a-zA-Z_][a-zA-Z0-9_]*/;
 /** A named import from Playwright itself: `import { test, expect } from '@playwright/test'`. */
 const PLAYWRIGHT_IMPORT = /import\s*\{([^}]*)\}\s*from\s*['"]@playwright\/test['"]/g;
 
+/**
+ * Where a suite replaces one of `client.exports`: a `vi.mock`/`vi.doMock` of the
+ * module with no factory (which replaces every export) or with one that hands
+ * back a property of that name, or a `vi.spyOn` on it. Replacing the module's
+ * other exports, around the real request path, is fine.
+ */
+export function replacedClient(
+    source: string,
+    client: { module: string; exports: string[] },
+): { line: number; name: string }[] {
+    const module = client.module.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+    const lineOf = (index: number) => source.slice(0, index).split('\n').length;
+    const found: { line: number; name: string }[] = [];
+    const mocks = [...callSites(source, 'vi.mock('), ...callSites(source, 'vi.doMock(')];
+    for (const site of mocks) {
+        const [target = '', factory = ''] = splitTopLevel(site.args, ',').map((arg) => arg.trim());
+        if (!new RegExp(`^['"\`]${module}['"\`]$`).test(target)) continue;
+        for (const name of client.exports) {
+            // No factory automocks every export; otherwise `name: …`, or the shorthand `{ name }` / `{ …, name }`.
+            const own = new RegExp(`(?:^|[^\\w$.])${name}\\s*(?::|,|\\})`);
+            if (factory === '' || own.test(factory)) found.push({ line: lineOf(site.index), name });
+        }
+    }
+    for (const site of callSites(source, 'vi.spyOn(')) {
+        const [, method = ''] = splitTopLevel(site.args, ',').map((arg) => arg.trim());
+        const name = client.exports.find((candidate) => new RegExp(`^['"\`]${candidate}['"\`]$`).test(method));
+        if (name !== undefined) found.push({ line: lineOf(site.index), name });
+    }
+    return found.sort((a, b) => a.line - b.line);
+}
+
 /** Duplicate case titles within one `describe`. `it.each` titles are skipped (they expand at run time). */
 export function duplicateTitles(source: string): { title: string; count: number }[] {
     const stack = [];
@@ -176,6 +215,7 @@ export function inspectTesting(input: TestingInput): TestingInspection {
         domEnvironment,
         vmBaseline = 0,
         serverErrors,
+        apiClient,
     } = input;
 
     const problems: GateFailure[] = [];
@@ -367,6 +407,16 @@ export function inspectTesting(input: TestingInput): TestingInspection {
                 'patches axios or fetch directly',
                 "Mock at the boundary the code talks to — the network, with MSW — not the transport it happens to use today. MSW is the standard's choice precisely so a test survives the client swapping axios for fetch or gaining an interceptor.",
             );
+        }
+
+        if (apiClient !== undefined) {
+            for (const { line, name } of replacedClient(stripComments(source), apiClient)) {
+                fail(
+                    `${rel}:${line}`,
+                    `replaces \`${name}\` from ${apiClient.module}`,
+                    `Every request goes through \`${name}\` to the mock server, which checks each exchange against the API contract. A stand-in answers whatever the test hands it — a login missing half its fields passes as one — so the code under test is never held to the API it will meet. Answer the route on the mock server instead.`,
+                );
+            }
         }
 
         source.split('\n').forEach((line, i) => {
@@ -564,7 +614,7 @@ export function checkTesting(options: TestingOptions): void {
     const { problems, suites, specs, measured, uncovered, haveCoverage } = inspectTesting({ root, ...rest });
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
-    const { layout, e2e = false, thresholds, excludes = {}, domEnvironment, serverErrors } = rest;
+    const { layout, e2e = false, thresholds, excludes = {}, domEnvironment, serverErrors, apiClient } = rest;
     const placement =
         layout.kind === 'colocated'
             ? 'all co-located in `__tests__/`'
@@ -583,6 +633,7 @@ export function checkTesting(options: TestingOptions): void {
             'accounted for, no transport patched around the network mock, no `.only`/`.skip`/bare `test()`/' +
             'commented-out or duplicate cases, no test reading component internals' +
             `${domEnvironment === undefined ? '' : `, all on ${domEnvironment.name}`}` +
+            `${apiClient === undefined ? '' : `, no suite replacing the API client's ${apiClient.exports.map((name) => `\`${name}\``).join('/')}`}` +
             `${serverErrors === undefined ? '' : ', every spec held to the server-error tripwire'}.` +
             (haveCoverage
                 ? `\n  Coverage report: ${plural(measured, 'file')} measured, ${uncovered} with no test at all.`

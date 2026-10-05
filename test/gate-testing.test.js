@@ -327,6 +327,64 @@ test('mocking a module that is not the transport is fine', (t) => {
     assert.deepEqual(run(root).problems, []);
 });
 
+// ── 7 with apiClient. The request path the mock server checks ───────────────
+const CLIENT = { apiClient: { module: '@/api/client', exports: ['call', 'api'] } };
+const withMock = (mock) => good({ 'tests/renderer/thing.test.ts': `${mock}\n${SUITE}` });
+const where = (result) => result.problems.map((p) => `${p.file} ${p.what}`);
+
+test('replacing the typed caller fails, at the vi.mock', (t) => {
+    const mock = "vi.mock('@/api/client', () => ({\n    call: vi.fn(),\n    isAuthenticated: () => true,\n}));";
+    assert.deepEqual(where(run(repo(t, withMock(mock)), CLIENT)), [
+        'tests/renderer/thing.test.ts:1 replaces `call` from @/api/client',
+    ]);
+});
+
+test('replacing the HTTP instance under it fails too', (t) => {
+    const mock =
+        "vi.mock('@/api/client', async (importOriginal) => ({\n    ...(await importOriginal()),\n    api: { post: h.post },\n}));";
+    assert.deepEqual(whats(run(repo(t, withMock(mock)), CLIENT)), ['replaces `api` from @/api/client']);
+});
+
+test('a shorthand property replaces it as surely as a keyed one', (t) => {
+    const mock = "const call = vi.fn();\nvi.mock('@/api/client', () => ({ isAuthenticated, call }));";
+    assert.deepEqual(whats(run(repo(t, withMock(mock)), CLIENT)), ['replaces `call` from @/api/client']);
+});
+
+test('an automock with no factory replaces every export', (t) => {
+    assert.deepEqual(whats(run(repo(t, withMock("vi.mock('@/api/client');")), CLIENT)), [
+        'replaces `call` from @/api/client',
+        'replaces `api` from @/api/client',
+    ]);
+});
+
+test('vi.doMock and vi.spyOn replace it too', (t) => {
+    const doMock = "vi.doMock('@/api/client', () => ({ call: vi.fn() }));";
+    const spy = "vi.spyOn(client, 'call').mockResolvedValue({ data: {} });";
+    assert.deepEqual(whats(run(repo(t, withMock(doMock)), CLIENT)), ['replaces `call` from @/api/client']);
+    assert.deepEqual(whats(run(repo(t, withMock(spy)), CLIENT)), ['replaces `call` from @/api/client']);
+});
+
+test("replacing the client module's other exports, around the real caller, is fine", (t) => {
+    const mock =
+        "vi.mock('@/api/client', async (importOriginal) => ({\n    ...(await importOriginal()),\n    setAccessToken: h.setAccessToken,\n    recall: vi.fn(),\n    apiErrorMessage: (e, fallback) => fallback,\n}));";
+    assert.deepEqual(run(repo(t, withMock(mock)), CLIENT).problems, []);
+});
+
+test('a property merely reading the caller, or a mock of another module, is fine', (t) => {
+    const mock =
+        "vi.mock('@/api/account', () => ({ call: vi.fn() }));\nvi.mock('@/api/client', () => ({ wrapped: h.call }));";
+    assert.deepEqual(run(repo(t, withMock(mock)), CLIENT).problems, []);
+});
+
+test('a replacement left in a comment is not one', (t) => {
+    const mock = "// vi.mock('@/api/client', () => ({ call: vi.fn() }));";
+    assert.deepEqual(run(repo(t, withMock(mock)), CLIENT).problems, []);
+});
+
+test('a repo that names no API client is not graded on it', (t) => {
+    assert.deepEqual(run(repo(t, withMock("vi.mock('@/api/client', () => ({ call: vi.fn() }));"))).problems, []);
+});
+
 // ── 8. Component internals ──────────────────────────────────────────────────
 test('reading wrapper.vm fails while the baseline is zero', (t) => {
     const root = repo(t, good({ 'tests/renderer/thing.test.ts': `${SUITE}// wrapper.vm.count\n` }));

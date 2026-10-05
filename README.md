@@ -24,6 +24,7 @@ projects is an option, and everything else is fixed.
 - [CI gates](#ci-gates)
 - [Response schemas](#response-schemas)
 - [The API contract](#the-api-contract)
+- [The job contract](#the-job-contract)
 - [Response-leak tripwire](#response-leak-tripwire)
 - [Server-error tripwire](#server-error-tripwire)
 - [The toolchain](#the-toolchain)
@@ -394,6 +395,7 @@ checkApiStandards({
         caller: { instance: 'api', dir: 'frontend/src' },
         validator: 'api/src/middleware/validate.ts',
         testChecks: ['frontend/src/__tests__/server.ts', 'api/src/__tests__/test-app.ts'],
+        handlers: { validate: 'validated', send: 'send', objects: ['api/src/lib/schemas.ts'] },
     },
 });
 ```
@@ -401,25 +403,153 @@ checkApiStandards({
 - **The keys are the served routes, both ways.** Each router's `mounted at` header plus its
   declared paths must match the contract's keys exactly: a route missing from the table fails, and
   so does a key no router serves.
-- **Request schemas come from the shared package.** A `body:` or `query:` handed to the validator
-  must be an identifier imported from `sharedPackage`; a schema written in the router is a second
-  definition the frontend never sees.
+- **Request schemas come from the shared package.** A `params:`, `body:` or `query:` handed to the
+  validator must be an identifier imported from `sharedPackage`; a schema written in the router is a
+  second definition the frontend and the contract never see.
 - **The frontend calls through its typed caller.** Outside `apiClient` and tests, a direct
   `api.get(…)` (or any method) on the axios instance fails at its line.
 - **The validator refuses unknown keys** (`validator`). It must import `droppedKeys` from
   `sharedPackage` and call it: a Zod object alone strips the key and the request answers 2xx, which
   tells a client sending a renamed or stale field that its change was saved.
+- **Each route uses exactly what its entry names** (`handlers`). Read from each route declaration:
+  the `params`, `body` and `query` it hands `handlers.validate` (an object literal, a spread, or a
+  named object declared in the router or in one of `objects`) must be the ones the entry names. A
+  route that checks its path itself, to answer a bad one as a probe rather than a 422, passes when
+  it calls the entry's `params` schema's `.safeParse(` or `.parse(`. Every schema it answers
+  through `handlers.send` with (second argument, in the route or in the handler it names) must
+  appear in the entry's `response`, a `null` response must never call `send`, and the multer
+  fields (`.single`, `.array`, `.fields`) must be the entry's `files`, by name and by count. Without it a router can validate or answer with a schema the contract does not name, and
+  only a test that happens to send the difference notices.
 - **The test setups check against the contract** (`testChecks`). Each listed file, typically the
-  frontend's mock server and the API's test app, must import and call `requestProblems` and
-  `responseProblems` from `sharedPackage`. Unchecked, a mock is a second API that drifts from the
-  real one while every test stays green.
+  frontend's mock server and the API's test app, must import and call `requestProblems`,
+  `responseProblems` and `errorProblems` from `sharedPackage`. Unchecked, a mock is a second API
+  that drifts from the real one while every test stays green; a mock refusing with a code the API
+  does not have tests a path no user can reach.
 - **The request id comes before the body parser** (`requestId`). A body that will not parse
   otherwise reaches the error handler with no logger, crashes it, and becomes a bare 500.
+
+The checks only see the exchanges a suite makes, so a route no test calls is never checked and
+its schemas can be wrong while every test stays green. `contract.coverage` closes that: each test
+setup records the routes it held to the contract, and a full run with coverage fails on the routes
+nobody did, with the list.
+
+```ts
+contract: {
+    // ...as above
+    coverage: {
+        module: '@acme/shared/contract-coverage',
+        suites: [
+            { config: 'api/vitest.config.ts', setup: 'api/src/__tests__/contract-coverage.ts' },
+            { config: 'frontend/vitest.config.ts', setup: 'frontend/src/__tests__/contract-coverage.ts' },
+        ],
+    },
+},
+```
+
+- **Every test setup records.** Each `testChecks` file must import and call `recordCheckedRoute`
+  from `module`, with `inject('<key>')` as its log, and sit inside a listed suite.
+- **Every suite reads it back and fails.** Each `setup` must call `openCoverageLog` and
+  `uncheckedRoutes`, `provide` the key its suite's recorders inject, and `throw` on what is left;
+  its `config` must register it as a `globalSetup`.
+
+A route the frontend never calls (a webhook, a file URL the browser loads, an admin route called
+from a shell) goes in the frontend setup's exemption map with the reason, never quietly.
+
+The mock server can only check what reaches it. `testing` takes
+`apiClient: { module: '@/api/client', exports: ['call', 'api'] }`, the exports every request
+goes through, and fails a suite that replaces any of them: a `vi.mock`/`vi.doMock` of the module
+with no factory or with a factory returning that name, or a `vi.spyOn` on it. A stand-in answers
+whatever the test hands it, so the code under test is never held to the API. Replacing the
+module's other exports, around the real request path, is fine.
+
+Both suites test against doubles. `contract.fuzz` holds the third check, a fuzz run against the
+real API: [Schemathesis](https://schemathesis.readthedocs.io) reads an OpenAPI document built from
+the contract, sends thousands of generated requests, and fails on a 5xx or an answer the contract
+refuses. The run is only as good as the document it reads and the exceptions its config allows, so
+the gate checks both:
+
+```ts
+contract: {
+    // ...as above
+    fuzz: {
+        document: { file: 'packages/shared/src/openapi.ts', name: 'openApiDocument' },
+        runner: 'e2e/fuzz/run.ts',
+        config: 'e2e/fuzz/schemathesis.toml',
+        requirements: 'e2e/fuzz/requirements.txt',
+        outputs: ['e2e/fuzz/.venv', 'e2e/fuzz/report'],
+        isolate: ['S3_ENDPOINT', 'S3_ACCESS_KEY', 'S3_SECRET_KEY', 'REDIS_HOST', 'REDIS_PORT', 'REDIS_URL'],
+    },
+},
+```
+
+- **The document is built from the contract.** `document.file` exports `document.name`, reads the
+  contract table, and writes no route string of its own. Each operation's id is its contract key
+  (`'GET /api/videos/:id'`), which is how the config names one.
+- **Every run builds it afresh and hands the fuzzer its config.** The runner calls `document.name`
+  and passes `--config-file` with `config`. Schemathesis otherwise looks for `schemathesis.toml`
+  only where it starts and above, and started anywhere else it runs with no exceptions at all,
+  fuzzing the routes the config kept out.
+- **Every exception says why, and none forgives a crash.** Each `[[operations]]` group and each
+  setting turned off carries a comment directly above it, or at the end of its line.
+  `not_a_server_error` and `response_schema_conformance` stay on everywhere, and no
+  `expected-statuses` lists a 5xx.
+- **Every route the config names exists.** An operation id, a path or a path pattern that matches
+  nothing in the contract is a route that was renamed under its exception. A pattern only Python's
+  `re` can read is left to Schemathesis.
+- **Everything the run installs is pinned with `==`.** Every line of `requirements` (the fuzzer,
+  and a stand-in such as moto), each unpinned one reported at its line. A new release changes how
+  requests are generated or answered, so an unpinned run changes colour for a reason in no diff,
+  and a printed seed no longer replays it.
+- **The API it starts gets the run's own services** (`isolate`). The runner must set each listed
+  env key itself (`KEY: …` in an env object, or `process.env['KEY'] = …`). The API fills a key it
+  is not given from its dev env file, so a run that leaves one out stores its uploads in the dev
+  buckets and queues its jobs in the dev Redis, where they outlive it. The run's own services
+  (moto, a `redis-server` that saves nothing) start and stop with it.
+- **What a run writes is git-ignored.** Each of `outputs`, and the `.schemathesis/` crash cache at
+  the root and beside `config`: its manifest records the absolute path of the document it read.
 
 Socket pushes have the same problem and the same fix: `ws-standards` takes
 `events: { file, table }`, the shared table of outbound events and their payload schemas, and fails
 when the gateway emits an event the table does not list, the table lists one nothing emits, or the
 gateway never reads the table.
+
+## The job contract
+
+A job crosses a process boundary and waits in Redis, so a type shared between the API and the
+worker proves nothing at run time: a job queued by an older API can reach a newer worker. The
+registry is one table in the shared package, each job's queue name beside the schema of the data it
+carries, and both ends parse against it:
+
+```ts
+// packages/shared/src/jobs.ts
+export const JOBS = {
+    transcode: { queue: 'transcode', data: z.object({ videoId, rawObjectKey }) },
+    accountCleanup: { queue: 'account-cleanup', data: z.object({ userId }) },
+} as const satisfies Record<string, { queue: string; data: z.ZodObject }>;
+```
+
+The producer is strict and the worker tolerant: the API refuses a field the schema would drop,
+and the worker ignores one it does not know, so an API that adds a field can deploy before the
+worker that reads it. `api-standards` checks it once the project states `jobs`:
+
+```ts
+jobs: {
+    file: 'packages/shared/src/jobs.ts',
+    table: 'JOBS',
+    producer: 'api/src/lib/queue.ts',
+    processor: { file: 'worker/src/lib/jobs.ts', name: 'jobProcessor' },
+    workers: ['worker/src/index.ts'],
+},
+```
+
+- **The registry pairs every queue with a schema, and none is strict.** `.strict()` or
+  `z.strictObject` would fail every job a newer API queued during a rolling deploy.
+- **The producer parses and refuses.** It reads `table`, calls `.safeParse`/`.parse`, and calls
+  `droppedKeys`. No other file in its workspace builds a `new Queue(`.
+- **The processor parses and gives up once.** `processor.name` must parse the job's data and throw
+  an `UnrecoverableError` when it does not fit: a retry would read the same bytes.
+- **Every worker uses both.** In each `workers` file, a `new Worker(` or `new Queue(` names its
+  queue from `table`, never a string, and a `Worker` runs its jobs through `processor.name(`.
 
 ## Response-leak tripwire
 

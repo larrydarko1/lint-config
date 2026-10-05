@@ -12,10 +12,10 @@
  *   8. `.env` is git-ignored and `.env.example` is not (asked of `git check-ignore`).
  *   9. `process.env` is read only in the config module and entry file (tests exempt).
  */
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { gitIgnores } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, type GateFailure } from './lib/report.ts';
 
@@ -133,20 +133,6 @@ function dotenvKeys(
         if (key !== undefined && !ignored.has(key)) keys.add(key);
     }
     return keys;
-}
-
-/**
- * Whether git ignores a path, asked of `git check-ignore`.
- *
- * @returns Null when git could not answer (no repository, no git).
- */
-function gitIgnores(root: string, rel: string): boolean | null {
-    const { status, error } = spawnSync('git', ['check-ignore', '-q', '--no-index', rel], {
-        cwd: root,
-        stdio: 'ignore',
-    });
-    if (error !== undefined || status === null || status > 1) return null;
-    return status === 0;
 }
 
 /** Every `.ts` file under a directory, recursively. */

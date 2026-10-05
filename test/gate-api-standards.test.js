@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -1212,17 +1213,21 @@ export function validate(schemas) {
 `;
 
 const MOCK_SERVER = `import { requestProblems, responseProblems, routeOf } from '@acme/shared';
+import { errorProblems } from '@acme/shared';
 
 server.events.on('response:mocked', ({ request, response }) => {
     const route = routeOf(request.method, new URL(request.url).pathname);
+    if (response.status >= 400) return problems.push(...errorProblems(body));
     problems.push(...responseProblems(route, response.status, body));
     problems.push(...requestProblems(route, { body: sent }));
 });
 `;
 
 const TEST_APP = `import { requestProblems, responseProblems } from '@acme/shared';
+import { errorProblems } from '@acme/shared';
 
 res.on('finish', () => {
+    if (res.statusCode >= 400) return problems.push(...errorProblems(answered));
     problems.push(...responseProblems(key, res.statusCode, answered));
     problems.push(...requestProblems(key, { body: sentBody }));
 });
@@ -1288,11 +1293,22 @@ test('a mock server that checks only the responses is reported', (t) => {
     );
 });
 
-test('a test setup that checks nothing names both checks', (t) => {
+test('a test setup that checks nothing names every check', (t) => {
     const root = tree(t, contracted({ ...WIRED, 'api/src/__tests__/test-app.ts': 'export const app = {};\n' }));
     assert.deepEqual(whats(root, WIRED_OPTIONS), [
-        'never calls `requestProblems` or `responseProblems` from @acme/shared',
+        'never calls `requestProblems` or `responseProblems` or `errorProblems` from @acme/shared',
     ]);
+});
+
+test('a test setup that never checks refusals is reported', (t) => {
+    // A mock answering { error: 'MADE_UP' } tests a path no user can reach.
+    const successesOnly = TEST_APP.replace(
+        '    if (res.statusCode >= 400) return problems.push(...errorProblems(answered));\n',
+        '    if (res.statusCode >= 400) return;\n',
+    );
+    assert.notEqual(successesOnly, TEST_APP);
+    const root = tree(t, contracted({ ...WIRED, 'api/src/__tests__/test-app.ts': successesOnly }));
+    assert.deepEqual(whats(root, WIRED_OPTIONS), ['never calls `errorProblems` from @acme/shared']);
 });
 
 test('a test setup listed but not on disk is reported', (t) => {
@@ -1302,4 +1318,934 @@ test('a test setup listed but not on disk is reported', (t) => {
 
 test('a repo that states no contract is not graded on it', (t) => {
     assert.deepEqual(whats(tree(t, good())), []);
+});
+
+// ─── 11 with handlers. Each route uses what its contract entry names ─────────
+
+const HANDLED_VIDEOS = `/**
+ * Videos router — mounted at /api/videos.
+ *   GET    /           list videos
+ *   POST   /           create a video
+ *   GET    /:id        one video
+ *   DELETE /:id        remove a video
+ */
+import { Router } from 'express';
+
+import { createVideoBody, videoPageSchema, videoSchema, videosQuery } from '@acme/shared';
+
+import { idParams } from '@/lib/schemas.js';
+
+export const router = Router();
+
+const listSchema = { query: videosQuery };
+
+router.get(
+    '/',
+    ...validated(listSchema, async (req, res) => {
+        send(res, videoPageSchema, await listVideos(req.query));
+    }),
+);
+router.post(
+    '/',
+    requireAuth,
+    upload.single('file'),
+    ...validated({ body: createVideoBody }, async (req, res) => {
+        send(res.status(201), videoSchema, await createVideo(req.body));
+    }),
+);
+router.get('/:id', ...validated(idParams, showVideo));
+router.delete('/:id', requireAuth, async (req, res) => {
+    res.status(204).end();
+});
+
+async function showVideo(req, res) {
+    send(res, videoSchema, await getVideo(req.params.id));
+}
+`;
+
+const HANDLED_CHANNELS = CHANNELS.replace(
+    '    res.json(await getChannel(req.params.handle));',
+    '    send(res, channelSchema, await getChannel(req.params.handle));',
+);
+
+const HANDLED_CONTRACT = CONTRACT.replace(
+    "'POST /api/videos': { body: createVideoBody, response: videoSchema },",
+    "'POST /api/videos': { body: createVideoBody, files: { file: 'one' }, response: videoSchema },",
+).replace(
+    "'GET /api/videos/:id': { response: videoSchema },",
+    "'GET /api/videos/:id': { params: idParam, response: videoSchema },",
+);
+
+const HANDLED = {
+    'api/src/routes/videos.ts': HANDLED_VIDEOS,
+    'api/src/routes/channels.ts': HANDLED_CHANNELS,
+    'api/src/lib/schemas.ts': `${SCHEMAS}import { idParam } from '@acme/shared';\n\nexport const idParams = { params: idParam };\n`,
+    'packages/shared/src/contract.ts': HANDLED_CONTRACT,
+};
+
+const HANDLER_OPTIONS = {
+    contract: {
+        ...CONTRACT_OPTIONS.contract,
+        handlers: { validate: 'validated', send: 'send', objects: ['api/src/lib/schemas.ts'] },
+    },
+};
+
+/** The handled routers with `old` replaced in `file`. Fails loudly when the anchor is gone. */
+const handled = (file, old, replacement) => {
+    assert.ok(HANDLED[file].includes(old), `anchor not in ${file}: ${old}`);
+    return { ...HANDLED, [file]: HANDLED[file].replace(old, replacement) };
+};
+
+const VIDEOS_FILE = 'api/src/routes/videos.ts';
+
+test('routes validating, answering and uploading with what their entries name report nothing', (t) => {
+    assert.deepEqual(whats(tree(t, contracted(HANDLED)), HANDLER_OPTIONS), []);
+});
+
+test('a route validating its body with another shared schema is reported at its line', (t) => {
+    const swapped = handled(VIDEOS_FILE, 'validated({ body: createVideoBody }', 'validated({ body: videosQuery }');
+    const problems = run(tree(t, contracted(swapped)), HANDLER_OPTIONS).problems;
+    assert.deepEqual(
+        problems.map((problem) => `${problem.file} ${problem.what}`),
+        [
+            'api/src/routes/videos.ts:24 POST /api/videos validates its body with `videosQuery`, but the contract names `createVideoBody`',
+        ],
+    );
+});
+
+test('a query the contract names but a named validator object leaves out is reported', (t) => {
+    const root = tree(
+        t,
+        contracted(handled(VIDEOS_FILE, 'const listSchema = { query: videosQuery };', 'const listSchema = {};')),
+    );
+    assert.deepEqual(whats(root, HANDLER_OPTIONS), [
+        'GET /api/videos validates no query, but the contract names `videosQuery`',
+    ]);
+});
+
+test('a body the router validates but the contract does not name is reported', (t) => {
+    const root = tree(
+        t,
+        contracted(
+            handled(
+                VIDEOS_FILE,
+                '...validated(idParams, showVideo)',
+                '...validated({ ...idParams, body: createVideoBody }, showVideo)',
+            ),
+        ),
+    );
+    assert.deepEqual(whats(root, HANDLER_OPTIONS), [
+        'GET /api/videos/:id validates a body with `createVideoBody`, but the contract names none',
+    ]);
+});
+
+test('a route validating its path with another shared schema than its entry names is reported', (t) => {
+    const renamed = HANDLED_CONTRACT.replace(
+        '{ params: idParam, response: videoSchema }',
+        '{ params: videoIdParam, response: videoSchema }',
+    );
+    const root = tree(t, contracted({ ...HANDLED, 'packages/shared/src/contract.ts': renamed }));
+    assert.deepEqual(whats(root, HANDLER_OPTIONS), [
+        'GET /api/videos/:id validates its path parameters with `idParam`, but the contract names `videoIdParam`',
+    ]);
+});
+
+test('a path rule written in the router is reported, as its own and as not the one its entry names', (t) => {
+    const root = tree(
+        t,
+        contracted(
+            handled(
+                VIDEOS_FILE,
+                '...validated(idParams, showVideo)',
+                '...validated({ params: z.object({ id: z.string() }) }, showVideo)',
+            ),
+        ),
+    );
+    assert.deepEqual(whats(root, HANDLER_OPTIONS), [
+        'validates its path parameters with a schema of its own, not one from @acme/shared',
+        'GET /api/videos/:id validates its path parameters with `z.object({id:z.string()})`, but the contract names `idParam`',
+    ]);
+});
+
+test("a route checking its own path passes with its entry's schema, and is reported with another", (t) => {
+    const checked = HANDLED_CONTRACT.replace(
+        "'DELETE /api/videos/:id': { response: null },",
+        "'DELETE /api/videos/:id': { params: idParam, response: null },",
+    );
+    for (const [schema, expected] of [
+        ['idParam', []],
+        ['slugParam', ['DELETE /api/videos/:id validates no path parameters, but the contract names `idParam`']],
+    ]) {
+        const files = handled(
+            VIDEOS_FILE,
+            '    res.status(204).end();',
+            `    if (!${schema}.safeParse(req.params).success) throw new AppError(400, 'INVALID_PATH');\n    res.status(204).end();`,
+        );
+        const root = tree(t, contracted({ ...files, 'packages/shared/src/contract.ts': checked }));
+        assert.deepEqual(whats(root, HANDLER_OPTIONS), expected);
+    }
+});
+
+test('a named handler answering with a schema its entry does not name is reported', (t) => {
+    const root = tree(
+        t,
+        contracted(
+            handled(VIDEOS_FILE, 'send(res, videoSchema, await getVideo', 'send(res, videoPageSchema, await getVideo'),
+        ),
+    );
+    assert.deepEqual(whats(root, HANDLER_OPTIONS), [
+        'GET /api/videos/:id answers with `videoPageSchema`, which its contract entry does not name',
+    ]);
+});
+
+test('a route answering any of a union its entry names reports nothing', (t) => {
+    const union = HANDLED_CONTRACT.replace(
+        "'GET /api/videos/:id': { params: idParam, response: videoSchema },",
+        "'GET /api/videos/:id': { params: idParam, response: z.union([videoSchema, videoPageSchema]) },",
+    );
+    const both = handled(
+        VIDEOS_FILE,
+        '    send(res, videoSchema, await getVideo(req.params.id));',
+        '    if (req.query.page) return send(res, videoPageSchema, await listVideos(req.query));\n    send(res, videoSchema, await getVideo(req.params.id));',
+    );
+    const root = tree(t, contracted({ ...both, 'packages/shared/src/contract.ts': union }));
+    assert.deepEqual(whats(root, HANDLER_OPTIONS), []);
+});
+
+test('a route the contract says answers with no body but sends one is reported', (t) => {
+    const root = tree(
+        t,
+        contracted(
+            handled(
+                VIDEOS_FILE,
+                '    res.status(204).end();',
+                '    send(res, videoSchema, await deleteVideo(req.params.id));',
+            ),
+        ),
+    );
+    assert.deepEqual(whats(root, HANDLER_OPTIONS), [
+        'DELETE /api/videos/:id answers through `send`, but the contract says it answers with no body',
+    ]);
+});
+
+test('a route with a response schema that never answers through the helper is reported', (t) => {
+    const raw = { ...HANDLED, 'api/src/routes/channels.ts': CHANNELS };
+    assert.deepEqual(whats(tree(t, contracted(raw)), HANDLER_OPTIONS), [
+        'GET /api/channels/:handle never answers through `send`',
+    ]);
+});
+
+test('an upload field the contract does not name is reported, by name and by count', (t) => {
+    for (const [middleware, taken] of [
+        ["upload.single('video')", '`video` (one)'],
+        ["upload.array('file', 5)", '`file` (many)'],
+        [
+            "upload.fields([{ name: 'file', maxCount: 1 }, { name: 'poster', maxCount: 1 }])",
+            '`file` (one), `poster` (one)',
+        ],
+        ['upload.none()', 'none'],
+    ]) {
+        const root = tree(t, contracted(handled(VIDEOS_FILE, "upload.single('file')", middleware)));
+        assert.deepEqual(whats(root, HANDLER_OPTIONS), [
+            `POST /api/videos takes the upload fields ${taken}, but the contract names \`file\` (one)`,
+        ]);
+    }
+});
+
+test('a body handed through a spread object is followed', (t) => {
+    const spread = handled(VIDEOS_FILE, '...validated({ body: createVideoBody }', '...validated({ ...createParts }');
+    spread[VIDEOS_FILE] = spread[VIDEOS_FILE].replace(
+        'const listSchema',
+        'const createParts = { body: createVideoBody };\nconst listSchema',
+    );
+    assert.deepEqual(whats(tree(t, contracted(spread)), HANDLER_OPTIONS), []);
+});
+
+test('a validator object declared where the gate cannot read it is reported', (t) => {
+    const options = { contract: { ...HANDLER_OPTIONS.contract, handlers: { validate: 'validated', send: 'send' } } };
+    assert.deepEqual(whats(tree(t, contracted(HANDLED)), options), [
+        'hands `validated` `idParams`, which this gate cannot read',
+    ]);
+});
+
+// ─── 11 with coverage. Every route held to the contract by some test ────────
+
+const RECORDING_MOCK_SERVER = MOCK_SERVER.replace(
+    "import { requestProblems, responseProblems, routeOf } from '@acme/shared';",
+    "import { inject } from 'vitest';\n\nimport { requestProblems, responseProblems, routeOf } from '@acme/shared';\nimport { recordCheckedRoute } from '@acme/shared/contract-coverage';",
+).replace(
+    '    problems.push(...requestProblems(route, { body: sent }));\n',
+    "    problems.push(...requestProblems(route, { body: sent }));\n    if (response.status < 400) recordCheckedRoute(inject('contractCoverageDir'), route);\n",
+);
+
+const RECORDING_TEST_APP = TEST_APP.replace(
+    "import { requestProblems, responseProblems } from '@acme/shared';",
+    "import { inject } from 'vitest';\n\nimport { requestProblems, responseProblems } from '@acme/shared';\nimport { recordCheckedRoute } from '@acme/shared/contract-coverage';",
+).replace(
+    '    problems.push(...requestProblems(key, { body: sentBody }));\n',
+    "    problems.push(...requestProblems(key, { body: sentBody }));\n    recordCheckedRoute(inject('contractCoverageDir'), key);\n",
+);
+
+const COVERAGE_SETUP = `import { openCoverageLog, uncheckedRoutes } from '@acme/shared/contract-coverage';
+
+export function setup(project) {
+    const dir = openCoverageLog();
+    project.provide('contractCoverageDir', dir);
+    return () => {
+        const missing = uncheckedRoutes(dir);
+        if (missing.length > 0) throw new Error(missing.join('\\n'));
+    };
+}
+`;
+
+const suiteConfig = (setup) => `export default { test: { globalSetup: ['${setup}'] } };\n`;
+
+const COVERED = {
+    ...WIRED,
+    'frontend/src/__tests__/server.ts': RECORDING_MOCK_SERVER,
+    'api/src/__tests__/test-app.ts': RECORDING_TEST_APP,
+    'frontend/src/__tests__/contract-coverage.ts': COVERAGE_SETUP,
+    'api/src/__tests__/contract-coverage.ts': COVERAGE_SETUP,
+    'frontend/vitest.config.ts': suiteConfig('./src/__tests__/contract-coverage.ts'),
+    'api/vitest.config.ts': suiteConfig('./src/__tests__/contract-coverage.ts'),
+};
+
+const COVERED_OPTIONS = {
+    contract: {
+        ...WIRED_OPTIONS.contract,
+        coverage: {
+            module: '@acme/shared/contract-coverage',
+            suites: [
+                { config: 'frontend/vitest.config.ts', setup: 'frontend/src/__tests__/contract-coverage.ts' },
+                { config: 'api/vitest.config.ts', setup: 'api/src/__tests__/contract-coverage.ts' },
+            ],
+        },
+    },
+};
+
+const located = (root, options) => run(root, options).problems.map((problem) => `${problem.file} ${problem.what}`);
+
+test('setups that record what they check, and suites that fail on the rest, report nothing', (t) => {
+    assert.deepEqual(whats(tree(t, contracted(COVERED)), COVERED_OPTIONS), []);
+});
+
+test('a test setup that checks exchanges but records none is reported', (t) => {
+    const root = tree(t, contracted({ ...COVERED, 'api/src/__tests__/test-app.ts': TEST_APP }));
+    assert.deepEqual(located(root, COVERED_OPTIONS), [
+        'api/src/__tests__/test-app.ts never records the routes it checks with `recordCheckedRoute` from @acme/shared/contract-coverage',
+    ]);
+});
+
+test('importing recordCheckedRoute without calling it records nothing', (t) => {
+    const unused = RECORDING_TEST_APP.replace("    recordCheckedRoute(inject('contractCoverageDir'), key);\n", '');
+    const root = tree(t, contracted({ ...COVERED, 'api/src/__tests__/test-app.ts': unused }));
+    assert.deepEqual(whats(root, COVERED_OPTIONS), [
+        'never records the routes it checks with `recordCheckedRoute` from @acme/shared/contract-coverage',
+    ]);
+});
+
+test('a recorder writing to a log of its own is reported', (t) => {
+    const own = RECORDING_TEST_APP.replace("inject('contractCoverageDir')", "'/tmp/routes'");
+    const root = tree(t, contracted({ ...COVERED, 'api/src/__tests__/test-app.ts': own }));
+    assert.deepEqual(whats(root, COVERED_OPTIONS), ['records the routes it checks into no log the suite provides']);
+});
+
+test('a recorder injecting a key its setup never provides is reported', (t) => {
+    const renamed = RECORDING_TEST_APP.replace("inject('contractCoverageDir')", "inject('coverageLog')");
+    const root = tree(t, contracted({ ...COVERED, 'api/src/__tests__/test-app.ts': renamed }));
+    assert.deepEqual(located(root, COVERED_OPTIONS), [
+        "api/src/__tests__/contract-coverage.ts never provides `coverageLog`, the log its suite's setups record into",
+    ]);
+});
+
+test('a recorder in no listed suite is reported', (t) => {
+    const options = {
+        contract: {
+            ...COVERED_OPTIONS.contract,
+            coverage: { ...COVERED_OPTIONS.contract.coverage, suites: [COVERED_OPTIONS.contract.coverage.suites[0]] },
+        },
+    };
+    assert.deepEqual(located(tree(t, contracted(COVERED)), options), [
+        'api/src/__tests__/test-app.ts records into a log no suite in `contract.coverage.suites` reads',
+    ]);
+});
+
+test('a global setup that never reads the log back is reported', (t) => {
+    const writeOnly = `import { openCoverageLog } from '@acme/shared/contract-coverage';
+
+export function setup(project) {
+    project.provide('contractCoverageDir', openCoverageLog());
+    return () => {
+        throw new Error('unreachable');
+    };
+}
+`;
+    const root = tree(t, contracted({ ...COVERED, 'api/src/__tests__/contract-coverage.ts': writeOnly }));
+    assert.deepEqual(whats(root, COVERED_OPTIONS), [
+        'never calls `uncheckedRoutes` from @acme/shared/contract-coverage',
+    ]);
+});
+
+test('a global setup that prints the unchecked routes instead of failing is reported', (t) => {
+    const printing = COVERAGE_SETUP.replace('throw new Error(missing.join', 'console.warn(missing.join');
+    const root = tree(t, contracted({ ...COVERED, 'api/src/__tests__/contract-coverage.ts': printing }));
+    assert.deepEqual(whats(root, COVERED_OPTIONS), ['never fails the run on a route nobody checked']);
+});
+
+test('a global setup the suite config never registers is reported', (t) => {
+    const root = tree(t, contracted({ ...COVERED, 'api/vitest.config.ts': 'export default { test: {} };\n' }));
+    assert.deepEqual(located(root, COVERED_OPTIONS), [
+        'api/vitest.config.ts does not register `api/src/__tests__/contract-coverage.ts` as a globalSetup',
+    ]);
+});
+
+test('a registration left in a comment does not count', (t) => {
+    const commented =
+        "export default {\n    test: {\n        // globalSetup: ['./src/__tests__/contract-coverage.ts'],\n    },\n};\n";
+    const root = tree(t, contracted({ ...COVERED, 'api/vitest.config.ts': commented }));
+    assert.deepEqual(whats(root, COVERED_OPTIONS), [
+        'does not register `api/src/__tests__/contract-coverage.ts` as a globalSetup',
+    ]);
+});
+
+test('a listed global setup that is not on disk is reported', (t) => {
+    const { 'api/src/__tests__/contract-coverage.ts': _gone, ...rest } = COVERED;
+    assert.deepEqual(located(tree(t, contracted(rest)), COVERED_OPTIONS), [
+        'api/src/__tests__/contract-coverage.ts missing',
+    ]);
+});
+
+// ─── 11 with fuzz. The fuzz run reads the contract as it is today ────────────
+
+const OPENAPI = `/** Builds the document Schemathesis reads, e.g. 'GET /api/videos' as /api/videos. */
+import { API_ROUTES } from '#contract.js';
+
+export function openApiDocument() {
+    return { paths: Object.keys(API_ROUTES) };
+}
+`;
+
+const FUZZ_RUNNER = `import { spawn } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+
+import { openApiDocument } from '@acme/shared/openapi';
+
+writeFileSync('e2e/fuzz/report/openapi.json', JSON.stringify(openApiDocument()));
+spawn('schemathesis', ['--config-file', 'e2e/fuzz/schemathesis.toml', 'run', 'e2e/fuzz/report/openapi.json']);
+`;
+
+const FUZZ_CONFIG = `workers = 4
+
+[checks]
+# Express answers a method no route takes with 404, not 405.
+unsupported_method.enabled = false
+
+# The fuzz user cannot own the video it deletes.
+[[operations]]
+include-operation-id = [
+    # one id per line
+    "DELETE /api/videos/:id",
+]
+checks.positive_data_acceptance.expected-statuses = ["2XX", 404, 422]
+
+# Channels belong to another team's fuzz run.
+[[operations]]
+include-path-regex = "^/api/channels/"
+enabled = false
+`;
+
+const FUZZED = {
+    'packages/shared/src/openapi.ts': OPENAPI,
+    'e2e/fuzz/run.ts': FUZZ_RUNNER,
+    'e2e/fuzz/schemathesis.toml': FUZZ_CONFIG,
+    'e2e/fuzz/requirements.txt': 'schemathesis==4.29.1\n',
+    '.gitignore': '/e2e/fuzz/.venv\n/e2e/fuzz/report\n.schemathesis/\n',
+};
+
+const FUZZ_OPTIONS = {
+    contract: {
+        ...CONTRACT_OPTIONS.contract,
+        fuzz: {
+            document: { file: 'packages/shared/src/openapi.ts', name: 'openApiDocument' },
+            runner: 'e2e/fuzz/run.ts',
+            config: 'e2e/fuzz/schemathesis.toml',
+            requirements: 'e2e/fuzz/requirements.txt',
+            outputs: ['e2e/fuzz/.venv', 'e2e/fuzz/report'],
+        },
+    },
+};
+
+/** A contracted repo with the fuzz run wired, inside a git repository so `.gitignore` can be asked. */
+const fuzzed = (t, overrides = {}) => {
+    const root = tree(t, contracted({ ...FUZZED, ...overrides }));
+    execFileSync('git', ['init', '-q'], { cwd: root });
+    return root;
+};
+
+/** The fuzz config with `old` replaced. Fails loudly when the anchor is gone, so a test never passes on an unchanged file. */
+const fuzzConfig = (old, replacement) => {
+    assert.ok(FUZZ_CONFIG.includes(old), `anchor not in FUZZ_CONFIG: ${old}`);
+    return { 'e2e/fuzz/schemathesis.toml': FUZZ_CONFIG.replace(old, replacement) };
+};
+
+test('a fuzz run built from the contract, with a pinned fuzzer and reasoned exceptions, reports nothing', (t) => {
+    assert.deepEqual(whats(fuzzed(t), FUZZ_OPTIONS), []);
+});
+
+test('a missing document is reported', (t) => {
+    const root = fuzzed(t);
+    fs.rmSync(path.join(root, 'packages/shared/src/openapi.ts'));
+    assert.deepEqual(located(root, FUZZ_OPTIONS), ['packages/shared/src/openapi.ts missing']);
+});
+
+test('a document that imports the contract table but never reads it is reported', (t) => {
+    const handWritten = OPENAPI.replace('Object.keys(API_ROUTES)', 'PATHS');
+    assert.deepEqual(whats(fuzzed(t, { 'packages/shared/src/openapi.ts': handWritten }), FUZZ_OPTIONS), [
+        'never reads `API_ROUTES`, the contract table',
+    ]);
+});
+
+test('a route written into the document is reported where it sits; one in a comment is not', (t) => {
+    const extra = OPENAPI.replace('Object.keys(API_ROUTES)', "[...Object.keys(API_ROUTES), 'GET /api/health']");
+    assert.deepEqual(located(fuzzed(t, { 'packages/shared/src/openapi.ts': extra }), FUZZ_OPTIONS), [
+        "packages/shared/src/openapi.ts:5 names the route 'GET /api/health' itself",
+    ]);
+});
+
+test('a document that does not export the named builder is reported', (t) => {
+    const renamed = OPENAPI.replace('export function openApiDocument', 'export function buildDocument');
+    assert.deepEqual(whats(fuzzed(t, { 'packages/shared/src/openapi.ts': renamed }), FUZZ_OPTIONS), [
+        'does not export `openApiDocument`',
+    ]);
+});
+
+test('a runner that reads a document from disk instead of building it is reported', (t) => {
+    const stale = FUZZ_RUNNER.replace(
+        "writeFileSync('e2e/fuzz/report/openapi.json', JSON.stringify(openApiDocument()));\n",
+        '',
+    );
+    assert.deepEqual(whats(fuzzed(t, { 'e2e/fuzz/run.ts': stale }), FUZZ_OPTIONS), ['never calls `openApiDocument`']);
+});
+
+test('a runner declaring a builder of that name without calling it is reported', (t) => {
+    const declared = FUZZ_RUNNER.replace(
+        "import { openApiDocument } from '@acme/shared/openapi';\n\nwriteFileSync('e2e/fuzz/report/openapi.json', JSON.stringify(openApiDocument()));\n",
+        "function openApiDocument() {\n    return JSON.parse(readFileSync('openapi.json', 'utf8'));\n}\n",
+    );
+    assert.notEqual(declared, FUZZ_RUNNER);
+    assert.deepEqual(whats(fuzzed(t, { 'e2e/fuzz/run.ts': declared }), FUZZ_OPTIONS), [
+        'never calls `openApiDocument`',
+    ]);
+});
+
+test('a runner that leaves the fuzzer to find its config is reported, a flag in a comment included', (t) => {
+    const found = FUZZ_RUNNER.replace("'--config-file', 'e2e/fuzz/schemathesis.toml', ", '');
+    const commented = `${found}// spawn('schemathesis', ['--config-file', 'e2e/fuzz/schemathesis.toml']);\n`;
+    for (const runner of [found, commented]) {
+        assert.deepEqual(whats(fuzzed(t, { 'e2e/fuzz/run.ts': runner }), FUZZ_OPTIONS), [
+            'never hands the fuzzer `e2e/fuzz/schemathesis.toml` with `--config-file`',
+        ]);
+    }
+});
+
+test('a fuzzer pinned to anything but one version is reported', (t) => {
+    for (const pin of ['schemathesis>=4.29.1', 'schemathesis', 'schemathesis~=4.29']) {
+        assert.deepEqual(whats(fuzzed(t, { 'e2e/fuzz/requirements.txt': `${pin}\n` }), FUZZ_OPTIONS), [
+            `\`${pin}\` is not pinned to one version with \`==\``,
+        ]);
+    }
+    assert.deepEqual(
+        whats(fuzzed(t, { 'e2e/fuzz/requirements.txt': 'schemathesis[cli]==4.29.1  # pinned\n' }), FUZZ_OPTIONS),
+        [],
+    );
+});
+
+test('every tool the run installs is pinned, each unpinned line reported where it is', (t) => {
+    const requirements = "# the fuzzer\nschemathesis==4.29.1\n\n# the run's storage\nmoto[server]>=5\nwerkzeug\n";
+    const problems = run(fuzzed(t, { 'e2e/fuzz/requirements.txt': requirements }), FUZZ_OPTIONS).problems;
+    assert.deepEqual(
+        problems.map((problem) => `${problem.file} ${problem.what}`),
+        [
+            'e2e/fuzz/requirements.txt:5 `moto[server]>=5` is not pinned to one version with `==`',
+            'e2e/fuzz/requirements.txt:6 `werkzeug` is not pinned to one version with `==`',
+        ],
+    );
+});
+
+test('requirements that never list the fuzzer are reported', (t) => {
+    assert.deepEqual(whats(fuzzed(t, { 'e2e/fuzz/requirements.txt': 'moto[server]==5.2.3\n' }), FUZZ_OPTIONS), [
+        'does not list `schemathesis`',
+    ]);
+});
+
+test('a runner that hands the API every isolated key reports nothing; one it leaves out is reported', (t) => {
+    const options = {
+        contract: {
+            ...FUZZ_OPTIONS.contract,
+            fuzz: { ...FUZZ_OPTIONS.contract.fuzz, isolate: ['S3_ENDPOINT', 'REDIS_PORT'] },
+        },
+    };
+    const isolated = FUZZ_RUNNER.replace(
+        "spawn('schemathesis'",
+        "process.env['REDIS_PORT'] = '6390';\nspawn('api', [], { env: { ...process.env, S3_ENDPOINT: 'http://127.0.0.1:4566' } });\nspawn('schemathesis'",
+    );
+    assert.notEqual(isolated, FUZZ_RUNNER);
+    assert.deepEqual(whats(fuzzed(t, { 'e2e/fuzz/run.ts': isolated }), options), []);
+    // Named only in a comment, or only read, the key is not set.
+    const leaky = isolated.replace(
+        "process.env['REDIS_PORT'] = '6390';",
+        "// REDIS_PORT: the dev one\nconsole.log(process.env['REDIS_PORT']);",
+    );
+    assert.deepEqual(whats(fuzzed(t, { 'e2e/fuzz/run.ts': leaky }), options), [
+        'never sets `REDIS_PORT` for the API it starts',
+    ]);
+});
+
+test('an operations group with no comment above it is reported at its line', (t) => {
+    const root = fuzzed(t, fuzzConfig("# Channels belong to another team's fuzz run.\n", ''));
+    assert.deepEqual(located(root, FUZZ_OPTIONS), [
+        'e2e/fuzz/schemathesis.toml:15 an `[[operations]]` group with no comment saying why',
+    ]);
+});
+
+test('a check switched off with no reason is reported; a reason above or on the line is enough', (t) => {
+    const bare = fuzzConfig('# Express answers a method no route takes with 404, not 405.\n', '');
+    assert.deepEqual(located(fuzzed(t, bare), FUZZ_OPTIONS), [
+        'e2e/fuzz/schemathesis.toml:4 switches `checks.unsupported_method.enabled` off with no comment saying why',
+    ]);
+    const inline = fuzzConfig(
+        '# Express answers a method no route takes with 404, not 405.\nunsupported_method.enabled = false\n',
+        'unsupported_method.enabled = false  # Express answers 404, not 405\n',
+    );
+    assert.deepEqual(whats(fuzzed(t, inline), FUZZ_OPTIONS), []);
+});
+
+test('a phase switched off is an exception like any other', (t) => {
+    const stateful = fuzzConfig('workers = 4\n', 'workers = 4\n\n[phases]\nstateful.enabled = false\n');
+    assert.deepEqual(whats(fuzzed(t, stateful), FUZZ_OPTIONS), [
+        'switches `phases.stateful.enabled` off with no comment saying why',
+    ]);
+});
+
+test('the checks the run exists for cannot be switched off, with a reason or in a group', (t) => {
+    const cases = [
+        [
+            'unsupported_method.enabled = false\n',
+            'unsupported_method.enabled = false\n# flaky\nnot_a_server_error.enabled = false\n',
+        ],
+        ['workers = 4\n', 'workers = 4\n\n# noisy\n[checks.response_schema_conformance]\nenabled = false\n'],
+        ['"^/api/channels/"\nenabled = false\n', '"^/api/channels/"\nchecks.not_a_server_error.enabled = false\n'],
+    ];
+    const expected = [
+        'switches `checks.not_a_server_error.enabled` off',
+        'switches `checks.response_schema_conformance.enabled` off',
+        'switches `checks.not_a_server_error.enabled` off',
+    ];
+    cases.forEach(([old, replacement], i) => {
+        assert.deepEqual(whats(fuzzed(t, fuzzConfig(old, replacement)), FUZZ_OPTIONS), [expected[i]]);
+    });
+});
+
+test('switching every check off at once is switching the core ones off', (t) => {
+    const all = fuzzConfig('[checks]\n', '[checks]\n# too slow\nenabled = false\n');
+    assert.deepEqual(whats(fuzzed(t, all), FUZZ_OPTIONS), ['switches `checks.enabled` off']);
+});
+
+test('an exception expecting a server error is reported, as a number or a class', (t) => {
+    for (const status of ['500', '"5XX"']) {
+        const root = fuzzed(t, fuzzConfig('["2XX", 404, 422]', `["2XX", 404, 422, ${status}]`));
+        assert.deepEqual(located(root, FUZZ_OPTIONS), [
+            'e2e/fuzz/schemathesis.toml:13 lets an exception expect a server error',
+        ]);
+    }
+});
+
+test('an exception naming a route the contract does not list is reported', (t) => {
+    const cases = [
+        [
+            '"DELETE /api/videos/:id"',
+            '"DELETE /api/videos/:videoId"',
+            'names `DELETE /api/videos/:videoId`, which the contract does not list',
+        ],
+        [
+            'include-path-regex = "^/api/channels/"',
+            'include-path-regex = "^/api/users/"',
+            '`^/api/users/` matches no path the contract lists',
+        ],
+        [
+            'include-path-regex = "^/api/channels/"',
+            'include-path = ["/api/channels/{handle}", "/api/channel"]',
+            'names the path `/api/channel`, which the contract does not list',
+        ],
+    ];
+    for (const [old, replacement, expected] of cases) {
+        assert.deepEqual(whats(fuzzed(t, fuzzConfig(old, replacement)), FUZZ_OPTIONS), [expected]);
+    }
+});
+
+test('a route in a comment, or a `#` inside a quoted name, is read as TOML reads it', (t) => {
+    const commented = fuzzConfig('    # one id per line\n', '    # was "DELETE /api/videos/:videoId"\n');
+    assert.deepEqual(whats(fuzzed(t, commented), FUZZ_OPTIONS), []);
+    const hashed = fuzzConfig('"DELETE /api/videos/:id"', '"DELETE /api/videos/:id#1"');
+    assert.deepEqual(whats(fuzzed(t, hashed), FUZZ_OPTIONS), [
+        'names `DELETE /api/videos/:id#1`, which the contract does not list',
+    ]);
+});
+
+test("a path pattern is read with TOML's escapes resolved", (t) => {
+    const escaped = fuzzConfig('"^/api/channels/"', '"^/api/videos\\\\b"');
+    assert.deepEqual(whats(fuzzed(t, escaped), FUZZ_OPTIONS), []);
+});
+
+test('a path pattern only Python can read is left to the fuzzer', (t) => {
+    const python = fuzzConfig('"^/api/channels/"', '"^/api/(?P<area>channels)/"');
+    assert.deepEqual(whats(fuzzed(t, python), FUZZ_OPTIONS), []);
+});
+
+test('the crash cache and every output must be git-ignored', (t) => {
+    const root = fuzzed(t, { '.gitignore': '/e2e/fuzz/.venv\n' });
+    assert.deepEqual(located(root, FUZZ_OPTIONS), [
+        '.gitignore does not ignore `e2e/fuzz/report`',
+        '.gitignore does not ignore `.schemathesis`',
+        '.gitignore does not ignore `e2e/fuzz/.schemathesis`',
+    ]);
+});
+
+test('a directory-only ignore pattern counts', (t) => {
+    const root = fuzzed(t, { '.gitignore': 'e2e/fuzz/.venv/\ne2e/fuzz/report/\n.schemathesis/\n' });
+    assert.deepEqual(whats(root, FUZZ_OPTIONS), []);
+});
+
+test('outside a git repository the ignore rule says it could not ask, rather than passing or failing', (t) => {
+    assert.deepEqual(whats(tree(t, contracted(FUZZED)), FUZZ_OPTIONS), [
+        'could not ask git whether `e2e/fuzz/.venv` is ignored',
+        'could not ask git whether `e2e/fuzz/report` is ignored',
+        'could not ask git whether `.schemathesis` is ignored',
+        'could not ask git whether `e2e/fuzz/.schemathesis` is ignored',
+    ]);
+});
+
+test('missing runner, config and requirements are each reported', (t) => {
+    const root = fuzzed(t);
+    for (const rel of ['e2e/fuzz/run.ts', 'e2e/fuzz/schemathesis.toml', 'e2e/fuzz/requirements.txt']) {
+        fs.rmSync(path.join(root, rel));
+    }
+    assert.deepEqual(located(root, FUZZ_OPTIONS), [
+        'e2e/fuzz/run.ts missing',
+        'e2e/fuzz/requirements.txt missing',
+        'e2e/fuzz/schemathesis.toml missing',
+    ]);
+});
+
+// ─── 12. One job contract ────────────────────────────────────────────────────
+
+const JOB_REGISTRY = `import { z } from 'zod';
+
+export const JOBS = {
+    transcode: { queue: 'transcode', data: z.object({ videoId: z.uuid() }) },
+    cleanup: { queue: 'account-cleanup', data: z.object({ userId: z.string() }) },
+};
+`;
+
+const PRODUCER = `import { Queue } from 'bullmq';
+
+import { JOBS, droppedKeys } from '@acme/shared';
+
+const queues = new Map();
+
+export async function enqueueTranscode(data) {
+    await enqueue(JOBS.transcode, 'transcode', data);
+}
+
+async function enqueue(entry, name, data) {
+    const parsed = entry.data.safeParse(data);
+    if (!parsed.success) throw new Error('malformed job');
+    if (droppedKeys(data, parsed.data).length > 0) throw new Error('undeclared fields');
+    await queueFor(entry.queue).add(name, parsed.data);
+}
+
+function queueFor(name) {
+    let queue = queues.get(name);
+    if (queue === undefined) {
+        queue = new Queue(name, { connection });
+        queues.set(name, queue);
+    }
+    return queue;
+}
+`;
+
+const PROCESSOR = `import { UnrecoverableError } from 'bullmq';
+
+export function jobProcessor(entry, handle) {
+    return async (job) => {
+        const parsed = entry.data.safeParse(job.data);
+        if (!parsed.success) throw new UnrecoverableError('malformed job');
+        await handle(parsed.data, job);
+    };
+}
+`;
+
+const WORKER = `import { Queue, Worker } from 'bullmq';
+
+import { JOBS } from '@acme/shared';
+
+import { jobProcessor } from './lib/jobs.js';
+
+const cleanupQueue = new Queue(JOBS.cleanup.queue, { connection });
+const transcoder = new Worker(JOBS.transcode.queue, jobProcessor(JOBS.transcode, transcode), { connection });
+const cleaner = new Worker(
+    JOBS.cleanup.queue,
+    jobProcessor(JOBS.cleanup, async ({ userId }) => {
+        await cleanup(userId);
+    }),
+    { connection },
+);
+`;
+
+const JOB_FILES = {
+    'packages/shared/src/jobs.ts': JOB_REGISTRY,
+    'api/src/lib/queue.ts': PRODUCER,
+    'worker/src/lib/jobs.ts': PROCESSOR,
+    'worker/src/index.ts': WORKER,
+};
+
+const JOB_OPTIONS = {
+    jobs: {
+        file: 'packages/shared/src/jobs.ts',
+        table: 'JOBS',
+        producer: 'api/src/lib/queue.ts',
+        processor: { file: 'worker/src/lib/jobs.ts', name: 'jobProcessor' },
+        workers: ['worker/src/index.ts'],
+    },
+};
+
+const jobbed = (overrides = {}) => good({ ...JOB_FILES, ...overrides });
+
+test('jobs parsed on both ends of the queue, named from the registry, report nothing', (t) => {
+    assert.deepEqual(whats(tree(t, jobbed()), JOB_OPTIONS), []);
+});
+
+test('a missing job registry is reported', (t) => {
+    const { 'packages/shared/src/jobs.ts': _gone, ...rest } = JOB_FILES;
+    assert.deepEqual(located(tree(t, good(rest)), JOB_OPTIONS), ['packages/shared/src/jobs.ts missing']);
+});
+
+test('a registry under another name is reported', (t) => {
+    const renamed = JOB_REGISTRY.replace('export const JOBS', 'export const QUEUES');
+    const root = tree(t, jobbed({ 'packages/shared/src/jobs.ts': renamed }));
+    assert.deepEqual(whats(root, JOB_OPTIONS), ['does not export `JOBS`']);
+});
+
+test('a job entry without a data schema is reported', (t) => {
+    const bare = JOB_REGISTRY.replace(', data: z.object({ userId: z.string() }) }', ' }');
+    const root = tree(t, jobbed({ 'packages/shared/src/jobs.ts': bare }));
+    assert.deepEqual(whats(root, JOB_OPTIONS), ['names 2 queues but 1 data schema']);
+});
+
+test('a strict job schema is reported, in either spelling', (t) => {
+    for (const strict of [
+        JOB_REGISTRY.replace('z.object({ videoId: z.uuid() })', 'z.object({ videoId: z.uuid() }).strict()'),
+        JOB_REGISTRY.replace('z.object({ videoId: z.uuid() })', 'z.strictObject({ videoId: z.uuid() })'),
+    ]) {
+        const root = tree(t, jobbed({ 'packages/shared/src/jobs.ts': strict }));
+        assert.deepEqual(whats(root, JOB_OPTIONS), ['a job schema refuses fields it does not declare']);
+    }
+});
+
+test('a producer that queues without parsing is reported', (t) => {
+    const unparsed = PRODUCER.replace(
+        `    const parsed = entry.data.safeParse(data);
+    if (!parsed.success) throw new Error('malformed job');
+    if (droppedKeys(data, parsed.data).length > 0) throw new Error('undeclared fields');
+    await queueFor(entry.queue).add(name, parsed.data);`,
+        '    await queueFor(entry.queue).add(name, data);',
+    );
+    const root = tree(t, jobbed({ 'api/src/lib/queue.ts': unparsed }));
+    assert.deepEqual(whats(root, JOB_OPTIONS), [
+        "never parses a job's data before queueing it",
+        'never refuses a field the job schema would drop (`droppedKeys`)',
+    ]);
+});
+
+test('a producer that parses but lets undeclared fields through is reported', (t) => {
+    const stripping = PRODUCER.replace(
+        "    if (droppedKeys(data, parsed.data).length > 0) throw new Error('undeclared fields');\n",
+        '',
+    );
+    const root = tree(t, jobbed({ 'api/src/lib/queue.ts': stripping }));
+    assert.deepEqual(whats(root, JOB_OPTIONS), ['never refuses a field the job schema would drop (`droppedKeys`)']);
+});
+
+test('a producer that never reads the registry is reported', (t) => {
+    const local = PRODUCER.replace('JOBS.transcode', "{ queue: 'transcode', data: schema }").replace(
+        "import { JOBS, droppedKeys } from '@acme/shared';",
+        "import { droppedKeys } from '@acme/shared';",
+    );
+    const root = tree(t, jobbed({ 'api/src/lib/queue.ts': local }));
+    assert.deepEqual(whats(root, JOB_OPTIONS), ['never reads `JOBS`']);
+});
+
+test('a queue built elsewhere in the API is reported, tests aside', (t) => {
+    const sideDoor =
+        "import { Queue } from 'bullmq';\n\nconst q = new Queue('transcode', { connection });\nawait q.add('x', {});\n";
+    const root = tree(
+        t,
+        jobbed({
+            'api/src/services/reprocess.ts': sideDoor,
+            'api/src/lib/__tests__/queue.test.ts': sideDoor,
+        }),
+    );
+    assert.deepEqual(located(root, JOB_OPTIONS), [
+        'api/src/services/reprocess.ts:3 builds a queue outside api/src/lib/queue.ts',
+    ]);
+});
+
+test('a worker that hands its handler the raw job is reported', (t) => {
+    const raw = WORKER.replace('jobProcessor(JOBS.transcode, transcode)', 'async (job) => transcode(job.data, job)');
+    const root = tree(t, jobbed({ 'worker/src/index.ts': raw }));
+    assert.deepEqual(located(root, JOB_OPTIONS), ['worker/src/index.ts:8 runs its jobs without `jobProcessor`']);
+});
+
+test('a queue or worker named with a string is reported', (t) => {
+    const typed = WORKER.replace('new Queue(JOBS.cleanup.queue', "new Queue('account-cleanup'").replace(
+        'new Worker(JOBS.transcode.queue',
+        "new Worker('transcode'",
+    );
+    const root = tree(t, jobbed({ 'worker/src/index.ts': typed }));
+    assert.deepEqual(located(root, JOB_OPTIONS), [
+        "worker/src/index.ts:7 names its queue `'account-cleanup'` instead of from `JOBS`",
+        "worker/src/index.ts:8 names its queue `'transcode'` instead of from `JOBS`",
+    ]);
+});
+
+test('a processor that never parses, or retries what will not parse, is reported', (t) => {
+    const trusting = `export function jobProcessor(entry, handle) {
+    return async (job) => {
+        await handle(job.data, job);
+    };
+}
+`;
+    const retrying = PROCESSOR.replace('new UnrecoverableError(', 'new Error(');
+    assert.deepEqual(whats(tree(t, jobbed({ 'worker/src/lib/jobs.ts': trusting })), JOB_OPTIONS), [
+        "`jobProcessor` never parses the job's data",
+        '`jobProcessor` does not fail a malformed job as unrecoverable',
+    ]);
+    assert.deepEqual(whats(tree(t, jobbed({ 'worker/src/lib/jobs.ts': retrying })), JOB_OPTIONS), [
+        '`jobProcessor` does not fail a malformed job as unrecoverable',
+    ]);
+});
+
+test('a processor file that does not declare the processor is reported', (t) => {
+    const renamed = PROCESSOR.replace('function jobProcessor', 'function parsedJob');
+    const root = tree(t, jobbed({ 'worker/src/lib/jobs.ts': renamed }));
+    assert.deepEqual(whats(root, JOB_OPTIONS), ['does not declare `jobProcessor`']);
+});
+
+test('a listed worker module that is not on disk is reported', (t) => {
+    const { 'worker/src/index.ts': _gone, ...rest } = JOB_FILES;
+    assert.deepEqual(located(tree(t, good(rest)), JOB_OPTIONS), ['worker/src/index.ts missing']);
+});
+
+test('a repo that states no job contract is not graded on it', (t) => {
+    assert.deepEqual(whats(tree(t, jobbed())), []);
 });

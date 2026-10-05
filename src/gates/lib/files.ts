@@ -3,8 +3,9 @@
  * the file name, so they can exclude directories. Missing directories are skipped,
  * so one options object fits projects with different services. `repoFiles` is the
  * other way in: everything git knows about, so nothing has to be listed to be seen.
+ * `gitIgnores` asks git whether it ignores a path.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -61,4 +62,19 @@ export function repoFiles(root: string): string[] {
             // `--cached` still lists files deleted but not yet committed.
             .filter((rel) => fs.existsSync(path.join(root, rel)))
     );
+}
+
+/**
+ * Whether git ignores a path, asked of `git check-ignore`: pattern order, negations
+ * and nested ignore files decide it, so reading `.gitignore` cannot.
+ *
+ * @returns Null when git could not answer (no repository, no git).
+ */
+export function gitIgnores(root: string, rel: string): boolean | null {
+    const { status, error } = spawnSync('git', ['check-ignore', '-q', '--no-index', rel], {
+        cwd: root,
+        stdio: 'ignore',
+    });
+    if (error !== undefined || status === null || status > 1) return null;
+    return status === 0;
 }
