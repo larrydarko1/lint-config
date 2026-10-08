@@ -35,7 +35,10 @@ type AuthSurface = {
     schemasFile: string;
     /** The schema's name. Defaults to `passwordSchema`. */
     passwordSchema?: string;
-    /** The request sanitizer, and the prefix of its strip helpers (`stripDollarKeys` → `strip`). */
+    /**
+     * The request sanitizer, and the prefix of its strip helpers (`stripDollarKeys` → `strip`).
+     * It strips what it finds and refuses the request when it found anything.
+     */
     sanitizer: { file: string; fn: string; strip?: string };
     /** The auth middleware's name, for the unauthenticated-mount rule. Defaults to `requireAuth`. */
     requireAuth?: string;
@@ -43,6 +46,21 @@ type AuthSurface = {
     escapeHtmlFile?: string;
     /** Password reset, and the config key holding its TTL. Omit where there is no reset flow. */
     passwordReset?: { file: string; ttlKey: string };
+};
+
+/** An unauthenticated `sendFile` route and the controls that stand in for its authentication. */
+type FileRoute = {
+    file: string;
+    why: string;
+    originCheck?: RegExp;
+    /**
+     * Where the route's path-segment schema is declared, when it is not in the
+     * route file: a contract that keeps every request schema in a shared package
+     * (`api-standards`' `contract`) forbids one there. The route must hand the
+     * validator `params: <schema>`, and the schema must give each `:segment` a
+     * `z.string().regex(…)`.
+     */
+    params?: { file: string; schema: string };
 };
 
 type SecurityDriftInput = {
@@ -67,7 +85,7 @@ type SecurityDriftInput = {
     /** Mounts that are open by design. Omit where auth is applied inside each router. */
     unauthenticatedMounts?: string[];
     /** Unauthenticated `sendFile` routes, why each one is open, and how it checks the origin. */
-    fileRoutes?: { file: string; why: string; originCheck?: RegExp }[];
+    fileRoutes?: FileRoute[];
     /** Names that hold a submitted credential. Defaults cover email/username/password/identifier/phone. */
     credentials?: string[];
     /** Calls that make a credential safe to store. Defaults cover blind indexes and hashes. */
@@ -260,6 +278,11 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
                   { file: traefik.ingress, contains: ['kind: IngressRoute'] },
               ]),
         ...fileRoutes.map((route) => ({ file: route.file, contains: ['sendFile'] })),
+        ...fileRoutes.flatMap((route) =>
+            route.params === undefined
+                ? []
+                : [{ file: route.params.file, contains: [`export const ${route.params.schema} =`] }],
+        ),
     ];
 
     const brokenAnchors: string[] = [];
@@ -561,6 +584,15 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     if (keyShapes.length > 0) {
         for (const shape of keyShapes)
             fail(auth.sanitizer.file, `no longer strips keys by ${shape.what}`, `${shape.why}.`);
+    }
+
+    // Stripping alone answers the probe with a 2xx: refusing is what tells it no, and logs it
+    if (!/\bnext\(\s*new\s+\w+/.test(sanitizerFn)) {
+        fail(
+            auth.sanitizer.file,
+            `${auth.sanitizer.fn}() never refuses a request that carried one of those keys`,
+            'No client the app ships sends a `$`, dotted or prototype key, so a request carrying one is a probe. Stripped and answered 2xx, it reads as a success to the prober and leaves no trace for you; and it lets the most dangerous unknown key through where the validator refuses every harmless one. Compare what was sent with the stripped copy and pass an error to `next()`, as a security event.',
+        );
     }
 
     // ── 13. The production dev-placeholder denylist ──────────────────────────
@@ -921,12 +953,15 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     // ── 25. An unauthenticated static-file route keeps its stand-in controls ─
     for (const route of fileRoutes) {
         const source = callsOnly(code(route.file));
+        const unchecked = uncheckedSegments(source, route, code);
+        if (unchecked.length > 0) {
+            fail(
+                route.file,
+                `no longer validates every path segment against a regex (${unchecked.join(', ')})`,
+                `${route.why} Each control stands in for the authentication this route does not have: a pattern that cannot express a separator or a \`..\` segment makes traversal unreachable before sendFile is asked anything.`,
+            );
+        }
         const controls = [
-            {
-                what: 'validates every path segment against a regex',
-                re: /z\.string\(\)\.regex\(/,
-                why: 'a pattern that cannot express a separator or a `..` segment makes traversal unreachable before sendFile is asked anything',
-            },
             {
                 what: 'confines sendFile to a root',
                 re: /root:\s*\w/,
@@ -967,6 +1002,29 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     }
 
     return { problems, counts };
+}
+
+/**
+ * The `:segments` of a file route that no `z.string().regex(…)` checks. The
+ * schema is read from the route file, or from the module `params` names — in
+ * which case the route must also hand that schema to its validator.
+ *
+ * @returns The unchecked segments, `:name` each; `params` itself when the route never validates with it.
+ */
+function uncheckedSegments(source: string, route: FileRoute, code: (rel: string) => string): string[] {
+    const segments = [...source.matchAll(/\.(?:get|head)\(\s*['"`]([^'"`]+)['"`]/g)].flatMap((m) =>
+        [...(m[1] ?? '').matchAll(/:(\w+)/g)].map((s) => s[1] ?? ''),
+    );
+    let schema = source;
+    if (route.params !== undefined) {
+        const { file, schema: name } = route.params;
+        if (!new RegExp(String.raw`\bparams:\s*${name}\b`).test(source)) return [`params: ${name}`];
+        schema = braceBlock(code(file), new RegExp(String.raw`export const ${name}\s*=\s*z\.object\(\s*\{`));
+    }
+    if (segments.length === 0) return /z\.string\(\)\.regex\(/.test(schema) ? [] : ['every segment'];
+    return segments
+        .filter((name) => !new RegExp(String.raw`\b${name}:\s*z\.string\(\)\.regex\(`).test(schema))
+        .map((name) => `:${name}`);
 }
 
 /** Run the gate and print. */

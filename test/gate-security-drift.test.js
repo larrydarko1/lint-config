@@ -182,8 +182,13 @@ const SCHEMAS = `export const passwordSchema = z.string().superRefine((value, ct
 const SANITIZER = `const POLLUTION_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 export function sanitizeRequest(req: Request, _res: Response, next: NextFunction): void {
+    const sent = req.body;
     req.body = stripUnsafeKeys(req.body);
     stripUnsafeKeysInPlace(req.query);
+    if (droppedKeys(sent, req.body).length > 0) {
+        next(new AppError(422, 'VALIDATION_FAILED', 'Request carried an operator key', { securityEvent: true }));
+        return;
+    }
     next();
 }
 
@@ -746,6 +751,15 @@ test('a comment naming __proto__ does not satisfy the prototype rule', (t) => {
     assert.deepEqual(whats(root), ['no longer strips keys by the prototype keys']);
 });
 
+test('a sanitizer that strips but never refuses is reported', (t) => {
+    const stripsOnly = SANITIZER.replace(
+        "next(new AppError(422, 'VALIDATION_FAILED', 'Request carried an operator key', { securityEvent: true }));",
+        'next();',
+    );
+    const root = tree(t, good({ 'api/src/middleware/sanitizer.ts': stripsOnly }));
+    assert.deepEqual(whats(root), ['sanitizeRequest() never refuses a request that carried one of those keys']);
+});
+
 // ─── 13. The dev-placeholder denylist ────────────────────────────────────────
 
 test('a placeholder dropped from the denylist is named', (t) => {
@@ -1219,7 +1233,76 @@ test('a file route that lost its segment validation is reported', (t) => {
         good({ 'api/src/routes/asset/logos.ts': LOGOS.replaceAll('z.string().regex(', 'z.string().min(') }),
     );
     assert.deepEqual(whats(root, { fileRoutes: [FILE_ROUTE] }), [
-        'no longer validates every path segment against a regex',
+        'no longer validates every path segment against a regex (:exchange, :file)',
+    ]);
+});
+
+test('a file route that validates one segment and not the other names the other', (t) => {
+    const root = tree(
+        t,
+        good({ 'api/src/routes/asset/logos.ts': LOGOS.replace('file: z.string().regex(', 'file: z.string().min(') }),
+    );
+    assert.deepEqual(whats(root, { fileRoutes: [FILE_ROUTE] }), [
+        'no longer validates every path segment against a regex (:file)',
+    ]);
+});
+
+// A contract that keeps every request schema in a shared package forbids one in the route file
+const SHARED_LOGOS = LOGOS.replace(/const params = z\.object\(\{[^}]*\}\);\n\n/, '').replace(
+    "router.get('/:exchange/:file', (req, res) => {",
+    "router.get('/:exchange/:file', ...validated({ params: logoParams }, (req, res) => {",
+);
+
+const PARAMS = `export const idParam = z.object({ id: mongoId('id') });
+
+export const logoParams = z.object({
+    exchange: z.string().regex(/^[A-Z]{2,10}$/),
+    file: z.string().regex(/^[A-Z0-9][A-Z0-9.:-]{0,14}\\.svg$/),
+});
+
+export const nameParam = z.object({ name: z.string().min(1) });
+`;
+
+const SHARED_ROUTE = {
+    ...FILE_ROUTE,
+    params: { file: 'packages/shared/src/requests/params.ts', schema: 'logoParams' },
+};
+
+const sharedTree = (t, params = PARAMS, route = SHARED_LOGOS) =>
+    tree(t, good({ 'api/src/routes/asset/logos.ts': route, 'packages/shared/src/requests/params.ts': params }));
+
+test('a file route whose segment schema lives in the shared package passes', (t) => {
+    assert.deepEqual(whats(sharedTree(t), { fileRoutes: [SHARED_ROUTE] }), []);
+});
+
+test('a shared segment schema that lost a regex is reported', (t) => {
+    const loose = PARAMS.replace('exchange: z.string().regex(', 'exchange: z.string().min(');
+    assert.deepEqual(whats(sharedTree(t, loose), { fileRoutes: [SHARED_ROUTE] }), [
+        'no longer validates every path segment against a regex (:exchange)',
+    ]);
+});
+
+test('a regex in a neighbouring shared schema does not stand in for the named one', (t) => {
+    const loose = PARAMS.replace('file: z.string().regex(', 'file: z.string().min(').replace(
+        'z.object({ name: z.string().min(1) })',
+        'z.object({ file: z.string().regex(/^x$/) })',
+    );
+    assert.deepEqual(whats(sharedTree(t, loose), { fileRoutes: [SHARED_ROUTE] }), [
+        'no longer validates every path segment against a regex (:file)',
+    ]);
+});
+
+test('a route that no longer hands the validator the named schema is reported', (t) => {
+    const unvalidated = SHARED_LOGOS.replace('params: logoParams', 'params: idParam');
+    assert.deepEqual(whats(sharedTree(t, PARAMS, unvalidated), { fileRoutes: [SHARED_ROUTE] }), [
+        'no longer validates every path segment against a regex (params: logoParams)',
+    ]);
+});
+
+test('a named segment schema that is gone is a broken anchor', (t) => {
+    const gone = PARAMS.replace('export const logoParams', 'export const logoParamz');
+    assert.deepEqual(whats(sharedTree(t, gone), { fileRoutes: [SHARED_ROUTE] }), [
+        'missing landmark `export const logoParams =`',
     ]);
 });
 
