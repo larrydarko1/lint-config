@@ -6,9 +6,11 @@
  *   2. No single clone over `maxCloneTokens`, which a shrinking ratio cannot hide.
  *   3. No block copied between scan roots, except allowed composition roots.
  *   4. No exported type name declared in two roots.
- * - Rules 3 and 4 say nothing in a single-root repo. `perRoot` also holds each root
- * to the ceilings on its own. jscpd matches tokens, not intent: raise a ceiling with
- * a reason rather than contort the code.
+ *   5. No two icon components draw the same picture.
+ * - Rules 3 and 4 say nothing in a single-root repo, rule 5 nothing in one with no
+ * `components/icons/`. `perRoot` also holds each root to the ceilings on its own.
+ * jscpd matches tokens, not intent: raise a ceiling with a reason rather than contort
+ * the code.
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -72,7 +74,6 @@ type JscpdReport = {
     };
 };
 
-
 type TypeDeclaration = { root: string; where: string };
 
 type DuplicationInput = {
@@ -83,6 +84,8 @@ type DuplicationInput = {
     perRootReports?: Record<string, JscpdReport>;
     /** Exported type names and where each was declared. */
     declarations?: Map<string, TypeDeclaration[]>;
+    /** Icon components grouped by what they draw: one key, every file drawing it. */
+    icons?: Map<string, string[]>;
     scan: string[];
     ceilings: Record<string, number | Ceiling>;
     maxCloneTokens?: number | undefined;
@@ -93,10 +96,58 @@ type DuplicationInspection = {
     problems: GateFailure[];
     /** How many distinct exported type names were seen. */
     types: number;
+    /** How many icon components were seen. */
+    icons: number;
 };
 
 /** Directories whose contents are not this repo's own source. */
 const DEFAULT_IGNORE_DIRS = ['__tests__', 'tests', 'node_modules', 'dist'];
+
+/** Where the standard keeps icons: one component per icon, in this folder. */
+const ICON_FILE = /(^|\/)components\/icons\/[^/]+\.vue$/;
+
+/**
+ * What an icon draws, as a string two copies of one drawing share. The viewBox and the
+ * root's `fill`/`stroke` are part of the picture — the same star filled and outlined
+ * is two icons. The stroke's width and its caps and joins are not: those are what a
+ * caller overrides (`<IconImage stroke-width="1.5" />`), so two files differing only
+ * there are one icon at two weights. Attribute order, whitespace and `<x></x>` vs
+ * `<x />` are spelling. Null when the file holds no `<svg>`.
+ */
+export function iconDrawing(source: string): string | null {
+    const svg = /<svg\b([^>]*)>([\s\S]*)<\/svg>/.exec(source);
+    if (svg === null) return null;
+
+    const attrs = (raw: string) =>
+        [...raw.matchAll(/([:@\w.-]+)(?:\s*=\s*"([^"]*)")?/g)].map(([, name = '', value]) =>
+            value === undefined ? name : `${name}="${value}"`,
+        );
+    const root = attrs(svg[1] ?? '')
+        .filter((a) => /^(viewBox|fill|stroke)=/.test(a))
+        .sort();
+    const body = (svg[2] ?? '')
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/<([\w:-]+)([^>]*?)>\s*<\/\1>/g, '<$1$2/>')
+        .replace(
+            /<([\w:-]+)([^>]*?)\s*(\/?)>/g,
+            (_, tag: string, raw: string, close: string) => [`<${tag}`, ...attrs(raw).sort()].join(' ') + `${close}>`,
+        )
+        .replace(/\s+/g, ' ')
+        .replace(/>\s+</g, '><')
+        .trim();
+    return `${root.join(' ')}|${body}`;
+}
+
+/** Every icon component under the scan roots, grouped by what it draws. */
+export function iconDrawings(root: string, scan: string[]): Map<string, string[]> {
+    const groups = new Map<string, string[]>();
+    for (const rel of walkFiles(root, scan, { match: ICON_FILE })) {
+        const drawing = iconDrawing(fs.readFileSync(path.join(root, rel), 'utf8'));
+        if (drawing === null) continue;
+        groups.set(drawing, [...(groups.get(drawing) ?? []), rel]);
+    }
+    return groups;
+}
 
 /** jscpd reports an SFC's script block as `Foo.vue:typescript`; strip the suffix. */
 const relative = (root: string, file: string): string => path.relative(root, file.replace(/:[a-z]+$/, ''));
@@ -163,6 +214,7 @@ export function inspectDuplication(input: DuplicationInput): DuplicationInspecti
         report,
         perRootReports = {},
         declarations = new Map<string, TypeDeclaration[]>(),
+        icons = new Map<string, string[]>(),
         scan,
         ceilings,
         maxCloneTokens,
@@ -271,7 +323,18 @@ export function inspectDuplication(input: DuplicationInput): DuplicationInspecti
         }
     }
 
-    return { problems, types: declarations.size };
+    // -- 5. Two icon components drawing the same picture -------------------------
+    for (const files of icons.values()) {
+        if (files.length < 2) continue;
+        const [first = '', ...rest] = files;
+        fail(
+            first,
+            `draws the same icon as ${rest.join(', ')}`,
+            'Keep one file and import it everywhere. Two copies of one icon are how it drifts — one gets redrawn and the other does not. A different stroke weight is not a different icon: pass `stroke-width` where it is used.',
+        );
+    }
+
+    return { problems, types: declarations.size, icons: [...icons.values()].flat().length };
 }
 
 export function checkDuplication(options: DuplicationOptions): void {
@@ -315,11 +378,12 @@ export function checkDuplication(options: DuplicationOptions): void {
         return;
     }
 
-    const { problems, types } = inspectDuplication({
+    const { problems, types, icons } = inspectDuplication({
         root,
         report: full,
         perRootReports,
         declarations: scan.length > 1 ? exportedTypes(root, scan, ignoreDirs) : new Map(),
+        icons: iconDrawings(root, scan),
         scan,
         ceilings,
         maxCloneTokens,
@@ -347,8 +411,9 @@ export function checkDuplication(options: DuplicationOptions): void {
             (scan.length > 1
                 ? `; no cross-root copies and no name among ${plural(types, 'exported type')} declared twice`
                 : '') +
+            (icons > 0 ? `; ${plural(icons, 'icon')}, none drawn twice` : '') +
             '.',
         notMachineChecked:
-            'whether two identical blocks mean the same thing. jscpd matches tokens, not intent — a false positive is answered by raising the ceiling with a comment, not by contorting the code. The full report, including formats this gate does not gate, is this gate run with `--all`.',
+            'whether two identical blocks mean the same thing. jscpd matches tokens, not intent — a false positive is answered by raising the ceiling with a comment, not by contorting the code. Two icons that draw one picture with different shapes (a `<polyline>` and the `<path>` tracing it, four slightly different bins) — only identical drawings are caught. The full report, including formats this gate does not gate, is this gate run with `--all`.',
     });
 }

@@ -12,6 +12,7 @@ import ts from 'typescript-eslint';
 
 import { larry } from '../src/eslint/index.ts';
 import { PRESETS, resolvePaths } from '../src/eslint/presets.ts';
+import { larryPlugin } from '../src/eslint/rules/larry-plugin.ts';
 import { vueStandards } from '../src/eslint/rules/vue.ts';
 
 const ROOT = '/tmp/lint-config-eslint-test';
@@ -203,6 +204,8 @@ test('a cast in a Vue template is an error, since the typed cast rule only reads
     const config = [
         ...vuePlugin.configs['flat/recommended'],
         { files: ['**/*.vue'], languageOptions: { parserOptions: { parser: ts.parser } } },
+        // `larry()` registers the plugin the icon rules in vueStandards come from.
+        { plugins: { larry: larryPlugin } },
         ...vueStandards({ vue: ['**/*.vue'], frontend: ['**/*.vue'] }),
     ];
     const eslint = new ESLint({ overrideConfigFile: true, baseConfig: config, cwd: ROOT });

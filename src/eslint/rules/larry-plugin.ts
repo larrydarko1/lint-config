@@ -2,9 +2,12 @@
  * Rules no existing plugin has, registered by `larry()` under the `larry/` prefix.
  * - `no-caught-message-leak` — on where code answers someone outside the process:
  *   the full-stack backend and the Electron main process.
+ * - `no-inline-svg` / `icon-component` — on every component, see icons.ts.
  */
 
 import type { TSESLint, TSESTree } from '@typescript-eslint/utils';
+
+import { iconRules } from './icons.ts';
 
 type Node = TSESTree.Node;
 type Variable = TSESLint.Scope.Variable;
@@ -298,5 +301,6 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
 export const larryPlugin = {
     rules: {
         'no-caught-message-leak': noCaughtMessageLeak,
+        ...iconRules,
     },
 };

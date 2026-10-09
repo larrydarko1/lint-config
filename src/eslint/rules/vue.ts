@@ -15,11 +15,18 @@ export const aliasOnlyImportPatterns = [
     },
 ];
 
+/** Where the standard keeps icons, under each components glob: `src/**\/*.vue` → `src/components/icons/*.vue`. */
+const iconFiles = (vue: string[]): string[] =>
+    vue.map((glob) => glob.replace(/\*\*\/\*\.vue$/, 'components/icons/*.vue'));
+
 /**
  * @param layout.vue The components.
  * @param layout.frontend Everything that runs in the Vue app, components and scripts both.
  */
 export const vueStandards = (layout: { vue: string[]; frontend: string[] }) => [
+    // One home for icons — see icons.ts.
+    { files: layout.vue, ignores: iconFiles(layout.vue), rules: { 'larry/no-inline-svg': 'error' } },
+    { files: iconFiles(layout.vue), rules: { 'larry/icon-component': 'error' } },
     {
         files: layout.vue,
         rules: {

@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
 
-import { exportedTypes, inspectDuplication } from '../src/gates/duplication.ts';
+import { exportedTypes, iconDrawing, iconDrawings, inspectDuplication } from '../src/gates/duplication.ts';
 
 const ROOT = '/repo';
 
@@ -405,4 +405,86 @@ test('exportedTypes reads an SFC, where a type in <script setup> is just as expo
 
 test('exportedTypes skips a scan root that does not exist, so one options object fits a family', () => {
     assert.doesNotThrow(() => exportedTypes(tmp, ['api/src', 'ingestor/src']));
+});
+
+// ── 5. Icons drawn twice ─────────────────────────────────────────────────────
+
+const icon = (svgAttrs, body) =>
+    `<template>\n    <svg aria-hidden="true" ${svgAttrs}>\n        ${body}\n    </svg>\n</template>\n`;
+const STROKED = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"';
+const CROSS = '<line x1="18" y1="6" x2="6" y2="18" />\n        <line x1="6" y1="6" x2="18" y2="18" />';
+
+test('two icon files with the same drawing fail, once, under the first', () => {
+    const icons = new Map([['k', ['src/components/icons/IconClose.vue', 'src/components/icons/IconX.vue']]]);
+    const result = inspect({ report: report([]), icons });
+    assert.equal(result.problems.length, 1);
+    assert.equal(result.problems[0].file, 'src/components/icons/IconClose.vue');
+    assert.match(result.problems[0].what, /same icon as src\/components\/icons\/IconX\.vue/);
+});
+
+test('an icon drawn once is fine, and the count of icons is reported for the summary', () => {
+    const icons = new Map([
+        ['a', ['src/components/icons/IconA.vue']],
+        ['b', ['src/components/icons/IconB.vue']],
+    ]);
+    const result = inspect({ report: report([]), icons });
+    assert.deepEqual(result.problems, []);
+    assert.equal(result.icons, 2);
+});
+
+test('iconDrawing: spelling is not a difference — attribute order, whitespace, self-closing, comments', () => {
+    const a = icon(STROKED, CROSS);
+    const b = icon(
+        'stroke="currentColor" fill="none" viewBox="0 0 24 24"',
+        '<!-- x --><line y2="18" x2="6" y1="6" x1="18"></line><line x1="6"   y1="6" x2="18" y2="18"/>',
+    );
+    assert.equal(iconDrawing(a), iconDrawing(b));
+});
+
+test('iconDrawing: a stroke weight or cap is not a different icon — callers override those', () => {
+    assert.equal(iconDrawing(icon(STROKED, CROSS)), iconDrawing(icon(STROKED.replace('"2"', '"1.5"'), CROSS)));
+    assert.equal(
+        iconDrawing(icon(STROKED, CROSS)),
+        iconDrawing(icon(STROKED.replace(' stroke-linecap="round"', ''), CROSS)),
+    );
+});
+
+test('iconDrawing: the viewBox, fill and stroke ARE the picture', () => {
+    const base = iconDrawing(icon(STROKED, CROSS));
+    assert.notEqual(base, iconDrawing(icon(STROKED.replace('0 0 24 24', '0 0 16 16'), CROSS)));
+    assert.notEqual(base, iconDrawing(icon(STROKED.replace('fill="none"', 'fill="currentColor"'), CROSS)));
+    assert.notEqual(base, iconDrawing(icon(STROKED.replace('stroke="currentColor"', 'stroke="red"'), CROSS)));
+});
+
+test('iconDrawing: a different shape is a different icon, however small the change', () => {
+    assert.notEqual(iconDrawing(icon(STROKED, CROSS)), iconDrawing(icon(STROKED, CROSS.replace('x1="18"', 'x1="19"'))));
+});
+
+test('iconDrawing: a file with no <svg> draws nothing', () => {
+    assert.equal(iconDrawing('<template><span /></template>'), null);
+});
+
+test('iconDrawings groups the icons folder of every scan root, and nothing outside it', () => {
+    write('frontend/src/components/icons/IconClose.vue', icon(STROKED, CROSS));
+    write('frontend/src/components/icons/IconCross.vue', icon(STROKED.replace('"2"', '"3"'), CROSS));
+    write(
+        'frontend/src/components/icons/IconPlay.vue',
+        icon('viewBox="0 0 24 24" fill="currentColor"', '<path d="M8 5v14l11-7z" />'),
+    );
+    write('frontend/src/components/icons/Broken.vue', '<template><span /></template>\n');
+    // An inline <svg> elsewhere is ESLint's business (larry/no-inline-svg), not this rule's.
+    write('frontend/src/components/Card.vue', icon(STROKED, CROSS));
+
+    const groups = [...iconDrawings(tmp, ['frontend/src']).values()];
+    assert.deepEqual(
+        groups.sort((a, b) => b.length - a.length),
+        [
+            ['frontend/src/components/icons/IconClose.vue', 'frontend/src/components/icons/IconCross.vue'],
+            ['frontend/src/components/icons/IconPlay.vue'],
+        ],
+    );
+});
+
+test('iconDrawings in a repo with no icons folder finds nothing, so the rule is silent', () => {
+    assert.equal(iconDrawings(tmp, ['api/src', 'ingestor/src']).size, 0);
 });

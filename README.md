@@ -146,6 +146,10 @@ whole-file exception at the very top.
   argument or AppError's `logContext`, and nothing else: not a return value, a call, or a property write. On in
   the full-stack api and services, and the Electron main and preload processes. AppError takes its message
   third; pass `{ messageArgs: { MyError: 1 } }` for another class that does not take it first.
+- `larry/no-inline-svg` — an `<svg>` that draws a fixed picture belongs in `components/icons/`; one drawn from
+  data (a binding, a `v-for`, an interpolation, a `<slot>`) stays inline. On every component in both families.
+- `larry/icon-component` — a file in `components/icons/` is one root `<svg>`, `aria-hidden="true"`, with no
+  static `id`. `duplication` adds the cross-file half: no two icon files draw the same picture.
 
 **Full-stack workspaces are roles.** The full-stack rules are written against four roles, not
 folder names: `frontend` (the Vue app), `api` (the HTTP service), `services` (Node processes
@@ -260,7 +264,7 @@ its source roots, its services, and exceptions it has approved, each with a stat
 | `code-style`               | both      | file names, file length, SFC block order, stale size baselines           |
 | `dead-code`                | both      | unused code and dependencies, undeclared imports, import cycles (knip)   |
 | `declaration-order`        | both      | the order of imports, types, constants and functions in a module         |
-| `duplication`              | both      | copy-paste ceilings per format and a cap on clone size (jscpd)           |
+| `duplication`              | both      | copy-paste ceilings and a clone-size cap (jscpd); no icon drawn twice    |
 | `html-standards`           | both      | `index.html`: shell, CSP, entry module, remote resources, reduced motion |
 | `i18n`                     | both      | two-letter locale files; plurals, placeholders and arrays agree; options |
 | `package-json`             | both      | manifest fields, version ranges, and the toolchain rule below            |

@@ -147,14 +147,15 @@ export function findLocalOnlyTypes(root: string, projects: string[] = findProjec
         const checker = program.getTypeChecker();
 
         for (const sourceFile of program.getSourceFiles()) {
-            if (sourceFile.isDeclarationFile || !inRepo(sourceFile.fileName)) continue;
+            if (!inRepo(sourceFile.fileName)) continue;
             const file = realFile(sourceFile.fileName);
             const rel = path.relative(root, file).split(path.sep).join('/');
             const lineOf = (node: ts.Node) =>
                 sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
 
             // Candidates: `export type X`, `export interface X`, and `export { X }` of a local one.
-            for (const statement of sourceFile.statements) {
+            // A declaration file is never one, but the names it writes are uses like any other.
+            for (const statement of sourceFile.isDeclarationFile ? [] : sourceFile.statements) {
                 if (isTypeDeclaration(statement) && hasExportKeyword(statement) && !isPublic(statement)) {
                     const { text } = statement.name;
                     candidates.set(key(file, text), { file: rel, name: text, line: lineOf(statement.name) });
