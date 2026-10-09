@@ -12,7 +12,8 @@
  * - Rule 7 reads each handler's own body, per argument (`safeParse`/`parse`/`typeof`/
  * `instanceof`/`Array.isArray`/`Number.is*`/`.test`), following an argument into a
  * helper declared in the same file. Handlers are found by receiver: `ipcMain`,
- * `webContents.ipc` and anything typed `IpcMain`, including `handleOnce`/`once`/`sendSync`.
+ * `webContents.ipc` and anything typed `IpcMain` (or a `receiverTypes` name), including
+ * `handleOnce`/`once`/`sendSync`. A `domain:action` registration on any other receiver fails.
  * - Handlers containing their own failures is error-handling's rule.
  */
 import fs from 'node:fs';
@@ -40,13 +41,14 @@ type IpcStandardsInput = {
     contract?: string;
     /** The type the exposed object must be annotated with. Default `ElectronAPI`. */
     contractType?: string;
+    /** Parameter types that mark a handler receiver, for a project's own narrowed `IpcMain`. Default `['IpcMain']`. */
+    receiverTypes?: string[];
 };
 
 type IpcStandardsInspection = {
     problems: GateFailure[];
     counts: { handlers: number; events: number; preloadChannels: number };
 };
-
 
 /** A call that, given the argument, checks its type or value. */
 const VALIDATORS = [
@@ -58,6 +60,9 @@ const VALIDATORS = [
     'Number.isFinite(',
     'Number.isSafeInteger(',
 ];
+
+/** `name.handle('channel'` on a bare identifier, whatever its type: receiver in 1, channel in 3. */
+const REGISTRATION = /(?<![\w$.])([A-Za-z_$][\w$]*)\.(?:handle|handleOnce|on|once)\(\s*(['"])([^'"\\]*)\2/g;
 
 const lineAt = (code: string, index: number): number => code.slice(0, index).split('\n').length;
 
@@ -107,6 +112,7 @@ export function inspectIpcStandards({
     preload = 'src/preload/index.ts',
     contract = 'src/schemas/electron.d.ts',
     contractType = 'ElectronAPI',
+    receiverTypes = ['IpcMain'],
 }: IpcStandardsInput): IpcStandardsInspection {
     const problems: GateFailure[] = [];
     const fail: (file: string, what: string, why: string) => void = (file, what, why) =>
@@ -134,6 +140,8 @@ export function inspectIpcStandards({
               .map((f) => `${servicesDir}/${f}`)
         : [];
     const mainFiles = [mainIndex, ...serviceFiles];
+    const typeNames = receiverTypes.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    const receiverPattern = new RegExp(`([A-Za-z_$][\\w$]*)\\s*\\??\\s*:\\s*(?:Electron\\.)?(?:${typeNames})\\b`, 'g');
     const code = new Map(mainFiles.map((rel) => [rel, stripComments(read(rel))]));
 
     /** channel → owning file, for everything registered with handle/on. */
@@ -147,8 +155,17 @@ export function inspectIpcStandards({
         const source = code.get(rel) ?? '';
         // `webContents.ipc` is the per-window handler registry, as reachable as ipcMain.
         const receivers = new Set(['ipcMain', 'webContents.ipc']);
-        for (const m of source.matchAll(/([A-Za-z_$][\w$]*)\s*\??\s*:\s*(?:Electron\.)?IpcMain\b/g))
-            receivers.add(m[1] ?? '');
+        for (const m of source.matchAll(receiverPattern)) receivers.add(m[1] ?? '');
+
+        for (const m of source.matchAll(REGISTRATION)) {
+            const [, receiver = '', , channel = ''] = m;
+            if (receivers.has(receiver) || !/^[A-Za-z]+:[A-Za-z]+$/.test(channel)) continue;
+            fail(
+                `${rel}:${lineAt(source, m.index)}`,
+                `registers \`${channel}\` on \`${receiver}\`, which is not typed as an IPC receiver`,
+                `Handlers are found by the receiver's type, so every rule here skips this one. Annotate \`${receiver}\` as ${receiverTypes.map((t) => `\`${t}\``).join(' or ')}, or add its type to \`receiverTypes\`.`,
+            );
+        }
 
         for (const receiver of receivers) {
             for (const method of ['handle', 'handleOnce', 'on', 'once']) {

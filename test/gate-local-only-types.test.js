@@ -156,6 +156,22 @@ test('a declaration file is never a candidate', () => {
     assert.deepEqual(names(root), []);
 });
 
+test('a declaration file in the repo naming the type is a use', () => {
+    const root = repo({
+        ...SIGNATURE_ONLY,
+        'src/api.d.ts': "import type { Shape } from './a';\nexport type Api = { get(): Shape };\n",
+    });
+    assert.deepEqual(names(root), []);
+});
+
+test('an ambient declaration file naming the type through `import()` is a use', () => {
+    const root = repo({
+        ...SIGNATURE_ONLY,
+        'src/global.d.ts': "declare global {\n    var api: { get(): import('./a').Shape };\n}\nexport {};\n",
+    });
+    assert.deepEqual(names(root), []);
+});
+
 // ── .vue files ──────────────────────────────────────────────────────────────
 test('a type imported into a .vue script block is a use', () => {
     const root = repo({

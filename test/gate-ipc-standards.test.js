@@ -266,6 +266,47 @@ test('the receiver is whatever the file types as IpcMain', (t) => {
     assert.deepEqual(whats(tree(t, { 'src/main/services/file.ts': renamed })), []);
 });
 
+/** file.ts with its receiver typed as the project's own narrowed type. */
+const REGISTRAR = FILE.replace(
+    "import { type IpcMain } from 'electron';",
+    "import type { IpcRegistrar } from '../ipc';",
+).replace('register(ipc: IpcMain)', 'register(ipc: IpcRegistrar)');
+
+test('a receiver typed as anything else fails per registration, naming the option', (t) => {
+    const problems = run(tree(t, { 'src/main/services/file.ts': REGISTRAR })).problems.filter((p) =>
+        p.what.includes('not typed as an IPC receiver'),
+    );
+    assert.deepEqual(
+        problems.map((p) => p.what),
+        ['file:read', 'file:write', 'dialog:open'].map(
+            (c) => `registers \`${c}\` on \`ipc\`, which is not typed as an IPC receiver`,
+        ),
+    );
+    assert.match(problems[0].why, /`IpcMain`, or add its type to `receiverTypes`/);
+});
+
+test('receiverTypes recognises a project’s own receiver type', (t) => {
+    const root = tree(t, { 'src/main/services/file.ts': REGISTRAR });
+    assert.deepEqual(whats(root, { receiverTypes: ['IpcMain', 'IpcRegistrar'] }), []);
+});
+
+test('receiverTypes replaces the default rather than adding to it', (t) => {
+    assert.ok(
+        has(whats(tree(t), { receiverTypes: ['IpcRegistrar'] }), /registers `log:error` on `ipc`, which is not typed/),
+    );
+});
+
+test('an event-emitter .on( with a plain event name is not mistaken for an unrecognised receiver', (t) => {
+    const root = tree(
+        t,
+        main(
+            '    fileService.register(ipcMain);',
+            "    fileService.register(ipcMain);\n    app.on('before-quit', () => {});\n    win.webContents.on('did-finish-load', () => {});",
+        ),
+    );
+    assert.deepEqual(whats(root), []);
+});
+
 test('a duplicate registration fails', (t) => {
     const root = tree(
         t,
