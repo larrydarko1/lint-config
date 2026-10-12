@@ -27,7 +27,7 @@ export { bannedCryptoModules } from '../rules/security.ts';
 export { configModuleSelectors, noImportMetaEnv } from '../rules/env.ts';
 export { noSingleLetterDeclaration, noFileURLToPath } from '../rules/code-style.ts';
 export { tsSourceSelectors } from '../rules/typescript.ts';
-export { noStoreLibraryPatterns, aliasOnlyImportPatterns } from '../rules/vue.ts';
+export { noStoreLibraryPatterns, noToastLibraryPatterns, aliasOnlyImportPatterns } from '../rules/vue.ts';
 export { functionContractsPlugin } from '../rules/function-contracts.ts';
 export {
     apiSourceSelectors,
@@ -78,7 +78,11 @@ export function fullstackStandards(options: FullstackStandardsOptions = {}): Ful
             ...typescriptStandards({
                 source: [...source, 'e2e/**/*.ts'],
                 code: [...source, 'e2e/**/*.ts'],
-                defaultExportAllowed: ['e2e/playwright.config.ts', 'e2e/support/global-setup.ts', 'e2e/support/global-teardown.ts'],
+                defaultExportAllowed: [
+                    'e2e/playwright.config.ts',
+                    'e2e/support/global-setup.ts',
+                    'e2e/support/global-teardown.ts',
+                ],
             }),
             ...envStandards([
                 '**/lib/config.ts',

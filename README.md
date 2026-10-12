@@ -135,6 +135,15 @@ with the wrong shape compiles. Narrow with a check (`instanceof`, a type guard, 
 in full. The typed rules read a Vue file's `<script>` only, so `vue/no-restricted-syntax` refuses `as` in
 its `<template>` too.
 
+**One notification channel.** `larry/no-native-dialog` keeps the browser's dialogs out; `noToastLibraryPatterns`
+keeps a notification library out, so every message goes through the one component the app owns. Like the
+other banned-import lists, it is composed into the project's own `no-restricted-imports` block for the frontend,
+because that rule is last-match-wins:
+
+```js
+'no-restricted-imports': ['error', { patterns: [...noStoreLibraryPatterns, ...noToastLibraryPatterns, ...aliasOnlyImportPatterns] }],
+```
+
 **Every disable comment names its rule and says why**: `// eslint-disable-next-line rule -- reason`.
 `@eslint-community/eslint-comments` enforces it (`require-description`, `no-unlimited-disable`,
 `disable-enable-pair`), everywhere, typed or not. A block disable needs its enable, unless it is a
@@ -150,6 +159,11 @@ whole-file exception at the very top.
   data (a binding, a `v-for`, an interpolation, a `<slot>`) stays inline. On every component in both families.
 - `larry/icon-component` — a file in `components/icons/` is one root `<svg>`, `aria-hidden="true"`, with no
   static `id`. `duplication` adds the cross-file half: no two icon files draw the same picture.
+- `larry/no-native-dialog` — no `alert()`, `confirm()` or `prompt()`, bare or through `window`, `globalThis` or
+  `self`. They freeze the window and ignore the app's theme, and Electron does not implement `prompt()`. The
+  user is told through the app's notification function, and asked through its own dialog. A binding the module
+  declares or imports under one of those names is not the browser's, and passes. On everything that runs in the
+  Vue app, in both families.
 
 **Full-stack workspaces are roles.** The full-stack rules are written against four roles, not
 folder names: `frontend` (the Vue app), `api` (the HTTP service), `services` (Node processes

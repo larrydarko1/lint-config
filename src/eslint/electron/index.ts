@@ -20,7 +20,7 @@ export { bannedCryptoModules } from '../rules/security.ts';
 export { configModuleSelectors, noImportMetaEnv } from '../rules/env.ts';
 export { noSingleLetterDeclaration, noFileURLToPath } from '../rules/code-style.ts';
 export { tsSourceSelectors } from '../rules/typescript.ts';
-export { noStoreLibraryPatterns, aliasOnlyImportPatterns } from '../rules/vue.ts';
+export { noStoreLibraryPatterns, noToastLibraryPatterns, aliasOnlyImportPatterns } from '../rules/vue.ts';
 export { functionContractsPlugin } from '../rules/function-contracts.ts';
 export { loggerCallSelectors } from './logging.ts';
 export { errorHandlingSelectors } from './error-handling.ts';

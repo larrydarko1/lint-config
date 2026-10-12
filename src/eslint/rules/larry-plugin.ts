@@ -3,10 +3,12 @@
  * - `no-caught-message-leak` — on where code answers someone outside the process:
  *   the full-stack backend and the Electron main process.
  * - `no-inline-svg` / `icon-component` — on every component, see icons.ts.
+ * - `no-native-dialog` — on everything that runs in the Vue app, see dialogs.ts.
  */
 
 import type { TSESLint, TSESTree } from '@typescript-eslint/utils';
 
+import { dialogRules } from './dialogs.ts';
 import { iconRules } from './icons.ts';
 
 type Node = TSESTree.Node;
@@ -302,5 +304,6 @@ export const larryPlugin = {
     rules: {
         'no-caught-message-leak': noCaughtMessageLeak,
         ...iconRules,
+        ...dialogRules,
     },
 };

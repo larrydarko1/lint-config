@@ -7,6 +7,21 @@ export const noStoreLibraryPatterns = [
     ),
 ];
 
+export const noToastLibraryPatterns = [
+    bannedPackages(
+        [
+            'vue-toastification',
+            'vue-sonner',
+            'notivue',
+            'vue3-toastify',
+            'vue-toast-notification',
+            '@kyvg/vue3-notification',
+            'sweetalert2',
+        ],
+        "No notification library — the app owns one notification component and one function that feeds it (`notify.error(…)`), styled with the app's tokens and translated with its locale. A second channel splits where messages appear and how repeats collapse.",
+    ),
+];
+
 export const aliasOnlyImportPatterns = [
     {
         group: ['../*', './*'],
@@ -59,6 +74,7 @@ export const vueStandards = (layout: { vue: string[]; frontend: string[] }) => [
             'vue/no-ref-object-reactivity-loss': 'error',
             'vue/require-typed-ref': 'error',
             'vue/no-side-effects-in-computed-properties': 'error',
+            'larry/no-native-dialog': 'error',
         },
     },
 ];
