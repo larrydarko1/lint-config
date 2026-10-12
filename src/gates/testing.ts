@@ -387,10 +387,14 @@ export function inspectTesting(input: TestingInput): TestingInspection {
             if (entry.statements.total === 0) continue;
             if (entry.statements.covered === 0) {
                 uncovered++;
+                // A component's statements are its render function: importing it covers none of them.
+                const component = rel.endsWith('.vue');
                 fail(
                     rel,
-                    `0% of ${entry.statements.total} statement(s) covered — no test imports this file`,
-                    'The aggregate hides this: one untested module inside a passing total is a rounding error. Write the suite, or if the file genuinely has no testable runtime, say so in `excludes` rather than leaving it at zero.',
+                    `0% of ${entry.statements.total} statement(s) covered — ${component ? 'no test renders this component' : 'no test imports this file'}`,
+                    component
+                        ? 'Being imported by a tested parent is not enough: a shallow mount, a stub or a `v-if` the tests never take all leave it unrendered. Mount it in a test of its own — a folder of icons can share one that mounts each — or if it genuinely has no testable runtime, say so in `excludes` rather than leaving it at zero.'
+                        : 'The aggregate hides this: one untested module inside a passing total is a rounding error. Write the suite, or if the file genuinely has no testable runtime, say so in `excludes` rather than leaving it at zero.',
                 );
             }
         }
@@ -636,7 +640,7 @@ export function checkTesting(options: TestingOptions): void {
             `${apiClient === undefined ? '' : `, no suite replacing the API client's ${apiClient.exports.map((name) => `\`${name}\``).join('/')}`}` +
             `${serverErrors === undefined ? '' : ', every spec held to the server-error tripwire'}.` +
             (haveCoverage
-                ? `\n  Coverage report: ${plural(measured, 'file')} measured, ${uncovered} with no test at all.`
+                ? `\n  Coverage report: ${plural(measured, 'file')} measured, ${uncovered} at 0%.`
                 : '\n  Coverage report: not present — the 0%-file check was SKIPPED. Run the coverage script first to include it.'),
         notMachineChecked:
             'whether a passing test asserts anything worth asserting, whether the next test to write is the ' +

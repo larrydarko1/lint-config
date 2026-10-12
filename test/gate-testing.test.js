@@ -201,6 +201,16 @@ test('a file with no covered statement fails', (t) => {
     assert.deepEqual(whats(run(root)), ['0% of 12 statement(s) covered — no test imports this file']);
 });
 
+test('a component at 0% is reported as never rendered', (t) => {
+    const root = repo(
+        t,
+        good({
+            'coverage/coverage-summary.json': summary({ 'src/IconX.vue': { statements: { total: 1, covered: 0 } } }),
+        }),
+    );
+    assert.deepEqual(whats(run(root)), ['0% of 1 statement(s) covered — no test renders this component']);
+});
+
 test('a file with nothing to cover is not a gap', (t) => {
     const root = repo(
         t,
