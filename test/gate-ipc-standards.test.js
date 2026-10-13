@@ -1,7 +1,9 @@
 /**
  * The IPC gate against a temp repository shaped like the three desktop apps:
  * a main entry with the ownership table and two inline handlers, two services,
- * a preload bridge and the shared contract.
+ * a preload bridge, the shared contract and a renderer that uses it.
+ * - Rule 9 runs the TypeScript checker, so the tree has a tsconfig. It sets `noLib` and
+ * declares the one global it needs, which keeps each program to the fixture's own files.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -93,7 +95,34 @@ const api: ElectronAPI = {
 contextBridge.exposeInMainWorld('electronAPI', api);
 `;
 
-const CONTRACT = 'export type ElectronAPI = {\n    openExternal: (url: string) => Promise<boolean>;\n};\n';
+const CONTRACT = `export type ElectronAPI = {
+    log: {
+        error: (message: string) => void;
+        info: (message: string) => void;
+    };
+    openExternal: (url: string) => Promise<boolean>;
+    readFile: (filePath: string) => Promise<string>;
+};
+
+declare global {
+    interface Window {
+        electronAPI: ElectronAPI;
+    }
+}
+`;
+
+const RENDERER = `export function boot(): void {
+    window.electronAPI.log.error('boot');
+    window.electronAPI.log.info('boot');
+    void window.electronAPI.openExternal('https://example.com');
+    void window.electronAPI.readFile('notes.md');
+}
+`;
+
+const TSCONFIG = JSON.stringify({
+    compilerOptions: { strict: true, noLib: true, module: 'esnext', moduleResolution: 'bundler', noEmit: true },
+    include: ['src/renderer', 'src/schemas'],
+});
 
 const FILES = {
     'src/main/index.ts': MAIN,
@@ -101,6 +130,9 @@ const FILES = {
     'src/main/services/log.ts': LOG,
     'src/preload/index.ts': PRELOAD,
     'src/schemas/electron.d.ts': CONTRACT,
+    'src/renderer/env.d.ts': 'declare var window: Window;\n',
+    'src/renderer/boot.ts': RENDERER,
+    'tsconfig.json': TSCONFIG,
 };
 
 /** A repository that passes, with `files` merged over it; null deletes one. */
@@ -127,6 +159,7 @@ const main = (from, to) => swap('src/main/index.ts', MAIN, from, to);
 const file = (from, to) => swap('src/main/services/file.ts', FILE, from, to);
 const log = (from, to) => swap('src/main/services/log.ts', LOG, from, to);
 const preload = (from, to) => swap('src/preload/index.ts', PRELOAD, from, to);
+const renderer = (from, to) => swap('src/renderer/boot.ts', RENDERER, from, to);
 
 const has = (list, pattern) =>
     list.some((item) => (typeof pattern === 'string' ? item === pattern : pattern.test(item)));
@@ -138,7 +171,7 @@ test('a repository that satisfies every rule passes', (t) => {
 });
 
 test('the counts are what the tree holds', (t) => {
-    assert.deepEqual(run(tree(t)).counts, { handlers: 6, events: 1, preloadChannels: 7 });
+    assert.deepEqual(run(tree(t)).counts, { handlers: 6, events: 1, preloadChannels: 7, bridgeMembers: 4 });
 });
 
 test('a missing preload or main entry is reported, not a crash', (t) => {
@@ -406,7 +439,7 @@ test('a missing contract file fails, and one that does not declare the type', (t
 test('contractType renames the type everywhere it is read', (t) => {
     const renamed = {
         'src/preload/index.ts': PRELOAD.replaceAll('ElectronAPI', 'DesktopBridge'),
-        'src/schemas/electron.d.ts': CONTRACT.replace('ElectronAPI', 'DesktopBridge'),
+        'src/schemas/electron.d.ts': CONTRACT.replaceAll('ElectronAPI', 'DesktopBridge'),
     };
     assert.deepEqual(whats(tree(t, renamed), { contractType: 'DesktopBridge' }), []);
 });
@@ -541,6 +574,120 @@ test('the repeat rule names the shorter channel it should be', (t) => {
     assert.ok(run(root).problems.some((p) => p.why === '`file:read` says the same thing.'));
 });
 
+// ── 9. Every bridge member used by the renderer ──────────────────────────────
+
+const UNUSED_READ = '`readFile` is on the bridge, but nothing in src/renderer uses it';
+
+test('a member nothing in the renderer uses fails, at its line in the contract', (t) => {
+    const root = tree(t, renderer("    void window.electronAPI.readFile('notes.md');\n", ''));
+    assert.deepEqual(
+        run(root).problems.map((p) => [p.file, p.what]),
+        [['src/schemas/electron.d.ts:7', UNUSED_READ]],
+    );
+});
+
+test('a nested member is named by its dotted path', (t) => {
+    const root = tree(t, renderer("    window.electronAPI.log.info('boot');\n", ''));
+    assert.deepEqual(whats(root), ['`log.info` is on the bridge, but nothing in src/renderer uses it']);
+});
+
+test('THE MOCK TRAP: a use in a renderer test file does not count', (t) => {
+    const root = tree(t, {
+        ...renderer("    void window.electronAPI.readFile('notes.md');\n", ''),
+        'src/renderer/boot.test.ts': "void window.electronAPI.readFile('notes.md');\n",
+    });
+    assert.deepEqual(whats(root), [UNUSED_READ]);
+});
+
+test('THE SAME-NAME TRAP: another object’s readFile is not the bridge’s', (t) => {
+    const root = tree(
+        t,
+        renderer(
+            "    void window.electronAPI.readFile('notes.md');\n",
+            "    const disk = { readFile: (p: string): string => p };\n    disk.readFile('notes.md');\n",
+        ),
+    );
+    assert.deepEqual(whats(root), [UNUSED_READ]);
+});
+
+test('a use in a type is not a use', (t) => {
+    const root = tree(
+        t,
+        renderer(
+            "    void window.electronAPI.readFile('notes.md');\n",
+            '    const read: typeof window.electronAPI.readFile | null = null;\n    void read;\n',
+        ),
+    );
+    assert.deepEqual(whats(root), [UNUSED_READ]);
+});
+
+test('uses through an alias, destructuring and a literal key all count', (t) => {
+    const root = tree(t, {
+        'src/renderer/boot.ts': `export function boot(): void {
+    const api = window.electronAPI;
+    const { log } = api;
+    log.error('boot');
+    const { info: say } = api.log;
+    say('boot');
+    void api['openExternal']('https://example.com');
+    const { readFile } = window.electronAPI;
+    void readFile('notes.md');
+}
+`,
+    });
+    assert.deepEqual(whats(root), []);
+});
+
+test('handing on an object counts everything under it, and nothing beside it', (t) => {
+    const root = tree(t, {
+        'src/renderer/boot.ts': `declare function useLogger(log: Window['electronAPI']['log']): void;
+
+export function boot(): void {
+    useLogger(window.electronAPI.log);
+    void window.electronAPI.openExternal('https://example.com');
+}
+`,
+    });
+    assert.deepEqual(whats(root), [UNUSED_READ]);
+});
+
+test('handing on the whole bridge counts every member', (t) => {
+    const root = tree(t, {
+        'src/renderer/boot.ts': 'export const bridge = (): Window["electronAPI"] => window.electronAPI;\n',
+    });
+    assert.deepEqual(whats(root), []);
+});
+
+test('a .vue script block is renderer code', (t) => {
+    const root = tree(t, {
+        ...renderer("    void window.electronAPI.readFile('notes.md');\n", ''),
+        'src/renderer/App.vue': `<template><p>notes</p></template>
+
+<script setup lang="ts">
+void window.electronAPI.readFile('notes.md');
+</script>
+`,
+    });
+    assert.deepEqual(whats(root), []);
+});
+
+test('a missing renderer directory is reported, and the option points elsewhere', (t) => {
+    const moved = {
+        'src/renderer/boot.ts': null,
+        'src/renderer/env.d.ts': null,
+        'src/app/boot.ts': RENDERER,
+        'src/app/env.d.ts': 'declare var window: Window;\n',
+        'tsconfig.json': TSCONFIG.replace('src/renderer', 'src/app'),
+    };
+    assert.deepEqual(whats(tree(t, moved)), ['does not exist']);
+    assert.deepEqual(whats(tree(t, moved), { renderer: ['src/app'] }), []);
+});
+
+test('a renderer no tsconfig holds fails, rather than passing unchecked', (t) => {
+    const root = tree(t, { 'tsconfig.json': null });
+    assert.deepEqual(whats(root), ['no tsconfig holds a renderer file and reaches `ElectronAPI`']);
+});
+
 // ── Comments ─────────────────────────────────────────────────────────────────
 
 test('a commented-out handler is not a handler', (t) => {
@@ -569,4 +716,5 @@ test('checkIpcStandards prints the summary and sets no failing exit code on a cl
         process.exitCode = exitCode;
     }
     assert.match(lines.join('\n'), /6 handlers and 1 event, all documented/);
+    assert.match(lines.join('\n'), /its 4 members all used by the renderer/);
 });

@@ -289,7 +289,7 @@ its source roots, its services, and exceptions it has approved, each with a stat
 | `tsconfigs`                | both      | compiler flags stay at the standard                                      |
 | `electron-security`        | electron  | `webPreferences`, navigation, permissions, `v-html`, TLS overrides       |
 | `error-handling/electron`  | electron  | IPC handlers contain failures, process backstops, cleanup on quit        |
-| `ipc-standards`            | electron  | the channel list, documentation and preload surface agree                |
+| `ipc-standards`            | electron  | channels, docs and preload agree; the renderer uses every bridge member  |
 | `api-standards`            | fullstack | route map, middleware order, rate limits, response schemas, the contract |
 | `db-drift`                 | fullstack | collection registry, indexes, migrations, drain order, ops scripts       |
 | `docker`                   | fullstack | image rules that need no Docker daemon, including no secrets in layers   |

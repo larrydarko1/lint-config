@@ -9,16 +9,20 @@
  *   6. One `exposeInMainWorld`, typed against the shared contract.
  *   7. Every handler validates every argument.
  *   8. Channels are `domain:action`, both camelCase, the action not repeating the domain.
+ *   9. Every member of the contract is used by the renderer.
  * - Rule 7 reads each handler's own body, per argument (`safeParse`/`parse`/`typeof`/
  * `instanceof`/`Array.isArray`/`Number.is*`/`.test`), following an argument into a
  * helper declared in the same file. Handlers are found by receiver: `ipcMain`,
  * `webContents.ipc` and anything typed `IpcMain` (or a `receiverTypes` name), including
  * `handleOnce`/`once`/`sendSync`. A `domain:action` registration on any other receiver fails.
+ * - Rule 9 closes the chain the others start: 2–4 tie the preload to main, and this ties
+ * the renderer to the preload. It runs the TypeScript checker (see bridge-reachability).
  * - Handlers containing their own failures is error-handling's rule.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { findUnusedBridgeMembers } from './lib/bridge-reachability.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './lib/report.ts';
 import { callSites, declaredFunction, functionParts, splitTopLevel, type FunctionParts } from './lib/source.ts';
@@ -43,11 +47,13 @@ type IpcStandardsInput = {
     contractType?: string;
     /** Parameter types that mark a handler receiver, for a project's own narrowed `IpcMain`. Default `['IpcMain']`. */
     receiverTypes?: string[];
+    /** Directories whose code is the renderer, for rule 9. Default `['src/renderer']`. */
+    renderer?: string[];
 };
 
 type IpcStandardsInspection = {
     problems: GateFailure[];
-    counts: { handlers: number; events: number; preloadChannels: number };
+    counts: { handlers: number; events: number; preloadChannels: number; bridgeMembers: number };
 };
 
 /** A call that, given the argument, checks its type or value. */
@@ -113,13 +119,14 @@ export function inspectIpcStandards({
     contract = 'src/schemas/electron.d.ts',
     contractType = 'ElectronAPI',
     receiverTypes = ['IpcMain'],
+    renderer = ['src/renderer'],
 }: IpcStandardsInput): IpcStandardsInspection {
     const problems: GateFailure[] = [];
     const fail: (file: string, what: string, why: string) => void = (file, what, why) =>
         problems.push({ file, what, why });
     const exists = (rel: string) => fs.existsSync(path.join(root, rel));
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
-    const empty = { problems, counts: { handlers: 0, events: 0, preloadChannels: 0 } };
+    const empty = { problems, counts: { handlers: 0, events: 0, preloadChannels: 0, bridgeMembers: 0 } };
 
     for (const rel of [mainIndex, preload]) {
         if (!exists(rel)) {
@@ -453,9 +460,41 @@ export function inspectIpcStandards({
         }
     }
 
+    // ── 9. Every bridge member is used by the renderer ───────────────────────
+    let bridgeMembers = 0;
+    const missing = renderer.filter((dir) => !exists(dir));
+    for (const dir of missing) {
+        fail(
+            dir,
+            'does not exist',
+            'Rule 9 reads the renderer from here. Point the `renderer` option at the real directories.',
+        );
+    }
+    // A missing or empty contract is rule 6's to report; there is nothing to walk.
+    const declaresContract =
+        exists(contract) && new RegExp(String.raw`\b(?:interface|type)\s+${contractType}\b`).test(read(contract));
+    if (missing.length === 0 && declaresContract) {
+        const reach = findUnusedBridgeMembers({ root, contract, contractType, renderer });
+        bridgeMembers = reach.members;
+        if (!reach.covered) {
+            fail(
+                contract,
+                `no tsconfig holds a renderer file and reaches \`${contractType}\``,
+                'Whether the renderer uses the bridge is answered by the TypeScript checker, so the renderer must belong to a project that sees the contract.',
+            );
+        }
+        for (const { member, file: at, line } of reach.unused) {
+            fail(
+                `${at}:${line}`,
+                `\`${member}\` is on the bridge, but nothing in ${renderer.join(', ')} uses it`,
+                'An unwired method keeps its whole chain looking alive: the preload calls the channel, so rule 4 passes the handler, and the handler is registered, so knip passes everything it reaches. Remove it from the contract and the preload; rule 4 then names the handler, and knip what only that handler used.',
+            );
+        }
+    }
+
     return {
         problems,
-        counts: { handlers: handlers.size, events: events.size, preloadChannels: preloadChannels.size },
+        counts: { handlers: handlers.size, events: events.size, preloadChannels: preloadChannels.size, bridgeMembers },
     };
 }
 
@@ -468,8 +507,9 @@ export function checkIpcStandards({ root = REPO_ROOT, ...rest }: IpcStandardsOpt
     report.done({
         summary:
             `IPC OK — ${plural(counts.handlers, 'handler')} and ${plural(counts.events, 'event')}, all documented, reachable, ` +
-            `validating every argument and matched by the preload's ${plural(counts.preloadChannels, 'channel')}; one bridge, typed.`,
+            `validating every argument and matched by the preload's ${plural(counts.preloadChannels, 'channel')}; one bridge, typed, ` +
+            `its ${plural(counts.bridgeMembers, 'member')} all used by the renderer.`,
         notMachineChecked:
-            'Whether a schema checks the RIGHT thing (a `z.string()` on a path is still a traversal parameter), whether a handler should exist at all, and whether the renderer uses the result the way the contract says.',
+            'Whether a schema checks the RIGHT thing (a `z.string()` on a path is still a traversal parameter), whether a handler should exist at all, and whether the renderer uses the result the way the contract says. A bridge member counts as used once the renderer reads it, or hands on an object holding it — whether that code path ever runs is not decidable from source.',
     });
 }

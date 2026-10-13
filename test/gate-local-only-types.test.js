@@ -12,7 +12,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { findLocalOnlyTypes, findProjects } from '../src/gates/lib/local-only-types.ts';
+import { findLocalOnlyTypes } from '../src/gates/lib/local-only-types.ts';
+import { findProjects } from '../src/gates/lib/programs.ts';
 
 const TSCONFIG = {
     compilerOptions: { strict: true, module: 'esnext', moduleResolution: 'bundler', noEmit: true },
