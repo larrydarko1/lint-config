@@ -71,6 +71,17 @@ test('any and unchecked casts stay banned in tests, where a fake with the wrong 
     }
 });
 
+test('dead conditions are caught in source and tests, but type predicates are trusted to check more than their type', async () => {
+    const eslint = new ESLint({ overrideConfigFile: true, baseConfig: base(), cwd: ROOT });
+    for (const file of ['src/main/index.ts', 'tests/thing.test.ts']) {
+        const resolved = await eslint.calculateConfigForFile(`${ROOT}/${file}`);
+        const [severity, options] = resolved.rules['@typescript-eslint/no-unnecessary-condition'];
+        assert.equal(severity, 2, file);
+        // `hasValue(s): s is string` also rejects '' — checking predicates would call that call dead.
+        assert.notEqual(options.checkTypePredicates, true, file);
+    }
+});
+
 test('testRules are merged after the defaults, so a project can relax one more', async () => {
     const config = base({
         testRules: { '@typescript-eslint/no-extraneous-class': 'off' },

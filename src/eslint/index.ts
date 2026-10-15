@@ -235,6 +235,14 @@ export function larry(options: LarryOptions): Linter.Config[] {
                         allowNullableObject: false,
                     },
                 ],
+                // Dead logic that looks alive: a ternary whose condition can only go one way, a `??`
+                // whose left side is never (or always) nullish. Only as honest as the types — a value
+                // typed on trust at a boundary gets its real guard reported as unnecessary. Type predicates
+                // are left alone: `hasValue(s)` on a string still rejects '', which `value is string` cannot say.
+                '@typescript-eslint/no-unnecessary-condition': [
+                    'error',
+                    { allowConstantLoopConditions: 'only-allowed-literals' },
+                ],
                 '@typescript-eslint/consistent-type-imports': [
                     'error',
                     { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
