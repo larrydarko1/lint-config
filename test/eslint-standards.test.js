@@ -54,11 +54,26 @@ test('the shared rules reach each family’s own frontend', async () => {
         'vue/require-typed-ref',
         'a11y/alt-text',
         'vue/no-v-html',
+        'vue/no-unused-properties',
     ];
     for (const rule of rules) {
         assert.equal(await severityOf(electronConfig(), 'src/renderer/App.vue', rule), 2, `electron ${rule}`);
         assert.equal(await severityOf(fullstackConfig(), 'frontend/src/App.vue', rule), 2, `fullstack ${rule}`);
     }
+});
+
+test('a test whose expect sits behind an if is caught in both families', async () => {
+    const rule = 'vitest/no-conditional-expect';
+    assert.equal(await severityOf(electronConfig(), 'tests/thing.test.ts', rule), 2, 'electron');
+    assert.equal(await severityOf(fullstackConfig(), 'api/src/__tests__/thing.test.ts', rule), 2, 'fullstack');
+});
+
+test('the globally registered router and i18n components are not undefined components', async () => {
+    const [severity, { ignorePatterns }] = await entryOf(fullstackConfig(), 'frontend/src/App.vue', 'vue/no-undef-components');
+    assert.equal(severity, 2);
+    for (const name of ['RouterView', 'router-link', 'i18n-t'])
+        assert.ok(ignorePatterns.some((pattern) => new RegExp(pattern).test(name)), name);
+    assert.ok(!ignorePatterns.some((pattern) => new RegExp(pattern).test('MediaCard')));
 });
 
 test('the full-stack locale files are linted where Orchid and Mosaic keep them', async () => {

@@ -58,6 +58,23 @@ export const vueStandards = (layout: { vue: string[]; frontend: string[] }) => [
             'vue/prefer-true-attribute-shorthand': 'error',
             'vue/prefer-separate-static-class': 'error',
             'vue/no-unused-refs': 'error',
+            'vue/block-lang': ['error', { script: { lang: 'ts' } }],
+            'vue/define-macros-order': 'error',
+            // A component the template names but nothing imports renders as an unknown element, silently.
+            // The router's and vue-i18n's are registered globally by their plugins.
+            'vue/no-undef-components': [
+                'error',
+                { ignorePatterns: ['^(RouterView|RouterLink|router-view|router-link|i18n-t|I18nT)$'] },
+            ],
+            'vue/no-undef-properties': 'error',
+            // A prop or emit nobody reads is a contract the parent keeps paying for.
+            'vue/no-unused-properties': 'error',
+            'vue/no-unused-emit-declarations': 'error',
+            'vue/require-explicit-slots': 'error',
+            'vue/prefer-use-template-ref': 'error',
+            'vue/no-template-target-blank': 'error',
+            'vue/no-useless-v-bind': 'error',
+            'vue/no-useless-mustaches': 'error',
             'vue/no-restricted-syntax': [
                 'error',
                 {

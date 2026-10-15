@@ -82,6 +82,23 @@ test('dead conditions are caught in source and tests, but type predicates are tr
     }
 });
 
+test('the loose rules keep the forms that are not mistakes: `!= null`, `() => resolve()`, a switch with a default', async () => {
+    const eslint = new ESLint({ overrideConfigFile: true, baseConfig: base(), cwd: ROOT });
+    const { rules } = await eslint.calculateConfigForFile(`${ROOT}/src/main/index.ts`);
+    assert.deepEqual(rules['eqeqeq'], [2, 'always', { null: 'ignore' }]);
+    assert.equal(rules['@typescript-eslint/no-confusing-void-expression'][1].ignoreArrowShorthand, true);
+    assert.equal(rules['@typescript-eslint/switch-exhaustiveness-check'][1].considerDefaultExhaustiveForUnions, true);
+});
+
+test('the type-checked preset rules are named one by one, so the template-literal rule keeps numbers', async () => {
+    const config = base();
+    assert.equal(await severityOf(config, 'src/main/index.ts', '@typescript-eslint/no-deprecated'), 2);
+    assert.equal(await severityOf(config, 'tests/thing.test.ts', '@typescript-eslint/use-unknown-in-catch-callback-variable'), 2);
+    const eslint = new ESLint({ overrideConfigFile: true, baseConfig: config, cwd: ROOT });
+    const { rules } = await eslint.calculateConfigForFile(`${ROOT}/src/main/index.ts`);
+    assert.notEqual(rules['@typescript-eslint/restrict-template-expressions'][1]?.allowNumber, false);
+});
+
 test('testRules are merged after the defaults, so a project can relax one more', async () => {
     const config = base({
         testRules: { '@typescript-eslint/no-extraneous-class': 'off' },
