@@ -1,6 +1,6 @@
 {
     "name": "@larrydarko/lint-config",
-    "version": "0.1.0-beta.8",
+    "version": "0.1.0-beta.9",
     "type": "module",
     "description": "Shared formatting, commit and style configuration for my projects.",
     "license": "MIT",
