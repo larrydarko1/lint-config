@@ -33,6 +33,10 @@
             "types": "./dist/eslint/fullstack/index.d.ts",
             "default": "./dist/eslint/fullstack/index.js"
         },
+        "./eslint/spa": {
+            "types": "./dist/eslint/spa/index.d.ts",
+            "default": "./dist/eslint/spa/index.js"
+        },
         "./eslint/presets": {
             "types": "./dist/eslint/presets.d.ts",
             "default": "./dist/eslint/presets.js"
@@ -48,6 +52,10 @@
         "./gates/code-style": {
             "types": "./dist/gates/code-style.d.ts",
             "default": "./dist/gates/code-style.js"
+        },
+        "./gates/contrast": {
+            "types": "./dist/gates/contrast.d.ts",
+            "default": "./dist/gates/contrast.js"
         },
         "./gates/db-drift": {
             "types": "./dist/gates/db-drift.d.ts",

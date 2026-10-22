@@ -3,7 +3,7 @@
  * a project overrides any of them with the `paths` option.
  */
 
-export type PresetName = 'electron' | 'fullstack';
+export type PresetName = 'electron' | 'fullstack' | 'spa';
 
 /** Glob lists, one per area the shared rules address. */
 export type PresetPaths = {
@@ -38,6 +38,25 @@ const electron: PresetPaths = {
     // A Python virtualenv (a tool installed with pip) is third-party code like node_modules, JS files and all.
     ignores: ['out/', 'dist-electron/', 'node_modules/', '**/.venv/', 'models/', 'coverage/', 'build/'],
     /** The config files that quote rule patterns, so naming-convention is off there. */
+    configFiles: ['eslint/**/*.js', 'eslint.config.js'],
+};
+
+/**
+ * A single-page app: one Vue app built by Vite, in one package, with no server of its own.
+ * Tests sit in `__tests__/` beside the code they test, so they are named like it.
+ */
+const spa: PresetPaths = {
+    source: ['src/**/*.{ts,vue}', 'scripts/**/*.ts'],
+    typedSource: ['src/**/*.{ts,vue}', 'scripts/**/*.ts', 'e2e/**/*.ts'],
+    tests: ['**/__tests__/**/*.ts', '**/*.test.ts', '**/*.spec.ts', '**/*.setup.ts', 'e2e/**/*.ts'],
+    namingIgnores: [],
+    browser: ['src/**/*.{ts,vue}'],
+    // The tool configs at the root run in Node too: Vite's, Vitest's, ESLint's own.
+    node: ['scripts/**/*.ts', '**/*.setup.ts', '*.config.{js,ts}'],
+    nodeAndBrowser: ['e2e/**/*.ts'],
+    vue: ['src/**/*.vue'],
+    // `public/` is copied into the build as it is, so it holds assets, not source.
+    ignores: ['dist/', 'node_modules/', 'public/', '**/.venv/', 'coverage/', 'playwright-report/'],
     configFiles: ['eslint/**/*.js', 'eslint.config.js'],
 };
 
@@ -117,7 +136,7 @@ const fullstackPaths = (layout: FullstackLayout): PresetPaths => ({
     configFiles: ['eslint/**/*.js', 'eslint.config.js'],
 });
 
-export const PRESETS: Record<PresetName, PresetPaths> = { electron, fullstack: fullstackPaths(fullstackLayout()) };
+export const PRESETS: Record<PresetName, PresetPaths> = { electron, fullstack: fullstackPaths(fullstackLayout()), spa };
 
 /** The preset's paths, for the full-stack family built from its workspaces, with the project's overrides applied. */
 export const resolvePaths = (

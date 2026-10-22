@@ -11,6 +11,7 @@ import { ESLint, Linter } from 'eslint';
 import { larry } from '../src/eslint/index.ts';
 import * as electron from '../src/eslint/electron/index.ts';
 import * as fullstack from '../src/eslint/fullstack/index.ts';
+import * as spa from '../src/eslint/spa/index.ts';
 
 const ROOT = '/tmp/lint-config-eslint-test';
 
@@ -31,8 +32,9 @@ const electronConfig = (options) =>
     larry({ preset: 'electron', rootDir: ROOT, standards: electron.electronStandards(options) });
 const fullstackConfig = (options) =>
     larry({ preset: 'fullstack', rootDir: ROOT, standards: fullstack.fullstackStandards(options) });
+const spaConfig = (options) => larry({ preset: 'spa', rootDir: ROOT, standards: spa.spaStandards(options) });
 
-test('both families export the same shared selectors, not copies of them', () => {
+test('every family exports the same shared selectors, not copies of them', () => {
     const shared = [
         'bannedCryptoModules',
         'configModuleSelectors',
@@ -44,7 +46,10 @@ test('both families export the same shared selectors, not copies of them', () =>
         'aliasOnlyImportPatterns',
         'functionContractsPlugin',
     ];
-    for (const name of shared) assert.equal(electron[name], fullstack[name], name);
+    for (const name of shared) {
+        assert.equal(electron[name], fullstack[name], name);
+        assert.equal(spa[name], fullstack[name], name);
+    }
 });
 
 test('the shared rules reach each family’s own frontend', async () => {
@@ -59,20 +64,29 @@ test('the shared rules reach each family’s own frontend', async () => {
     for (const rule of rules) {
         assert.equal(await severityOf(electronConfig(), 'src/renderer/App.vue', rule), 2, `electron ${rule}`);
         assert.equal(await severityOf(fullstackConfig(), 'frontend/src/App.vue', rule), 2, `fullstack ${rule}`);
+        assert.equal(await severityOf(spaConfig(), 'src/App.vue', rule), 2, `spa ${rule}`);
     }
 });
 
-test('a test whose expect sits behind an if is caught in both families', async () => {
+test('a test whose expect sits behind an if is caught in every family', async () => {
     const rule = 'vitest/no-conditional-expect';
     assert.equal(await severityOf(electronConfig(), 'tests/thing.test.ts', rule), 2, 'electron');
     assert.equal(await severityOf(fullstackConfig(), 'api/src/__tests__/thing.test.ts', rule), 2, 'fullstack');
+    assert.equal(await severityOf(spaConfig(), 'src/composables/__tests__/thing.test.ts', rule), 2, 'spa');
 });
 
 test('the globally registered router and i18n components are not undefined components', async () => {
-    const [severity, { ignorePatterns }] = await entryOf(fullstackConfig(), 'frontend/src/App.vue', 'vue/no-undef-components');
+    const [severity, { ignorePatterns }] = await entryOf(
+        fullstackConfig(),
+        'frontend/src/App.vue',
+        'vue/no-undef-components',
+    );
     assert.equal(severity, 2);
     for (const name of ['RouterView', 'router-link', 'i18n-t'])
-        assert.ok(ignorePatterns.some((pattern) => new RegExp(pattern).test(name)), name);
+        assert.ok(
+            ignorePatterns.some((pattern) => new RegExp(pattern).test(name)),
+            name,
+        );
     assert.ok(!ignorePatterns.some((pattern) => new RegExp(pattern).test('MediaCard')));
 });
 
@@ -80,6 +94,13 @@ test('the full-stack locale files are linted where Orchid and Mosaic keep them',
     const rule = '@intlify/vue-i18n/no-missing-keys-in-other-locales';
     assert.equal(await severityOf(fullstackConfig(), 'frontend/src/i18n/locales/en.json', rule), 2);
     assert.equal(await severityOf(electronConfig(), 'assets/locales/en.json', rule), 2);
+});
+
+test('the SPA keeps its locale files where the full-stack frontend does, under src/i18n', async () => {
+    const rule = '@intlify/vue-i18n/no-missing-keys-in-other-locales';
+    assert.equal(await severityOf(spaConfig(), 'src/i18n/locales/en.json', rule), 2);
+    const moved = spaConfig({ i18n: { localeFiles: 'src/locales/*.json' } });
+    assert.equal(await severityOf(moved, 'src/locales/en.json', rule), 2);
 });
 
 test('the <i18n> block message names the folder the locales are really in', async () => {
@@ -97,10 +118,11 @@ test('customLocales lets a locale that is not a language code through', async ()
     assert.deepEqual(entry[1].locales, ['brainrot']);
 });
 
-test('i18n: false drops the i18n rules in both families', async () => {
+test('i18n: false drops the i18n rules in every family', async () => {
     const rule = '@intlify/vue-i18n/no-missing-keys';
     assert.equal(await severityOf(electronConfig({ i18n: false }), 'src/renderer/App.vue', rule), 'absent');
     assert.equal(await severityOf(fullstackConfig({ i18n: false }), 'frontend/src/App.vue', rule), 'absent');
+    assert.equal(await severityOf(spaConfig({ i18n: false }), 'src/App.vue', rule), 'absent');
 });
 
 test('globalStylesheet defaults to the family’s and can be set in either', async () => {
@@ -109,6 +131,7 @@ test('globalStylesheet defaults to the family’s and can be set in either', asy
 
     assert.equal(await plainAllowed(electronConfig(), 'src/renderer/App.vue'), true);
     assert.equal(await plainAllowed(fullstackConfig(), 'frontend/src/App.vue'), false);
+    assert.equal(await plainAllowed(spaConfig(), 'src/App.vue'), false);
     assert.equal(
         await plainAllowed(
             fullstackConfig({ html: { globalStylesheet: ['frontend/src/App.vue'] } }),
@@ -125,14 +148,47 @@ test('markerFiles defaults to the family’s and can be set in either', async ()
     assert.equal(await severityOf(fullstackConfig(), 'eslint.config.js', rule), 0);
 });
 
-test('a declaration file may export default in both families — the *.vue shim has to', async () => {
+test('a declaration file may export default in every family — the *.vue shim has to', async () => {
     const rule = 'no-restricted-exports';
     assert.equal(await severityOf(electronConfig(), 'src/renderer/shims-vue.d.ts', rule), 'absent');
     assert.equal(await severityOf(fullstackConfig(), 'frontend/src/shims-vue.d.ts', rule), 'absent');
     assert.equal(await severityOf(fullstackConfig(), 'frontend/src/main.ts', rule), 2);
+    assert.equal(await severityOf(spaConfig(), 'src/shims-vue.d.ts', rule), 'absent');
+    assert.equal(await severityOf(spaConfig(), 'src/main.ts', rule), 2);
 });
 
-test('both families ban same-directory relative imports, not only parent ones', () => {
+test('the SPA bans console in the app, not in its tests, and consoleAllowed opens one file', async () => {
+    assert.equal(await severityOf(spaConfig(), 'src/main.ts', 'no-console'), 2);
+    assert.equal(await severityOf(spaConfig(), 'src/__tests__/main.test.ts', 'no-console'), 'absent');
+    const config = spaConfig({ logging: { consoleAllowed: ['src/App.vue'] } });
+    assert.equal(await severityOf(config, 'src/App.vue', 'no-console'), 0);
+    assert.equal(await severityOf(config, 'src/main.ts', 'no-console'), 2);
+});
+
+test('SPA tests sit beside their code, so they are named like it and need no return types', async () => {
+    const file = 'src/composables/__tests__/useTheme.test.ts';
+    assert.equal(await severityOf(spaConfig(), file, '@typescript-eslint/naming-convention'), 2);
+    assert.equal(await severityOf(spaConfig(), file, '@typescript-eslint/explicit-function-return-type'), 'absent');
+    assert.equal(
+        await severityOf(
+            spaConfig(),
+            'src/composables/useTheme.ts',
+            '@typescript-eslint/explicit-function-return-type',
+        ),
+        2,
+    );
+});
+
+test('the SPA lints its tool configs as Node and leaves public/ alone', async () => {
+    const eslint = new ESLint({ overrideConfigFile: true, baseConfig: spaConfig(), cwd: ROOT });
+    const vite = await eslint.calculateConfigForFile(`${ROOT}/vite.config.ts`);
+    assert.ok('process' in vite.languageOptions.globals);
+    const app = await eslint.calculateConfigForFile(`${ROOT}/src/main.ts`);
+    assert.ok(!('process' in app.languageOptions.globals));
+    assert.equal(await eslint.isPathIgnored(`${ROOT}/public/demos/app.js`), true);
+});
+
+test('every family bans same-directory relative imports, not only parent ones', () => {
     const groups = electron.aliasOnlyImportPatterns.flatMap((pattern) => pattern.group);
     assert.ok(groups.includes('./*'));
     assert.ok(groups.includes('../*'));

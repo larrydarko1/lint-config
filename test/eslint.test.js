@@ -93,7 +93,10 @@ test('the loose rules keep the forms that are not mistakes: `!= null`, `() => re
 test('the type-checked preset rules are named one by one, so the template-literal rule keeps numbers', async () => {
     const config = base();
     assert.equal(await severityOf(config, 'src/main/index.ts', '@typescript-eslint/no-deprecated'), 2);
-    assert.equal(await severityOf(config, 'tests/thing.test.ts', '@typescript-eslint/use-unknown-in-catch-callback-variable'), 2);
+    assert.equal(
+        await severityOf(config, 'tests/thing.test.ts', '@typescript-eslint/use-unknown-in-catch-callback-variable'),
+        2,
+    );
     const eslint = new ESLint({ overrideConfigFile: true, baseConfig: config, cwd: ROOT });
     const { rules } = await eslint.calculateConfigForFile(`${ROOT}/src/main/index.ts`);
     assert.notEqual(rules['@typescript-eslint/restrict-template-expressions'][1]?.allowNumber, false);
@@ -169,7 +172,7 @@ test('paths override the preset without having to restate the rest of it', () =>
     assert.deepEqual(paths.browser, PRESETS.electron.browser);
 });
 
-test("both presets leave a Python virtualenv's vendored JavaScript alone, wherever it sits", async () => {
+test("every preset leaves a Python virtualenv's vendored JavaScript alone, wherever it sits", async () => {
     for (const preset of Object.keys(PRESETS)) {
         const eslint = new ESLint({
             overrideConfigFile: true,
@@ -182,7 +185,7 @@ test("both presets leave a Python virtualenv's vendored JavaScript alone, wherev
     }
 });
 
-test('both presets produce a config ESLint accepts end to end', async () => {
+test('every preset produces a config ESLint accepts end to end', async () => {
     for (const preset of Object.keys(PRESETS)) {
         const eslint = new ESLint({
             overrideConfigFile: true,

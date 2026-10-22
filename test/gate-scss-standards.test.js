@@ -415,6 +415,15 @@ test('a var() nothing declares fails', (t) => {
     assert.match(whats(result), /App\.vue: uses `var\(--ghost\)`, which nothing declares/);
 });
 
+test('a var() a component declares in its own styles resolves, and a misspelling of it does not', (t) => {
+    const component = (used) =>
+        `<style lang="scss">\n.avatar {\n    --avatar-size: 10rem;\n    width: var(--${used});\n}\n</style>\n`;
+    const declared = run(t, good({ 'src/App.vue': component('avatar-size') }));
+    assert.equal(declared.problems.length, 0, whats(declared));
+    const misspelt = run(t, good({ 'src/App.vue': component('avatar-sise') }));
+    assert.match(whats(misspelt), /uses `var\(--avatar-sise\)`, which nothing declares/);
+});
+
 test('a var() naming a token the mixin interpolates into existence resolves', (t) => {
     const result = run(
         t,

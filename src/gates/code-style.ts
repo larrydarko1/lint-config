@@ -33,6 +33,12 @@ export type CodeStyleOptions = {
     aliasedRoots?: string[];
     /** SFCs that legitimately own a global style block, such as an app root. */
     globalStyles?: string[];
+    /**
+     * Let style blocks and stylesheets carry explanations, not only section dividers.
+     * Defaults to false. Say why next to it: a project whose stylesheets are short and
+     * whose comments say why a property has the value it has, which no markup can.
+     */
+    styleExplanations?: boolean;
 };
 
 type CaseStyle = 'kebab' | 'camel' | 'pascal';
@@ -51,7 +57,6 @@ type HeaderRule = {
     /** `jsdoc` a `/** ... *\/` block, `comment` any leading comment, `none` a BAN on one. */
     require: 'jsdoc' | 'comment' | 'none';
 };
-
 
 type CodeStyleInput = Omit<CodeStyleOptions, 'root'> & { root: string };
 
@@ -124,6 +129,7 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
         headers = [],
         aliasedRoots = [],
         globalStyles = [],
+        styleExplanations = false,
     } = input;
 
     const problems: GateFailure[] = [];
@@ -313,7 +319,9 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
             for (const match of block.matchAll(STYLE_COMMENT)) {
                 const whole = match[0];
                 const text = (match[1] ?? '').trim();
-                if (text.startsWith('stylelint-')) continue;
+                // Control comments for another tool: stylelint's, and the contrast gate's opt-out.
+                if (text.startsWith('stylelint-') || text.startsWith('contrast-exempt:')) continue;
+                if (styleExplanations) continue;
                 if (globalSheet && whole.startsWith('/**')) continue;
                 if (DIVIDER.test(text)) continue;
                 fail(

@@ -420,6 +420,23 @@ test('a stylelint control comment is left alone', (t) => {
     assert.deepEqual(run(root, { casing: CAMEL }).problems, []);
 });
 
+test("the contrast gate's exemption marker is left alone", (t) => {
+    const root = tree(t, {
+        'src/Widget.vue': SFC.replace('.x {', '/* contrast-exempt: aria-hidden ornament */\n.x {'),
+    });
+    assert.deepEqual(run(root, { casing: CAMEL }).problems, []);
+});
+
+test('styleExplanations lets a prose comment stay, in an SFC and in a stylesheet', (t) => {
+    const root = tree(t, {
+        'src/Widget.vue': SFC.replace('.x {', '/* red because the design says so */\n.x {'),
+        'src/styles/_base.scss':
+            '.x {\n    color: red;\n}\n\n/* a note about the reset */\n.y {\n    color: blue;\n}\n',
+    });
+    assert.equal(run(root, { casing: CAMEL }).problems.length, 2);
+    assert.deepEqual(run(root, { casing: CAMEL, styleExplanations: true }).problems, []);
+});
+
 test('a standalone stylesheet is checked too', (t) => {
     const root = tree(t, {
         'src/styles/_base.scss':

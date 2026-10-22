@@ -83,7 +83,7 @@ type EmittingModule = {
  *   • `css-blocks`   — literal custom-property blocks, visible to stylelint.
  *   • `json-presets` — JSON files on disk, for users to hand-edit.
  */
-type ThemeSource = ScssMapThemes | CssBlockThemes | JsonPresetThemes;
+export type ThemeSource = ScssMapThemes | CssBlockThemes | JsonPresetThemes;
 
 type ScssMapThemes = {
     source: 'scss-maps';
@@ -387,12 +387,15 @@ export function inspectScssStandards({
 
     // 7b. Every `var(--token)` resolves to something.
     // A map-driven project's names are reconstructed from the map keys and the mixin prefix.
+    // A property a component declares in its own styles resolves too: custom properties
+    // inherit, so whatever sets `--x` on an element reaches every `var(--x)` below it.
     const declared = new Set([
         ...(fallback ?? []),
         ...(reference ?? []),
         ...[...(reference ?? [])].map((key) => `${emitPrefix}${key}`),
         ...invariant,
         ...Object.keys(componentLocalVars),
+        ...styleFiles.flatMap((rel) => cssCustomProps(stripComments(read(rel)))),
     ]);
     if (declared.size > 0) {
         const unresolved: Map<string, string> = new Map();

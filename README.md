@@ -3,11 +3,12 @@
 Formatting, linting, commit rules and CI quality gates for my projects, kept in one package so a
 rule is changed once and every project picks it up on its next update.
 
-It is opinionated and built for two kinds of project:
+It is opinionated and built for three kinds of project:
 
 - **fullstack**: a Vue frontend and an Express API as npm workspaces, with a worker, a database
   and a websocket gateway.
 - **electron**: a Vue desktop app split into main, preload and renderer.
+- **spa**: a Vue app built by Vite, in one package, with no server of its own.
 
 You are welcome to use it, but expect the defaults to be mine. Every setting that varies between
 projects is an option, and everything else is fixed.
@@ -100,7 +101,7 @@ import { larry } from '@larrydarko/lint-config/eslint';
 import { electronStandards } from '@larrydarko/lint-config/eslint/electron';
 
 export default larry({
-    preset: 'electron', // or 'fullstack'
+    preset: 'electron', // or 'fullstack', or 'spa'
     rootDir: import.meta.dirname,
     standards: electronStandards(),
     overrides: [/* this project's own blocks */],
@@ -116,17 +117,35 @@ export default larry({
 - Prettier compatibility, applied last
 
 `preset` chooses a family's folder layout, and `paths` overrides any part of it. The family
-modules (`/eslint/electron` and `/eslint/fullstack`) export the standards blocks. They also export
-the selectors, banned-import lists and rule plugins those blocks are built from, so the
-project's own per-folder blocks can reuse them in `overrides`.
+modules (`/eslint/electron`, `/eslint/fullstack` and `/eslint/spa`) export the standards blocks.
+They also export the selectors, banned-import lists and rule plugins those blocks are built from,
+so the project's own per-folder blocks can reuse them in `overrides`.
 
-Most standards are the same in both families. Security, TypeScript, env, Vue, HTML and a11y,
+Most standards are the same in every family. Security, TypeScript, env, Vue, HTML and a11y,
 i18n, refactoring, testing and the function contracts are one implementation each, applied to
 that family's folders. Only the rules about a family's architecture differ: process or
-workspace boundaries, its logger, and the full-stack api, database and websocket rules. Both
-`electronStandards()` and `fullstackStandards()` accept the same options: `security.vHtmlAllowed`,
-`html.globalStylesheet`, `refactoring.markerFiles` and `i18n` (or `i18n: false`).
-`fullstackStandards()` also accepts `logging.consoleAllowed`.
+workspace boundaries, its logger, and the full-stack api, database and websocket rules. All three
+standards functions accept the same options: `security.vHtmlAllowed`, `html.globalStylesheet`,
+`refactoring.markerFiles` and `i18n` (or `i18n: false`). `fullstackStandards()` and
+`spaStandards()` also accept `logging.consoleAllowed`.
+
+**The SPA family is the full-stack frontend on its own.** It applies the shared standards to
+`src/` and nothing for a backend, since it has none. Its layout follows the full-stack frontend:
+tests in a `__tests__/` folder beside the code they test (`src/composables/__tests__/useTheme.test.ts`),
+locale files in `src/i18n/locales/`, Node scripts in `scripts/` with their own tsconfig, and
+`public/` left unlinted because Vite copies it into the build untouched.
+
+```js
+// eslint.config.js
+import { larry } from '@larrydarko/lint-config/eslint';
+import { spaStandards } from '@larrydarko/lint-config/eslint/spa';
+
+export default larry({
+    preset: 'spa',
+    rootDir: import.meta.dirname,
+    standards: spaStandards({ i18n: { ignoreText: ['Acme'] } }),
+});
+```
 
 **No `any`, no unchecked casts, tests included.** `no-explicit-any`, the `no-unsafe-*` family and
 `no-unsafe-type-assertion` are errors in every typed file. A cast that narrows (`as never`, `as unknown as T`,
@@ -192,7 +211,7 @@ quietly find no tsconfig.
 
 | Option             | Default      | What it is for                                                          |
 | ------------------ | ------------ | ----------------------------------------------------------------------- |
-| `preset`           | —            | `'electron'` or `'fullstack'`                                           |
+| `preset`           | —            | `'electron'`, `'fullstack'` or `'spa'`                                  |
 | `rootDir`          | —            | the project root; **required**                                          |
 | `workspaces`       | the four     | full-stack only: which workspace plays which role                       |
 | `paths`            | the preset's | override `source`, `tests`, `browser`, `node`, `ignores`, …             |
@@ -272,32 +291,38 @@ gates also export an `inspect*` function that returns the failures instead of pr
 use in tests. Most gates run with no options. Options exist for things only the project knows:
 its source roots, its services, and exceptions it has approved, each with a stated reason.
 
-| Gate                       | Family    | Checks                                                                   |
-| -------------------------- | --------- | ------------------------------------------------------------------------ |
-| `audit`                    | both      | `npm audit`, with a reviewed allowlist that expires                      |
-| `code-style`               | both      | file names, file length, SFC block order, stale size baselines           |
-| `dead-code`                | both      | unused code and dependencies, undeclared imports, import cycles (knip)   |
-| `declaration-order`        | both      | the order of imports, types, constants and functions in a module         |
-| `duplication`              | both      | copy-paste ceilings and a clone-size cap (jscpd); no icon drawn twice    |
-| `html-standards`           | both      | `index.html`: shell, CSP, entry module, remote resources, reduced motion |
-| `i18n`                     | both      | two-letter locale files; plurals, placeholders and arrays agree; options |
-| `package-json`             | both      | manifest fields, version ranges, and the toolchain rule below            |
-| `pipeline`                 | both      | every gate runs in CI; timeouts, permissions, SHA-pinned actions, …      |
-| `refactoring`              | both      | no deferral markers left in code                                         |
-| `scss-standards`           | both      | the entry, Vite injection, theme parity, self-hosted fonts               |
-| `testing`                  | both      | suite layout, `.only`/`.skip`, coverage ratchet, E2E server-error wiring |
-| `tsconfigs`                | both      | compiler flags stay at the standard                                      |
-| `electron-security`        | electron  | `webPreferences`, navigation, permissions, `v-html`, TLS overrides       |
-| `error-handling/electron`  | electron  | IPC handlers contain failures, process backstops, cleanup on quit        |
-| `ipc-standards`            | electron  | channels, docs and preload agree; the renderer uses every bridge member  |
-| `api-standards`            | fullstack | route map, middleware order, rate limits, response schemas, the contract |
-| `db-drift`                 | fullstack | collection registry, indexes, migrations, drain order, ops scripts       |
-| `docker`                   | fullstack | image rules that need no Docker daemon, including no secrets in layers   |
-| `env-drift`                | fullstack | the env schema and `.env.example` files agree; secrets have no default   |
-| `error-handling/fullstack` | fullstack | the status policy, error codes and their translations                    |
-| `metrics`                  | fullstack | scrape config, probes, metric cardinality                                |
-| `security-drift`           | fullstack | security controls whose failure is silent                                |
-| `ws-standards`             | fullstack | one socket server, one client, and the handshake order                   |
+| Gate                       | Family    | Checks                                                                         |
+| -------------------------- | --------- | ------------------------------------------------------------------------------ |
+| `audit`                    | all       | `npm audit`, with a reviewed allowlist that expires                            |
+| `code-style`               | all       | file names, file length, SFC block order, stale size baselines                 |
+| `contrast`                 | all       | every text token clears AA on every background, in every theme; no dimmed text |
+| `dead-code`                | all       | unused code and dependencies, undeclared imports, import cycles (knip)         |
+| `declaration-order`        | all       | the order of imports, types, constants and functions in a module               |
+| `duplication`              | all       | copy-paste ceilings and a clone-size cap (jscpd); no icon drawn twice          |
+| `html-standards`           | all       | `index.html`: shell, CSP, entry module, remote resources, reduced motion       |
+| `i18n`                     | all       | two-letter locale files; plurals, placeholders and arrays agree; options       |
+| `package-json`             | all       | manifest fields, version ranges, and the toolchain rule below                  |
+| `pipeline`                 | all       | every gate runs in CI; timeouts, permissions, SHA-pinned actions, …            |
+| `refactoring`              | all       | no deferral markers left in code                                               |
+| `scss-standards`           | all       | the entry, Vite injection, theme parity, self-hosted fonts                     |
+| `testing`                  | all       | suite layout, `.only`/`.skip`, coverage ratchet, E2E server-error wiring       |
+| `tsconfigs`                | all       | compiler flags stay at the standard                                            |
+| `electron-security`        | electron  | `webPreferences`, navigation, permissions, `v-html`, TLS overrides             |
+| `error-handling/electron`  | electron  | IPC handlers contain failures, process backstops, cleanup on quit              |
+| `ipc-standards`            | electron  | channels, docs and preload agree; the renderer uses every bridge member        |
+| `api-standards`            | fullstack | route map, middleware order, rate limits, response schemas, the contract       |
+| `db-drift`                 | fullstack | collection registry, indexes, migrations, drain order, ops scripts             |
+| `docker`                   | fullstack | image rules that need no Docker daemon, including no secrets in layers         |
+| `env-drift`                | fullstack | the env schema and `.env.example` files agree; secrets have no default         |
+| `error-handling/fullstack` | fullstack | the status policy, error codes and their translations                          |
+| `metrics`                  | fullstack | scrape config, probes, metric cardinality                                      |
+| `security-drift`           | fullstack | security controls whose failure is silent                                      |
+| `ws-standards`             | fullstack | one socket server, one client, and the handshake order                         |
+
+`contrast` takes the same `themes` object as `scss-standards`, so both read the palettes from one
+description. It measures `text` tokens against `backgrounds` tokens in every palette, and with
+`scan` it also fails a rule that colours text and then lowers its `opacity`. An ornament that is
+hidden from assistive tech opts out with `/* contrast-exempt: <reason> */` above its rule.
 
 `dead-code` and `duplication` accept `--all`, which prints the tool's own full report instead of
 pass or fail. List `vue` in `.jscpd.json` and jscpd reports template markup as `html` on its own.
