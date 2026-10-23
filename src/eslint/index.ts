@@ -48,7 +48,7 @@ export type LarryOptions = {
     testRules?: Linter.RulesRecord;
     /** Extra rules for all source files, merged last. */
     rules?: Linter.RulesRecord;
-    /** Standards blocks (security, logging, …) to splice in: `electronStandards()`, `fullstackStandards()` or `spaStandards()`. */
+    /** Standards blocks (security, logging, …) to splice in: `electronStandards()`, `fullstackStandards()`, `spaStandards()` or `tauriStandards()`. */
     standards?: Linter.Config[] | ((layout: FullstackLayout) => Linter.Config[]);
     /** The project's own blocks — the per-area `no-restricted-syntax`/`no-restricted-imports` wiring. Appended last, before Prettier. */
     overrides?: Linter.Config[];

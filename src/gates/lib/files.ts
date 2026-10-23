@@ -25,7 +25,7 @@ const matches = (filter: PathFilter, rel: string): boolean =>
  * Every file under `dirs`, as paths relative to `root`, sorted so output is stable
  * across filesystems.
  * @param root Repository root.
- * @param dirs One or more directories, relative to `root`.
+ * @param dirs One or more directories, relative to `root`. A file is read as itself.
  * @param [options.match] Keep only paths matching this. Defaults to every file.
  * @param [options.exclude] Drop paths matching this, applied after `match`.
  */
@@ -33,20 +33,25 @@ export function walkFiles(root: string, dirs: string | string[], options: WalkOp
     const { match, exclude } = options;
     const out: string[] = [];
 
+    const keep = (rel: string) => {
+        if (match !== undefined && !matches(match, rel)) return;
+        if (exclude === undefined || !matches(exclude, rel)) out.push(rel);
+    };
     const visit = (rel: string) => {
-        const absolute = path.join(root, rel);
-        if (!fs.existsSync(absolute)) return;
-        for (const entry of fs.readdirSync(absolute, { withFileTypes: true })) {
+        for (const entry of fs.readdirSync(path.join(root, rel), { withFileTypes: true })) {
             const child = `${rel}/${entry.name}`;
-            if (entry.isDirectory()) {
-                visit(child);
-            } else if (match === undefined || matches(match, child)) {
-                if (exclude === undefined || !matches(exclude, child)) out.push(child);
-            }
+            if (entry.isDirectory()) visit(child);
+            else keep(child);
         }
     };
 
-    for (const dir of Array.isArray(dirs) ? dirs : [dirs]) visit(dir);
+    for (const dir of Array.isArray(dirs) ? dirs : [dirs]) {
+        const absolute = path.join(root, dir);
+        if (!fs.existsSync(absolute)) continue;
+        // A file named as a root is read on its own: `src-tauri/build.rs` without `src-tauri/target/`.
+        if (fs.statSync(absolute).isDirectory()) visit(dir);
+        else keep(dir);
+    }
     return out.sort();
 }
 

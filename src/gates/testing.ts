@@ -261,7 +261,19 @@ export function inspectTesting(input: TestingInput): TestingInspection {
             );
             continue;
         }
-        const area = rel.split('/')[1] ?? '';
+        const [area = '', ...below] = rel.slice(layout.root.length + 1).split('/');
+        if (layout.areas !== undefined && below.length === 0) {
+            // A suite at the top of the tree mirrors a file at the top of src/: tests/App.test.ts ↔ src/App.vue.
+            const stem = area.replace(/\.test\.ts$/, '');
+            if (!['.ts', '.vue'].some((ext) => exists(`src/${stem}${ext}`))) {
+                fail(
+                    rel,
+                    `sits at the top of \`${layout.root}/\`, but \`src/\` has no \`${stem}.ts\` or \`${stem}.vue\``,
+                    `A suite directly in \`${layout.root}/\` mirrors a file directly in \`src/\`. With nothing there to mirror, the suite belongs in the area of the code it tests.`,
+                );
+            }
+            continue;
+        }
         if (layout.areas !== undefined && !layout.areas.includes(area)) {
             fail(
                 rel,

@@ -91,6 +91,16 @@ test('a mirrored project fails an area that mirrors nothing', (t) => {
     assert.deepEqual(whats(run(root)), ['sits under `tests/widgets/`, which mirrors no `src/` directory']);
 });
 
+test('a suite at the top of the tree mirrors a file at the top of src/', (t) => {
+    const root = repo(t, good({ 'src/App.vue': '<template />\n', 'tests/App.test.ts': SUITE }));
+    assert.deepEqual(run(root).problems, []);
+});
+
+test('a suite at the top of the tree fails when src/ has no file of its name', (t) => {
+    const root = repo(t, good({ 'tests/Widget.test.ts': SUITE }));
+    assert.deepEqual(whats(run(root)), ['sits at the top of `tests/`, but `src/` has no `Widget.ts` or `Widget.vue`']);
+});
+
 test('a mirrored project with no area list allows any area', (t) => {
     const root = repo(t, good({ 'tests/widgets/thing.test.ts': SUITE }));
     assert.deepEqual(run(root, { layout: { kind: 'mirrored', root: 'tests' } }).problems, []);

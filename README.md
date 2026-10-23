@@ -101,7 +101,7 @@ import { larry } from '@larrydarko/lint-config/eslint';
 import { electronStandards } from '@larrydarko/lint-config/eslint/electron';
 
 export default larry({
-    preset: 'electron', // or 'fullstack', or 'spa'
+    preset: 'electron', // or 'fullstack', 'spa' or 'tauri'
     rootDir: import.meta.dirname,
     standards: electronStandards(),
     overrides: [/* this project's own blocks */],
@@ -117,14 +117,14 @@ export default larry({
 - Prettier compatibility, applied last
 
 `preset` chooses a family's folder layout, and `paths` overrides any part of it. The family
-modules (`/eslint/electron`, `/eslint/fullstack` and `/eslint/spa`) export the standards blocks.
+modules (`/eslint/electron`, `/eslint/fullstack`, `/eslint/spa` and `/eslint/tauri`) export the standards blocks.
 They also export the selectors, banned-import lists and rule plugins those blocks are built from,
 so the project's own per-folder blocks can reuse them in `overrides`.
 
 Most standards are the same in every family. Security, TypeScript, env, Vue, HTML and a11y,
 i18n, refactoring, testing and the function contracts are one implementation each, applied to
 that family's folders. Only the rules about a family's architecture differ: process or
-workspace boundaries, its logger, and the full-stack api, database and websocket rules. All three
+workspace boundaries, its logger, and the full-stack api, database and websocket rules. All four
 standards functions accept the same options: `security.vHtmlAllowed`, `html.globalStylesheet`,
 `refactoring.markerFiles` and `i18n` (or `i18n: false`). `fullstackStandards()` and
 `spaStandards()` also accept `logging.consoleAllowed`.
@@ -144,6 +144,41 @@ export default larry({
     preset: 'spa',
     rootDir: import.meta.dirname,
     standards: spaStandards({ i18n: { ignoreText: ['Acme'] } }),
+});
+```
+
+**The Tauri family is an SPA in a webview, plus one boundary.** ESLint sees only the webview. It
+never walks `src-tauri/`, where the Rust side is linted by Clippy. So `tauriStandards()` applies the
+shared standards to `src/`, plus two bridge rules. Only `src/bridge/` may import `@tauri-apps/api` or
+a `@tauri-apps/plugin-*`, or touch the `__TAURI__` globals (`larry/no-tauri-outside-bridge`). In the
+bridge, where Rust's rejections arrive, `larry/no-caught-message-leak` keeps their English out of what
+it returns. The app is one package, so tests mirror `src/` in `tests/`, as in the Electron family.
+`webviewBannedImports` (Node built-ins, Electron), `loggerCallSelectors` and `errorHandlingSelectors`
+(no log-and-rethrow) are exported for the project's own blocks. The standard behind the family is `prompts/7_security/tauri.instructions.md` in
+the workflow repo. Three gates cover what ESLint cannot see: the config and the capabilities
+(`tauri-security`), the command chain from Rust to the bridge (`tauri-commands`), and the Rust side's
+error handling (`error-handling/tauri`).
+
+```js
+// eslint.config.js
+import { larry } from '@larrydarko/lint-config/eslint';
+import { aliasOnlyImportPatterns, tauriStandards, webviewBannedImports } from '@larrydarko/lint-config/eslint/tauri';
+
+export default larry({
+    preset: 'tauri',
+    rootDir: import.meta.dirname,
+    standards: tauriStandards({ i18n: false }),
+    overrides: [
+        {
+            files: ['src/**/*.{ts,vue}'],
+            rules: {
+                'no-restricted-imports': [
+                    'error',
+                    { patterns: [...webviewBannedImports.patterns, ...aliasOnlyImportPatterns] },
+                ],
+            },
+        },
+    ],
 });
 ```
 
@@ -172,17 +207,20 @@ whole-file exception at the very top.
 
 - `larry/no-caught-message-leak` — a caught error's `message` or `stack` may reach a logger, an error's message
   argument or AppError's `logContext`, and nothing else: not a return value, a call, or a property write. On in
-  the full-stack api and services, and the Electron main and preload processes. AppError takes its message
+  the full-stack api and services, the Electron main and preload processes, and the Tauri bridge. AppError takes its message
   third; pass `{ messageArgs: { MyError: 1 } }` for another class that does not take it first.
 - `larry/no-inline-svg` — an `<svg>` that draws a fixed picture belongs in `components/icons/`; one drawn from
-  data (a binding, a `v-for`, an interpolation, a `<slot>`) stays inline. On every component in both families.
+  data (a binding, a `v-for`, an interpolation, a `<slot>`) stays inline. On every component in every family.
 - `larry/icon-component` — a file in `components/icons/` is one root `<svg>`, `aria-hidden="true"`, with no
   static `id`. `duplication` adds the cross-file half: no two icon files draw the same picture.
 - `larry/no-native-dialog` — no `alert()`, `confirm()` or `prompt()`, bare or through `window`, `globalThis` or
   `self`. They freeze the window and ignore the app's theme, and Electron does not implement `prompt()`. The
   user is told through the app's notification function, and asked through its own dialog. A binding the module
   declares or imports under one of those names is not the browser's, and passes. On everything that runs in the
-  Vue app, in both families.
+  Vue app, in every family.
+- `larry/no-tauri-outside-bridge` — `@tauri-apps/*` is imported in `src/bridge/` and nowhere else, types
+  included, and nothing else reads `window.__TAURI__` or `__TAURI_INTERNALS__`, or tests for them with `in`. A local
+  module whose path merely contains `tauri` passes. On the Tauri webview outside its bridge.
 
 **Full-stack workspaces are roles.** The full-stack rules are written against four roles, not
 folder names: `frontend` (the Vue app), `api` (the HTTP service), `services` (Node processes
@@ -211,7 +249,7 @@ quietly find no tsconfig.
 
 | Option             | Default      | What it is for                                                          |
 | ------------------ | ------------ | ----------------------------------------------------------------------- |
-| `preset`           | —            | `'electron'`, `'fullstack'` or `'spa'`                                  |
+| `preset`           | —            | `'electron'`, `'fullstack'`, `'spa'` or `'tauri'`                       |
 | `rootDir`          | —            | the project root; **required**                                          |
 | `workspaces`       | the four     | full-stack only: which workspace plays which role                       |
 | `paths`            | the preset's | override `source`, `tests`, `browser`, `node`, `ignores`, …             |
@@ -291,45 +329,56 @@ gates also export an `inspect*` function that returns the failures instead of pr
 use in tests. Most gates run with no options. Options exist for things only the project knows:
 its source roots, its services, and exceptions it has approved, each with a stated reason.
 
-| Gate                       | Family    | Checks                                                                         |
-| -------------------------- | --------- | ------------------------------------------------------------------------------ |
-| `audit`                    | all       | `npm audit`, with a reviewed allowlist that expires                            |
-| `code-style`               | all       | file names, file length, SFC block order, stale size baselines                 |
-| `contrast`                 | all       | every text token clears AA on every background, in every theme; no dimmed text |
-| `dead-code`                | all       | unused code and dependencies, undeclared imports, import cycles (knip)         |
-| `declaration-order`        | all       | the order of imports, types, constants and functions in a module               |
-| `duplication`              | all       | copy-paste ceilings and a clone-size cap (jscpd); no icon drawn twice          |
-| `html-standards`           | all       | `index.html`: shell, CSP, entry module, remote resources, reduced motion       |
-| `i18n`                     | all       | two-letter locale files; plurals, placeholders and arrays agree; options       |
-| `package-json`             | all       | manifest fields, version ranges, and the toolchain rule below                  |
-| `pipeline`                 | all       | every gate runs in CI; timeouts, permissions, SHA-pinned actions, …            |
-| `refactoring`              | all       | no deferral markers left in code                                               |
-| `scss-standards`           | all       | the entry, Vite injection, theme parity, self-hosted fonts                     |
-| `testing`                  | all       | suite layout, `.only`/`.skip`, coverage ratchet, E2E server-error wiring       |
-| `tsconfigs`                | all       | compiler flags stay at the standard                                            |
-| `electron-security`        | electron  | `webPreferences`, navigation, permissions, `v-html`, TLS overrides             |
-| `error-handling/electron`  | electron  | IPC handlers contain failures, process backstops, cleanup on quit              |
-| `ipc-standards`            | electron  | channels, docs and preload agree; the renderer uses every bridge member        |
-| `api-standards`            | fullstack | route map, middleware order, rate limits, response schemas, the contract       |
-| `db-drift`                 | fullstack | collection registry, indexes, migrations, drain order, ops scripts             |
-| `docker`                   | fullstack | image rules that need no Docker daemon, including no secrets in layers         |
-| `env-drift`                | fullstack | the env schema and `.env.example` files agree; secrets have no default         |
-| `error-handling/fullstack` | fullstack | the status policy, error codes and their translations                          |
-| `metrics`                  | fullstack | scrape config, probes, metric cardinality                                      |
-| `security-drift`           | fullstack | security controls whose failure is silent                                      |
-| `ws-standards`             | fullstack | one socket server, one client, and the handshake order                         |
+| Gate                       | Family    | Checks                                                                          |
+| -------------------------- | --------- | ------------------------------------------------------------------------------- |
+| `audit`                    | all       | `npm audit`, with a reviewed allowlist that expires                             |
+| `code-style`               | all       | file names, file length, SFC block order, stale size baselines; Rust headers    |
+| `contrast`                 | all       | every text token clears AA on every background, in every theme; no dimmed text  |
+| `dead-code`                | all       | unused code and dependencies, undeclared imports, import cycles (knip)          |
+| `declaration-order`        | all       | the order of imports, types, constants and functions; Rust items and `use`s     |
+| `duplication`              | all       | copy-paste ceilings and a clone-size cap (jscpd); no icon drawn twice           |
+| `html-standards`           | all       | `index.html`: shell, CSP, entry module, remote resources, reduced motion        |
+| `i18n`                     | all       | two-letter locale files; plurals, placeholders and arrays agree; options        |
+| `package-json`             | all       | manifest fields, version ranges, and the toolchain rule below                   |
+| `pipeline`                 | all       | every gate runs in CI; timeouts, permissions, SHA-pinned actions, …             |
+| `refactoring`              | all       | no deferral markers left in code                                                |
+| `scss-standards`           | all       | the entry, Vite injection, theme parity, self-hosted fonts                      |
+| `testing`                  | all       | suite layout, `.only`/`.skip`, coverage ratchet, E2E server-error wiring        |
+| `tsconfigs`                | all       | compiler flags stay at the standard                                             |
+| `electron-security`        | electron  | `webPreferences`, navigation, permissions, `v-html`, TLS overrides              |
+| `error-handling/electron`  | electron  | IPC handlers contain failures, process backstops, cleanup on quit               |
+| `ipc-standards`            | electron  | channels, docs and preload agree; the renderer uses every bridge member         |
+| `tauri-security`           | tauri     | CSP, security flags, the capability list, one capability per window, grants     |
+| `tauri-commands`           | tauri     | commands, `build.rs`, grants, `invoke`s, events and error codes agree           |
+| `error-handling/tauri`     | tauri     | failing commands log once, a panic hook, Rust and webview swallows have reasons |
+| `api-standards`            | fullstack | route map, middleware order, rate limits, response schemas, the contract        |
+| `db-drift`                 | fullstack | collection registry, indexes, migrations, drain order, ops scripts              |
+| `docker`                   | fullstack | image rules that need no Docker daemon, including no secrets in layers          |
+| `env-drift`                | fullstack | the env schema and `.env.example` files agree; secrets have no default          |
+| `error-handling/fullstack` | fullstack | the status policy, error codes and their translations                           |
+| `metrics`                  | fullstack | scrape config, probes, metric cardinality                                       |
+| `security-drift`           | fullstack | security controls whose failure is silent                                       |
+| `ws-standards`             | fullstack | one socket server, one client, and the handshake order                          |
 
 `contrast` takes the same `themes` object as `scss-standards`, so both read the palettes from one
 description. It measures `text` tokens against `backgrounds` tokens in every palette, and with
 `scan` it also fails a rule that colours text and then lowers its `opacity`. An ornament that is
 hidden from assistive tech opts out with `/* contrast-exempt: <reason> */` above its rule.
 
+**Rust.** `code-style` and `declaration-order` read `.rs` files too, never under `target/`. Name the
+crate's sources in `scan` or `sourceRoots` (`src-tauri/src`, and `src-tauri/build.rs`: a file is read
+as itself). `declaration-order` checks the item order of `prompts/0_standards/rust.instructions.md`
+(a type followed by its `impl`s, the tests last) and the `use` groups: std, external crates, this
+crate through `crate::`. `--fix` leaves Rust to rustfmt. `code-style` requires `//!` on `lib.rs`, and
+elsewhere where a `headers` rule says `rustdoc`; it also checks that a doc comment's first paragraph
+is one sentence, and that there are no section labels, `get_` getters or acronyms in capitals.
+
 `dead-code` and `duplication` accept `--all`, which prints the tool's own full report instead of
 pass or fail. List `vue` in `.jscpd.json` and jscpd reports template markup as `html` on its own.
 Don't list `html` there, because jscpd rejects it.
 
 `gates/lib/repo-root`, `gates/lib/strip-comments`, `gates/lib/source`, `gates/lib/files`,
-`gates/lib/report` and `gates/lib/swallowed-errors` are the helpers the gates are built from, and
+`gates/lib/report`, `gates/lib/swallowed-errors` and `gates/lib/rust` are the helpers the gates are built from, and
 they are exported for your own gates.
 
 ## Response schemas

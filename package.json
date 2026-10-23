@@ -37,6 +37,10 @@
             "types": "./dist/eslint/spa/index.d.ts",
             "default": "./dist/eslint/spa/index.js"
         },
+        "./eslint/tauri": {
+            "types": "./dist/eslint/tauri/index.d.ts",
+            "default": "./dist/eslint/tauri/index.js"
+        },
         "./eslint/presets": {
             "types": "./dist/eslint/presets.d.ts",
             "default": "./dist/eslint/presets.js"
@@ -93,6 +97,10 @@
             "types": "./dist/gates/error-handling/fullstack.d.ts",
             "default": "./dist/gates/error-handling/fullstack.js"
         },
+        "./gates/error-handling/tauri": {
+            "types": "./dist/gates/error-handling/tauri.d.ts",
+            "default": "./dist/gates/error-handling/tauri.js"
+        },
         "./gates/html-standards": {
             "types": "./dist/gates/html-standards.d.ts",
             "default": "./dist/gates/html-standards.js"
@@ -120,6 +128,10 @@
         "./gates/lib/report": {
             "types": "./dist/gates/lib/report.d.ts",
             "default": "./dist/gates/lib/report.js"
+        },
+        "./gates/lib/rust": {
+            "types": "./dist/gates/lib/rust.d.ts",
+            "default": "./dist/gates/lib/rust.js"
         },
         "./gates/lib/source": {
             "types": "./dist/gates/lib/source.d.ts",
@@ -156,6 +168,14 @@
         "./gates/security-drift": {
             "types": "./dist/gates/security-drift.d.ts",
             "default": "./dist/gates/security-drift.js"
+        },
+        "./gates/tauri-commands": {
+            "types": "./dist/gates/tauri-commands.d.ts",
+            "default": "./dist/gates/tauri-commands.js"
+        },
+        "./gates/tauri-security": {
+            "types": "./dist/gates/tauri-security.d.ts",
+            "default": "./dist/gates/tauri-security.js"
         },
         "./gates/testing": {
             "types": "./dist/gates/testing.d.ts",

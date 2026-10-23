@@ -2,7 +2,8 @@
  * File-shape conventions ESLint has no opinion about: filename casing, a composable
  * exporting its own name, the line softcap, public before private, headers, SFC
  * block order and attributes, comment format per block, no JSDoc type tags, and no
- * relative imports where an alias resolves.
+ * relative imports where an alias resolves. In Rust: `//!` headers, one-sentence doc
+ * summaries, no section labels, no `get_` getters, and acronyms written as words.
  * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  * - Conventions are per-project data (`casing`, `headers`, `lineCap`, `baseline`,
  * `aliasedRoots`); an unmatched file is deliberately unconstrained.
@@ -10,7 +11,8 @@
  * size and fail only if they grow. An entry back under the cap, or naming a missing
  * file, fails too. Size is non-blank lines excluding an SFC's `<style>` block, as the
  * standard defines it.
- * - Not checked: tests and ambient `.d.ts` files.
+ * - Not checked: tests and ambient `.d.ts` files, and Rust under `target/`. Rust's
+ * casing, length and public-before-private belong to rustc and the declaration-order gate.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,6 +20,7 @@ import path from 'node:path';
 import { walkFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { lexRust, rustDocBlocks, rustItems, summarySentences } from './lib/rust.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
 export type CodeStyleOptions = {
@@ -54,8 +57,11 @@ type CasingRule = {
 type HeaderRule = {
     /** Tested against the repo-relative path. First matching rule wins. */
     files: RegExp;
-    /** `jsdoc` a `/** ... *\/` block, `comment` any leading comment, `none` a BAN on one. */
-    require: 'jsdoc' | 'comment' | 'none';
+    /**
+     * `jsdoc` a `/** ... *\/` block, `rustdoc` a `//!` header, `comment` any leading
+     * comment, `none` a BAN on one. A Rust file's `none` bans a `//!` header.
+     */
+    require: 'jsdoc' | 'rustdoc' | 'comment' | 'none';
 };
 
 type CodeStyleInput = Omit<CodeStyleOptions, 'root'> & { root: string };
@@ -64,6 +70,8 @@ type CodeStyleInspection = {
     problems: GateFailure[];
     /** Source files examined — `.ts`/`.tsx`/`.vue`, excluding specs and ambient declarations. */
     files: number;
+    /** `.rs` files examined. */
+    rustFiles: number;
     baselined: number;
 };
 
@@ -86,6 +94,11 @@ const HEADER_RULE = {
         what: 'no file header',
         why: 'A module here states what it owns in at least one line — a JSDoc block for a domain owner, a single `//` line for a narrow sub-module. That is the thing its signature cannot say.',
     },
+    rustdoc: {
+        ok: () => false,
+        what: 'is matched by a `rustdoc` header rule',
+        why: '`//!` is a Rust header. A TypeScript file’s is a JSDoc block — write the rule as `jsdoc`, or narrow its `files` to `.rs`.',
+    },
     none: {
         ok: (source: string) => !/^\s*(<!--|\/\*)/.test(source),
         what: 'has a file-level header comment',
@@ -93,14 +106,41 @@ const HEADER_RULE = {
     },
 };
 
+/** The same demands, read the way Rust writes a header. */
+const RUST_HEADER_RULE = {
+    rustdoc: {
+        ok: (source: string) => /^\s*(\/\/!|\/\*!)/.test(source),
+        what: 'no `//!` file header',
+        why: 'This module owns a concern its name does not spell out, and `//!` is where Rust says which: rustdoc renders it as the module page, and the editor shows it on hover.',
+    },
+    comment: HEADER_RULE.comment,
+    none: {
+        ok: (source: string) => !/^\s*(\/\/!|\/\*!)/.test(source),
+        what: 'has a `//!` file header',
+        why: 'Files here take no header. The name and the items are the whole story, and a header nothing checks is the part that goes stale.',
+    },
+    jsdoc: {
+        ok: () => false,
+        what: 'is matched by a `jsdoc` header rule',
+        why: 'Rust has no JSDoc. Its file header is `//!` — write the rule as `rustdoc`.',
+    },
+};
+
 const MARKUP_COMMENT = /<!--([\s\S]*?)-->/g;
 const STYLE_COMMENT = /\/\*([\s\S]*?)\*\//g;
 const DIVIDER = /^–{2,}\s+\S[\s\S]*\S\s+–{2,}$/;
 const JSDOC_TYPE_TAG = /@(param|returns?|type)\s*\{/g;
+/** A `//` line made of rule characters: `// ── Helpers ──`, `// ======`. */
+const RUST_SECTION_LABEL = /^\s*\/\/(?![/!])[^\n]*?[─━═–—=*#~-]{3,}/gm;
+/** A getter spelled `get_x(&self)`: one receiver, no other arguments. */
+const RUST_GETTER = /\bfn\s+(get_\w+)\s*(?:<[^>]*>)?\s*\(\s*&\s*(?:'\w+\s+)?(?:mut\s+)?self\s*\)/g;
+/** Two capitals followed by a lowercase letter: `HTTPClient`, `IOError`. */
+const SHOUTED_ACRONYM = /[A-Z]{2,}[a-z]/;
 const RELATIVE_IMPORT = /(?:from|import)\s*['"](\.[^'"]*)['"]/g;
 
 const isSpec = (rel: string): boolean => rel.includes('__tests__') || /\.(test|spec)\.(ts|tsx)$/.test(rel);
 const isDeclaration = (rel: string) => rel.endsWith('.d.ts');
+const isCargoOutput = (rel: string) => rel.endsWith('.rs') && /(^|\/)target\//.test(rel);
 
 /** 1-based line of a byte offset, so a per-occurrence finding can point at it. */
 const lineAt = (source: string, index: number): number => source.slice(0, index).split('\n').length;
@@ -138,10 +178,14 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
     };
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
 
-    const all = walkFiles(root, scan, { match: /\.(ts|tsx|vue|scss)$/, exclude: (rel) => isSpec(rel) });
+    const all = walkFiles(root, scan, {
+        match: /\.(ts|tsx|vue|scss|rs)$/,
+        exclude: (rel) => isSpec(rel) || isCargoOutput(rel),
+    });
     const ts = all.filter((rel) => /\.tsx?$/.test(rel) && !isDeclaration(rel));
     const vue = all.filter((rel) => rel.endsWith('.vue'));
     const scss = all.filter((rel) => rel.endsWith('.scss'));
+    const rust = all.filter((rel) => rel.endsWith('.rs'));
 
     // ── 1. Filename casing ──────────────────────────────────────────────────
     for (const rel of [...ts, ...vue]) {
@@ -358,19 +402,82 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
         }
     }
 
-    return { problems, files: ts.length + vue.length, baselined: Object.keys(baseline).length };
+    // ── 12. Rust headers: `lib.rs` always, the rest by rule ─────────────────
+    for (const rel of rust) {
+        const rule = path.basename(rel) === 'lib.rs' ? 'rustdoc' : headers.find((h) => h.files.test(rel))?.require;
+        if (rule === undefined) continue;
+        const { ok, what, why } = RUST_HEADER_RULE[rule];
+        if (!ok(read(rel))) {
+            fail(
+                rel,
+                what,
+                path.basename(rel) === 'lib.rs'
+                    ? 'The crate root always opens with `//!`: it is the crate’s documentation, one or two lines saying what the crate is.'
+                    : why,
+            );
+        }
+    }
+
+    for (const rel of rust) {
+        const source = read(rel);
+        const lexed = lexRust(source);
+
+        // ── 13. A doc summary is one sentence ──────────────────────────────────
+        for (const block of rustDocBlocks(source, lexed)) {
+            const sentences = summarySentences(block.lines);
+            if (sentences <= 1) continue;
+            fail(
+                `${rel}:${block.line}`,
+                `the first paragraph of this \`${block.kind === 'inner' ? '//!' : '///'}\` block is ${sentences} sentences`,
+                'rustdoc shows the first paragraph alone, in module listings and the editor’s hover, so it is the summary and it is one sentence. End it after the first sentence with a blank `//!` or `///` line, and the rest becomes the body.',
+            );
+        }
+
+        // ── 14. No section labels ─────────────────────────────────────────────
+        for (const match of source.matchAll(RUST_SECTION_LABEL)) {
+            const at = match.index + (match[0].length - match[0].trimStart().length);
+            if (lexed.strings.some((str) => at > str.start && at < str.end)) continue;
+            fail(
+                `${rel}:${lineAt(source, at)}`,
+                `section-label comment: \`${match[0].trim().slice(0, 40)}\``,
+                'The item order already places every item, and a label goes stale the first time someone appends to the wrong block. Explain a why next to the code, or split the file.',
+            );
+        }
+
+        // ── 15. No `get_` on a getter ─────────────────────────────────────────
+        for (const match of lexed.code.matchAll(RUST_GETTER)) {
+            fail(
+                `${rel}:${lineAt(source, match.index)}`,
+                `\`${match[1] ?? ''}(&self)\` is a getter named with \`get_\``,
+                `A getter takes the field’s name: \`fn ${(match[1] ?? '').slice(4)}(&self)\` (Rust API Guidelines, C-GETTER). \`get\` is for a lookup that can miss, like \`HashMap::get\`.`,
+            );
+        }
+
+        // ── 16. Acronyms are words ────────────────────────────────────────────
+        for (const item of rustItems(source, lexed)) {
+            if (!['struct', 'enum', 'union', 'trait', 'type'].includes(item.kind)) continue;
+            if (!SHOUTED_ACRONYM.test(item.name)) continue;
+            fail(
+                `${rel}:${item.line}`,
+                `\`${item.name}\` writes an acronym in capitals`,
+                'Acronyms are one word in UpperCamelCase: `HttpClient`, `IoError` (RFC 430). Clippy’s `upper_case_acronyms` only flags a name in capitals throughout.',
+            );
+        }
+    }
+
+    return { problems, files: ts.length + vue.length, rustFiles: rust.length, baselined: Object.keys(baseline).length };
 }
 
 export function checkCodeStyle(options: CodeStyleOptions): void {
     const { root = REPO_ROOT, ...rest } = options;
     const report = createGateReport({ name: 'Code style' });
 
-    const { problems, files, baselined } = inspectCodeStyle({ root, ...rest });
+    const { problems, files, rustFiles, baselined } = inspectCodeStyle({ root, ...rest });
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
     const cap = rest.lineCap ?? 400;
     report.done({
-        summary: `Code style OK — ${plural(files, 'source file')}: names follow the convention for where they sit, composables export their own name, public API above private helpers, headers present per file type, SFC blocks in order, template and style comments in their own formats, no JSDoc types. File length: ${plural(baselined, 'file')} over the ~${cap}-line softcap, all baselined and ratcheted — they can shrink, not grow.`,
+        summary: `Code style OK — ${plural(files, 'source file')}: names follow the convention for where they sit, composables export their own name, public API above private helpers, headers present per file type, SFC blocks in order, template and style comments in their own formats, no JSDoc types. File length: ${plural(baselined, 'file')} over the ~${cap}-line softcap, all baselined and ratcheted — they can shrink, not grow.${rustFiles === 0 ? '' : ` ${plural(rustFiles, 'Rust file')}: \`//!\` headers where they are owed, one-sentence doc summaries, no section labels, no \`get_\` getters, acronyms as words.`}`,
         notMachineChecked:
             'whether a comment explains WHY rather than what, whether a header earns its place, whether a file really is one concern, whether a name means anything beyond being long enough.',
     });

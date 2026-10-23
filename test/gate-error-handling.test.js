@@ -1,5 +1,5 @@
 /**
- * The two family error-handling gates, against minimal fixture projects.
+ * The family error-handling gates, against minimal fixture projects.
  * - Each test starts from a project that PASSES and breaks exactly one thing, so a
  * failure names the check that caught it. The passing baseline matters as much as
  * the negatives: a gate that fails everything is as useless as one that fails
@@ -13,6 +13,7 @@ import path from 'node:path';
 
 import { checkElectronErrorHandling } from '../src/gates/error-handling/electron.ts';
 import { checkFullstackErrorHandling } from '../src/gates/error-handling/fullstack.ts';
+import { checkTauriErrorHandling } from '../src/gates/error-handling/tauri.ts';
 
 /** Runs `fn` with console captured and the exit code restored afterwards. */
 const capture = (fn) => {
@@ -370,4 +371,148 @@ test("fullstack NEGATIVE: a stale entry in the gate's own lists is caught", () =
 test('fullstack NEGATIVE: a redundant explicit security code is caught', () => {
     const { err } = fullstack({}, { securityEventCodes: ['INCORRECT_PASSWORD'] });
     assert.match(err, /`INCORRECT_PASSWORD` is listed explicitly but a pattern already covers it/);
+});
+
+// ── Tauri ────────────────────────────────────────────────────────────────────
+
+const TAURI = {
+    'src-tauri/src/lib.rs': `//! The app.
+
+mod commands;
+
+pub fn run() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        log::error!(panic:% = info; "Panicked");
+        previous(info);
+    }));
+}
+`,
+    'src-tauri/src/commands/file.rs': `
+#[tauri::command]
+pub fn take_pending_files(pending: State<'_, PendingFiles>) -> Result<Vec<String>> {
+    let mut files = pending
+        .0
+        .lock()
+        .map_err(|_| Error::StatePoisoned)
+        .inspect_err(|err| {
+            log::error!(command = "take_pending_files", err:? = err; "Command failed");
+        })?;
+    Ok(files.drain(..).collect())
+}
+
+#[tauri::command]
+pub fn app_version() -> String {
+    String::from("1")
+}
+`,
+    'src/bridge/commands.ts': `
+export async function takePendingFiles(): Promise<CommandResult<string[]>> {
+    try {
+        return { success: true, data: await invoke<string[]>('take_pending_files') };
+    } catch (err: unknown) {
+        return { success: false, error: toErrorCode(err) };
+    }
+}
+`,
+    'src/bridge/files.ts': `
+export async function readFile(path: string): Promise<CommandResult<string>> {
+    try {
+        return { success: true, data: await readTextFile(path) };
+    } catch (err: unknown) {
+        log.error('File read failed', { err });
+        return { success: false, error: 'FILE_READ_FAILED' };
+    }
+}
+`,
+};
+
+const tauri = (overrides = {}) => {
+    const files = { ...TAURI, ...overrides };
+    for (const [rel, body] of Object.entries(files)) if (body === null) delete files[rel];
+    return capture(() => checkTauriErrorHandling({ root: project(files) }));
+};
+
+const swapTauri = (rel, from, to) => {
+    assert.ok(TAURI[rel].includes(from), `fixture ${rel} has no ${from}`);
+    return tauri({ [rel]: TAURI[rel].replace(from, to) });
+};
+
+test('tauri: a compliant project passes and says what it proved', () => {
+    const { failed, out } = tauri();
+    assert.equal(failed, false);
+    assert.match(out, /1 fallible command logging their own failures/);
+});
+
+test('tauri NEGATIVE: a command that can fail and never logs is caught', () => {
+    const { err } = swapTauri(
+        'src-tauri/src/commands/file.rs',
+        `
+        .inspect_err(|err| {
+            log::error!(command = "take_pending_files", err:? = err; "Command failed");
+        })?;`,
+        '?;',
+    );
+    assert.match(err, /command `take_pending_files` can fail and never logs it/);
+});
+
+test('tauri: a command with no failure path is not asked to log', () => {
+    // `app_version` returns no Result; a Result-returning command with no `?` or `Err` is the same.
+    const { failed } = tauri({
+        'src-tauri/src/commands/other.rs': '#[tauri::command]\npub fn ping() -> Result<()> {\n    Ok(())\n}\n',
+    });
+    assert.equal(failed, false);
+});
+
+test('tauri NEGATIVE: the bridge logging a command failure again is caught; a plugin wrapper is not', () => {
+    const { err } = swapTauri(
+        'src/bridge/commands.ts',
+        'return { success: false',
+        "log.error('Command failed', { err });\n        return { success: false",
+    );
+    assert.match(err, /`takePendingFiles` logs the failure of a command it invokes/);
+    assert.doesNotMatch(err, /readFile/);
+});
+
+test('tauri NEGATIVE: no panic hook, and a hook that does not log, are caught', () => {
+    const none = tauri({ 'src-tauri/src/lib.rs': '//! The app.\n\npub fn run() {}\n' });
+    assert.match(none.err, /installs no panic hook/);
+    const silent = swapTauri('src-tauri/src/lib.rs', 'log::error!(panic:% = info; "Panicked");', '');
+    assert.match(silent.err, /the panic hook does not log/);
+});
+
+test('tauri NEGATIVE: a Rust swallow without a reason is caught, in each shape', () => {
+    const shapes = [
+        'window.show().ok();',
+        'match window.show() {\n        Ok(()) => {}\n        Err(_) => {}\n    }',
+        'if let Err(_) = window.show() {}',
+    ];
+    for (const shape of shapes) {
+        const { err } = tauri({ 'src-tauri/src/window.rs': `fn show(window: &Window) {\n    ${shape}\n}\n` });
+        assert.match(err, /without a reason/, shape);
+    }
+});
+
+test('tauri: a Rust swallow with a reason beside it, above it or inside it passes', () => {
+    const reasons = [
+        '// The window is already closing; a failed show changes nothing.\n    window.show().ok();',
+        'window.show().ok(); // The window is already closing.',
+        'if let Err(_) = window.show() {\n        // The window is already closing.\n    }',
+    ];
+    for (const shape of reasons) {
+        const { failed, err } = tauri({ 'src-tauri/src/window.rs': `fn show(window: &Window) {\n    ${shape}\n}\n` });
+        assert.equal(failed, false, `${shape}\n${err}`);
+    }
+});
+
+test('tauri NEGATIVE: a placeholder is not a reason', () => {
+    const { err } = tauri({
+        'src-tauri/src/window.rs': 'fn show(window: &Window) {\n    // ignore\n    window.show().ok();\n}\n',
+    });
+    assert.match(err, /`\.ok\(\);` discards an error without a reason \("ignore"\)/);
+});
+
+test('tauri NEGATIVE: an empty catch in the webview is caught', () => {
+    const { err } = tauri({ 'src/composables/useThing.ts': 'try {\n    run();\n} catch {\n    // ignore\n}\n' });
+    assert.match(err, /swallows a failure without a reason/);
 });

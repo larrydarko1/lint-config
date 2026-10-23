@@ -15,6 +15,8 @@
  * at load time (a TDZ ReferenceError). See analyze().
  * - Test files get a second pass against TEST_CATEGORIES; imports get a third,
  * mechanical pass (./import-order.ts), the only one `--fix` touches.
+ * - Rust files (`.rs`, never under `target/`) get Rust's own table and import groups
+ * (./rust-order.ts), which `--fix` leaves alone.
  * - Not checked: order within a category. Reports its own nested format rather than
  * using createGateReport.
  */
@@ -27,6 +29,8 @@ import ts from 'typescript';
 import { repoFiles, walkFiles } from './lib/files.ts';
 import { createImportOrder, type ImportOrderOptions } from './import-order.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
+import { inPlace } from './lib/sequence.ts';
+import { analyzeRust, checkRustImports, RUST_CATEGORIES, RUST_IMPORT_GROUPS } from './rust-order.ts';
 
 export type DeclarationOrderOptions = {
     /** Repository root. Defaults to the caller's repo root. */
@@ -404,30 +408,10 @@ function analyze(code: string, filename: string, profile: Profile = PRODUCTION_P
     // A cycle cannot be ordered; leave the module alone rather than guess.
     if (ideal.length !== items.length) return { misplaced: [], count: items.length, cycle: true };
 
-    // Longest common subsequence of actual (0..n-1) and ideal, by original index.
-    const a = items.map((it) => it.i);
-    const b = ideal.map((it) => it.i);
-    const n = a.length;
-    // An (n+1)×(n+1) table stored flat, row by row. Every read is within it.
-    const dp = new Array((n + 1) * (n + 1)).fill(0);
-    const at = (x: number, y: number): number => dp[x * (n + 1) + y] ?? 0;
-    for (let x = n - 1; x >= 0; x--) {
-        for (let y = n - 1; y >= 0; y--) {
-            dp[x * (n + 1) + y] = a[x] === b[y] ? at(x + 1, y + 1) + 1 : Math.max(at(x + 1, y), at(x, y + 1));
-        }
-    }
-    const keep: Set<number> = new Set();
-    let x = 0;
-    let y = 0;
-    while (x < n && y < n) {
-        const ax = a[x];
-        if (ax !== undefined && ax === b[y]) {
-            keep.add(ax);
-            x++;
-            y++;
-        } else if (at(x + 1, y) >= at(x, y + 1)) x++;
-        else y++;
-    }
+    const keep = inPlace(
+        items.map((it) => it.i),
+        ideal.map((it) => it.i),
+    );
 
     const misplaced: Misplaced[] = [];
     for (const [p, it] of ideal.entries()) {
@@ -475,10 +459,13 @@ export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
     }[] = [];
 
     const excluded = (rel: string) => exclude.some((p) => rel === p || rel.startsWith(`${p.replace(/\/$/, '')}/`));
+    // Cargo writes generated `.rs` files under `target/`, which nobody orders by hand.
+    const cargoOutput = (rel: string) => rel.endsWith('.rs') && /(^|\/)target\//.test(rel);
     const discovered = (sourceRoots === undefined ? repoFiles(root).sort() : walkFiles(root, sourceRoots)).filter(
-        (rel) => /\.(ts|vue)$/.test(rel) && !rel.endsWith('.d.ts') && !excluded(rel),
+        (rel) => /\.(ts|vue|rs)$/.test(rel) && !rel.endsWith('.d.ts') && !excluded(rel) && !cargoOutput(rel),
     );
-    const files = discovered.filter((rel) => !isTestPath(rel));
+    const rustFiles = discovered.filter((rel) => rel.endsWith('.rs'));
+    const files = discovered.filter((rel) => !isTestPath(rel) && !rel.endsWith('.rs'));
     // .vue is production-only; a suite is always a .ts module.
     const testFiles = discovered.filter((rel) => isTestPath(rel) && rel.endsWith('.ts'));
 
@@ -540,6 +527,32 @@ export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
     }
     if (FIX) console.log(`Import order: rewrote ${filesFixed} file(s).`);
 
+    let rustItemsChecked = 0;
+    let rustUsesChecked = 0;
+    for (const rel of rustFiles) {
+        const source = fs.readFileSync(path.join(root, rel), 'utf8');
+        const order = analyzeRust(source);
+        rustItemsChecked += order.count;
+        if (order.misplaced.length > 0) {
+            failures.push({
+                file: rel,
+                headline: `${order.misplaced.length} item(s) out of canonical order`,
+                misplaced: order.misplaced,
+                why: `Order is: ${RUST_CATEGORIES.join(' → ')}. A type is followed by its impl blocks, inherent first.`,
+            });
+        }
+        const imports = checkRustImports(source);
+        rustUsesChecked += imports.count;
+        if (imports.problems.length > 0) {
+            failures.push({
+                file: rel,
+                headline: `${imports.problems.length} use(s) out of their groups`,
+                misplaced: imports.problems.map((p) => ({ line: p.line, text: p.message })),
+                why: `Imports go ${RUST_IMPORT_GROUPS.join(' → ')}, one blank line between groups, none inside one. rustfmt sorts inside a group and never across a blank line; \`--fix\` does not touch Rust.`,
+            });
+        }
+    }
+
     // ── Report ───────────────────────────────────────────────────────────────
     if (failures.length > 0) {
         const total = failures.reduce((n, f) => n + f.misplaced.length, 0);
@@ -563,9 +576,13 @@ export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
         return;
     }
 
+    const rust =
+        rustFiles.length === 0
+            ? ''
+            : ` ${rustFiles.length} Rust files, ${rustItemsChecked} items in Rust's order; ${rustUsesChecked} uses grouped.`;
     console.log(
         `✓ Declaration order check passed — ${files.length} modules + ${testFiles.length} suites, ` +
             `${statementsChecked} top-level statements, all in canonical order (or held by a load-time dependency); ` +
-            `${importsChecked} imports grouped and sorted.`,
+            `${importsChecked} imports grouped and sorted.${rust}`,
     );
 }

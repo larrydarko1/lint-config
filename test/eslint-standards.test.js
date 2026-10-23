@@ -12,6 +12,7 @@ import { larry } from '../src/eslint/index.ts';
 import * as electron from '../src/eslint/electron/index.ts';
 import * as fullstack from '../src/eslint/fullstack/index.ts';
 import * as spa from '../src/eslint/spa/index.ts';
+import * as tauri from '../src/eslint/tauri/index.ts';
 
 const ROOT = '/tmp/lint-config-eslint-test';
 
@@ -33,6 +34,7 @@ const electronConfig = (options) =>
 const fullstackConfig = (options) =>
     larry({ preset: 'fullstack', rootDir: ROOT, standards: fullstack.fullstackStandards(options) });
 const spaConfig = (options) => larry({ preset: 'spa', rootDir: ROOT, standards: spa.spaStandards(options) });
+const tauriConfig = (options) => larry({ preset: 'tauri', rootDir: ROOT, standards: tauri.tauriStandards(options) });
 
 test('every family exports the same shared selectors, not copies of them', () => {
     const shared = [
@@ -49,6 +51,7 @@ test('every family exports the same shared selectors, not copies of them', () =>
     for (const name of shared) {
         assert.equal(electron[name], fullstack[name], name);
         assert.equal(spa[name], fullstack[name], name);
+        assert.equal(tauri[name], fullstack[name], name);
     }
 });
 
@@ -65,6 +68,7 @@ test('the shared rules reach each family’s own frontend', async () => {
         assert.equal(await severityOf(electronConfig(), 'src/renderer/App.vue', rule), 2, `electron ${rule}`);
         assert.equal(await severityOf(fullstackConfig(), 'frontend/src/App.vue', rule), 2, `fullstack ${rule}`);
         assert.equal(await severityOf(spaConfig(), 'src/App.vue', rule), 2, `spa ${rule}`);
+        assert.equal(await severityOf(tauriConfig(), 'src/App.vue', rule), 2, `tauri ${rule}`);
     }
 });
 
@@ -73,6 +77,7 @@ test('a test whose expect sits behind an if is caught in every family', async ()
     assert.equal(await severityOf(electronConfig(), 'tests/thing.test.ts', rule), 2, 'electron');
     assert.equal(await severityOf(fullstackConfig(), 'api/src/__tests__/thing.test.ts', rule), 2, 'fullstack');
     assert.equal(await severityOf(spaConfig(), 'src/composables/__tests__/thing.test.ts', rule), 2, 'spa');
+    assert.equal(await severityOf(tauriConfig(), 'tests/composables/thing.test.ts', rule), 2, 'tauri');
 });
 
 test('the globally registered router and i18n components are not undefined components', async () => {
@@ -123,6 +128,7 @@ test('i18n: false drops the i18n rules in every family', async () => {
     assert.equal(await severityOf(electronConfig({ i18n: false }), 'src/renderer/App.vue', rule), 'absent');
     assert.equal(await severityOf(fullstackConfig({ i18n: false }), 'frontend/src/App.vue', rule), 'absent');
     assert.equal(await severityOf(spaConfig({ i18n: false }), 'src/App.vue', rule), 'absent');
+    assert.equal(await severityOf(tauriConfig({ i18n: false }), 'src/App.vue', rule), 'absent');
 });
 
 test('globalStylesheet defaults to the family’s and can be set in either', async () => {
@@ -155,6 +161,8 @@ test('a declaration file may export default in every family — the *.vue shim h
     assert.equal(await severityOf(fullstackConfig(), 'frontend/src/main.ts', rule), 2);
     assert.equal(await severityOf(spaConfig(), 'src/shims-vue.d.ts', rule), 'absent');
     assert.equal(await severityOf(spaConfig(), 'src/main.ts', rule), 2);
+    assert.equal(await severityOf(tauriConfig(), 'src/shims-vue.d.ts', rule), 'absent');
+    assert.equal(await severityOf(tauriConfig(), 'src/main.ts', rule), 2);
 });
 
 test('the SPA bans console in the app, not in its tests, and consoleAllowed opens one file', async () => {

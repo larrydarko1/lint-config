@@ -3,7 +3,7 @@
  * a project overrides any of them with the `paths` option.
  */
 
-export type PresetName = 'electron' | 'fullstack' | 'spa';
+export type PresetName = 'electron' | 'fullstack' | 'spa' | 'tauri';
 
 /** Glob lists, one per area the shared rules address. */
 export type PresetPaths = {
@@ -57,6 +57,25 @@ const spa: PresetPaths = {
     vue: ['src/**/*.vue'],
     // `public/` is copied into the build as it is, so it holds assets, not source.
     ignores: ['dist/', 'node_modules/', 'public/', '**/.venv/', 'coverage/', 'playwright-report/'],
+    configFiles: ['eslint/**/*.js', 'eslint.config.js'],
+};
+
+/**
+ * A Tauri desktop app: the webview is one Vue app in `src/`, the Rust side is `src-tauri/`.
+ * A single package, so tests mirror `src/` in `tests/`. `src-tauri/` holds no JavaScript,
+ * only Rust, the generated schemas and Cargo's `target/`, so ESLint never walks it.
+ */
+const tauri: PresetPaths = {
+    source: ['src/**/*.{ts,vue}', 'scripts/**/*.ts'],
+    typedSource: ['src/**/*.{ts,vue}', 'tests/**/*.ts', 'vitest.setup.ts', 'scripts/**/*.ts'],
+    tests: ['tests/**/*.ts', 'vitest.setup.ts'],
+    namingIgnores: ['tests/**/*.ts', 'vitest.setup.ts'],
+    browser: ['src/**/*.{ts,vue}'],
+    // The tool configs at the root run in Node too: Vite's, Vitest's, ESLint's own.
+    node: ['scripts/**/*.ts', 'vitest.setup.ts', '*.config.{js,ts}'],
+    nodeAndBrowser: [],
+    vue: ['src/**/*.vue'],
+    ignores: ['dist/', 'node_modules/', 'src-tauri/', 'public/', '**/.venv/', 'coverage/'],
     configFiles: ['eslint/**/*.js', 'eslint.config.js'],
 };
 
@@ -136,7 +155,12 @@ const fullstackPaths = (layout: FullstackLayout): PresetPaths => ({
     configFiles: ['eslint/**/*.js', 'eslint.config.js'],
 });
 
-export const PRESETS: Record<PresetName, PresetPaths> = { electron, fullstack: fullstackPaths(fullstackLayout()), spa };
+export const PRESETS: Record<PresetName, PresetPaths> = {
+    electron,
+    fullstack: fullstackPaths(fullstackLayout()),
+    spa,
+    tauri,
+};
 
 /** The preset's paths, for the full-stack family built from its workspaces, with the project's overrides applied. */
 export const resolvePaths = (

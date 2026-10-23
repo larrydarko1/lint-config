@@ -541,3 +541,89 @@ test('every scan root is walked', (t) => {
     const result = inspectCodeStyle({ root, scan: ['api/src', 'worker/src'], casing: KEBAB });
     assert.deepEqual(whats(result), ['worker/src/otherThing.ts: filename `otherThing` is not kebab-case']);
 });
+
+// ── Rust ────────────────────────────────────────────────────────────────────
+
+const RUST_HEADERS = [{ files: /^src\/commands\//, require: 'rustdoc' }];
+const rustRun = (t, files, options = {}) => run(tree(t, files), { headers: RUST_HEADERS, ...options });
+
+test('a Rust tree with its headers, summaries and names in order has no problems', (t) => {
+    const result = rustRun(t, {
+        'src/lib.rs': '//! The app.\n\nmod commands;\n',
+        'src/commands/file.rs':
+            '//! Files the OS opened.\n//!\n//! Held until the window asks.\n\n/// The pending files.\npub struct Pending;\n',
+        'src/commands.rs': 'pub mod file;\n',
+    });
+    assert.deepEqual(whats(result), []);
+    assert.equal(result.rustFiles, 3);
+});
+
+test('lib.rs always owes a `//!` header, with no rule asking for it', (t) => {
+    assert.deepEqual(whats(rustRun(t, { 'src/lib.rs': 'mod a;\n' }, { headers: [] })), [
+        'src/lib.rs: no `//!` file header',
+    ]);
+});
+
+test('a `//` comment does not stand in for `//!` where rustdoc is required', (t) => {
+    assert.deepEqual(
+        whats(rustRun(t, { 'src/lib.rs': '//! The app.\n', 'src/commands/a.rs': '// Files.\npub fn a() {}\n' })),
+        ['src/commands/a.rs: no `//!` file header'],
+    );
+});
+
+test('a jsdoc rule that matches a Rust file says to write it as rustdoc', (t) => {
+    const result = rustRun(
+        t,
+        { 'src/lib.rs': '//! The app.\n', 'src/a.rs': '//! A.\n' },
+        { headers: [{ files: /^src\//, require: 'jsdoc' }] },
+    );
+    assert.deepEqual(whats(result), ['src/a.rs: is matched by a `jsdoc` header rule']);
+});
+
+test('a first paragraph of two sentences is reported, `//!` and `///` alike', (t) => {
+    const result = rustRun(t, {
+        'src/lib.rs': '//! The app. It runs.\n\n/// Starts it. Then waits.\npub fn run() {}\n',
+    });
+    assert.deepEqual(whats(result), [
+        'src/lib.rs:1: the first paragraph of this `//!` block is 2 sentences',
+        'src/lib.rs:3: the first paragraph of this `///` block is 2 sentences',
+    ]);
+});
+
+test('a second sentence after a blank doc line is the body, and passes', (t) => {
+    assert.deepEqual(whats(rustRun(t, { 'src/lib.rs': '//! The app.\n//!\n//! It runs.\n' })), []);
+});
+
+test('a section-label comment is reported; an arrow in prose is not', (t) => {
+    const result = rustRun(t, {
+        'src/lib.rs':
+            '//! The app.\n\n// ── Helpers ──────\nfn a() {}\n\n// a -> b, then b => c\nfn b() {}\nconst S: &str = "// ======";\n',
+    });
+    assert.deepEqual(whats(result), ['src/lib.rs:3: section-label comment: `// ── Helpers ──────`']);
+});
+
+test('a getter named `get_` is reported; a lookup with an argument is not', (t) => {
+    const result = rustRun(t, {
+        'src/lib.rs':
+            "//! The app.\n\nimpl A {\n    pub fn get_code(&self) -> u8 { 0 }\n    pub fn get_entry<'a>(&'a self, key: &str) -> Option<u8> { None }\n}\n",
+    });
+    assert.deepEqual(whats(result), ['src/lib.rs:4: `get_code(&self)` is a getter named with `get_`']);
+});
+
+test('a type name with an acronym in capitals is reported', (t) => {
+    const result = rustRun(t, {
+        'src/lib.rs': '//! The app.\n\npub struct HTTPClient;\npub struct HttpClient;\npub enum IOError {}\n',
+    });
+    assert.deepEqual(whats(result), [
+        'src/lib.rs:3: `HTTPClient` writes an acronym in capitals',
+        'src/lib.rs:5: `IOError` writes an acronym in capitals',
+    ]);
+});
+
+test('Rust under target/ is not scanned', (t) => {
+    const result = rustRun(t, {
+        'src/lib.rs': '//! The app.\n',
+        'src/target/debug/out.rs': 'pub struct HTTPClient;\n',
+    });
+    assert.deepEqual(whats(result), []);
+});

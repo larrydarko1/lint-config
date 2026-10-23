@@ -569,3 +569,157 @@ console.log(thing, fs, LIMIT);
     // And the file now passes on its own.
     assert.equal(run(root).failed, false);
 });
+
+// ── Rust ────────────────────────────────────────────────────────────────────
+
+/** A crate root in Rust's order, with its use groups apart. */
+const RUST_LIB = `//! The app.
+
+mod commands;
+mod error;
+
+use std::path::Path;
+
+use tauri::{App, Manager};
+
+use crate::commands::file::FILE_OPENED;
+
+const LIMIT: u32 = 3;
+
+pub struct Pending(pub Vec<String>);
+
+impl Pending {
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+}
+
+impl Default for Pending {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub fn run() {}
+
+struct Fields(String);
+
+impl Fields {}
+
+fn helper(_: &Path, _: &App) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+}
+`;
+
+const rust = (t, source, rel = 'src-tauri/src/lib.rs') =>
+    run(project(t, { [rel]: source }), { sourceRoots: ['src-tauri/src'] });
+
+test('a Rust file in the table’s order passes, and the summary counts it', (t) => {
+    const result = rust(t, RUST_LIB);
+    assert.equal(result.failed, false, result.err);
+    assert.match(result.out, /1 Rust files, 14 items in Rust's order; 3 uses grouped/);
+});
+
+test('a public fn above a public type is reported against the Rust table', (t) => {
+    const result = rust(
+        t,
+        RUST_LIB.replace('pub fn run() {}\n\n', '').replace('const LIMIT', 'pub fn run() {}\n\nconst LIMIT'),
+    );
+    assert.equal(result.failed, true);
+    assert.match(result.err, /public fns "fn run" belongs after/);
+    assert.match(result.err, /mod → use → pub use → const/);
+});
+
+test('an impl stranded below another item is one problem, not every item after it', (t) => {
+    const moved = RUST_LIB.replace(
+        'impl Default for Pending {\n    fn default() -> Self {\n        Self::new()\n    }\n}\n\n',
+        '',
+    ).replace(
+        'fn helper',
+        'impl Default for Pending {\n    fn default() -> Self {\n        Self::new()\n    }\n}\n\nfn helper',
+    );
+    const result = rust(t, moved);
+    assert.equal(result.failed, true);
+    assert.match(result.err, /1 item\(s\) out of canonical order/);
+    assert.match(result.err, /"impl Default for Pending" belongs after public types "impl Pending"/);
+});
+
+test('a trait impl above the inherent impl is out of order', (t) => {
+    const source =
+        'pub struct A;\n\nimpl Clone for A {\n    fn clone(&self) -> Self {\n        Self\n    }\n}\n\nimpl A {}\n';
+    const result = rust(t, source);
+    assert.equal(result.failed, true);
+    assert.match(result.err, /"impl Clone for A" belongs after public types "impl A"/);
+});
+
+test('an impl of a type the file does not declare sits with the private types', (t) => {
+    assert.equal(
+        rust(t, 'use serde::Serialize;\n\npub fn a() {}\n\nimpl Serialize for crate::Error {}\n').failed,
+        false,
+    );
+    assert.equal(
+        rust(t, 'use serde::Serialize;\n\nimpl Serialize for crate::Error {}\n\npub fn a() {}\n').failed,
+        true,
+    );
+});
+
+test('macro_rules! is left where it is: it only exists below its definition', (t) => {
+    const source =
+        'macro_rules! twice {\n    ($x:expr) => {\n        $x * 2\n    };\n}\n\nconst A: u8 = twice!(2);\n\npub fn b() {}\n';
+    assert.equal(rust(t, source).failed, false);
+});
+
+test('the tests module goes last', (t) => {
+    const result = rust(t, '#[cfg(test)]\nmod tests {}\n\nfn a() {}\n');
+    assert.equal(result.failed, true);
+    assert.match(result.err, /tests "mod tests" belongs after private fns "fn a"/);
+});
+
+test('use groups out of order are reported, std first', (t) => {
+    const result = rust(t, 'use tauri::App;\n\nuse std::path::Path;\n\nfn a(_: &App, _: &Path) {}\n');
+    assert.equal(result.failed, true);
+    assert.match(result.err, /`use std::path::Path` \(std\) belongs above `use tauri::App` \(external crates\)/);
+});
+
+test('a blank line inside a group, and none between two, are both reported', (t) => {
+    const split = rust(t, 'use tauri::App;\n\nuse tauri_plugin_fs::FsExt;\n');
+    assert.match(split.err, /a blank line splits the external crates group/);
+    const joined = rust(t, 'use std::path::Path;\nuse tauri::App;\n');
+    assert.match(joined.err, /no blank line between the std group and `use tauri::App`/);
+});
+
+test('a comment between two uses is not a blank line', (t) => {
+    assert.equal(
+        rust(t, 'use tauri::App;\n// The fs scope, for files the OS opens.\nuse tauri_plugin_fs::FsExt;\n').failed,
+        false,
+    );
+});
+
+test('this crate’s module imported without `crate::` is reported', (t) => {
+    const result = rust(t, 'mod commands;\n\nuse commands::file::FILE_OPENED;\n');
+    assert.equal(result.failed, true);
+    assert.match(
+        result.err,
+        /names this crate's `commands` module without `crate::` — write `use crate::commands::file::FILE_OPENED`/,
+    );
+});
+
+test('Rust under target/ is never read', (t) => {
+    const root = project(t, {
+        'src-tauri/src/lib.rs': RUST_LIB,
+        'src-tauri/target/debug/build/out/generated.rs': 'fn a() {}\npub fn b() {}\n',
+    });
+    const result = run(root, { sourceRoots: ['src-tauri'] });
+    assert.equal(result.failed, false, result.err);
+    assert.match(result.out, /1 Rust files/);
+});
+
+test('a file named as a source root is read on its own', (t) => {
+    const root = project(t, { 'src-tauri/build.rs': 'fn main() {}\n\nconst COMMANDS: &[&str] = &[];\n' });
+    const result = run(root, { sourceRoots: ['src-tauri/build.rs'] });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /src-tauri\/build\.rs/);
+});

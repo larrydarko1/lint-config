@@ -23,6 +23,9 @@ export type SwallowScanOptions = {
 const REASONLESS =
     /^(ignore|ignored|silently (fail|ignore)|no-?op|noop|skip|skipped|cleanup|whatever|nothing|n\/a|todo|fixme)\.?$/i;
 
+/** Whether the text of a comment is a placeholder rather than a reason. */
+export const isPlaceholderReason = (reason: string): boolean => reason === '' || REASONLESS.test(reason);
+
 /** A catch block whose body is empty once comments are blanked. A nested block means not empty. */
 const EMPTY_CATCH = /\}\s*catch\s*(?:\([^)]*\)\s*)?\{([^{}]*)\}/g;
 
@@ -50,7 +53,7 @@ export function findSwallowedErrors(options: SwallowScanOptions): (GateFailure &
                 .replace(/\s+/g, ' ')
                 .trim();
 
-            if (reason === '' || REASONLESS.test(reason)) {
+            if (isPlaceholderReason(reason)) {
                 failures.push({
                     file: `${rel}:${lineOf(src, match.index)}`,
                     what: `swallows a failure without a reason (${reason === '' ? 'no comment' : `"${reason}"`})`,
