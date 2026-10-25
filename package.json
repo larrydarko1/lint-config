@@ -121,6 +121,10 @@
             "types": "./dist/gates/ipc-standards.d.ts",
             "default": "./dist/gates/ipc-standards.js"
         },
+        "./gates/licenses": {
+            "types": "./dist/gates/licenses.d.ts",
+            "default": "./dist/gates/licenses.js"
+        },
         "./gates/lib/files": {
             "types": "./dist/gates/lib/files.d.ts",
             "default": "./dist/gates/lib/files.js"
@@ -172,6 +176,10 @@
         "./gates/scss-standards": {
             "types": "./dist/gates/scss-standards.d.ts",
             "default": "./dist/gates/scss-standards.js"
+        },
+        "./gates/secrets": {
+            "types": "./dist/gates/secrets.d.ts",
+            "default": "./dist/gates/secrets.js"
         },
         "./gates/security-drift": {
             "types": "./dist/gates/security-drift.d.ts",
@@ -233,6 +241,8 @@
         "snapshot": "node scripts/eslint-snapshot.js",
         "presets:record": "node test/presets/record.js",
         "check:package": "node scripts/checks/check-publish.ts",
+        "secrets:check": "node scripts/checks/check-secrets.ts",
+        "licenses:check": "node scripts/checks/check-licenses.ts",
         "audit:check": "node scripts/checks/check-audit.ts",
         "style:check": "node scripts/checks/check-code-style.ts",
         "deadcode:check": "node scripts/checks/check-dead-code.ts",
@@ -242,7 +252,7 @@
         "pipeline:check": "node scripts/checks/check-pipeline.ts",
         "refactor:check": "node scripts/checks/check-refactoring.ts",
         "tsconfig:check": "node scripts/checks/check-tsconfigs.ts",
-        "ci:check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run audit:check && npm run style:check && npm run deadcode:check && npm run order:check && npm run dup:check && npm run manifest:check && npm run pipeline:check && npm run refactor:check && npm run tsconfig:check && npm run check:package"
+        "ci:check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run audit:check && npm run secrets:check && npm run licenses:check && npm run style:check && npm run deadcode:check && npm run order:check && npm run dup:check && npm run manifest:check && npm run pipeline:check && npm run refactor:check && npm run tsconfig:check && npm run check:package"
     },
     "dependencies": {
         "@commitlint/cli": "21.2.4",

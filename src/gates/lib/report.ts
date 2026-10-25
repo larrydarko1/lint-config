@@ -21,6 +21,8 @@ export type GateReportOptions = {
 type GateResult = {
     /** The one-line pass message: what the gate actually proved, with counts. */
     summary: string;
+    /** What passed but needs a person's eyes, one line each under the summary. */
+    warnings?: string[];
     /** What this gate cannot see, so a green tick is not mistaken for the whole standard. */
     notMachineChecked?: string;
 };
@@ -67,11 +69,12 @@ export function createGateReport(options: GateReportOptions): GateReport {
         /**
          * Print the report and set the exit code. Always the last thing a gate does.
          * @param result.summary The one-line pass message: what the gate proved, with counts.
+         * @param [result.warnings] What passed but needs a person's eyes, one line each.
          * @param [result.notMachineChecked] What this gate cannot see, so a green
          *   tick is not mistaken for the whole standard.
          */
         done(result: GateResult): void {
-            const { summary, notMachineChecked } = result;
+            const { summary, warnings = [], notMachineChecked } = result;
 
             if (failures.length > 0) {
                 console.error(`✗ ${name} check failed — ${failures.length} problem(s):\n`);
@@ -90,6 +93,7 @@ export function createGateReport(options: GateReportOptions): GateReport {
             }
 
             console.log(`✓ ${summary}`);
+            for (const warning of warnings) console.log(`  ! ${warning}`);
             if (notMachineChecked !== undefined) {
                 console.log(`\nNot machine-checked: ${notMachineChecked}`);
             }

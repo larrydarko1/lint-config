@@ -28,6 +28,8 @@ jobs:
             - run: npm run format:check
             - run: npm run test
             - run: npm run audit:check
+            - run: npm run secrets:check
+            - run: npm run licenses:check
             - run: npm run style:check
             - run: npm run deadcode:check
             - run: npm run order:check

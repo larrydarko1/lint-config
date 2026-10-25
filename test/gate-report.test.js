@@ -41,6 +41,15 @@ test('a clean run prints the summary, the footer, and leaves the exit code alone
     assert.equal(exitCode, undefined, 'a passing gate must not set a failing exit code');
 });
 
+test('warnings on a pass print under the summary, and leave the exit code alone', () => {
+    const { out, exitCode } = capture(() => {
+        const report = createGateReport({ name: 'Licences' });
+        report.done({ summary: 'Licences clean', warnings: ['widget is GPL-3.0-only'], notMachineChecked: 'fonts' });
+    });
+    assert.match(out, /^✓ Licences clean\n {2}! widget is GPL-3.0-only\n/);
+    assert.equal(exitCode, undefined);
+});
+
 test('NEGATIVE: a failure sets exit code 1 and prints what AND why', () => {
     const { out, err, exitCode } = capture(() => {
         const report = createGateReport({ name: 'Error handling' });

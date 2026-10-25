@@ -432,10 +432,12 @@ its source roots, its services, and exceptions it has approved, each with a stat
 | `duplication`              | all             | copy-paste ceilings and a clone-size cap (jscpd); no icon drawn twice              |
 | `html-standards`           | all with a UI   | `index.html`: shell, CSP, entry module, remote resources, reduced motion           |
 | `i18n`                     | all with a UI   | two-letter locale files; plurals, placeholders and arrays agree; options           |
+| `licenses`                 | all             | every production dependency's licence suits an `open` or `closed` app              |
 | `package-json`             | all             | manifest fields, version ranges, and the toolchain rule below                      |
 | `pipeline`                 | all             | every gate runs in CI; timeouts, permissions, SHA-pinned actions, …                |
 | `refactoring`              | all             | no deferral markers left in code                                                   |
 | `scss-standards`           | all with a UI   | the entry, Vite injection, theme parity, self-hosted fonts                         |
+| `secrets`                  | all             | no keys, tokens, env files or keystores in anything git would commit               |
 | `testing`                  | all but library | suite layout, `.only`/`.skip`, coverage ratchet, E2E server-error wiring           |
 | `tsconfigs`                | all             | compiler flags stay at the standard                                                |
 | `electron-security`        | electron        | `webPreferences`, navigation, permissions, `v-html`, TLS overrides                 |
@@ -458,6 +460,70 @@ its source roots, its services, and exceptions it has approved, each with a stat
 description. It measures `text` tokens against `backgrounds` tokens in every palette, and with
 `scan` it also fails a rule that colours text and then lowers its `opacity`. An ornament that is
 hidden from assistive tech opts out with `/* contrast-exempt: <reason> */` above its rule.
+
+`secrets` reads every file git would commit: everything tracked, plus anything untracked that
+`.gitignore` does not cover. A real `.env` that is ignored is fine, and one that is not fails. It fails
+on files that only hold secrets (an `.env` other than `.example`, `.sample` or `.template`, a `.key`
+or keystore, an SSH private key, `.netrc`), on tokens whose shape names their issuer (AWS, GitHub,
+GitLab, Slack, Stripe, Google, npm, Anthropic, OpenAI, SendGrid), on private key blocks, on a password
+in a URL to a host other than `localhost`, on a literal token in `.npmrc`, and on a random-looking
+string assigned to a name like `password`, `secret` or `apiKey`. A report shows the first characters
+of what it found, never the whole value, because CI logs are often readable by more people than the
+repository. Fix a finding by moving the value to the environment and rotating it: once pushed, it is
+in every clone. A fake made for a test is waived by file (a path or a glob) and rule:
+
+```ts
+checkSecrets({
+    allowlist: [{ file: 'test/fixtures/**', rule: 'github-token', reason: 'fake tokens for the parser tests' }],
+});
+```
+
+`licenses` reads the licence of every package in `package-lock.json` (npm only), skipping
+devDependencies unless `includeDev` is on. It takes one required option, `distribution`, because
+which licences an app may ship depends on whether its own source is public:
+
+- **Permissive** licences, such as MIT, ISC, BSD, Apache-2.0 and 0BSD, let you ship the code in
+  anything as long as you keep their copyright notice. They pass in both modes.
+- **Copyleft** licences attach conditions to the work that includes them. GPL requires the whole app
+  to be released under the GPL, with its source. AGPL extends that to anyone using the app over a
+  network. LGPL requires that users can swap in their own build of the library, which a bundler
+  that inlines it rules out. MPL and EPL require their own files to ship with source.
+    - `closed` (proprietary): copyleft fails. Replace the package, buy a commercial licence, or
+      waive it with the reason this app is not bound.
+    - `open` (source published): copyleft passes, and the pass names each package. **Being open source
+      does not make a GPL dependency free to use.** An MIT app that ships GPL code is distributed
+      under the GPL as a whole: anyone who receives it gets the GPL's rights, not just MIT's. If
+      your app's own licence is meant to stay permissive, treat the names on that list as failures.
+- Licences that are **not open source** (BUSL, SSPL, Elastic, PolyForm, Creative Commons
+  non-commercial or no-derivatives, `UNLICENSED`) fail in both modes. So does a missing licence, a
+  custom `SEE LICENSE IN` file, or an id the gate does not recognise.
+
+Desktop apps (Electron, Tauri) and web frontends ship their dependencies to users, which counts as
+distributing them. A server that is never handed to anyone else is not distributed, except under
+AGPL. A library's dependencies go to every project that installs it, some of them closed source, so
+a library that wants to be usable anywhere sets `closed`. An SPDX expression is read as written:
+`(MIT OR GPL-3.0-only)` passes because you may choose MIT, and `MIT AND LGPL-3.0-only` is copyleft.
+
+```ts
+checkLicenses({
+    distribution: 'closed',
+    // Accepted for every package that carries it, after a review.
+    allowLicenses: { 'MPL-2.0': 'shipped unmodified, with the source of each file linked from the notices page' },
+    // One package, until a date: the gate fails once it passes, or once the licence changes.
+    allowlist: [
+        {
+            package: 'some-cli',
+            license: 'GPL-3.0-only',
+            reason: 'downloaded and run as a separate program by the installer, never bundled',
+            expires: '2027-06-01',
+        },
+    ],
+});
+```
+
+The gate is not legal advice, and it does not check what its pass message lists as not
+machine-checked: copied-in code, fonts and icons, whether two copyleft licences are compatible, and
+the notices that permissive licences still require you to ship.
 
 `publish` packs the package with `npm pack`, which runs `prepack` and so the build. It unpacks the
 tarball under a real `node_modules`, links the dependencies in from the project's own install, then
