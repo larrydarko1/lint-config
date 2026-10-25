@@ -47,6 +47,36 @@ export type DeclarationOrderOptions = {
     importOrder?: ImportOrderOptions;
 };
 
+type DeclarationOrderInput = DeclarationOrderOptions & {
+    /** Rewrite out-of-order imports in place before checking them. Rust is never rewritten. */
+    fix?: boolean;
+};
+
+/** One file's findings: a headline, why the order is what it is, and the lines out of it. */
+type DeclarationOrderFailure = {
+    file: string;
+    headline: string;
+    misplaced: (Misplaced | { line: number; text: string })[];
+    why: string;
+};
+
+type DeclarationOrderInspection = {
+    failures: DeclarationOrderFailure[];
+    counts: {
+        /** Every file the gate read. Zero means it checked nothing, which is not a pass. */
+        discovered: number;
+        modules: number;
+        suites: number;
+        statements: number;
+        imports: number;
+        /** Files `fix` rewrote. */
+        importsFixed: number;
+        rustFiles: number;
+        rustItems: number;
+        rustUses: number;
+    };
+};
+
 type Misplaced = {
     /** The category the statement was binned into. */
     cat: string;
@@ -443,20 +473,11 @@ export function analyzeFile(rel: string, root: string, profile: Profile = profil
     return res;
 }
 
-export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
-    const { root = REPO_ROOT, sourceRoots, exclude = [], importOrder = {} } = options;
+export function inspectDeclarationOrder(input: DeclarationOrderInput): DeclarationOrderInspection {
+    const { root = REPO_ROOT, sourceRoots, exclude = [], importOrder = {}, fix = false } = input;
     const { IMPORT_GROUPS, checkImportsInFile, fixImportsInFile } = createImportOrder(importOrder);
 
-    const FIX = process.argv.includes('--fix');
-
-    const failures: {
-        file: string;
-        headline: string;
-        misplaced: (
-            { cat: string; name: string; line: number; belongsAfter: string } | { line: number; text: string }
-        )[];
-        why: string;
-    }[] = [];
+    const failures: DeclarationOrderFailure[] = [];
 
     const excluded = (rel: string) => exclude.some((p) => rel === p || rel.startsWith(`${p.replace(/\/$/, '')}/`));
     // Cargo writes generated `.rs` files under `target/`, which nobody orders by hand.
@@ -468,18 +489,6 @@ export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
     const files = discovered.filter((rel) => !isTestPath(rel) && !rel.endsWith('.rs'));
     // .vue is production-only; a suite is always a .ts module.
     const testFiles = discovered.filter((rel) => isTestPath(rel) && rel.endsWith('.ts'));
-
-    // A gate that read nothing must not print the same line as one that read everything.
-    // `sourceRoots: []` is the way in: it reads as "no restriction" and means "no folders".
-    if (discovered.length === 0) {
-        console.error(
-            sourceRoots?.length === 0
-                ? '✗ Declaration order check read no files: `sourceRoots: []` names no folders. Leave it out to check every file git knows about.'
-                : '✗ Declaration order check read no files. Check `sourceRoots` and `exclude` — a gate with nothing to read is not a pass.',
-        );
-        process.exitCode = 1;
-        return;
-    }
 
     let statementsChecked = 0;
 
@@ -513,7 +522,7 @@ export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
     let importsChecked = 0;
     let filesFixed = 0;
     for (const rel of [...files, ...testFiles]) {
-        if (FIX && fixImportsInFile(rel, root)) filesFixed++;
+        if (fix && fixImportsInFile(rel, root)) filesFixed++;
         const result = checkImportsInFile(rel, root);
         if (result === null) continue;
         importsChecked += result.count;
@@ -525,7 +534,6 @@ export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
             why: `Imports go ${IMPORT_GROUPS.join(' → ')}, one blank line between groups, alphabetical inside each. \`--fix\` rewrites them.`,
         });
     }
-    if (FIX) console.log(`Import order: rewrote ${filesFixed} file(s).`);
 
     let rustItemsChecked = 0;
     let rustUsesChecked = 0;
@@ -553,7 +561,40 @@ export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
         }
     }
 
-    // ── Report ───────────────────────────────────────────────────────────────
+    return {
+        failures,
+        counts: {
+            discovered: discovered.length,
+            modules: files.length,
+            suites: testFiles.length,
+            statements: statementsChecked,
+            imports: importsChecked,
+            importsFixed: filesFixed,
+            rustFiles: rustFiles.length,
+            rustItems: rustItemsChecked,
+            rustUses: rustUsesChecked,
+        },
+    };
+}
+
+export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
+    const fix = process.argv.includes('--fix');
+    const { failures, counts } = inspectDeclarationOrder({ ...options, fix });
+
+    // A gate that read nothing must not print the same line as one that read everything.
+    // `sourceRoots: []` is the way in: it reads as "no restriction" and means "no folders".
+    if (counts.discovered === 0) {
+        console.error(
+            options.sourceRoots?.length === 0
+                ? '✗ Declaration order check read no files: `sourceRoots: []` names no folders. Leave it out to check every file git knows about.'
+                : '✗ Declaration order check read no files. Check `sourceRoots` and `exclude` — a gate with nothing to read is not a pass.',
+        );
+        process.exitCode = 1;
+        return;
+    }
+
+    if (fix) console.log(`Import order: rewrote ${counts.importsFixed} file(s).`);
+
     if (failures.length > 0) {
         const total = failures.reduce((n, f) => n + f.misplaced.length, 0);
         console.error(`✗ Declaration order check failed — ${failures.length} file(s), ${total} statement(s):\n`);
@@ -577,12 +618,12 @@ export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
     }
 
     const rust =
-        rustFiles.length === 0
+        counts.rustFiles === 0
             ? ''
-            : ` ${rustFiles.length} Rust files, ${rustItemsChecked} items in Rust's order; ${rustUsesChecked} uses grouped.`;
+            : ` ${counts.rustFiles} Rust files, ${counts.rustItems} items in Rust's order; ${counts.rustUses} uses grouped.`;
     console.log(
-        `✓ Declaration order check passed — ${files.length} modules + ${testFiles.length} suites, ` +
-            `${statementsChecked} top-level statements, all in canonical order (or held by a load-time dependency); ` +
-            `${importsChecked} imports grouped and sorted.${rust}`,
+        `✓ Declaration order check passed — ${counts.modules} modules + ${counts.suites} suites, ` +
+            `${counts.statements} top-level statements, all in canonical order (or held by a load-time dependency); ` +
+            `${counts.imports} imports grouped and sorted.${rust}`,
     );
 }

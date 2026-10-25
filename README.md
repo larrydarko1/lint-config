@@ -366,41 +366,41 @@ checkElectronErrorHandling({
 "scripts": { "error:check": "node scripts/check/check-error-handling.ts" }
 ```
 
-Every option is typed and documented in the gate's declarations, so your editor lists them. Most
-gates also export an `inspect*` function that returns the failures instead of printing them, for
+Every option is typed and documented in the gate's declarations, so your editor lists them. Every
+gate also exports an `inspect*` function that returns the failures instead of printing them, for
 use in tests. Most gates run with no options. Options exist for things only the project knows:
 its source roots, its services, and exceptions it has approved, each with a stated reason.
 
-| Gate                       | Family    | Checks                                                                          |
-| -------------------------- | --------- | ------------------------------------------------------------------------------- |
-| `audit`                    | all       | `npm audit`, with a reviewed allowlist that expires                             |
-| `code-style`               | all       | file names, file length, SFC block order, stale size baselines; Rust headers    |
-| `contrast`                 | all       | every text token clears AA on every background, in every theme; no dimmed text  |
-| `dead-code`                | all       | unused code and dependencies, undeclared imports, import cycles (knip)          |
-| `declaration-order`        | all       | the order of imports, types, constants and functions; Rust items and `use`s     |
-| `duplication`              | all       | copy-paste ceilings and a clone-size cap (jscpd); no icon drawn twice           |
-| `html-standards`           | all       | `index.html`: shell, CSP, entry module, remote resources, reduced motion        |
-| `i18n`                     | all       | two-letter locale files; plurals, placeholders and arrays agree; options        |
-| `package-json`             | all       | manifest fields, version ranges, and the toolchain rule below                   |
-| `pipeline`                 | all       | every gate runs in CI; timeouts, permissions, SHA-pinned actions, …             |
-| `refactoring`              | all       | no deferral markers left in code                                                |
-| `scss-standards`           | all       | the entry, Vite injection, theme parity, self-hosted fonts                      |
-| `testing`                  | all       | suite layout, `.only`/`.skip`, coverage ratchet, E2E server-error wiring        |
-| `tsconfigs`                | all       | compiler flags stay at the standard                                             |
-| `electron-security`        | electron  | `webPreferences`, navigation, permissions, `v-html`, TLS overrides              |
-| `error-handling/electron`  | electron  | IPC handlers contain failures, process backstops, cleanup on quit               |
-| `ipc-standards`            | electron  | channels, docs and preload agree; the renderer uses every bridge member         |
-| `tauri-security`           | tauri     | CSP, security flags, the capability list, one capability per window, grants     |
-| `tauri-commands`           | tauri     | commands, `build.rs`, grants, `invoke`s, events and error codes agree           |
-| `error-handling/tauri`     | tauri     | failing commands log once, a panic hook, Rust and webview swallows have reasons |
-| `api-standards`            | fullstack | route map, middleware order, rate limits, response schemas, the contract        |
-| `db-drift`                 | fullstack | collection registry, indexes, migrations, drain order, ops scripts              |
-| `docker`                   | fullstack | image rules that need no Docker daemon, including no secrets in layers          |
-| `env-drift`                | fullstack | the env schema and `.env.example` files agree; secrets have no default          |
-| `error-handling/fullstack` | fullstack | the status policy, error codes and their translations                           |
-| `metrics`                  | fullstack | scrape config, probes, metric cardinality                                       |
-| `security-drift`           | fullstack | security controls whose failure is silent                                       |
-| `ws-standards`             | fullstack | one socket server, one client, and the handshake order                          |
+| Gate                       | Family         | Checks                                                                          |
+| -------------------------- | -------------- | ------------------------------------------------------------------------------- |
+| `audit`                    | all            | `npm audit`, with a reviewed allowlist that expires                             |
+| `code-style`               | all            | file names, file length, SFC block order, stale size baselines; Rust headers    |
+| `contrast`                 | all but api    | every text token clears AA on every background, in every theme; no dimmed text  |
+| `dead-code`                | all            | unused code and dependencies, undeclared imports, import cycles (knip)          |
+| `declaration-order`        | all            | the order of imports, types, constants and functions; Rust items and `use`s     |
+| `duplication`              | all            | copy-paste ceilings and a clone-size cap (jscpd); no icon drawn twice           |
+| `html-standards`           | all but api    | `index.html`: shell, CSP, entry module, remote resources, reduced motion        |
+| `i18n`                     | all but api    | two-letter locale files; plurals, placeholders and arrays agree; options        |
+| `package-json`             | all            | manifest fields, version ranges, and the toolchain rule below                   |
+| `pipeline`                 | all            | every gate runs in CI; timeouts, permissions, SHA-pinned actions, …             |
+| `refactoring`              | all            | no deferral markers left in code                                                |
+| `scss-standards`           | all but api    | the entry, Vite injection, theme parity, self-hosted fonts                      |
+| `testing`                  | all            | suite layout, `.only`/`.skip`, coverage ratchet, E2E server-error wiring        |
+| `tsconfigs`                | all            | compiler flags stay at the standard                                             |
+| `electron-security`        | electron       | `webPreferences`, navigation, permissions, `v-html`, TLS overrides              |
+| `error-handling/electron`  | electron       | IPC handlers contain failures, process backstops, cleanup on quit               |
+| `ipc-standards`            | electron       | channels, docs and preload agree; the renderer uses every bridge member         |
+| `tauri-security`           | tauri          | CSP, security flags, the capability list, one capability per window, grants     |
+| `tauri-commands`           | tauri          | commands, `build.rs`, grants, `invoke`s, events and error codes agree           |
+| `error-handling/tauri`     | tauri          | failing commands log once, a panic hook, Rust and webview swallows have reasons |
+| `api-standards`            | api, fullstack | route map, middleware order, rate limits, response schemas, the contract        |
+| `db-drift`                 | api, fullstack | collection registry, indexes, migrations, drain order, ops scripts              |
+| `docker`                   | api, fullstack | image rules that need no Docker daemon, including no secrets in layers          |
+| `env-drift`                | api, fullstack | the env schema and `.env.example` files agree; secrets have no default          |
+| `error-handling/fullstack` | api, fullstack | the status policy, error codes and their translations                           |
+| `metrics`                  | api, fullstack | scrape config, probes, metric cardinality                                       |
+| `security-drift`           | api, fullstack | security controls whose failure is silent                                       |
+| `ws-standards`             | api, fullstack | one socket server, one client, and the handshake order                          |
 
 `contrast` takes the same `themes` object as `scss-standards`, so both read the palettes from one
 description. It measures `text` tokens against `backgrounds` tokens in every palette, and with

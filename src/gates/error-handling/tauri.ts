@@ -17,7 +17,7 @@ import path from 'node:path';
 
 import { walkFiles } from '../lib/files.ts';
 import { REPO_ROOT } from '../lib/repo-root.ts';
-import { createGateReport, plural } from '../lib/report.ts';
+import { createGateReport, plural, type GateFailure } from '../lib/report.ts';
 import { closingBracket } from '../lib/rust.ts';
 import { stripComments } from '../lib/strip-comments.ts';
 import { countSwallows, findSwallowedErrors, isPlaceholderReason } from '../lib/swallowed-errors.ts';
@@ -32,6 +32,11 @@ export type TauriErrorHandlingOptions = {
     webviewDir?: string;
     /** The only webview code that calls Tauri. Defaults to `src/bridge`. */
     bridgeDir?: string;
+};
+
+type TauriErrorHandlingInspection = {
+    problems: GateFailure[];
+    counts: { fallible: number; swallows: number };
 };
 
 /** A log call at a level that records a failure: `log::error!`, `warn!`. */
@@ -66,19 +71,22 @@ function swallowReason(source: string, start: number, end: number): string {
 }
 
 /**
- * @param [options.tauriDir='src-tauri'] The Tauri crate.
- * @param [options.webviewDir='src'] The webview's sources.
- * @param [options.bridgeDir='src/bridge'] The only webview code that calls Tauri.
+ * @param [input.tauriDir='src-tauri'] The Tauri crate.
+ * @param [input.webviewDir='src'] The webview's sources.
+ * @param [input.bridgeDir='src/bridge'] The only webview code that calls Tauri.
  */
-export function checkTauriErrorHandling(options: TauriErrorHandlingOptions = {}): void {
-    const { root = REPO_ROOT, tauriDir = 'src-tauri', webviewDir = 'src', bridgeDir = 'src/bridge' } = options;
-    const report = createGateReport({ name: 'Error handling' });
+export function inspectTauriErrorHandling(input: TauriErrorHandlingOptions = {}): TauriErrorHandlingInspection {
+    const { root = REPO_ROOT, tauriDir = 'src-tauri', webviewDir = 'src', bridgeDir = 'src/bridge' } = input;
+    const problems: GateFailure[] = [];
+    const fail = (file: string | null, what: string, why: string) => {
+        problems.push({ file, what, why });
+    };
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
 
     const srcDir = `${tauriDir}/src`;
     const rust = readRustFiles(root, srcDir);
     if (rust.length === 0) {
-        report.fail(
+        fail(
             srcDir,
             'holds no Rust',
             'This gate reads the commands and the panic hook from here. Point `tauriDir` at the Tauri crate.',
@@ -93,7 +101,7 @@ export function checkTauriErrorHandling(options: TauriErrorHandlingOptions = {})
         if (!/\?|\bErr\s*\(/.test(body)) continue;
         fallible += 1;
         if (!LOGS_FAILURE.test(body)) {
-            report.fail(
+            fail(
                 `${file.rel}:${item.line}`,
                 `command \`${name}\` can fail and never logs it`,
                 'The webview receives only the code, so the detail exists nowhere unless the command writes it down where it returns the error: `.inspect_err(|err| log::error!(command = "…", err:? = err; "Command failed"))?`.',
@@ -108,7 +116,7 @@ export function checkTauriErrorHandling(options: TauriErrorHandlingOptions = {})
         for (const [k, m] of exports.entries()) {
             const chunk = code.slice(m.index, exports[k + 1]?.index ?? code.length);
             if (/(?<![\w$])invoke\s*[<(]/.test(chunk) && /\blog\.(?:error|warn)\s*\(/.test(chunk)) {
-                report.fail(
+                fail(
                     `${rel}:${lineAt(code, m.index)}`,
                     `\`${m[1] ?? ''}\` logs the failure of a command it invokes`,
                     'Rust logged it where it failed, with the detail. A second entry from the webview has only the code, and makes one failure read as two.',
@@ -125,7 +133,7 @@ export function checkTauriErrorHandling(options: TauriErrorHandlingOptions = {})
         }),
     );
     if (hooks.length === 0) {
-        report.fail(
+        fail(
             `${srcDir}/lib.rs`,
             'installs no panic hook (`std::panic::set_hook`)',
             'A panic in a dependency closes the window, and the default hook writes only to stderr, which a released app has nowhere to show. Install one that logs the panic, then calls the previous hook.',
@@ -133,7 +141,7 @@ export function checkTauriErrorHandling(options: TauriErrorHandlingOptions = {})
     }
     for (const { file, index, args } of hooks) {
         if (!LOGS_FAILURE.test(args)) {
-            report.fail(
+            fail(
                 `${file.rel}:${lineAt(file.source, index)}`,
                 'the panic hook does not log',
                 'It is the one place a panic can be written down. `log::error!(panic:% = info; "Panicked")`, then the previous hook.',
@@ -149,7 +157,7 @@ export function checkTauriErrorHandling(options: TauriErrorHandlingOptions = {})
                 rustSwallows += 1;
                 const reason = swallowReason(file.source, m.index, m.index + m[0].length);
                 if (!isPlaceholderReason(reason)) continue;
-                report.fail(
+                fail(
                     `${file.rel}:${lineAt(file.source, m.index)}`,
                     `${what} without a reason${reason === '' ? '' : ` ("${reason}")`}`,
                     'Say what is dropped and why that is safe, in a comment beside it: "the window is already closing". Clippy refuses `let _ =` on a `Result`, and not these.',
@@ -158,13 +166,22 @@ export function checkTauriErrorHandling(options: TauriErrorHandlingOptions = {})
         }
     }
     const scanned = { root, files: walkFiles(root, webviewDir, { match: /\.(ts|vue)$/ }) };
-    for (const { file, what, why } of findSwallowedErrors(scanned)) report.fail(file, what, why);
+    for (const { file, what, why } of findSwallowedErrors(scanned)) fail(file, what, why);
     const swallows = countSwallows(scanned) + rustSwallows;
+
+    return { problems, counts: { fallible, swallows } };
+}
+
+export function checkTauriErrorHandling(options: TauriErrorHandlingOptions = {}): void {
+    const report = createGateReport({ name: 'Error handling' });
+    const { problems, counts } = inspectTauriErrorHandling(options);
+
+    for (const { file, what, why } of problems) report.fail(file, what, why);
 
     report.done({
         summary:
-            `Error handling check passed — ${plural(fallible, 'fallible command')} logging their own failures, none logged twice by the bridge, ` +
-            `a panic hook that logs, ${plural(swallows, 'swallow')} stating a reason.`,
+            `Error handling check passed — ${plural(counts.fallible, 'fallible command')} logging their own failures, none logged twice by the bridge, ` +
+            `a panic hook that logs, ${plural(counts.swallows, 'swallow')} stating a reason.`,
         notMachineChecked:
             'whether a caught failure is reported to the user or only logged, whether a failure logged by a helper the command calls is logged once, and an error replaced by a default (`unwrap_or_default`), which reads the same as an `Option` falling back.',
     });

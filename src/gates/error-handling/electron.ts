@@ -13,7 +13,7 @@ import path from 'node:path';
 
 import { walkFiles } from '../lib/files.ts';
 import { REPO_ROOT } from '../lib/repo-root.ts';
-import { createGateReport, plural } from '../lib/report.ts';
+import { createGateReport, plural, type GateFailure } from '../lib/report.ts';
 import { stripComments } from '../lib/strip-comments.ts';
 import { countSwallows, findSwallowedErrors } from '../lib/swallowed-errors.ts';
 
@@ -28,6 +28,11 @@ export type ElectronErrorHandlingOptions = {
     mainIndex?: string;
     /** Services holding a resource the OS does not reclaim on window close; each must be released in `before-quit`. */
     cleanupRequired?: [service: string, why: string][];
+};
+
+type ElectronErrorHandlingInspection = {
+    problems: GateFailure[];
+    counts: { handlers: number; swallows: number };
 };
 
 /**
@@ -127,20 +132,25 @@ const BACKSTOPS: [event: string, why: string][] = [
 ];
 
 /**
- * @param [options.root] Repository root.
- * @param [options.mainIndex='src/main/index.ts'] Where the app lifecycle is wired.
- * @param [options.cleanupRequired=[]] Services that must be released in `before-quit`.
+ * @param [input.root] Repository root.
+ * @param [input.mainIndex='src/main/index.ts'] Where the app lifecycle is wired.
+ * @param [input.cleanupRequired=[]] Services that must be released in `before-quit`.
  */
-export function checkElectronErrorHandling(options: ElectronErrorHandlingOptions = {}): void {
+export function inspectElectronErrorHandling(
+    input: ElectronErrorHandlingOptions = {},
+): ElectronErrorHandlingInspection {
     const {
         root = REPO_ROOT,
         mainDir = 'src/main',
         rendererDir = 'src/renderer',
         mainIndex = 'src/main/index.ts',
         cleanupRequired = [],
-    } = options;
+    } = input;
 
-    const report = createGateReport({ name: 'Error handling' });
+    const problems: GateFailure[] = [];
+    const fail = (file: string | null, what: string, why: string) => {
+        problems.push({ file, what, why });
+    };
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
 
     const mainFiles = walkFiles(root, mainDir, { match: /\.ts$/ });
@@ -164,7 +174,7 @@ export function checkElectronErrorHandling(options: ElectronErrorHandlingOptions
             const fallible = !expression && /\bawait\b|\bthrow\b|\bfs\.|readFile|writeFile|existsSync/.test(body);
 
             if (fallible && !guarded && !envelope) {
-                report.fail(
+                fail(
                     `${rel}:${line}`,
                     `\`${channel}\` neither try/catches nor returns a failure envelope`,
                     'A throw crossing IPC arrives as a flattened string prefixed "Error invoking remote method" — no type, no stack, no fields. Catch it and return `{ success: false, error }`.',
@@ -174,7 +184,7 @@ export function checkElectronErrorHandling(options: ElectronErrorHandlingOptions
 
             if (expression) continue;
             if (/\bthrow\b/.test(outsideTry(body))) {
-                report.fail(
+                fail(
                     `${rel}:${line}`,
                     `\`${channel}\` has a \`throw\` outside its try block`,
                     'Usually a guard clause added above the try later. It reads correctly and it is the one path whose error reaches the renderer unstructured.',
@@ -188,13 +198,13 @@ export function checkElectronErrorHandling(options: ElectronErrorHandlingOptions
 
     for (const [event, why] of BACKSTOPS) {
         if (!new RegExp(`process\\.on\\(\\s*'${event}'`).test(indexSource)) {
-            report.fail(mainIndex, `registers no \`process.on('${event}')\` handler`, why);
+            fail(mainIndex, `registers no \`process.on('${event}')\` handler`, why);
         }
     }
 
     // ── 4. Shutdown releases the native handles ──────────────────────────────
     if (!/app\.on\(\s*'before-quit'/.test(indexSource)) {
-        report.fail(
+        fail(
             mainIndex,
             'has no `before-quit` handler',
             'It is the only hook that runs while the services still exist. Without it nothing a service holds — a model in native memory, an ONNX session, an fs watcher — is ever released.',
@@ -203,21 +213,31 @@ export function checkElectronErrorHandling(options: ElectronErrorHandlingOptions
         const { body: quitBody } = callbackBody(indexSource, indexSource.search(/app\.on\(\s*'before-quit'/));
         for (const [service, why] of cleanupRequired) {
             if (!new RegExp(`${service}\\.cleanup\\(`).test(quitBody)) {
-                report.fail(mainIndex, `\`before-quit\` never calls \`${service}.cleanup()\``, `It ${why}`);
+                fail(mainIndex, `\`before-quit\` never calls \`${service}.cleanup()\``, `It ${why}`);
             }
         }
     }
 
     // ── 5. A swallowed failure states its reason ─────────────────────────────
     const scanned = { root, files: [...mainFiles, ...walkFiles(root, rendererDir, { match: /\.(ts|vue)$/ })] };
-    for (const { file, what, why } of findSwallowedErrors(scanned)) report.fail(file, what, why);
+    for (const { file, what, why } of findSwallowedErrors(scanned)) fail(file, what, why);
     const swallows = countSwallows(scanned);
+
+    return { problems, counts: { handlers: handlerCount, swallows } };
+}
+
+export function checkElectronErrorHandling(options: ElectronErrorHandlingOptions = {}): void {
+    const { cleanupRequired = [] } = options;
+    const report = createGateReport({ name: 'Error handling' });
+    const { problems, counts } = inspectElectronErrorHandling(options);
+
+    for (const { file, what, why } of problems) report.fail(file, what, why);
 
     report.done({
         summary:
-            `Error handling check passed — ${plural(handlerCount, 'IPC handler')} containing their own failures, ` +
+            `Error handling check passed — ${plural(counts.handlers, 'IPC handler')} containing their own failures, ` +
             `both process backstops present, shutdown releasing ${plural(cleanupRequired.length, 'native handle')}, ` +
-            `${plural(swallows, 'swallow')} stating a reason.`,
+            `${plural(counts.swallows, 'swallow')} stating a reason.`,
         notMachineChecked:
             'whether a caught failure is reported to the user or only logged, whether a retry is the right ' +
             'response to it, or whether a service that holds no native handle today still holds none.',

@@ -17,7 +17,7 @@ import path from 'node:path';
 
 import { walkFiles } from '../lib/files.ts';
 import { REPO_ROOT } from '../lib/repo-root.ts';
-import { createGateReport, plural } from '../lib/report.ts';
+import { createGateReport, plural, type GateFailure } from '../lib/report.ts';
 import { stripComments } from '../lib/strip-comments.ts';
 import { countSwallows, findSwallowedErrors } from '../lib/swallowed-errors.ts';
 
@@ -61,6 +61,19 @@ export type FullstackErrorHandlingOptions = {
     notSecurityEvents?: string[];
     /** Files allowed to emit a code without throwing AppError; the handler is added automatically. */
     directCodeEmitters?: string[];
+};
+
+type FullstackErrorHandlingInspection = {
+    problems: GateFailure[];
+    counts: {
+        throws: number;
+        codes: number;
+        /** `[status, throws]`, by status. */
+        byStatus: [status: number, throws: number][];
+        securityEventCodes: number;
+        queueWorkers: number;
+        swallows: number;
+    };
 };
 
 // Codes that must carry `securityEvent: true`, by pattern so new codes enrol themselves. Expiry is deliberately absent: it is routine.
@@ -112,20 +125,22 @@ function optionField(args: string[], name: string): string | null {
 }
 
 /**
- * @param [options.root] Repository root.
- * @param [options.apiDir='api/src'] The HTTP service's sources.
- * @param [options.serviceDirs=['worker/src']] Services outside the request cycle.
- * @param [options.appErrorBanDirs=[]] Further directories barred from AppError only.
- * @param [options.frontend=true] Whether the frontend is in this repository.
- * @param [options.allowedStatus] The status policy table.
- * @param [options.parseLevel400=[]] Codes that legitimately answer 400.
- * @param [options.handlerBranches=['AppError','ZodError','MulterError']] The typed
+ * @param [input.root] Repository root.
+ * @param [input.apiDir='api/src'] The HTTP service's sources.
+ * @param [input.serviceDirs=['worker/src']] Services outside the request cycle.
+ * @param [input.appErrorBanDirs=[]] Further directories barred from AppError only.
+ * @param [input.frontend=true] Whether the frontend is in this repository.
+ * @param [input.allowedStatus] The status policy table.
+ * @param [input.parseLevel400=[]] Codes that legitimately answer 400.
+ * @param [input.handlerBranches=['AppError','ZodError','MulterError']] The typed
  *   failures the handler must map, in order, before 500.
- * @param [options.securityEventCodes=[]] Security events no pattern reaches.
- * @param [options.notSecurityEvents=[]] Codes matching a pattern that are routine.
- * @param [options.directCodeEmitters=[]] Files allowed to emit a code without AppError.
+ * @param [input.securityEventCodes=[]] Security events no pattern reaches.
+ * @param [input.notSecurityEvents=[]] Codes matching a pattern that are routine.
+ * @param [input.directCodeEmitters=[]] Files allowed to emit a code without AppError.
  */
-export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptions = {}): void {
+export function inspectFullstackErrorHandling(
+    input: FullstackErrorHandlingOptions = {},
+): FullstackErrorHandlingInspection {
     const {
         root = REPO_ROOT,
         apiDir = 'api/src',
@@ -145,9 +160,12 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
         securityEventCodes = [],
         notSecurityEvents = [],
         directCodeEmitters = [],
-    } = options;
+    } = input;
 
-    const report = createGateReport({ name: 'Error handling' });
+    const problems: GateFailure[] = [];
+    const fail = (file: string | null, what: string, why: string) => {
+        problems.push({ file, what, why });
+    };
 
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
     const exists = (rel: string) => fs.existsSync(path.join(root, rel));
@@ -195,7 +213,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
     for (const t of throws) {
         const at = `${t.rel}:${t.line}`;
         if (!Number.isInteger(t.status)) {
-            report.fail(
+            fail(
                 at,
                 'AppError status is not a literal',
                 'Pass the status as a number literal — a computed status cannot be checked against the policy table, and this is the one place the table is enforced.',
@@ -203,21 +221,21 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
             continue;
         }
         if (!statusTable.has(t.status)) {
-            report.fail(
+            fail(
                 at,
                 `status ${t.status} is not in the policy table`,
                 `Use one of ${[...statusTable].join(', ')} — see the status code policy. 502/503 are infrastructure responses, not client-facing throws.`,
             );
         }
         if (t.status === 400 && t.errorCode !== null && !parseLevel.has(t.errorCode)) {
-            report.fail(
+            fail(
                 at,
                 `400 for \`${t.errorCode}\``,
                 '400 is for a request that never parsed; a well-formed request carrying invalid data is 422. If this really is a parse-level failure, add the code to `parseLevel400` in this gate with a note.',
             );
         }
         if (t.status === 422 && t.errorCode !== null && parseLevel.has(t.errorCode)) {
-            report.fail(
+            fail(
                 at,
                 `422 for parse-level \`${t.errorCode}\``,
                 'This code is listed as parse-level, which is a 400. Either throw 400 or drop it from `parseLevel400` in this gate.',
@@ -239,7 +257,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
         if (majority === undefined) continue;
         for (const [status, sites] of others) {
             for (const site of sites) {
-                report.fail(
+                fail(
                     site,
                     `\`${errorCode}\` is thrown as ${status} here but ${majority[0]} in ${majority[1].length} other place(s)`,
                     `A code is a contract the frontend switches on; its status is a property of the code, not of the call site. Use ${majority[0]}, or split this case out into its own code if it genuinely means something different.`,
@@ -250,11 +268,11 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
 
     // ── 2. The AppError class carries the documented fields, in order ────────
     if (!exists(appError)) {
-        report.fail(appError, 'missing', 'One AppError class is the only way to raise a client-facing HTTP error.');
+        fail(appError, 'missing', 'One AppError class is the only way to raise a client-facing HTTP error.');
     } else {
         const src = code(appError);
         if (!/class AppError extends Error/.test(src)) {
-            report.fail(
+            fail(
                 appError,
                 'AppError does not extend Error',
                 'A thrown plain object has no stack trace and no `instanceof` narrowing, and loggers will not serialise it.',
@@ -262,7 +280,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
         }
         for (const field of ['status', 'code', 'params', 'logContext', 'securityEvent']) {
             if (!new RegExp(`readonly ${field}[?]?:`).test(src)) {
-                report.fail(
+                fail(
                     appError,
                     `no readonly \`${field}\` field`,
                     'The five fields are the contract with the error handler; a missing one silently stops being logged or sent.',
@@ -270,7 +288,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
             }
         }
         if (!/code:\s*ErrorCode/.test(src)) {
-            report.fail(
+            fail(
                 appError,
                 '`code` is not typed as ErrorCode',
                 'Typing it as the shared union is what makes a typo a compile error and guarantees every code that compiles has a translation.',
@@ -282,7 +300,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
             .filter((name) => name !== undefined);
         const expected = ['status', 'code', 'message', 'options'];
         if (names.join(',') !== expected.join(',')) {
-            report.fail(
+            fail(
                 appError,
                 `constructor parameters are (${names.join(', ')})`,
                 `Must be (${expected.join(', ')}). The three required values are positional; everything optional is named inside \`options\`, so no call site ever passes \`undefined\` to reach the argument it wants.`,
@@ -290,7 +308,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
         }
         for (const field of ['params', 'logContext', 'securityEvent']) {
             if (!new RegExp(`\\b${field}\\?:`).test(src)) {
-                report.fail(
+                fail(
                     appError,
                     `\`AppErrorOptions\` has no \`${field}\` field`,
                     'The three optional fields are the contract with the error handler; a missing one silently stops being logged or sent.',
@@ -305,7 +323,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
         const sig = /export function errorHandler\(([\s\S]*?)\)\s*:/.exec(src)?.[1] ?? '';
         const arity = sig.split(',').filter((s) => s.trim() !== '').length;
         if (arity !== 4) {
-            report.fail(
+            fail(
                 handler,
                 `errorHandler takes ${arity} argument(s)`,
                 'Express identifies an error handler ONLY by its 4-argument (err, req, res, next) signature. With any other arity it is registered as ordinary middleware and never sees an error.',
@@ -313,41 +331,37 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
         }
         const order = handlerBranches.map((n) => src.indexOf(`err instanceof ${n}`));
         if (order.some((i) => i === -1)) {
-            report.fail(
+            fail(
                 handler,
                 'a documented branch is missing',
                 `The handler must map ${handlerBranches.join(', ')} before falling through to 500 INTERNAL.`,
             );
         } else if (order.some((v, i) => i > 0 && (order[i - 1] ?? -1) > v)) {
-            report.fail(
+            fail(
                 handler,
                 'branches are out of order',
                 `${handlerBranches.join(' → ')} → generic. AppError is the intentional path and the most frequent; the generic branch is the safety net and must stay last.`,
             );
         }
         if (!/res\.status\(500\)\.json\(\{\s*error:\s*'INTERNAL'\s*\}\)/.test(src)) {
-            report.fail(
+            fail(
                 handler,
                 'the fallback branch does not answer 500 INTERNAL',
                 'Anything unrecognised is a bug: log it in full and return the generic code, never the error itself.',
             );
         }
         if (/res\.[\s\S]{0,40}\berr\.stack\b/.test(src)) {
-            report.fail(handler, 'a stack trace reaches the response', 'Stacks are logged, never sent.');
+            fail(handler, 'a stack trace reaches the response', 'Stacks are logged, never sent.');
         }
 
         const entrySrc = code(entry);
         const uses = [...entrySrc.matchAll(/app\.use\(/g)].map((m) => m.index);
         const mount = entrySrc.indexOf('app.use(errorHandler)');
         if (mount === -1) {
-            report.fail(
-                entry,
-                'errorHandler is never mounted',
-                'Register it with app.use(errorHandler) after all routes.',
-            );
+            fail(entry, 'errorHandler is never mounted', 'Register it with app.use(errorHandler) after all routes.');
         } else if (uses.some((i) => i > mount)) {
             const after = lineOf(entrySrc, uses.find((i) => i > mount) ?? mount);
-            report.fail(
+            fail(
                 entry,
                 `app.use() at line ${after} runs after errorHandler`,
                 'The error handler must be the LAST app.use(). Anything mounted after it is unreachable from an error, and the routes it registers throw into nothing.',
@@ -358,7 +372,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
     // ── 4. The shared error-code contract ────────────────────────────────────
     {
         if (allCodes.length === 0) {
-            report.fail(
+            fail(
                 codesFile,
                 'no ERROR_CODES array found',
                 'One `as const` array is the single source of truth for the API ↔ frontend contract.',
@@ -366,7 +380,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
         }
         for (const c of allCodes) {
             if (!/^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$/.test(c)) {
-                report.fail(
+                fail(
                     codesFile,
                     `\`${c}\` is not SCREAMING_SNAKE_CASE`,
                     'Codes are a shipped contract; the casing is part of it.',
@@ -374,7 +388,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
             }
         }
         for (const c of allCodes.filter((c, i) => allCodes.indexOf(c) !== i)) {
-            report.fail(
+            fail(
                 codesFile,
                 `\`${c}\` is listed twice`,
                 'A duplicate hides the fact that two call sites disagree about what the code means.',
@@ -384,7 +398,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
         const apiSrc = apiFiles.map(code).join('\n');
         for (const c of allCodes) {
             if (!apiSrc.includes(`'${c}'`)) {
-                report.fail(
+                fail(
                     codesFile,
                     `\`${c}\` is never thrown or emitted`,
                     'Remove it, or throw it. An unreachable code still costs a translation in every locale and suggests a failure path that does not exist.',
@@ -400,7 +414,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
                 const dict = JSON.parse(read(rel)).errors ?? {};
                 for (const key of Object.keys(dict)) {
                     if (!known.has(key)) {
-                        report.fail(
+                        fail(
                             rel,
                             `\`errors.${key}\` translates a code that no longer exists`,
                             'Drop it. An orphaned entry outlives the rename that stranded it and makes the dictionary look like it covers more than it does.',
@@ -410,7 +424,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
                 for (const c of allCodes) {
                     const text = dict[c];
                     if (typeof text !== 'string' || text.trim() === '') {
-                        report.fail(
+                        fail(
                             rel,
                             `no translation for \`${c}\``,
                             'A code with no translation reaches the user as raw SCREAMING_SNAKE. Adding a code means adding it to every locale.',
@@ -431,7 +445,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
                         .includes('eslint-disable')
                 )
                     continue;
-                report.fail(
+                fail(
                     `${rel}:${lineOf(src, m.index)}`,
                     `emits \`${m[1]}\` directly`,
                     `Only ${emitters.join(' and ')} may emit a code without throwing AppError. Everything else throws.`,
@@ -444,7 +458,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
     for (const t of throws) {
         if (t.errorCode === null || !isSecurityEvent(t.errorCode)) continue;
         if (optionField(t.args, 'securityEvent') !== 'true') {
-            report.fail(
+            fail(
                 `${t.rel}:${t.line}`,
                 `\`${t.errorCode}\` is thrown without securityEvent`,
                 'Pass `securityEvent: true` in the options object so the handler attaches ip + user-agent to the boundary log. If this code is genuinely routine rather than a credential failure, privilege denial or lockout, add it to `notSecurityEvents` in this gate with a note.',
@@ -454,7 +468,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
 
     for (const c of [...explicitSecurity, ...routine]) {
         if (!allCodes.includes(c)) {
-            report.fail(
+            fail(
                 codesFile,
                 `\`${c}\` is listed in this gate but no longer exists`,
                 'Drop it from `securityEventCodes` / `notSecurityEvents` — a stale entry quietly narrows the check.',
@@ -463,7 +477,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
     }
     for (const c of explicitSecurity) {
         if (SECURITY_EVENT_PATTERNS.some((p) => p.test(c))) {
-            report.fail(
+            fail(
                 codesFile,
                 `\`${c}\` is listed explicitly but a pattern already covers it`,
                 'Remove the redundant entry — the list is meant to hold only the codes whose names carry no signal.',
@@ -477,7 +491,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
         if (params === null || !params.startsWith('{')) continue;
         const hit = /\breq\.(params|body|query|headers)\b|\bidentifier\b|\bfilename\b/.exec(params);
         if (hit !== null) {
-            report.fail(
+            fail(
                 `${t.rel}:${t.line}`,
                 `\`params\` carries request input (${hit[0]})`,
                 'params are sent to the client and interpolated into a translation — that is the reflected-XSS vector. Move it into the `message` argument, which is logged and never leaves the server.',
@@ -496,7 +510,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
         for (const m of src.matchAll(/(?:const|let)\s+(\w+)\s*=\s*new Worker\s*[<(]/g)) {
             queueWorkers += 1;
             if (!new RegExp(`${m[1]}\\.on\\(\\s*'failed'`).test(src)) {
-                report.fail(
+                fail(
                     `${rel}:${lineOf(src, m.index)}`,
                     `Worker \`${m[1]}\` has no 'failed' handler`,
                     'There is no global middleware out here. Log failures in the `failed` event — once per attempt, with job context — rather than inside the job function.',
@@ -504,7 +518,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
             }
         }
         if (/\bAppError\b/.test(src)) {
-            report.fail(
+            fail(
                 rel,
                 'uses AppError',
                 'AppError is an HTTP concept — a status code, an Express handler, a client-facing translation. A failure out here has none of those. Throw a plain Error, or UnrecoverableError when a retry could never succeed.',
@@ -517,14 +531,14 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
         const src = code(client);
         // Two checks, not one regex, so the key may be built in a variable first.
         if (!/errors\.\$\{/.test(src) || !/i18n\.global\.te\(/.test(src)) {
-            report.fail(
+            fail(
                 client,
                 'the interceptor does not localise `data.error`',
                 'Translate the code once, in the interceptor, so every call site that reads `data.error` gets localised text with no per-site change.',
             );
         }
         if (!/i18n\.global\.t\('errors\.INTERNAL'\)/.test(src)) {
-            report.fail(
+            fail(
                 client,
                 'no fallback for an unknown code',
                 "A SCREAMING_SNAKE code with no translation must fall back to errors.INTERNAL — a raw code must never reach the user's eyes.",
@@ -532,7 +546,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
         }
         for (const rel of walkFiles(root, frontendDir, { match: /\.(ts|vue)$/, exclude: (r) => !notTests(r) })) {
             if (/\bAppError\b/.test(code(rel))) {
-                report.fail(
+                fail(
                     rel,
                     'references AppError',
                     'AppError is server-side. The frontend sees codes on the wire, nothing else.',
@@ -543,25 +557,41 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
 
     // ── 9. A server-side swallow states its reason ───────────────────────────
     const scanned = { root, files: [...apiFiles, ...serviceFiles] };
-    for (const { file, what, why } of findSwallowedErrors(scanned)) report.fail(file, what, why);
+    for (const { file, what, why } of findSwallowedErrors(scanned)) fail(file, what, why);
 
-    const byStatus = new Map();
+    const byStatus = new Map<number, number>();
     for (const t of throws) byStatus.set(t.status, (byStatus.get(t.status) ?? 0) + 1);
-    const spread = [...byStatus]
-        .sort((a, b) => a[0] - b[0])
-        .map(([s, n]) => `${s}×${n}`)
-        .join(' ');
     const thrownCodes = new Set(throws.map((t) => t.errorCode).filter((c) => c !== null));
 
+    return {
+        problems,
+        counts: {
+            throws: throws.length,
+            codes: thrownCodes.size,
+            byStatus: [...byStatus].sort((a, b) => a[0] - b[0]),
+            securityEventCodes: [...thrownCodes].filter(isSecurityEvent).length,
+            queueWorkers,
+            swallows: countSwallows(scanned),
+        },
+    };
+}
+
+export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptions = {}): void {
+    const report = createGateReport({ name: 'Error handling' });
+    const { problems, counts } = inspectFullstackErrorHandling(options);
+
+    for (const { file, what, why } of problems) report.fail(file, what, why);
+
+    const spread = counts.byStatus.map(([s, n]) => `${s}×${n}`).join(' ');
     report.done({
         summary:
-            `Error handling OK — ${plural(throws.length, 'AppError throw')} across ${plural(thrownCodes.size, 'code')}, ` +
+            `Error handling OK — ${plural(counts.throws, 'AppError throw')} across ${plural(counts.codes, 'code')}, ` +
             `all on policy statuses (${spread}) and each code on exactly one of them, one 4-arg handler mounted last ` +
             `with its branches in order, ` +
-            `${plural([...thrownCodes].filter(isSecurityEvent).length, 'credential-failure code')} carrying the ` +
+            `${plural(counts.securityEventCodes, 'credential-failure code')} carrying the ` +
             `securityEvent flag, no request input in wire params, ` +
-            `${queueWorkers === 0 ? 'no queue workers' : `${plural(queueWorkers, 'queue worker')} logging failures`}, ` +
-            `${plural(countSwallows(scanned), 'swallow')} stating a reason.`,
+            `${counts.queueWorkers === 0 ? 'no queue workers' : `${plural(counts.queueWorkers, 'queue worker')} logging failures`}, ` +
+            `${plural(counts.swallows, 'swallow')} stating a reason.`,
         notMachineChecked:
             'whether a given failure is operational or a programmer error, whether 401 or 403 is the right one for ' +
             'a case, whether a best-effort call should be best-effort at all, or whether a code is specific enough ' +

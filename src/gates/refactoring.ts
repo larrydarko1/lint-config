@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural } from './lib/report.ts';
+import { createGateReport, plural, type GateFailure } from './lib/report.ts';
 
 export type RefactoringOptions = {
     /** Repository root. Defaults to the repo this runs in. */
@@ -31,8 +31,16 @@ export type RefactoringOptions = {
     requireCheckboxes?: boolean;
 };
 
+type RefactoringInspection = {
+    problems: GateFailure[];
+    /** `trackerItems` is null when the tracker is not in this checkout. */
+    counts: { scanned: number; templates: number; trackerItems: number | null };
+};
+
 /** Kept in step by hand with the ESLint `terms` list, which is matched case-insensitively. */
 const MARKERS: RegExp = /\b(TODO|FIXME|FIX ME|HACK|XXX|TBD|WIP)\b/;
+
+const DEFAULT_TRACKER = 'todo.md';
 
 /** Extensions ESLint parses in a default setup, so this gate leaves them alone. */
 const DEFAULT_LINTED = ['.ts', '.tsx', '.vue', '.js', '.mjs', '.cjs'];
@@ -62,17 +70,20 @@ function templateBlock(source: string): { lines: string[]; offset: number } | nu
     return close > open ? { lines: lines.slice(open, close + 1), offset: open } : null;
 }
 
-export function checkRefactoring(options: RefactoringOptions = {}): void {
+export function inspectRefactoring(input: RefactoringOptions = {}): RefactoringInspection {
     const {
         root = REPO_ROOT,
         linted = DEFAULT_LINTED,
         skip = [],
         ignore = DEFAULT_IGNORE,
-        tracker = 'todo.md',
+        tracker = DEFAULT_TRACKER,
         requireCheckboxes = false,
-    } = options;
+    } = input;
 
-    const report = createGateReport({ name: 'Refactoring' });
+    const problems: GateFailure[] = [];
+    const fail = (file: string, what: string, why: string) => {
+        problems.push({ file, what, why });
+    };
 
     const lintedExtensions = new Set(linted);
     const skipNames = new Set(['package-lock.json', tracker, ...skip]);
@@ -116,7 +127,7 @@ export function checkRefactoring(options: RefactoringOptions = {}): void {
         lines.forEach((line, i) => {
             const hit = MARKERS.exec(line);
             if (hit === null) return;
-            report.fail(
+            fail(
                 `${rel}:${offset + i + 1}`,
                 `\`${hit[1]}\` marker — ${line.trim().slice(0, 80)}`,
                 `Deferred work does not live in the code. Move it to ${tracker} at the repo root (or a tracked issue) and delete the marker. If the line describes something that is TRUE now rather than something outstanding, say it as a statement — the marker is what turns an observation into a promise nobody is tracking.`,
@@ -133,7 +144,7 @@ export function checkRefactoring(options: RefactoringOptions = {}): void {
         const lines = fs.readFileSync(trackerPath, 'utf8').split('\n');
 
         if (lines.every((line) => line.trim() === '')) {
-            report.fail(
+            fail(
                 tracker,
                 'is empty',
                 'It is the destination the marker ban points at. An empty tracker in a repo that forbids deferral markers means deferred work is being dropped, not deferred.',
@@ -144,7 +155,7 @@ export function checkRefactoring(options: RefactoringOptions = {}): void {
             if (!/^\s*[-*]\s/.test(line)) return;
             items += 1;
             if (requireCheckboxes && !/^\s*[-*]\s\[.\]\s/.test(line)) {
-                report.fail(
+                fail(
                     `${tracker}:${i + 1}`,
                     `bullet without a checkbox — ${line.trim().slice(0, 60)}`,
                     'Write it as `- [ ] …` so the item has a state. A bare bullet cannot be marked done, which is how a tracker turns into a pile.',
@@ -153,16 +164,27 @@ export function checkRefactoring(options: RefactoringOptions = {}): void {
         });
     }
 
+    return { problems, counts: { scanned, templates, trackerItems: hasTracker ? items : null } };
+}
+
+export function checkRefactoring(options: RefactoringOptions = {}): void {
+    const { tracker = DEFAULT_TRACKER, requireCheckboxes = false } = options;
+    const report = createGateReport({ name: 'Refactoring' });
+    const { problems, counts } = inspectRefactoring(options);
+
+    for (const { file, what, why } of problems) report.fail(file, what, why);
+
     const covered = [
-        `no deferral markers in ${plural(scanned, 'unlinted file')}`,
-        templates > 0 ? `${plural(templates, 'SFC <template> block')}` : '',
+        `no deferral markers in ${plural(counts.scanned, 'unlinted file')}`,
+        counts.templates > 0 ? `${plural(counts.templates, 'SFC <template> block')}` : '',
     ]
         .filter(Boolean)
         .join(' or ');
 
-    const destination = hasTracker
-        ? `${tracker} holds ${plural(items, 'item')}${requireCheckboxes ? ', all with a checkbox' : ''}`
-        : `${tracker} is not in this checkout, so the destination check was skipped`;
+    const destination =
+        counts.trackerItems === null
+            ? `${tracker} is not in this checkout, so the destination check was skipped`
+            : `${tracker} holds ${plural(counts.trackerItems, 'item')}${requireCheckboxes ? ', all with a checkbox' : ''}`;
 
     report.done({
         summary: `Refactoring OK — ${covered}; ${destination}.`,

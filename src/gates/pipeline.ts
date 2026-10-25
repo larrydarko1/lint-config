@@ -31,7 +31,7 @@ import path from 'node:path';
 import YAML from 'yaml';
 
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural } from './lib/report.ts';
+import { createGateReport, plural, type GateFailure } from './lib/report.ts';
 
 /*
  * Parsed YAML is whatever the file says. Only the containers the gate walks through are
@@ -71,6 +71,21 @@ export type PipelineOptions = {
     ciWorkflow?: string;
 };
 
+type PipelineInspection = {
+    problems: GateFailure[];
+    counts: {
+        workflows: number;
+        jobs: number;
+        /** `uses:` lines, every one SHA-pinned when there are no problems. */
+        pinned: number;
+        actions: number;
+        imagePushes: number;
+        gateScripts: number;
+        /** Workflows the gate skipped, by path. */
+        parked: string[];
+    };
+};
+
 const WORKFLOW_DIR = '.github/workflows';
 const ACTIONS_DIR = '.github/actions';
 
@@ -98,11 +113,13 @@ const RELEASE_HOSTS = /https?:\/\/(?:github\.com\/[^\s"']+\/releases\/download|[
 const USES_LINE = /^[^\S\n]*(?:-[^\S\n]+)?uses:[^\S\n]*(\S+)[^\S\n]*(#.*)?$/gm;
 const NPM_RUN = /\bnpm\s+(?:-w\s+(\S+)\s+)?run\s+([\w:@./-]+)/g;
 
-export function checkPipeline(options: PipelineOptions = {}): void {
-    const { root = REPO_ROOT, checksDir = 'scripts/checks', ciWorkflow = `${WORKFLOW_DIR}/ci.yml` } = options;
+export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection {
+    const { root = REPO_ROOT, checksDir = 'scripts/checks', ciWorkflow = `${WORKFLOW_DIR}/ci.yml` } = input;
 
-    const report = createGateReport({ name: 'Pipeline' });
-    const fail = report.fail;
+    const problems: GateFailure[] = [];
+    const fail = (file: string | null, what: string, why: string) => {
+        problems.push({ file, what, why });
+    };
 
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
 
@@ -755,21 +772,40 @@ export function checkPipeline(options: PipelineOptions = {}): void {
         }
     }
 
-    // ── Report ──────────────────────────────────────────────────────────────
-    const jobCount = workflows.reduce((n, w) => n + jobsOf(w.doc).length, 0);
-    const pinned = [...workflows, ...actions].reduce((n, w) => n + [...w.src.matchAll(USES_LINE)].length, 0);
-    const images = imagePushes > 0 ? ' every pushed image tagged by commit with a cache scope of its own,' : '';
+    return {
+        problems,
+        counts: {
+            workflows: workflows.length,
+            jobs: workflows.reduce((n, w) => n + jobsOf(w.doc).length, 0),
+            pinned: [...workflows, ...actions].reduce((n, w) => n + [...w.src.matchAll(USES_LINE)].length, 0),
+            actions: actions.length,
+            imagePushes,
+            gateScripts: gateScripts.length,
+            parked,
+        },
+    };
+}
+
+export function checkPipeline(options: PipelineOptions = {}): void {
+    const report = createGateReport({ name: 'Pipeline' });
+    const { problems, counts } = inspectPipeline(options);
+
+    for (const { file, what, why } of problems) report.fail(file, what, why);
+
+    const images = counts.imagePushes > 0 ? ' every pushed image tagged by commit with a cache scope of its own,' : '';
     const skipped =
-        parked.length > 0 ? ` ${plural(parked.length, 'parked workflow')} skipped: ${parked.join(', ')}.` : '';
+        counts.parked.length > 0
+            ? ` ${plural(counts.parked.length, 'parked workflow')} skipped: ${counts.parked.join(', ')}.`
+            : '';
 
     report.done({
         summary:
-            `Pipeline OK — ${plural(workflows.length, 'workflow')}, ${plural(jobCount, 'job')}, all timed out and ` +
-            `concurrency-grouped with least-privilege permissions, ${plural(pinned, 'action')} SHA-pinned across ` +
-            `workflows and ${plural(actions.length, 'composite action')}, runners pinned (matrix included), every ` +
+            `Pipeline OK — ${plural(counts.workflows, 'workflow')}, ${plural(counts.jobs, 'job')}, all timed out and ` +
+            `concurrency-grouped with least-privilege permissions, ${plural(counts.pinned, 'action')} SHA-pinned across ` +
+            `workflows and ${plural(counts.actions, 'composite action')}, runners pinned (matrix included), every ` +
             `workflow_run job gated on success and pinned to head_sha with every checkout job gated on a push ` +
             `event, no untrusted input spliced into a shell,${images} and all ` +
-            `${plural(gateScripts.length, 'gate script')} wired into ci:check and ci.yml.${skipped}`,
+            `${plural(counts.gateScripts, 'gate script')} wired into ci:check and ci.yml.${skipped}`,
         notMachineChecked:
             'whether branch protection actually requires the CI check, whether `environment: production` has ' +
             'required reviewers configured, whether a secret in GitHub Secrets is still valid, or whether the ' +
