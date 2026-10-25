@@ -1,5 +1,13 @@
 import { bannedPackages } from './banned-packages.ts';
 
+export const aliasOnlyImportPatterns = [
+    {
+        group: ['../*', './*'],
+        message:
+            'Use the `@/` alias, not a relative path — `@/composables/feed/useFeed`, not `../../composables/feed/useFeed` or `./useFeed`. Relative paths break silently when a file moves and hide the import depth.',
+    },
+];
+
 export const noStoreLibraryPatterns = [
     bannedPackages(
         ['pinia', 'vuex'],
@@ -21,18 +29,6 @@ export const noToastLibraryPatterns = [
         "No notification library — the app owns one notification component and one function that feeds it (`notify.error(…)`), styled with the app's tokens and translated with its locale. A second channel splits where messages appear and how repeats collapse.",
     ),
 ];
-
-export const aliasOnlyImportPatterns = [
-    {
-        group: ['../*', './*'],
-        message:
-            'Use the `@/` alias, not a relative path — `@/composables/feed/useFeed`, not `../../composables/feed/useFeed` or `./useFeed`. Relative paths break silently when a file moves and hide the import depth.',
-    },
-];
-
-/** Where the standard keeps icons, under each components glob: `src/**\/*.vue` → `src/components/icons/*.vue`. */
-const iconFiles = (vue: string[]): string[] =>
-    vue.map((glob) => glob.replace(/\*\*\/\*\.vue$/, 'components/icons/*.vue'));
 
 /**
  * @param layout.vue The components.
@@ -95,3 +91,7 @@ export const vueStandards = (layout: { vue: string[]; frontend: string[] }) => [
         },
     },
 ];
+
+/** Where the standard keeps icons, under each components glob: `src/**\/*.vue` → `src/components/icons/*.vue`. */
+const iconFiles = (vue: string[]): string[] =>
+    vue.map((glob) => glob.replace(/\*\*\/\*\.vue$/, 'components/icons/*.vue'));

@@ -112,6 +112,12 @@ type HygieneRule = {
     why: string;
 };
 
+type FileAccess = {
+    read: (rel: string) => string;
+    exists: (rel: string) => boolean;
+    fail: (file: string, what: string, why: string) => void;
+};
+
 /** The ways a suite goes wrong while every run stays green, so none of them announce themselves. */
 const HYGIENE: HygieneRule[] = [
     {
@@ -226,7 +232,7 @@ export function inspectTesting(input: TestingInput): TestingInspection {
     const exists = (rel: string) => fs.existsSync(path.join(root, rel));
 
     const files = repoFiles(root);
-    const unitTests = files.filter((rel) => /\.test\.ts$/.test(rel));
+    const unitTests = files.filter((rel) => rel.endsWith('.test.ts'));
     const specs = files.filter((rel) => /\.spec\.[tj]s$/.test(rel));
 
     // ── 1. Placement: whichever pattern this project picked ─────────────────
@@ -302,7 +308,7 @@ export function inspectTesting(input: TestingInput): TestingInspection {
 
     // ── 3. E2E lives where this project said, which may be nowhere ──────────
     if (e2e === false) {
-        for (const rel of files.filter((f) => /^e2e\//.test(f) || /^playwright\.config\./.test(f))) {
+        for (const rel of files.filter((f) => f.startsWith('e2e/') || f.startsWith('playwright.config.'))) {
             fail(
                 rel,
                 'an E2E suite appearing without discussion',
@@ -512,6 +518,47 @@ export function inspectTesting(input: TestingInput): TestingInspection {
     return { problems, suites: unitTests.length, specs: specs.length, measured, uncovered, haveCoverage };
 }
 
+export function checkTesting(options: TestingOptions): void {
+    const { root = REPO_ROOT, ...rest } = options;
+
+    const report = createGateReport({ name: 'Testing' });
+    const { problems, suites, specs, measured, uncovered, haveCoverage } = inspectTesting({ root, ...rest });
+    for (const { file, what, why } of problems) report.fail(file, what, why);
+
+    const { layout, e2e = false, thresholds, excludes = {}, domEnvironment, serverErrors, apiClient } = rest;
+    const placement =
+        layout.kind === 'colocated'
+            ? 'all co-located in `__tests__/`'
+            : `all under \`${layout.root}/\` mirroring \`src/\``;
+    const e2eSummary =
+        e2e === false
+            ? 'no E2E reintroduced'
+            : specs === 0
+              ? 'no Playwright spec yet'
+              : `${plural(specs, 'Playwright spec')} under \`${e2e.dir}/\` with their own config`;
+
+    report.done({
+        summary:
+            `${plural(suites, 'unit suite')} ${placement}, ${e2eSummary}, coverage thresholds at or above the ` +
+            `${thresholds?.statements ?? 80}% floor, ${plural(Object.keys(excludes).length, 'coverage exclude')} all ` +
+            `accounted for, no transport patched around the network mock, no \`.only\`/\`.skip\`/bare \`test()\`/` +
+            `commented-out or duplicate cases, no test reading component internals${
+                domEnvironment === undefined ? '' : `, all on ${domEnvironment.name}`
+            }${
+                apiClient === undefined
+                    ? ''
+                    : `, no suite replacing the API client's ${apiClient.exports.map((name) => `\`${name}\``).join('/')}`
+            }${serverErrors === undefined ? '' : ', every spec held to the server-error tripwire'}.${
+                haveCoverage
+                    ? `\n  Coverage report: ${plural(measured, 'file')} measured, ${uncovered} at 0%.`
+                    : '\n  Coverage report: not present — the 0%-file check was SKIPPED. Run the coverage script first to include it.'
+            }`,
+        notMachineChecked:
+            'whether a passing test asserts anything worth asserting, whether the next test to write is the ' +
+            'highest-priority one, whether a component test would survive a refactor.',
+    });
+}
+
 /**
  * The name the recorder is reached by: the fixture key or the variable its
  * `createServerErrorRecorder(` call sits under. Another recorder's `.watch(` —
@@ -522,12 +569,6 @@ function recorderName(source: string): string {
     const bindings = [...before.matchAll(/(\w+)\s*(?::\s*\[|:\s*async\b|=(?![=>]))/g)];
     return bindings.at(-1)?.[1] ?? '\\w+';
 }
-
-type FileAccess = {
-    read: (rel: string) => string;
-    exists: (rel: string) => boolean;
-    fail: (file: string, what: string, why: string) => void;
-};
 
 /** Rule 10: the recorder, the teardown, the config that wires them, and specs that use them. */
 function inspectServerErrors(wiring: ServerErrorWiring, e2e: E2eLayout, specs: string[], io: FileAccess): void {
@@ -621,41 +662,4 @@ function inspectServerErrors(wiring: ServerErrorWiring, e2e: E2eLayout, specs: s
             );
         }
     }
-}
-
-export function checkTesting(options: TestingOptions): void {
-    const { root = REPO_ROOT, ...rest } = options;
-
-    const report = createGateReport({ name: 'Testing' });
-    const { problems, suites, specs, measured, uncovered, haveCoverage } = inspectTesting({ root, ...rest });
-    for (const { file, what, why } of problems) report.fail(file, what, why);
-
-    const { layout, e2e = false, thresholds, excludes = {}, domEnvironment, serverErrors, apiClient } = rest;
-    const placement =
-        layout.kind === 'colocated'
-            ? 'all co-located in `__tests__/`'
-            : `all under \`${layout.root}/\` mirroring \`src/\``;
-    const e2eSummary =
-        e2e === false
-            ? 'no E2E reintroduced'
-            : specs === 0
-              ? 'no Playwright spec yet'
-              : `${plural(specs, 'Playwright spec')} under \`${e2e.dir}/\` with their own config`;
-
-    report.done({
-        summary:
-            `${plural(suites, 'unit suite')} ${placement}, ${e2eSummary}, coverage thresholds at or above the ` +
-            `${thresholds?.statements ?? 80}% floor, ${plural(Object.keys(excludes).length, 'coverage exclude')} all ` +
-            'accounted for, no transport patched around the network mock, no `.only`/`.skip`/bare `test()`/' +
-            'commented-out or duplicate cases, no test reading component internals' +
-            `${domEnvironment === undefined ? '' : `, all on ${domEnvironment.name}`}` +
-            `${apiClient === undefined ? '' : `, no suite replacing the API client's ${apiClient.exports.map((name) => `\`${name}\``).join('/')}`}` +
-            `${serverErrors === undefined ? '' : ', every spec held to the server-error tripwire'}.` +
-            (haveCoverage
-                ? `\n  Coverage report: ${plural(measured, 'file')} measured, ${uncovered} at 0%.`
-                : '\n  Coverage report: not present — the 0%-file check was SKIPPED. Run the coverage script first to include it.'),
-        notMachineChecked:
-            'whether a passing test asserts anything worth asserting, whether the next test to write is the ' +
-            'highest-priority one, whether a component test would survive a refactor.',
-    });
 }

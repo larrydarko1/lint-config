@@ -20,20 +20,7 @@ import ts from 'typescript';
 import { createProgram, findProjects, parseProject, realFile } from './programs.ts';
 
 /** One export only its own file names. `name` is what it is exported as. */
-export type LocalOnlyType = { file: string; name: string; line: number };
-
-const isTypeDeclaration = (node: ts.Node): node is ts.TypeAliasDeclaration | ts.InterfaceDeclaration =>
-    ts.isTypeAliasDeclaration(node) || ts.isInterfaceDeclaration(node);
-
-const hasExportKeyword = (node: ts.TypeAliasDeclaration | ts.InterfaceDeclaration): boolean =>
-    node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ?? false;
-
-/** `/** @public *\/` opts a type out, the same tag knip honours for every other export. */
-const isPublic = (node: ts.Node): boolean => ts.getJSDocTags(node).some((tag) => tag.tagName.text === 'public');
-
-/** The name in `export { X } from './x'` passes the type along; it is not a use of it. */
-const isReExport = (id: ts.Identifier): boolean =>
-    ts.isExportSpecifier(id.parent) && id.parent.parent.parent.moduleSpecifier !== undefined;
+type LocalOnlyType = { file: string; name: string; line: number };
 
 /**
  * @param root Repository root.
@@ -75,7 +62,7 @@ export function findLocalOnlyTypes(root: string, projects: string[] = findProjec
                     for (const element of statement.exportClause.elements) {
                         const local = checker.getExportSpecifierLocalTargetSymbol(element);
                         const declaration = local?.declarations?.find(isTypeDeclaration);
-                        if (declaration === undefined || declaration.getSourceFile() !== sourceFile) continue;
+                        if (declaration?.getSourceFile() !== sourceFile) continue;
                         candidates.set(key(file, declaration.name.text), {
                             file: rel,
                             name: element.name.text,
@@ -109,3 +96,16 @@ export function findLocalOnlyTypes(root: string, projects: string[] = findProjec
         .map(([, hit]) => hit)
         .sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
 }
+
+const isTypeDeclaration = (node: ts.Node): node is ts.TypeAliasDeclaration | ts.InterfaceDeclaration =>
+    ts.isTypeAliasDeclaration(node) || ts.isInterfaceDeclaration(node);
+
+const hasExportKeyword = (node: ts.TypeAliasDeclaration | ts.InterfaceDeclaration): boolean =>
+    node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ?? false;
+
+/** `/** @public *\/` opts a type out, the same tag knip honours for every other export. */
+const isPublic = (node: ts.Node): boolean => ts.getJSDocTags(node).some((tag) => tag.tagName.text === 'public');
+
+/** The name in `export { X } from './x'` passes the type along; it is not a use of it. */
+const isReExport = (id: ts.Identifier): boolean =>
+    ts.isExportSpecifier(id.parent) && id.parent.parent.parent.moduleSpecifier !== undefined;

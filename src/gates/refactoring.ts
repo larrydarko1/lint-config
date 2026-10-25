@@ -38,7 +38,7 @@ type RefactoringInspection = {
 };
 
 /** Kept in step by hand with the ESLint `terms` list, which is matched case-insensitively. */
-const MARKERS: RegExp = /\b(TODO|FIXME|FIX ME|HACK|XXX|TBD|WIP)\b/;
+const MARKERS = /\b(TODO|FIXME|FIX ME|HACK|XXX|TBD|WIP)\b/;
 
 const DEFAULT_TRACKER = 'todo.md';
 
@@ -53,22 +53,6 @@ const BINARY = /\.(png|jpe?g|gif|webp|svg|ico|icns|psd|woff2?|ttf|eot|mp4|webm|m
 
 /** Past this, a file is generated or vendored; reading it line by line proves nothing. */
 const MAX_BYTES = 512 * 1024;
-
-/** Blank out fenced blocks and inline code spans (a backticked marker is named, not used), keeping line numbers. */
-function stripMarkdownCode(source: string): string {
-    return source
-        .replace(/^```[\s\S]*?^```/gm, (block) => block.replace(/[^\n]/g, ' '))
-        .replace(/`[^`\n]*`/g, (span) => ' '.repeat(span.length));
-}
-
-/** An SFC's outermost `<template>` block (the one at column 0), with the line it starts on. */
-function templateBlock(source: string): { lines: string[]; offset: number } | null {
-    const lines = source.split('\n');
-    const open = lines.findIndex((line) => /^<template(\s|>)/.test(line));
-    if (open === -1) return null;
-    const close = lines.reduce((acc, line, i) => (/^<\/template>/.test(line) ? i : acc), -1);
-    return close > open ? { lines: lines.slice(open, close + 1), offset: open } : null;
-}
 
 export function inspectRefactoring(input: RefactoringOptions = {}): RefactoringInspection {
     const {
@@ -176,7 +160,7 @@ export function checkRefactoring(options: RefactoringOptions = {}): void {
 
     const covered = [
         `no deferral markers in ${plural(counts.scanned, 'unlinted file')}`,
-        counts.templates > 0 ? `${plural(counts.templates, 'SFC <template> block')}` : '',
+        counts.templates > 0 ? plural(counts.templates, 'SFC <template> block') : '',
     ]
         .filter(Boolean)
         .join(' or ');
@@ -191,4 +175,20 @@ export function checkRefactoring(options: RefactoringOptions = {}): void {
         notMachineChecked:
             'whether a change was in scope, whether a drive-by belonged in its own commit, whether a file was split by concern or by line count, and whether something deferred should have been fixed on the spot.',
     });
+}
+
+/** Blank out fenced blocks and inline code spans (a backticked marker is named, not used), keeping line numbers. */
+function stripMarkdownCode(source: string): string {
+    return source
+        .replace(/^```[\s\S]*?^```/gm, (block) => block.replace(/[^\n]/g, ' '))
+        .replace(/`[^`\n]*`/g, (span) => ' '.repeat(span.length));
+}
+
+/** An SFC's outermost `<template>` block (the one at column 0), with the line it starts on. */
+function templateBlock(source: string): { lines: string[]; offset: number } | null {
+    const lines = source.split('\n');
+    const open = lines.findIndex((line) => /^<template(\s|>)/.test(line));
+    if (open === -1) return null;
+    const close = lines.reduce((acc, line, i) => (line.startsWith('</template>') ? i : acc), -1);
+    return close > open ? { lines: lines.slice(open, close + 1), offset: open } : null;
 }

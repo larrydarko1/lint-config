@@ -36,7 +36,6 @@ type AllowlistEntry = {
     expires: string;
 };
 
-
 type AuditInspection = {
     /** Everything wrong, in report order. */
     problems: GateFailure[];
@@ -65,36 +64,6 @@ type Finding = {
     title: string;
     severity: string;
 };
-
-/** One row per (package, advisory). String `via` entries are carriers and would double-count. */
-function findings(report: NpmAuditReport): Finding[] {
-    const rows: Finding[] = [];
-    for (const [name, vuln] of Object.entries(report.vulnerabilities ?? {})) {
-        for (const via of vuln.via ?? []) {
-            if (typeof via !== 'object' || via === null || via.url === undefined) continue;
-            const id = String(via.url).split('/').pop() ?? via.url;
-            rows.push({
-                package: name,
-                id,
-                title: via.title ?? '',
-                severity: via.severity ?? vuln.severity ?? '',
-            });
-        }
-    }
-    return rows;
-}
-
-function runAudit(root: string, omit: string[]): string {
-    const args = ['audit', '--json', ...omit.map((o) => `--omit=${o}`)];
-    try {
-        return execFileSync('npm', args, { cwd: root, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
-    } catch (err) {
-        // npm audit exits non-zero whenever it finds anything, and still prints the report.
-        const { stdout } = err as { stdout?: unknown };
-        if (typeof stdout === 'string' && stdout.length > 0) return stdout;
-        throw err;
-    }
-}
 
 /**
  * The whole decision, separated from running `npm audit` and printing so it can be
@@ -216,4 +185,34 @@ export function checkAudit(options: AuditOptions = {}): void {
             `this app’s context, or anything under \`--omit=${omit.join(', --omit=')}\` — a compromised build ` +
             'tool ships whatever it likes, and this gate never looked at it.',
     });
+}
+
+/** One row per (package, advisory). String `via` entries are carriers and would double-count. */
+function findings(report: NpmAuditReport): Finding[] {
+    const rows: Finding[] = [];
+    for (const [name, vuln] of Object.entries(report.vulnerabilities ?? {})) {
+        for (const via of vuln.via ?? []) {
+            if (typeof via !== 'object' || via?.url === undefined) continue;
+            const id = via.url.split('/').pop() ?? via.url;
+            rows.push({
+                package: name,
+                id,
+                title: via.title ?? '',
+                severity: via.severity ?? vuln.severity ?? '',
+            });
+        }
+    }
+    return rows;
+}
+
+function runAudit(root: string, omit: string[]): string {
+    const args = ['audit', '--json', ...omit.map((o) => `--omit=${o}`)];
+    try {
+        return execFileSync('npm', args, { cwd: root, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+    } catch (err) {
+        // npm audit exits non-zero whenever it finds anything, and still prints the report.
+        const { stdout } = err as { stdout?: unknown };
+        if (typeof stdout === 'string' && stdout.length > 0) return stdout;
+        throw err;
+    }
 }

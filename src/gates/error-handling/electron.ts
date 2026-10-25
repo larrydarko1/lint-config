@@ -35,90 +35,6 @@ type ElectronErrorHandlingInspection = {
     counts: { handlers: number; swallows: number };
 };
 
-/**
- * From `start`, the body of the callback that follows. Located from the `=>`, since the
- * first `{` may belong to an inline return type.
- * @returns `expression: true` for a concise arrow body, which has no try block.
- */
-function callbackBody(source: string, start: number): { body: string; expression: boolean } {
-    const arrow = source.indexOf('=>', start);
-    if (arrow === -1) return { body: '', expression: false };
-
-    let i = arrow + 2;
-    while (i < source.length && /\s/.test(source.charAt(i))) i += 1;
-
-    if (source[i] !== '{') {
-        // Concise body: up to the comma or paren that closes the handle() call.
-        let depth = 0;
-        for (let j = i; j < source.length; j += 1) {
-            const ch = source.charAt(j);
-            if ('([{'.includes(ch)) depth += 1;
-            else if (')]}'.includes(ch)) {
-                if (depth === 0) return { body: source.slice(i, j), expression: true };
-                depth -= 1;
-            }
-        }
-        return { body: source.slice(i), expression: true };
-    }
-
-    let depth = 0;
-    for (let j = i; j < source.length; j += 1) {
-        if (source[j] === '{') depth += 1;
-        else if (source[j] === '}') {
-            depth -= 1;
-            if (depth === 0) return { body: source.slice(i + 1, j), expression: false };
-        }
-    }
-    return { body: source.slice(i + 1), expression: false };
-}
-
-/**
- * The body with every `try { … } catch { … } finally { … }` removed, so what is
- * left is only the code that runs unguarded.
- */
-function outsideTry(body: string): string {
-    let out = body;
-    for (;;) {
-        const at = out.indexOf('try');
-        if (at === -1) return out;
-        const open = out.indexOf('{', at);
-        if (open === -1) return out;
-
-        let depth = 0;
-        let end = out.length;
-        for (let i = open; i < out.length; i += 1) {
-            if (out[i] === '{') depth += 1;
-            else if (out[i] === '}') {
-                depth -= 1;
-                if (depth === 0) {
-                    end = i + 1;
-                    break;
-                }
-            }
-        }
-
-        // Consume the trailing catch/finally blocks too, or `catch` reads as unguarded code.
-        const tail = /^\s*(?:catch\s*(?:\([^)]*\))?\s*\{|finally\s*\{)/.exec(out.slice(end));
-        if (tail === null) {
-            out = out.slice(0, at) + out.slice(end);
-            continue;
-        }
-        let tailDepth = 0;
-        let tailEnd = end;
-        for (let i = end + tail[0].length - 1; i < out.length; i += 1) {
-            if (out[i] === '{') tailDepth += 1;
-            else if (out[i] === '}') {
-                tailDepth -= 1;
-                if (tailDepth === 0) {
-                    tailEnd = i + 1;
-                    break;
-                }
-            }
-        }
-        out = out.slice(0, at) + out.slice(tailEnd);
-    }
-}
-
 /** The process-level handlers every main process must register, and why. */
 const BACKSTOPS: [event: string, why: string][] = [
     [
@@ -242,4 +158,88 @@ export function checkElectronErrorHandling(options: ElectronErrorHandlingOptions
             'whether a caught failure is reported to the user or only logged, whether a retry is the right ' +
             'response to it, or whether a service that holds no native handle today still holds none.',
     });
+}
+
+/**
+ * From `start`, the body of the callback that follows. Located from the `=>`, since the
+ * first `{` may belong to an inline return type.
+ * @returns `expression: true` for a concise arrow body, which has no try block.
+ */
+function callbackBody(source: string, start: number): { body: string; expression: boolean } {
+    const arrow = source.indexOf('=>', start);
+    if (arrow === -1) return { body: '', expression: false };
+
+    let i = arrow + 2;
+    while (i < source.length && /\s/.test(source.charAt(i))) i += 1;
+
+    if (source[i] !== '{') {
+        // Concise body: up to the comma or paren that closes the handle() call.
+        let depth = 0;
+        for (let j = i; j < source.length; j += 1) {
+            const ch = source.charAt(j);
+            if ('([{'.includes(ch)) depth += 1;
+            else if (')]}'.includes(ch)) {
+                if (depth === 0) return { body: source.slice(i, j), expression: true };
+                depth -= 1;
+            }
+        }
+        return { body: source.slice(i), expression: true };
+    }
+
+    let depth = 0;
+    for (let j = i; j < source.length; j += 1) {
+        if (source[j] === '{') depth += 1;
+        else if (source[j] === '}') {
+            depth -= 1;
+            if (depth === 0) return { body: source.slice(i + 1, j), expression: false };
+        }
+    }
+    return { body: source.slice(i + 1), expression: false };
+}
+
+/**
+ * The body with every `try { … } catch { … } finally { … }` removed, so what is
+ * left is only the code that runs unguarded.
+ */
+function outsideTry(body: string): string {
+    let out = body;
+    for (;;) {
+        const at = out.indexOf('try');
+        if (at === -1) return out;
+        const open = out.indexOf('{', at);
+        if (open === -1) return out;
+
+        let depth = 0;
+        let end = out.length;
+        for (let i = open; i < out.length; i += 1) {
+            if (out[i] === '{') depth += 1;
+            else if (out[i] === '}') {
+                depth -= 1;
+                if (depth === 0) {
+                    end = i + 1;
+                    break;
+                }
+            }
+        }
+
+        // Consume the trailing catch/finally blocks too, or `catch` reads as unguarded code.
+        const tail = /^\s*(?:catch\s*(?:\([^)]*\))?\s*\{|finally\s*\{)/.exec(out.slice(end));
+        if (tail === null) {
+            out = out.slice(0, at) + out.slice(end);
+            continue;
+        }
+        let tailDepth = 0;
+        let tailEnd = end;
+        for (let i = end + tail[0].length - 1; i < out.length; i += 1) {
+            if (out[i] === '{') tailDepth += 1;
+            else if (out[i] === '}') {
+                tailDepth -= 1;
+                if (tailDepth === 0) {
+                    tailEnd = i + 1;
+                    break;
+                }
+            }
+        }
+        out = out.slice(0, at) + out.slice(tailEnd);
+    }
 }

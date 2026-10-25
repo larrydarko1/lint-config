@@ -3,7 +3,7 @@
  * a project overrides any of them with the `paths` option.
  */
 
-export type PresetName = 'api' | 'electron' | 'fullstack' | 'spa' | 'tauri';
+export type PresetName = 'api' | 'electron' | 'fullstack' | 'library' | 'spa' | 'tauri';
 
 /** Glob lists, one per area the shared rules address. */
 export type PresetPaths = {
@@ -17,6 +17,38 @@ export type PresetPaths = {
     vue: string[];
     ignores: string[];
     configFiles: string[];
+};
+
+/**
+ * A full-stack monorepo's workspaces, by the role each plays. Every full-stack rule is
+ * written against a role, not a folder name, so a new workspace is one entry here and
+ * every rule for its role reaches it. Each is a directory holding a `src/`.
+ */
+export type FullstackWorkspaces = {
+    /** The Vue app. */
+    frontend: string;
+    /** The HTTP service: routes, middleware, the websocket gateway. */
+    api: string;
+    /** Node processes outside the request cycle — a queue consumer, a feed ingestor, a scheduled role. */
+    services: string[];
+    /** Framework-neutral packages the other workspaces import. */
+    shared: string[];
+};
+
+/** Each role's source as globs — what the full-stack rules are given. */
+export type FullstackLayout = {
+    workspaces: FullstackWorkspaces;
+    /** The frontend's TypeScript and components. */
+    frontend: string[];
+    /** The frontend's components alone. */
+    vue: string[];
+    api: string[];
+    services: string[];
+    /** The api and every service: the Node side. */
+    backend: string[];
+    shared: string[];
+    /** Every workspace's shipped code. */
+    source: string[];
 };
 
 /** Electron desktop: main / preload / renderer under one `src/`, tests in `tests/`. */
@@ -99,19 +131,23 @@ const tauri: PresetPaths = {
 };
 
 /**
- * A full-stack monorepo's workspaces, by the role each plays. Every full-stack rule is
- * written against a role, not a folder name, so a new workspace is one entry here and
- * every rule for its role reaches it. Each is a directory holding a `src/`.
+ * A library published to npm: TypeScript in `src/` compiled to `dist/`, suites in `test/`
+ * run by `node --test`. Everything runs in Node, and there are no components. A suite may
+ * be plain JavaScript importing the `.ts` sources, which Node strips itself, so `test/` is
+ * linted either way and type-checked where it is TypeScript.
  */
-export type FullstackWorkspaces = {
-    /** The Vue app. */
-    frontend: string;
-    /** The HTTP service: routes, middleware, the websocket gateway. */
-    api: string;
-    /** Node processes outside the request cycle — a queue consumer, a feed ingestor, a scheduled role. */
-    services: string[];
-    /** Framework-neutral packages the other workspaces import. */
-    shared: string[];
+const library: PresetPaths = {
+    source: ['src/**/*.ts', 'scripts/**/*.ts'],
+    typedSource: ['src/**/*.ts', 'test/**/*.ts', 'scripts/**/*.ts'],
+    tests: ['test/**/*.{ts,js}'],
+    namingIgnores: ['test/**/*.{ts,js}'],
+    browser: [],
+    node: ['src/**/*.ts', 'test/**/*.{ts,js}', 'scripts/**/*.{ts,js}', '*.config.{js,ts}'],
+    nodeAndBrowser: [],
+    vue: [],
+    // `dist/` is the build, and what `npm pack` ships; it is checked as a package, not as source.
+    ignores: ['dist/', 'node_modules/', '**/.venv/', 'coverage/'],
+    configFiles: ['eslint/**/*.js', 'eslint.config.js'],
 };
 
 /** The four the family started with. A project overrides any role with `larry({ workspaces })`. */
@@ -121,24 +157,6 @@ export const FULLSTACK_WORKSPACES: FullstackWorkspaces = {
     services: ['worker'],
     shared: ['packages/shared'],
 };
-
-/** Each role's source as globs — what the full-stack rules are given. */
-export type FullstackLayout = {
-    workspaces: FullstackWorkspaces;
-    /** The frontend's TypeScript and components. */
-    frontend: string[];
-    /** The frontend's components alone. */
-    vue: string[];
-    api: string[];
-    services: string[];
-    /** The api and every service: the Node side. */
-    backend: string[];
-    shared: string[];
-    /** Every workspace's shipped code. */
-    source: string[];
-};
-
-const nodeSource = (dir: string): string => `${dir}/src/**/*.ts`;
 
 export const fullstackLayout = (workspaces: Partial<FullstackWorkspaces> = {}): FullstackLayout => {
     const resolved = { ...FULLSTACK_WORKSPACES, ...workspaces };
@@ -157,6 +175,19 @@ export const fullstackLayout = (workspaces: Partial<FullstackWorkspaces> = {}): 
         source: [...frontend, ...api, ...services, ...shared],
     };
 };
+
+/** The preset's paths, for the full-stack family built from its workspaces, with the project's overrides applied. */
+export const resolvePaths = (
+    preset: PresetName,
+    overrides: Partial<PresetPaths> = {},
+    workspaces: Partial<FullstackWorkspaces> = {},
+): PresetPaths => {
+    const base = preset === 'fullstack' ? fullstackPaths(fullstackLayout(workspaces)) : PRESETS[preset];
+    if (!base) throw new Error(`Unknown preset '${preset}'. Expected one of: ${Object.keys(PRESETS).join(', ')}.`);
+    return { ...base, ...overrides };
+};
+
+const nodeSource = (dir: string): string => `${dir}/src/**/*.ts`;
 
 const fullstackPaths = (layout: FullstackLayout): PresetPaths => ({
     source: [...layout.source, 'e2e/**/*.ts', 'scripts/**/*.ts'],
@@ -178,17 +209,7 @@ export const PRESETS: Record<PresetName, PresetPaths> = {
     api,
     electron,
     fullstack: fullstackPaths(fullstackLayout()),
+    library,
     spa,
     tauri,
-};
-
-/** The preset's paths, for the full-stack family built from its workspaces, with the project's overrides applied. */
-export const resolvePaths = (
-    preset: PresetName,
-    overrides: Partial<PresetPaths> = {},
-    workspaces: Partial<FullstackWorkspaces> = {},
-): PresetPaths => {
-    const base = preset === 'fullstack' ? fullstackPaths(fullstackLayout(workspaces)) : PRESETS[preset];
-    if (!base) throw new Error(`Unknown preset '${preset}'. Expected one of: ${Object.keys(PRESETS).join(', ')}.`);
-    return { ...base, ...overrides };
 };

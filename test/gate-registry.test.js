@@ -14,9 +14,13 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 const GATES_DIR = path.join(ROOT, 'src/gates');
 /** Modules under gates/ that are building blocks for other gates, not gates themselves. */
 const HELPERS = ['import-order', 'registry', 'rust-order'];
-const ALL = ['api', 'electron', 'fullstack', 'spa', 'tauri'];
+const ALL = ['api', 'electron', 'fullstack', 'library', 'spa', 'tauri'];
 /** How the README's Family column spells a set of families. */
-const FAMILY_LABELS = { 'all': ALL, 'all but api': ALL.filter((f) => f !== 'api') };
+const FAMILY_LABELS = {
+    'all': ALL,
+    'all but library': ALL.filter((f) => f !== 'library'),
+    'all with a UI': ['electron', 'fullstack', 'spa', 'tauri'],
+};
 
 const gateModules = readdirSync(GATES_DIR, { recursive: true })
     .filter((file) => file.endsWith('.ts') && !file.startsWith('lib'))

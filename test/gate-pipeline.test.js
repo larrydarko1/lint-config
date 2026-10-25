@@ -343,7 +343,7 @@ test('10. a `:latest` image tag is reported, and so is one with no commit SHA', 
 
 test('11. a build with no cache, an unscoped cache, or a mismatched one is reported', (t) => {
     assert.match(
-        run(project(t, { '.github/workflows/image.yml': DOCKER.replace(/          cache-to:.*\n/, '') })).err,
+        run(project(t, { '.github/workflows/image.yml': DOCKER.replace(/ {10}cache-to:.*\n/, '') })).err,
         /builds without `cache-to`/,
     );
     assert.match(
@@ -387,7 +387,7 @@ test('12. pushing to the registry without `packages: write` is reported', (t) =>
 test('13. a secret written to a file with no `if: always()` cleanup is reported', (t) => {
     const deploy = CI_YML.replace(
         '      - run: npm run lint:check\n',
-        '      - run: echo "$\{{ secrets.KUBECONFIG }}" > kubeconfig\n',
+        '      - run: echo "${{ secrets.KUBECONFIG }}" > kubeconfig\n',
     );
     const { err, failed } = run(project(t, { '.github/workflows/deploy.yml': deploy }));
     assert.equal(failed, true);
@@ -409,7 +409,7 @@ test('15. a release asset downloaded unpinned, or installed unverified, is repor
 
 test('14. an untrusted event field interpolated into a run: block is reported', (t) => {
     const { err, failed } = run(
-        patched(t, '      - run: npm run lint:check', '      - run: echo "$\{{ github.event.pull_request.title }}"'),
+        patched(t, '      - run: npm run lint:check', '      - run: echo "${{ github.event.pull_request.title }}"'),
     );
     assert.equal(failed, true);
     assert.match(err, /interpolates `github\.event\.pull_request\.title` into a `run:` script/);

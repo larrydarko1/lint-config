@@ -11,58 +11,6 @@ type FunctionNode = TSESTree.FunctionDeclaration | TSESTree.FunctionExpression |
 /** Prefixes whose next character must be uppercase, so `getter` and `island` are not `get`/`is`. */
 const PREFIX = /^(get|find|list|is|has|can|assert|require|ensure|build|format|to)(?=[A-Z])/;
 
-const isNull = (t: TypeNode): boolean => t.type === 'TSNullKeyword';
-const isUndefined = (t: TypeNode): boolean => t.type === 'TSUndefinedKeyword';
-const isVoid = (t: TypeNode): boolean => t.type === 'TSVoidKeyword';
-const isNever = (t: TypeNode): boolean => t.type === 'TSNeverKeyword';
-const isUnknownOrAny = (t: TypeNode): boolean => t.type === 'TSUnknownKeyword' || t.type === 'TSAnyKeyword';
-
-/** A type predicate (`x is T`) or an assertion signature (`asserts x is T`). */
-const isPredicate = (t: TypeNode): t is TSESTree.TSTypePredicate => t.type === 'TSTypePredicate';
-
-function isBooleanType(type: TypeNode): boolean {
-    if (type.type === 'TSBooleanKeyword') return true;
-    // `true | false`, and the literal-typed booleans a narrowed helper returns.
-    if (type.type === 'TSLiteralType')
-        return type.literal.type === 'Literal' && typeof type.literal.value === 'boolean';
-    if (type.type === 'TSUnionType') return type.types.every(isBooleanType);
-    return false;
-}
-
-function isArrayType(type: TypeNode): boolean {
-    if (type.type === 'TSArrayType') return true;
-    // `readonly T[]`
-    if (type.type === 'TSTypeOperator' && type.operator === 'readonly') {
-        return type.typeAnnotation !== undefined && isArrayType(type.typeAnnotation);
-    }
-    if (type.type === 'TSTypeReference' && type.typeName.type === 'Identifier') {
-        return ['Array', 'ReadonlyArray'].includes(type.typeName.name);
-    }
-    return false;
-}
-
-/** `Promise<T>` → `T`; anything else unchanged. */
-function unwrapPromise(type: TypeNode): TypeNode {
-    if (type.type !== 'TSTypeReference' || type.typeName.type !== 'Identifier') return type;
-    if (type.typeName.name !== 'Promise') return type;
-    return type.typeArguments?.params[0] ?? type;
-}
-
-const unionMembers = (type: TypeNode): TypeNode[] => (type.type === 'TSUnionType' ? type.types : [type]);
-
-function functionName(node: FunctionNode): string | null {
-    if (node.id != null && node.id.type === 'Identifier') return node.id.name;
-    const parent = node.parent;
-    if (parent.type === 'VariableDeclarator' && parent.id.type === 'Identifier') return parent.id.name;
-    const keyed =
-        parent.type === 'Property' ||
-        parent.type === 'MethodDefinition' ||
-        parent.type === 'PropertyDefinition' ||
-        parent.type === 'TSAbstractMethodDefinition';
-    if (keyed && parent.key.type === 'Identifier') return parent.key.name;
-    return null;
-}
-
 /**
  * Rule 1. The prefix tells the caller what happens on failure; this checks the
  * signature actually says the same thing.
@@ -127,11 +75,11 @@ const nameContract: TSESLint.RuleModule<
 
             const rest = name.slice(prefix.length);
             const declared = node.returnType.typeAnnotation;
-            const isAsync = node.async === true || frame?.hasAwait === true;
+            const isAsync = node.async || frame?.hasAwait === true;
 
             // Before unwrapping: `asserts x is T` has no Promise to unwrap.
             if (isPredicate(declared)) {
-                if (['is', 'has', 'can'].includes(prefix) && declared.asserts !== true) return;
+                if (['is', 'has', 'can'].includes(prefix) && !declared.asserts) return;
                 if (['assert', 'require', 'ensure'].includes(prefix)) return;
             }
 
@@ -287,7 +235,7 @@ const noUndefinedHole: TSESLint.RuleModule<'undefinedHole'> = {
     create(context) {
         function check(node: FunctionNode): void {
             const optional = node.params.filter(
-                (param) => ('optional' in param && param.optional === true) || param.type === 'AssignmentPattern',
+                (param) => ('optional' in param && param.optional) || param.type === 'AssignmentPattern',
             );
             const second = optional[1];
             if (second === undefined) return;
@@ -397,3 +345,55 @@ export const functionContractsPlugin = {
         'no-db-await-in-loop': noDbAwaitInLoop,
     },
 };
+
+const isNull = (t: TypeNode): boolean => t.type === 'TSNullKeyword';
+const isUndefined = (t: TypeNode): boolean => t.type === 'TSUndefinedKeyword';
+const isVoid = (t: TypeNode): boolean => t.type === 'TSVoidKeyword';
+const isNever = (t: TypeNode): boolean => t.type === 'TSNeverKeyword';
+const isUnknownOrAny = (t: TypeNode): boolean => t.type === 'TSUnknownKeyword' || t.type === 'TSAnyKeyword';
+
+/** A type predicate (`x is T`) or an assertion signature (`asserts x is T`). */
+const isPredicate = (t: TypeNode): t is TSESTree.TSTypePredicate => t.type === 'TSTypePredicate';
+
+function isBooleanType(type: TypeNode): boolean {
+    if (type.type === 'TSBooleanKeyword') return true;
+    // `true | false`, and the literal-typed booleans a narrowed helper returns.
+    if (type.type === 'TSLiteralType')
+        return type.literal.type === 'Literal' && typeof type.literal.value === 'boolean';
+    if (type.type === 'TSUnionType') return type.types.every(isBooleanType);
+    return false;
+}
+
+function isArrayType(type: TypeNode): boolean {
+    if (type.type === 'TSArrayType') return true;
+    // `readonly T[]`
+    if (type.type === 'TSTypeOperator' && type.operator === 'readonly') {
+        return type.typeAnnotation !== undefined && isArrayType(type.typeAnnotation);
+    }
+    if (type.type === 'TSTypeReference' && type.typeName.type === 'Identifier') {
+        return ['Array', 'ReadonlyArray'].includes(type.typeName.name);
+    }
+    return false;
+}
+
+/** `Promise<T>` → `T`; anything else unchanged. */
+function unwrapPromise(type: TypeNode): TypeNode {
+    if (type.type !== 'TSTypeReference' || type.typeName.type !== 'Identifier') return type;
+    if (type.typeName.name !== 'Promise') return type;
+    return type.typeArguments?.params[0] ?? type;
+}
+
+const unionMembers = (type: TypeNode): TypeNode[] => (type.type === 'TSUnionType' ? type.types : [type]);
+
+function functionName(node: FunctionNode): string | null {
+    if (node.id?.type === 'Identifier') return node.id.name;
+    const parent = node.parent;
+    if (parent.type === 'VariableDeclarator' && parent.id.type === 'Identifier') return parent.id.name;
+    const keyed =
+        parent.type === 'Property' ||
+        parent.type === 'MethodDefinition' ||
+        parent.type === 'PropertyDefinition' ||
+        parent.type === 'TSAbstractMethodDefinition';
+    if (keyed && parent.key.type === 'Identifier') return parent.key.name;
+    return null;
+}

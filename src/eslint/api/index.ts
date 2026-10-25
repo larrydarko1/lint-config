@@ -42,31 +42,6 @@ export { errorHandlingSelectors } from '../fullstack/error-handling.ts';
 export { libBannedImportPatterns } from '../fullstack/code-style.ts';
 export { wsGatewaySelectors, wsEventNameSelectors, wsGatewayBannedImports } from '../fullstack/ws.ts';
 
-const { tests: TESTS } = PRESETS.api;
-/** The service's own code: what ships. */
-const SOURCE = ['src/**/*.ts'];
-const E2E = ['e2e/**/*.ts'];
-/** Tests sit beside the code, so every area below leaves them out. */
-const NOT_TESTS = ['**/__tests__/**', '**/*.test.ts', '**/*.spec.ts'];
-
-const CONFIG = 'src/lib/config.ts';
-const DB = 'src/lib/db.ts';
-const ERROR_HANDLER = 'src/middleware/error-handler.ts';
-const ROUTES = ['src/routes/**/*.ts'];
-const GATEWAY = ['src/gateway/**/*.ts'];
-const LIB = ['src/lib/**/*.ts'];
-
-/** The full-stack messages, pointed at this layout's files. */
-export const apiSourceSelectors = httpServiceSelectors({
-    appError: 'src/lib/app-error.ts',
-    namedShapes: 'and export it from the module that returns it, so every caller compiles against one definition',
-});
-const mongo = mongoSelectors({ indexManifest: 'src/db/indexes.ts', documentTypes: 'src/db/collections.ts' });
-/** Application code: the index manifest owns indexes, lib/db.ts owns the client. Named as in the full-stack family. */
-export const dbApiWorkerSelectors = mongo.application;
-/** src/lib/db.ts, which applies the manifest and holds the client. */
-export const dbDbTsSelectors = mongo.dbModule;
-
 export type ApiStandardsOptions = {
     /**
      * `consoleAllowed`: files where `console` is the point — a boot failure reported before
@@ -94,6 +69,31 @@ export type ApiStandardsOptions = {
      */
     ws?: boolean;
 };
+/** The service's own code: what ships. */
+const SOURCE = ['src/**/*.ts'];
+const E2E = ['e2e/**/*.ts'];
+/** Tests sit beside the code, so every area below leaves them out. */
+const NOT_TESTS = ['**/__tests__/**', '**/*.test.ts', '**/*.spec.ts'];
+
+const CONFIG = 'src/lib/config.ts';
+const DB = 'src/lib/db.ts';
+const ERROR_HANDLER = 'src/middleware/error-handler.ts';
+const ROUTES = ['src/routes/**/*.ts'];
+const GATEWAY = ['src/gateway/**/*.ts'];
+const LIB = ['src/lib/**/*.ts'];
+
+const { tests: TESTS } = PRESETS.api;
+
+/** The full-stack messages, pointed at this layout's files. */
+export const apiSourceSelectors = httpServiceSelectors({
+    appError: 'src/lib/app-error.ts',
+    namedShapes: 'and export it from the module that returns it, so every caller compiles against one definition',
+});
+const mongo = mongoSelectors({ indexManifest: 'src/db/indexes.ts', documentTypes: 'src/db/collections.ts' });
+/** Application code: the index manifest owns indexes, lib/db.ts owns the client. Named as in the full-stack family. */
+export const dbApiWorkerSelectors = mongo.application;
+/** src/lib/db.ts, which applies the manifest and holds the client. */
+export const dbDbTsSelectors = mongo.dbModule;
 
 export function apiStandards(options: ApiStandardsOptions = {}) {
     const { logging = {}, refactoring, mongo: useMongo = true, redis = true, ws = true } = options;

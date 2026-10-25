@@ -49,6 +49,7 @@ type Job = {
     'steps'?: unknown;
     'strategy'?: { matrix?: { include?: unknown; [key: string]: unknown } };
 };
+// eslint-disable-next-line @typescript-eslint/naming-convention -- GitHub's key, as a workflow file spells it.
 type Triggers = { workflow_run?: { workflows?: unknown } | null; [event: string]: unknown };
 type WorkflowDoc = {
     name?: unknown;
@@ -304,7 +305,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
         const matrix = job.strategy?.matrix;
         if (matrix === undefined || typeof declared !== 'string') return values;
 
-        const key = declared.match(/matrix\.([\w-]+)/)?.[1];
+        const key = /matrix\.([\w-]+)/.exec(declared)?.[1];
         if (key === undefined) return values;
 
         const listed = matrix[key];
@@ -328,7 +329,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
                 continue;
             }
             for (const runner of runners) {
-                if (/-latest$/.test(runner)) {
+                if (runner.endsWith('-latest')) {
                     fail(
                         rel,
                         `job \`${name}\` runs on \`${runner}\` (line ${lineOf(src, runner)})`,
@@ -430,6 +431,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
                     fail(
                         rel,
                         `job \`${name}\` checks out ${typeof ref === 'string' && ref !== '' ? `\`${ref}\`` : 'the default ref'}`,
+                        // eslint-disable-next-line no-template-curly-in-string -- the fix quotes the expression to write into the workflow.
                         'Under workflow_run the default is the branch HEAD at trigger time, not the commit the upstream run validated. They diverge exactly when commits land quickly — so what ships is code CI never saw. Pass `ref: ${{ github.event.workflow_run.head_sha }}`.',
                     );
                 }
@@ -449,7 +451,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
                     .split(/[\n,]+/)
                     .map((t) => t.trim())
                     .filter(Boolean)) {
-                    if (/:latest$/.test(tag)) {
+                    if (tag.endsWith(':latest')) {
                         fail(
                             rel,
                             `job \`${name}\` pushes \`${tag}\``,
@@ -586,10 +588,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
                 if (typeof step.run !== 'string' || !RELEASE_HOSTS.test(step.run)) continue;
                 const label =
                     typeof step.name === 'string' && step.name !== '' ? `step "${step.name}"` : `job \`${name}\``;
-                if (
-                    /\$\{?\w*(?:VERSION|_VER)\b/.test(step.run) === false &&
-                    /\/v?\d+\.\d+\.\d+\//.test(step.run) === false
-                ) {
+                if (!/\$\{?\w*(?:VERSION|_VER)\b/.test(step.run) && !/\/v?\d+\.\d+\.\d+\//.test(step.run)) {
                     fail(
                         rel,
                         `${label} downloads a release asset from an unpinned URL`,
@@ -722,7 +721,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
             'It is the only statement of which Node majors this app supports, and what `npm ci` checks a contributor against.',
         );
     } else {
-        const floor = Number(enginesNode.match(/(\d+)/)?.[1]);
+        const floor = Number(/(\d+)/.exec(enginesNode)?.[1]);
 
         /** Every `node-version:` a workflow or composite action asks setup-node for. */
         const nodeVersions = new Map();

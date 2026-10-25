@@ -21,7 +21,6 @@ type CallSite = {
     args: string;
 };
 
-
 /**
  * Every `token(…)` call in a file, with its position (for ordering rules) and its
  * bracket-balanced argument text. `token` ends in `(` so `jwt.verify(` does not
@@ -145,31 +144,6 @@ export function splitTopLevel(text: string, separator: string): string[] {
 }
 
 /**
- * The offset of the quote that closes the string opening at `start`. A
- * template literal's `${…}` is skipped as a balanced span, so a backtick
- * inside an interpolation does not end the outer template.
- *
- * @param start The offset of the opening quote.
- */
-function skipString(text: string, start: number): number {
-    const quote = text[start];
-    for (let j = start + 1; j < text.length; j++) {
-        const ch = text[j];
-        if (ch === '\\') j++;
-        else if (ch === quote) return j;
-        else if (quote === '`' && ch === '$' && text[j + 1] === '{') {
-            let depth = 0;
-            for (j += 1; j < text.length; j++) {
-                if (text[j] === '`' || text[j] === "'" || text[j] === '"') j = skipString(text, j);
-                else if (text[j] === '{') depth++;
-                else if (text[j] === '}' && --depth === 0) break;
-            }
-        }
-    }
-    return text.length;
-}
-
-/**
  * Read the function expression that `text` starts with: an arrow or a
  * `function (…) {…}`, optionally `async`. `null` for anything else; resolve a bare
  * identifier with `declaredFunction`. The body ends where its braces close (or, for
@@ -254,55 +228,6 @@ export function declaredBody(source: string, name: string): string {
 }
 
 /**
- * The offset of the bracket that closes the one opening at `open`, skipping
- * strings. `-1` when it never closes.
- */
-function matching(text: string, open: number): number {
-    let depth = 0;
-    for (let j = open; j < text.length; j++) {
-        const ch = text[j];
-        if (ch === "'" || ch === '"' || ch === '`') j = skipString(text, j);
-        else if (ch === '(' || ch === '{' || ch === '[') depth++;
-        else if ((ch === ')' || ch === '}' || ch === ']') && --depth === 0) return j;
-    }
-    return -1;
-}
-
-/**
- * The expression starting at `start`, ended by the first `,` `;` or unmatched
- * closing bracket at depth zero.
- */
-function expressionAt(text: string, start: number): string {
-    let depth = 0;
-    for (let j = start; j < text.length; j++) {
-        const ch = text[j];
-        if (ch === "'" || ch === '"' || ch === '`') j = skipString(text, j);
-        else if (ch === '(' || ch === '{' || ch === '[') depth++;
-        else if (ch === ')' || ch === '}' || ch === ']') {
-            if (depth === 0) return text.slice(start, j).trim();
-            depth--;
-        } else if ((ch === ',' || ch === ';') && depth === 0) return text.slice(start, j).trim();
-    }
-    return text.slice(start).trim();
-}
-
-/** `_event, ...args: unknown[], { a, b }: T = {}` → `['_event', 'args', 'a', 'b']`. */
-function paramNames(list: string): string[] {
-    return splitTopLevel(list, ',').flatMap((param) => {
-        const bare = param.replace(/^\.\.\./, '');
-        if (bare.startsWith('{') || bare.startsWith('[')) {
-            const close = matching(bare, 0);
-            const inner = bare.slice(1, close === -1 ? bare.length : close);
-            return splitTopLevel(inner, ',').map((part) => {
-                const name = part.replace(/^\.\.\./, '').split(/[:=]/);
-                return (name.length > 1 && part.includes(':') ? name[1] : name[0])?.trim() ?? '';
-            });
-        }
-        return [bare.split(/[?:=]/)[0]?.trim() ?? ''];
-    });
-}
-
-/**
  * A source file sliced from a function header to the next top-level `export`.
  * `''` when the header is absent; callers must treat that as a failure.
  *
@@ -355,4 +280,78 @@ export function evalProduct(expression: string | undefined): number {
         total *= value;
     }
     return total;
+}
+
+/**
+ * The offset of the quote that closes the string opening at `start`. A
+ * template literal's `${…}` is skipped as a balanced span, so a backtick
+ * inside an interpolation does not end the outer template.
+ *
+ * @param start The offset of the opening quote.
+ */
+function skipString(text: string, start: number): number {
+    const quote = text[start];
+    for (let j = start + 1; j < text.length; j++) {
+        const ch = text[j];
+        if (ch === '\\') j++;
+        else if (ch === quote) return j;
+        else if (quote === '`' && ch === '$' && text[j + 1] === '{') {
+            let depth = 0;
+            for (j += 1; j < text.length; j++) {
+                if (text[j] === '`' || text[j] === "'" || text[j] === '"') j = skipString(text, j);
+                else if (text[j] === '{') depth++;
+                else if (text[j] === '}' && --depth === 0) break;
+            }
+        }
+    }
+    return text.length;
+}
+
+/**
+ * The offset of the bracket that closes the one opening at `open`, skipping
+ * strings. `-1` when it never closes.
+ */
+function matching(text: string, open: number): number {
+    let depth = 0;
+    for (let j = open; j < text.length; j++) {
+        const ch = text[j];
+        if (ch === "'" || ch === '"' || ch === '`') j = skipString(text, j);
+        else if (ch === '(' || ch === '{' || ch === '[') depth++;
+        else if ((ch === ')' || ch === '}' || ch === ']') && --depth === 0) return j;
+    }
+    return -1;
+}
+
+/**
+ * The expression starting at `start`, ended by the first `,` `;` or unmatched
+ * closing bracket at depth zero.
+ */
+function expressionAt(text: string, start: number): string {
+    let depth = 0;
+    for (let j = start; j < text.length; j++) {
+        const ch = text[j];
+        if (ch === "'" || ch === '"' || ch === '`') j = skipString(text, j);
+        else if (ch === '(' || ch === '{' || ch === '[') depth++;
+        else if (ch === ')' || ch === '}' || ch === ']') {
+            if (depth === 0) return text.slice(start, j).trim();
+            depth--;
+        } else if ((ch === ',' || ch === ';') && depth === 0) return text.slice(start, j).trim();
+    }
+    return text.slice(start).trim();
+}
+
+/** `_event, ...args: unknown[], { a, b }: T = {}` → `['_event', 'args', 'a', 'b']`. */
+function paramNames(list: string): string[] {
+    return splitTopLevel(list, ',').flatMap((param) => {
+        const bare = param.replace(/^\.\.\./, '');
+        if (bare.startsWith('{') || bare.startsWith('[')) {
+            const close = matching(bare, 0);
+            const inner = bare.slice(1, close === -1 ? bare.length : close);
+            return splitTopLevel(inner, ',').map((part) => {
+                const name = part.replace(/^\.\.\./, '').split(/[:=]/);
+                return (name.length > 1 && part.includes(':') ? name[1] : name[0])?.trim() ?? '';
+            });
+        }
+        return [bare.split(/[?:=]/)[0]?.trim() ?? ''];
+    });
 }

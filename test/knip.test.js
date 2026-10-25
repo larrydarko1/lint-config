@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { packageBin } from '../src/gates/lib/bin.ts';
-import { knip } from '../src/knip.ts';
+import { knip, packageEntries } from '../src/knip.ts';
 
 /**
  * A project that lists none of the linters — what every project looks like once
@@ -71,4 +71,31 @@ test("the project's own ignores and plugin settings are kept, and win", () => {
     assert.ok(config.ignoreDependencies?.includes('pino-pretty'));
     assert.equal(config.eslint, false);
     assert.equal(config.prettier, true);
+});
+
+test('packageEntries reads the sources back from every entry point the manifest names', (t) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'knip-entries-'));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    fs.writeFileSync(
+        path.join(root, 'package.json'),
+        JSON.stringify({
+            name: '@example/widgets',
+            main: './dist/index.js',
+            bin: './dist/cli.mjs',
+            exports: {
+                '.': { types: './dist/index.d.ts', default: './dist/index.js' },
+                './sizes': { import: './dist/sizes.js', require: './dist/sizes.cjs' },
+                './icons/*': './dist/icons/*.js',
+                './package.json': './package.json',
+            },
+        }),
+    );
+    assert.deepEqual(packageEntries({ root }).sort(), [
+        'src/cli.mts',
+        'src/icons/*.ts',
+        'src/index.ts',
+        'src/sizes.cts',
+        'src/sizes.ts',
+    ]);
+    assert.deepEqual(packageEntries({ root, outDir: 'lib', rootDir: 'source' }), []);
 });

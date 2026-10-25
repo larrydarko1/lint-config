@@ -30,7 +30,6 @@ export type MetricsOptions = Omit<MetricsInput, 'root'> & {
     root?: string;
 };
 
-
 type Labels = Record<string, string>;
 
 type K8sPort = {
@@ -180,16 +179,6 @@ const DEPENDENCY_CALLS = /\b(?:getDb|mongo|redis|Redis|queue|Queue|fetch|ping)\b
 /** Fixed, so the two probes cannot be pointed at one handler. */
 const LIVENESS_PATH = '/livez';
 const READINESS_PATH = '/healthz';
-
-/**
- * True when every key of `selector` is in `labels` with the same (stringified) value.
- * An empty selector matches everything, as a NetworkPolicy's does; a Service's
- * empty selector is handled where the Service is read.
- */
-const matches = (selector: Record<string, unknown> | undefined, labels: Record<string, string> | undefined): boolean =>
-    selector !== undefined &&
-    labels !== undefined &&
-    Object.entries(selector).every(([key, value]) => String(labels[key]) === String(value));
 
 /** Every problem found, without printing. */
 export function inspectMetrics(input: MetricsInput): MetricsInspection {
@@ -826,3 +815,13 @@ export function checkMetrics({ root = REPO_ROOT, ...rest }: MetricsOptions): voi
             'Whether a metric is worth collecting, whether the histogram buckets suit the real latency distribution, or whether an alert threshold is the right one. Nor whether Prometheus is deployed at all — this proves the chain is wired, not that anything is listening at the far end of it.',
     });
 }
+
+/**
+ * True when every key of `selector` is in `labels` with the same (stringified) value.
+ * An empty selector matches everything, as a NetworkPolicy's does; a Service's
+ * empty selector is handled where the Service is read.
+ */
+const matches = (selector: Record<string, unknown> | undefined, labels: Record<string, string> | undefined): boolean =>
+    selector !== undefined &&
+    labels !== undefined &&
+    Object.entries(selector).every(([key, value]) => String(labels[key]) === String(value));

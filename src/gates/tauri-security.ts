@@ -87,54 +87,6 @@ const FS_DIRS =
 const OWN_DIR = /^(?:app|appcache|appconfig|appdata|applocaldata|applog|resource)$/;
 const OWN_PATH = /^\$(?:APP|APPCACHE|APPCONFIG|APPDATA|APPLOCALDATA|APPLOG|RESOURCE)(?:\/|$)/;
 
-const isObject = (value: unknown): value is object =>
-    typeof value === 'object' && value !== null && !Array.isArray(value);
-
-const strings = (value: unknown): string[] =>
-    Array.isArray(value)
-        ? value.filter((v): v is string => typeof v === 'string')
-        : typeof value === 'string'
-          ? [value]
-          : [];
-
-/** A path scope that reaches the whole disk or the whole home directory. */
-function isWideScope(scope: string): boolean {
-    const base = scope
-        .trim()
-        .replace(/\\/g, '/')
-        .replace(/(?:\/\*\*?)+$/, '')
-        .replace(/\/+$/, '');
-    return ['', '*', '**', '~', '$HOME'].includes(base) || /^[A-Za-z]:$/.test(base);
-}
-
-/** A CSP's directives, from either form Tauri accepts: `{ "default-src": "'self'" }` or one policy string. */
-function directives(csp: unknown): Map<string, string[]> {
-    const out = new Map<string, string[]>();
-    if (typeof csp === 'string') {
-        for (const part of csp.split(';')) {
-            const [name, ...sources] = part.trim().split(/\s+/);
-            if (name !== undefined && name !== '') out.set(name.toLowerCase(), sources);
-        }
-    } else if (isObject(csp)) {
-        for (const [name, value] of Object.entries(csp as Record<string, unknown>))
-            out.set(
-                name.toLowerCase(),
-                strings(value)
-                    .flatMap((v) => v.split(/\s+/))
-                    .filter(Boolean),
-            );
-    }
-    return out;
-}
-
-/** The paths an object permission scopes itself to. */
-const scopedPaths = (permission: ScopedPermission): string[] =>
-    (Array.isArray(permission.allow) ? (permission.allow as unknown[]) : []).flatMap((entry) => {
-        if (typeof entry === 'string') return [entry];
-        const { path: scoped } = isObject(entry) ? (entry as { path?: unknown }) : {};
-        return typeof scoped === 'string' ? [scoped] : [];
-    });
-
 export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecurityInput): TauriSecurityInspection {
     const problems: GateFailure[] = [];
     const fail = (file: string | null, what: string, why: string) => problems.push({ file, what, why });
@@ -243,7 +195,7 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
         if (sec.freezePrototype === false || (rel === configRel && sec.freezePrototype !== true)) {
             fail(
                 rel,
-                `\`app.security.freezePrototype\` is ${sec.freezePrototype === undefined ? 'not set' : String(sec.freezePrototype)}`,
+                `\`app.security.freezePrototype\` is ${sec.freezePrototype === undefined ? 'not set' : JSON.stringify(sec.freezePrototype)}`,
                 'Frozen, `Object.prototype` cannot be rewritten by a dependency or an injected script before your code runs. A library that needs it unfrozen is the one to replace.',
             );
         }
@@ -271,14 +223,14 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
         const rel = `${tauriDir}/${name}`;
         if (!fs.existsSync(path.join(root, rel))) continue;
         const data = readJson(rel);
-        if (data !== null) checkFlags(rel, data as TauriConfig);
+        if (data !== null) checkFlags(rel, data);
     }
 
     // ── 7. One version ───────────────────────────────────────────────────────
     if (typeof config.version !== 'string' || !config.version.endsWith('package.json')) {
         fail(
             configRel,
-            `\`version\` is ${config.version === undefined ? 'not set' : `\`${String(config.version)}\``}, not \`"../package.json"\``,
+            `\`version\` is ${config.version === undefined ? 'not set' : `\`${typeof config.version === 'string' ? config.version : JSON.stringify(config.version)}\``}, not \`"../package.json"\``,
             'Read from the package, the bundle, the About box and the log cannot disagree with the release tag. Written here, or left to Cargo.toml, it is a second version to keep in step.',
         );
     }
@@ -301,7 +253,7 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
             continue;
         }
         const data = readJson(rel);
-        if (data !== null) capabilities.push({ file: rel, data: data as CapabilityFile });
+        if (data !== null) capabilities.push({ file: rel, data });
     }
 
     const listed = Array.isArray(security.capabilities) ? security.capabilities : null;
@@ -314,7 +266,7 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
     } else {
         for (const entry of listed) {
             if (isObject(entry)) {
-                capabilities.push({ file: `${configRel} (inline capability)`, data: entry as CapabilityFile });
+                capabilities.push({ file: `${configRel} (inline capability)`, data: entry });
                 continue;
             }
             if (typeof entry === 'string' && !capabilities.some((c) => c.data.identifier === entry)) {
@@ -465,3 +417,51 @@ export function checkTauriSecurity({ root = REPO_ROOT, ...rest }: TauriSecurityO
             'whether a granted permission is the one the app needs (a JS function can call a command other than its name), what `connect-src` and `img-src` allow, a window Rust creates at runtime, and what only the real webview applies — run `tauri build --debug --no-bundle` after changing the CSP or a capability.',
     });
 }
+
+const isObject = (value: unknown): value is object =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const strings = (value: unknown): string[] =>
+    Array.isArray(value)
+        ? value.filter((v): v is string => typeof v === 'string')
+        : typeof value === 'string'
+          ? [value]
+          : [];
+
+/** A path scope that reaches the whole disk or the whole home directory. */
+function isWideScope(scope: string): boolean {
+    const base = scope
+        .trim()
+        .replace(/\\/g, '/')
+        .replace(/(?:\/\*\*?)+$/, '')
+        .replace(/\/+$/, '');
+    return ['', '*', '**', '~', '$HOME'].includes(base) || /^[A-Za-z]:$/.test(base);
+}
+
+/** A CSP's directives, from either form Tauri accepts: `{ "default-src": "'self'" }` or one policy string. */
+function directives(csp: unknown): Map<string, string[]> {
+    const out = new Map<string, string[]>();
+    if (typeof csp === 'string') {
+        for (const part of csp.split(';')) {
+            const [name, ...sources] = part.trim().split(/\s+/);
+            if (name !== undefined && name !== '') out.set(name.toLowerCase(), sources);
+        }
+    } else if (isObject(csp)) {
+        for (const [name, value] of Object.entries(csp as Record<string, unknown>))
+            out.set(
+                name.toLowerCase(),
+                strings(value)
+                    .flatMap((v) => v.split(/\s+/))
+                    .filter(Boolean),
+            );
+    }
+    return out;
+}
+
+/** The paths an object permission scopes itself to. */
+const scopedPaths = (permission: ScopedPermission): string[] =>
+    (Array.isArray(permission.allow) ? (permission.allow as unknown[]) : []).flatMap((entry) => {
+        if (typeof entry === 'string') return [entry];
+        const { path: scoped } = isObject(entry) ? (entry as { path?: unknown }) : {};
+        return typeof scoped === 'string' ? [scoped] : [];
+    });

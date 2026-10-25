@@ -70,47 +70,6 @@ const VALIDATORS = [
 /** `name.handle('channel'` on a bare identifier, whatever its type: receiver in 1, channel in 3. */
 const REGISTRATION = /(?<![\w$.])([A-Za-z_$][\w$]*)\.(?:handle|handleOnce|on|once)\(\s*(['"])([^'"\\]*)\2/g;
 
-const lineAt = (code: string, index: number): number => code.slice(0, index).split('\n').length;
-
-/** `'fs:read'` → `fs:read`; `null` for anything but a plain string literal. */
-function literal(arg: string): string | null {
-    const m = /^\s*(['"])([^'"\\]*)\1\s*$/.exec(arg);
-    return m === null ? null : (m[2] ?? '');
-}
-
-/**
- * Does `body` validate `param` — directly, or by handing it to a function
- * declared in `file` that validates the parameter it arrives as?
- *
- * @param file The whole (comment-stripped) file, to resolve helpers in.
- */
-function validates(param: string, body: string, file: string, depth = 0): boolean {
-    const named = new RegExp(String.raw`(?<![\w$.])${param.replace(/\$/g, '\\$')}(?![\w$])`);
-    if (
-        new RegExp(
-            String.raw`\btypeof\s+${param.replace(/\$/g, '\\$')}(?![\w$])|(?<![\w$.])${param.replace(/\$/g, '\\$')}\s+instanceof\b`,
-        ).test(body)
-    ) {
-        return true;
-    }
-    for (const token of VALIDATORS) {
-        if (callSites(body, token).some((site) => named.test(site.args))) return true;
-    }
-    if (depth >= 3) return false;
-    for (const m of body.matchAll(/(?<![\w$.])([A-Za-z_$][\w$]*)\s*\(/g)) {
-        const helper = declaredFunction(file, m[1] ?? '');
-        if (helper === null) continue;
-        const site = callSites(body.slice(m.index), `${m[1]}(`)[0];
-        if (site === undefined) continue;
-        const position = splitTopLevel(site.args, ',').findIndex(
-            (arg) => named.test(arg) && arg.replace(/^\.\.\./, '').trim() === param,
-        );
-        const inner = helper.params[position];
-        if (position !== -1 && inner !== undefined && validates(inner, helper.body, file, depth + 1)) return true;
-    }
-    return false;
-}
-
 export function inspectIpcStandards({
     root,
     mainIndex = 'src/main/index.ts',
@@ -512,4 +471,45 @@ export function checkIpcStandards({ root = REPO_ROOT, ...rest }: IpcStandardsOpt
         notMachineChecked:
             'Whether a schema checks the RIGHT thing (a `z.string()` on a path is still a traversal parameter), whether a handler should exist at all, and whether the renderer uses the result the way the contract says. A bridge member counts as used once the renderer reads it, or hands on an object holding it — whether that code path ever runs is not decidable from source.',
     });
+}
+
+const lineAt = (code: string, index: number): number => code.slice(0, index).split('\n').length;
+
+/** `'fs:read'` → `fs:read`; `null` for anything but a plain string literal. */
+function literal(arg: string): string | null {
+    const m = /^\s*(['"])([^'"\\]*)\1\s*$/.exec(arg);
+    return m === null ? null : (m[2] ?? '');
+}
+
+/**
+ * Does `body` validate `param` — directly, or by handing it to a function
+ * declared in `file` that validates the parameter it arrives as?
+ *
+ * @param file The whole (comment-stripped) file, to resolve helpers in.
+ */
+function validates(param: string, body: string, file: string, depth = 0): boolean {
+    const named = new RegExp(String.raw`(?<![\w$.])${param.replace(/\$/g, '\\$')}(?![\w$])`);
+    if (
+        new RegExp(
+            String.raw`\btypeof\s+${param.replace(/\$/g, '\\$')}(?![\w$])|(?<![\w$.])${param.replace(/\$/g, '\\$')}\s+instanceof\b`,
+        ).test(body)
+    ) {
+        return true;
+    }
+    for (const token of VALIDATORS) {
+        if (callSites(body, token).some((site) => named.test(site.args))) return true;
+    }
+    if (depth >= 3) return false;
+    for (const m of body.matchAll(/(?<![\w$.])([A-Za-z_$][\w$]*)\s*\(/g)) {
+        const helper = declaredFunction(file, m[1] ?? '');
+        if (helper === null) continue;
+        const site = callSites(body.slice(m.index), `${m[1]}(`)[0];
+        if (site === undefined) continue;
+        const position = splitTopLevel(site.args, ',').findIndex(
+            (arg) => named.test(arg) && arg.replace(/^\.\.\./, '').trim() === param,
+        );
+        const inner = helper.params[position];
+        if (position !== -1 && inner !== undefined && validates(inner, helper.body, file, depth + 1)) return true;
+    }
+    return false;
 }

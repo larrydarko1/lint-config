@@ -209,6 +209,16 @@ type ApiStandardsInspection = {
     counts: { routes: number; files: number; mounts: number; pending: number };
 };
 
+type ContractContext = {
+    routeFiles: string[];
+    read: (rel: string) => string;
+    code: (rel: string) => string;
+    exists: (rel: string) => boolean;
+    fail: (file: string | null, what: string, why: string) => void;
+    apiClient: string | undefined;
+    root: string;
+};
+
 /** The three tiers the standard names. A repo with more states its own list. */
 const DEFAULT_TIERS = ['strictLimiter', 'standardLimiter', 'relaxedLimiter'];
 
@@ -251,36 +261,16 @@ const CONTRACT_CHECKS = ['requestProblems', 'responseProblems', 'errorProblems']
 /** A `params:`, `body:` or `query:` key in a validator's schema object, and the first token of its value. */
 const REQUEST_SCHEMA_SLOT = /(?<![\w.$])(params|body|query)\s*:\s*([A-Za-z_$][\w$]*)(\s*[.(]?)/g;
 
-/** The last top-level argument in an argument list: the value schema of `z.record(key, value)`. */
-const lastArgument = (args: string): string => {
-    let depth = 0;
-    let start = 0;
-    for (let i = 0; i < args.length; i++) {
-        const ch = args[i];
-        if (ch === '(' || ch === '{' || ch === '[') depth++;
-        else if (ch === ')' || ch === '}' || ch === ']') depth--;
-        else if (ch === ',' && depth === 0) start = i + 1;
-    }
-    return args.slice(start).trim();
-};
+/** A route written as a string, keyed or listed: `'GET /api/videos'`. */
+const ROUTE_LITERAL = /['"`](?:GET|POST|PUT|PATCH|DELETE) \/[^'"`]*['"`]/g;
 
-/**
- * Every response a route sends without the schema helper, as its line number:
- * `res.json(…)` with anything but an error body, `res.send(…)` and `res.end(…)`
- * with a payload. A bare `res.status(204).end()` sends nothing, so it is fine.
- */
-function rawResponses(source: string): number[] {
-    const lines: number[] = [];
-    for (const method of ['json', 'send', 'end']) {
-        for (const site of callSites(source, `.${method}(`)) {
-            if (!RES_RECEIVER.test(source.slice(Math.max(0, site.index - 120), site.index + 1))) continue;
-            if (site.args.trim() === '') continue;
-            if (method === 'json' && ERROR_BODY.test(site.args)) continue;
-            lines.push(source.slice(0, site.index).split('\n').length);
-        }
-    }
-    return lines.sort((a, b) => a - b);
-}
+/** The checks a fuzz run exists for. Never switched off, anywhere. */
+const FUZZ_CORE_CHECKS = ['not_a_server_error', 'response_schema_conformance'];
+
+/** The `schemathesis.toml` filters that name operations: by operation id (the contract key), by exact path, by path pattern. */
+const FUZZ_ID_FILTERS = ['include-operation-id', 'exclude-operation-id'];
+const FUZZ_PATH_FILTERS = ['include-path', 'exclude-path'];
+const FUZZ_PATTERN_FILTERS = ['include-path-regex', 'exclude-path-regex'];
 
 /** Every problem found, without printing. */
 export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsInspection {
@@ -527,21 +517,21 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
     const bucket = code(tokenBucket);
     const limiters = code(rateLimiters);
 
-    if (!/\.eval\(/.test(bucket)) {
+    if (!bucket.includes('.eval(')) {
         fail(
             tokenBucket,
             'no Redis `eval()` — the refill-and-consume is no longer one atomic script',
             'Read-modify-write across API replicas must be atomic or two pods refill the same bucket concurrently and the limit is not a limit. A single Lua EVAL is what makes it atomic without a distributed lock.',
         );
     }
-    if (!/allowed:\s*true/.test(bucket) || !/catch/.test(bucket)) {
+    if (!/allowed:\s*true/.test(bucket) || !bucket.includes('catch')) {
         fail(
             tokenBucket,
             'no longer fails OPEN on a Redis error',
             'A cache blip must not lock every client out of the platform. On a Redis failure the bucket allows the request and logs a warning — never denies. Failing closed turns a dependency outage into a total outage.',
         );
     }
-    if (!/Retry-After/.test(limiters)) {
+    if (!limiters.includes('Retry-After')) {
         fail(
             rateLimiters,
             'does not set `Retry-After` on a 429',
@@ -589,7 +579,7 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
 
     // ── 8. The pagination cap ───────────────────────────────────────────────
     const schemaSource = code(schemas);
-    if (!/makePaginationQuery/.test(schemaSource)) {
+    if (!schemaSource.includes('makePaginationQuery')) {
         fail(
             schemas,
             'no `makePaginationQuery` factory',
@@ -749,15 +739,87 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
     return { problems, counts: { routes, files: routeFiles.length, mounts: mounts.length, pending } };
 }
 
-type ContractContext = {
-    routeFiles: string[];
-    read: (rel: string) => string;
-    code: (rel: string) => string;
-    exists: (rel: string) => boolean;
-    fail: (file: string | null, what: string, why: string) => void;
-    apiClient: string | undefined;
-    root: string;
+/** Run the gate and print. */
+export function checkApiStandards(options: ApiStandardsOptions): void {
+    const report = createGateReport({ name: 'REST API standards' });
+    const { problems, counts } = inspectApiStandards(options);
+
+    for (const { file, what, why } of problems) report.fail(file, what, why);
+
+    const contract =
+        options.contract === undefined
+            ? ''
+            : ` The contract lists every served route, and routers validate with the shared schemas${
+                  options.contract.handlers === undefined
+                      ? ''
+                      : ', each route with exactly the path parameters, body, query, answer and upload fields its entry names'
+              }${options.contract.validator === undefined ? '' : '; unknown request keys are refused'}${
+                  options.contract.testChecks === undefined
+                      ? '.'
+                      : `; every exchange in ${plural(options.contract.testChecks.length, 'test setup')} is checked against it, refusals included${
+                            options.contract.coverage === undefined
+                                ? '.'
+                                : `, and ${plural(options.contract.coverage.suites.length, 'suite')} fail on a route no test checked.`
+                        }`
+              }`;
+    const jobs =
+        options.jobs === undefined
+            ? ''
+            : ` Jobs are parsed against \`${options.jobs.table}\` when queued and when run, with every queue named from it.`;
+    const responses =
+        options.responses === undefined
+            ? ''
+            : ` No raw responses in ${plural(counts.files - counts.pending, 'router file')}, the response helper parses, no loose response schema${
+                  counts.pending === 0 ? '.' : ` — ${counts.pending} router files still pending migration.`
+              }${
+                  options.responses.devFlag === undefined
+                      ? ''
+                      : ' A dropped field fails outside production and is logged inside it.'
+              }`;
+
+    report.done({
+        summary:
+            `REST API architecture OK — ${plural(counts.routes, 'route')} across ${plural(counts.files, 'router file')}, ` +
+            `each one documented in its own header; middleware ordered with the error handler last, ` +
+            `${plural(counts.mounts, 'mount')} all carrying a rate-limit tier, token bucket atomic and fail-open, pagination capped.${
+                responses
+            }${contract}${jobs}`,
+        notMachineChecked:
+            'Whether a status code is the RIGHT one, whether independent awaits were parallelised, cache TTL judgement, or whether a given POST is idempotent. Nor whether a route header describes what the route actually does — only that the two lists match. ' +
+            'Nor whether a field a schema DOES declare should be public — a secret under a declared name passes; the response-leak tripwire is what catches that.',
+    });
+}
+
+/** The last top-level argument in an argument list: the value schema of `z.record(key, value)`. */
+const lastArgument = (args: string): string => {
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < args.length; i++) {
+        const ch = args[i];
+        if (ch === '(' || ch === '{' || ch === '[') depth++;
+        else if (ch === ')' || ch === '}' || ch === ']') depth--;
+        else if (ch === ',' && depth === 0) start = i + 1;
+    }
+    return args.slice(start).trim();
 };
+
+/**
+ * Every response a route sends without the schema helper, as its line number:
+ * `res.json(…)` with anything but an error body, `res.send(…)` and `res.end(…)`
+ * with a payload. A bare `res.status(204).end()` sends nothing, so it is fine.
+ */
+function rawResponses(source: string): number[] {
+    const lines: number[] = [];
+    for (const method of ['json', 'send', 'end']) {
+        for (const site of callSites(source, `.${method}(`)) {
+            if (!RES_RECEIVER.test(source.slice(Math.max(0, site.index - 120), site.index + 1))) continue;
+            if (site.args.trim() === '') continue;
+            if (method === 'json' && ERROR_BODY.test(site.args)) continue;
+            lines.push(source.slice(0, site.index).split('\n').length);
+        }
+    }
+    return lines.sort((a, b) => a - b);
+}
 
 /** Rule 11: the contract's keys, the routers' request schemas, the frontend's one caller. */
 function inspectContract(contract: ContractOptions, ctx: ContractContext): void {
@@ -1176,17 +1238,6 @@ function inspectContractCoverage(coverage: ContractCoverage, testChecks: string[
         }
     }
 }
-
-/** A route written as a string, keyed or listed: `'GET /api/videos'`. */
-const ROUTE_LITERAL = /['"`](?:GET|POST|PUT|PATCH|DELETE) \/[^'"`]*['"`]/g;
-
-/** The checks a fuzz run exists for. Never switched off, anywhere. */
-const FUZZ_CORE_CHECKS = ['not_a_server_error', 'response_schema_conformance'];
-
-/** The `schemathesis.toml` filters that name operations: by operation id (the contract key), by exact path, by path pattern. */
-const FUZZ_ID_FILTERS = ['include-operation-id', 'exclude-operation-id'];
-const FUZZ_PATH_FILTERS = ['include-path', 'exclude-path'];
-const FUZZ_PATTERN_FILTERS = ['include-path-regex', 'exclude-path-regex'];
 
 /** The exported name of the table the contract's route keys sit in: the last `export const` above the first key. */
 function contractTable(source: string): string | null {
@@ -1673,52 +1724,4 @@ function inspectLoudDrops(
             'In production the user keeps a working page with the field dropped. The error log is then the only place the field is named; without it the bug lives on unseen.',
         );
     }
-}
-
-/** Run the gate and print. */
-export function checkApiStandards(options: ApiStandardsOptions): void {
-    const report = createGateReport({ name: 'REST API standards' });
-    const { problems, counts } = inspectApiStandards(options);
-
-    for (const { file, what, why } of problems) report.fail(file, what, why);
-
-    const contract =
-        options.contract === undefined
-            ? ''
-            : ' The contract lists every served route, and routers validate with the shared schemas' +
-              (options.contract.handlers === undefined
-                  ? ''
-                  : ', each route with exactly the path parameters, body, query, answer and upload fields its entry names') +
-              (options.contract.validator === undefined ? '' : '; unknown request keys are refused') +
-              (options.contract.testChecks === undefined
-                  ? '.'
-                  : `; every exchange in ${plural(options.contract.testChecks.length, 'test setup')} is checked against it, refusals included` +
-                    (options.contract.coverage === undefined
-                        ? '.'
-                        : `, and ${plural(options.contract.coverage.suites.length, 'suite')} fail on a route no test checked.`));
-    const jobs =
-        options.jobs === undefined
-            ? ''
-            : ` Jobs are parsed against \`${options.jobs.table}\` when queued and when run, with every queue named from it.`;
-    const responses =
-        options.responses === undefined
-            ? ''
-            : ` No raw responses in ${plural(counts.files - counts.pending, 'router file')}, the response helper parses, no loose response schema` +
-              (counts.pending === 0 ? '.' : ` — ${counts.pending} router files still pending migration.`) +
-              (options.responses.devFlag === undefined
-                  ? ''
-                  : ' A dropped field fails outside production and is logged inside it.');
-
-    report.done({
-        summary:
-            `REST API architecture OK — ${plural(counts.routes, 'route')} across ${plural(counts.files, 'router file')}, ` +
-            `each one documented in its own header; middleware ordered with the error handler last, ` +
-            `${plural(counts.mounts, 'mount')} all carrying a rate-limit tier, token bucket atomic and fail-open, pagination capped.` +
-            responses +
-            contract +
-            jobs,
-        notMachineChecked:
-            'Whether a status code is the RIGHT one, whether independent awaits were parallelised, cache TTL judgement, or whether a given POST is idempotent. Nor whether a route header describes what the route actually does — only that the two lists match. ' +
-            'Nor whether a field a schema DOES declare should be public — a secret under a declared name passes; the response-leak tripwire is what catches that.',
-    });
 }

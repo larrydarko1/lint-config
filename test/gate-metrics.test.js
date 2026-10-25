@@ -469,9 +469,7 @@ test('a third-party workload keeps its own probe paths', (t) => {
 });
 
 test('one endpoint used for both probes is reported', (t) => {
-    const both =
-        DEPLOYMENT.replace('name: worker\nspec', 'name: api\nspec') +
-        `          readinessProbe:
+    const both = `${DEPLOYMENT.replace('name: worker\nspec', 'name: api\nspec')}          readinessProbe:
             httpGet:
               path: /livez
               port: 9100
@@ -570,9 +568,7 @@ test('a listener that is never started is reported', (t) => {
 // ─── 14. Queue consumers ─────────────────────────────────────────────────────
 
 test('a readiness probe on a queue consumer is reported', (t) => {
-    const withReadiness =
-        DEPLOYMENT +
-        `          readinessProbe:
+    const withReadiness = `${DEPLOYMENT}          readinessProbe:
             httpGet:
               path: /healthz
               port: 9100

@@ -801,11 +801,10 @@ test('a throttle that swallows without logging is reported', (t) => {
 });
 
 test('a throttle with no catch at all is reported', (t) => {
-    const noCatch =
-        `export async function assertLoginAllowed(key: string): Promise<void> {
+    const noCatch = `export async function assertLoginAllowed(key: string): Promise<void> {
     await redis.get(key);
 }
-` + THROTTLE.slice(THROTTLE.indexOf('export async function recordLoginFailure'));
+${THROTTLE.slice(THROTTLE.indexOf('export async function recordLoginFailure'))}`;
     const root = tree(t, good({ 'api/src/services/auth/login-throttle.ts': noCatch }));
     assert.match(whats(root)[0], /no catch around its Redis call/);
 });
@@ -884,9 +883,7 @@ test('the throttle module itself is exempt — its key is a parameter', (t) => {
 });
 
 test('the nearest preceding binding is the one graded', (t) => {
-    const twice =
-        SERVICE +
-        `
+    const twice = `${SERVICE}
 export async function verifyTotp(email: string): Promise<void> {
     const throttleKey = email;
     await assertLoginAllowed(throttleKey);
@@ -1309,9 +1306,7 @@ test('a named segment schema that is gone is a broken anchor', (t) => {
 // ─── Bounded reads: a rule must not be satisfied by the code BELOW its subject ─
 
 test('a second cookie function below does not satisfy the refresh cookie flags', (t) => {
-    const withClear =
-        COOKIE.replace("sameSite: 'strict'", "sameSite: 'lax'") +
-        `
+    const withClear = `${COOKIE.replace("sameSite: 'strict'", "sameSite: 'lax'")}
 function clearRefreshCookie(res: Response): void {
     res.clearCookie('refresh', { httpOnly: true, secure: true, sameSite: 'strict', path: REFRESH_COOKIE_PATH });
 }
@@ -1321,9 +1316,10 @@ function clearRefreshCookie(res: Response): void {
 });
 
 test('a schema below the password schema does not supply its character classes', (t) => {
-    const withOther =
-        SCHEMAS.replace("if (!/[A-Z]/.test(value)) ctx.addIssue({ message: 'needs an uppercase letter' });", '') +
-        `
+    const withOther = `${SCHEMAS.replace(
+        "if (!/[A-Z]/.test(value)) ctx.addIssue({ message: 'needs an uppercase letter' });",
+        '',
+    )}
 export const usernameSchema = z.string().regex(/^[A-Za-z0-9]+$/);
 `;
     const root = tree(t, good({ 'api/src/lib/schemas.ts': withOther }));
@@ -1331,9 +1327,7 @@ export const usernameSchema = z.string().regex(/^[A-Za-z0-9]+$/);
 });
 
 test('a function below escapeHtml does not supply its entities', (t) => {
-    const withOther =
-        HELPERS.replace(".replace(/</g, '&lt;')", '') +
-        `
+    const withOther = `${HELPERS.replace(".replace(/</g, '&lt;')", '')}
 export function escapeAttr(value: string): string {
     return value.replace(/</g, '&lt;');
 }
@@ -1343,9 +1337,7 @@ export function escapeAttr(value: string): string {
 });
 
 test('a file route that DEFINES isSameOrigin but never calls it is reported', (t) => {
-    const declaredOnly =
-        LOGOS.replace('if (!isSameOrigin(req)) return res.status(403).end();', '') +
-        `
+    const declaredOnly = `${LOGOS.replace('if (!isSameOrigin(req)) return res.status(403).end();', '')}
 function isSameOrigin(req: Request): boolean {
     return req.headers.origin === config.corsOrigin;
 }

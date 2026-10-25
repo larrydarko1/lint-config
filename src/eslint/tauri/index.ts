@@ -27,13 +27,6 @@ export { loggerCallSelectors } from './logging.ts';
 export { errorHandlingSelectors } from './error-handling.ts';
 export { webviewBannedImports } from './boundaries.ts';
 
-/** The components, and everything that runs in the webview. */
-const { vue, browser: webview, tests: TESTS } = PRESETS.tauri;
-/** The webview's own code: what ships. */
-const SOURCE = ['src/**/*.{ts,vue}'];
-/** The only code that imports `@tauri-apps/*`. */
-const BRIDGE = ['src/bridge/**/*.ts'];
-
 export type TauriStandardsOptions = {
     /** See rules/security.ts — `vHtmlAllowed`. */
     security?: SecurityOptions;
@@ -44,6 +37,13 @@ export type TauriStandardsOptions = {
     /** See rules/i18n.ts. Pass `false` for a single-language app. */
     i18n?: I18nOptions | false;
 };
+/** The webview's own code: what ships. */
+const SOURCE = ['src/**/*.{ts,vue}'];
+/** The only code that imports `@tauri-apps/*`. */
+const BRIDGE = ['src/bridge/**/*.ts'];
+
+/** The components, and everything that runs in the webview. */
+const { vue, browser: webview, tests: TESTS } = PRESETS.tauri;
 
 export function tauriStandards(options: TauriStandardsOptions = {}) {
     const { security, html, refactoring, i18n } = options;

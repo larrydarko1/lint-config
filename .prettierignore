@@ -2,3 +2,5 @@ node_modules
 package-lock.json
 .eslint-snapshots
 dist
+test/presets/*.json
+eslint-suppressions.json

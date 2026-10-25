@@ -68,34 +68,6 @@ const STRINGIFIED_ERROR =
 const FOREIGN_ERRORS =
     /^(?:String|&\s*(?:'\w+\s+)?str|Box\s*<.*>|(?:std::)?io::Error|tauri::Error|anyhow::Error|serde_json::Error)$/;
 
-const kebab = (name: string) => name.replace(/_/g, '-');
-
-const lineAt = (text: string, index: number): number => text.slice(0, index).split('\n').length;
-
-/**
- * Every call of `fn` in TypeScript, with its first argument when that is a string
- * literal. A type argument between the name and the `(` is skipped, nested or not.
- */
-function tsCalls(code: string, fn: string): { index: number; name: string | null }[] {
-    const out: { index: number; name: string | null }[] = [];
-    for (const m of code.matchAll(new RegExp(String.raw`(?<![\w$])${fn}\s*`, 'g'))) {
-        let j = m.index + m[0].length;
-        if (code[j] === '<') {
-            let depth = 0;
-            for (; j < code.length; j++) {
-                if (code[j] === '<') depth++;
-                else if (code[j] === '>' && code[j - 1] !== '=' && --depth === 0) break;
-            }
-            j = j + 1;
-            while (/\s/.test(code.charAt(j))) j++;
-        }
-        if (code[j] !== '(') continue;
-        const literal = /^\(\s*(['"`])([^'"`$]*)\1\s*[,)]/.exec(code.slice(j));
-        out.push({ index: m.index, name: literal?.[2] ?? null });
-    }
-    return out;
-}
-
 export function inspectTauriCommands(input: TauriCommandsInput): TauriCommandsInspection {
     const { root, tauriDir = 'src-tauri', bridgeDir = 'src/bridge' } = input;
     const commandsDir = input.commandsDir ?? `${tauriDir}/src/commands`;
@@ -487,7 +459,7 @@ export function inspectTauriCommands(input: TauriCommandsInput): TauriCommandsIn
             serialize?.body === null || serialize === undefined
                 ? ''
                 : lexed.code.slice(serialize.body.start, serialize.body.end);
-        if (serialize === undefined || !/self\.code\(\)/.test(body) || /to_string\(\)|self\.0|format!/.test(body)) {
+        if (serialize === undefined || !body.includes('self.code()') || /to_string\(\)|self\.0|format!/.test(body)) {
             fail(
                 errorFile,
                 serialize === undefined
@@ -525,4 +497,32 @@ export function checkTauriCommands({ root = REPO_ROOT, ...rest }: TauriCommandsO
         notMachineChecked:
             'whether a command name starts with its verb, whether the type argument on `invoke<T>` is what Rust returns, whether a command checks the meaning of its arguments (a path against what Rust holds), and every code’s translation (the locale parity test).',
     });
+}
+
+const kebab = (name: string) => name.replace(/_/g, '-');
+
+const lineAt = (text: string, index: number): number => text.slice(0, index).split('\n').length;
+
+/**
+ * Every call of `fn` in TypeScript, with its first argument when that is a string
+ * literal. A type argument between the name and the `(` is skipped, nested or not.
+ */
+function tsCalls(code: string, fn: string): { index: number; name: string | null }[] {
+    const out: { index: number; name: string | null }[] = [];
+    for (const m of code.matchAll(new RegExp(String.raw`(?<![\w$])${fn}\s*`, 'g'))) {
+        let j = m.index + m[0].length;
+        if (code[j] === '<') {
+            let depth = 0;
+            for (; j < code.length; j++) {
+                if (code[j] === '<') depth++;
+                else if (code[j] === '>' && code[j - 1] !== '=' && --depth === 0) break;
+            }
+            j = j + 1;
+            while (/\s/.test(code.charAt(j))) j++;
+        }
+        if (code[j] !== '(') continue;
+        const literal = /^\(\s*(['"`])([^'"`$]*)\1\s*[,)]/.exec(code.slice(j));
+        out.push({ index: m.index, name: literal?.[2] ?? null });
+    }
+    return out;
 }

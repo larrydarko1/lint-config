@@ -1,0 +1,5 @@
+{
+    "format": ["typescript"],
+    "minTokens": 50,
+    "ignore": ["**/node_modules/**", "**/dist/**"]
+}

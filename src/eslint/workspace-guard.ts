@@ -9,29 +9,6 @@ import path from 'node:path';
 
 import type { FullstackWorkspaces } from './presets.ts';
 
-/** package.json `workspaces`, with a trailing `/*` expanded. Null when there is no list to hold the roles to. */
-const declaredWorkspaces = (rootDir: string): string[] | null => {
-    let manifest: { workspaces?: string[] | { packages?: string[] } };
-    try {
-        manifest = JSON.parse(readFileSync(path.join(rootDir, 'package.json'), 'utf8')) as typeof manifest;
-    } catch {
-        return null;
-    }
-    const list = Array.isArray(manifest.workspaces) ? manifest.workspaces : manifest.workspaces?.packages;
-    if (!Array.isArray(list)) return null;
-
-    return list.flatMap((entry) => {
-        if (!entry.endsWith('/*')) return [entry];
-        const parent = entry.slice(0, -2);
-        if (!existsSync(path.join(rootDir, parent))) return [];
-        return readdirSync(path.join(rootDir, parent), { withFileTypes: true })
-            .filter((dirent) => dirent.isDirectory())
-            .map((dirent) => `${parent}/${dirent.name}`);
-    });
-};
-
-const hasSource = (rootDir: string, dir: string): boolean => existsSync(path.join(rootDir, dir, 'src'));
-
 /**
  * Throws when a workspace with a `src/` has no role, or a role names a folder with no `src/`.
  * A workspace without `src/` (migrations, fixtures) is not source and needs no role.
@@ -60,3 +37,26 @@ export const assertWorkspacesCovered = (rootDir: string, workspaces: FullstackWo
 
     if (problems.length) throw new Error(`Workspace roles out of date:\n  - ${problems.join('\n  - ')}`);
 };
+
+/** package.json `workspaces`, with a trailing `/*` expanded. Null when there is no list to hold the roles to. */
+const declaredWorkspaces = (rootDir: string): string[] | null => {
+    let manifest: { workspaces?: string[] | { packages?: string[] } };
+    try {
+        manifest = JSON.parse(readFileSync(path.join(rootDir, 'package.json'), 'utf8')) as typeof manifest;
+    } catch {
+        return null;
+    }
+    const list = Array.isArray(manifest.workspaces) ? manifest.workspaces : manifest.workspaces?.packages;
+    if (!Array.isArray(list)) return null;
+
+    return list.flatMap((entry) => {
+        if (!entry.endsWith('/*')) return [entry];
+        const parent = entry.slice(0, -2);
+        if (!existsSync(path.join(rootDir, parent))) return [];
+        return readdirSync(path.join(rootDir, parent), { withFileTypes: true })
+            .filter((dirent) => dirent.isDirectory())
+            .map((dirent) => `${parent}/${dirent.name}`);
+    });
+};
+
+const hasSource = (rootDir: string, dir: string): boolean => existsSync(path.join(rootDir, dir, 'src'));

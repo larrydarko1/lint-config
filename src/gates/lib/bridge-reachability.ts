@@ -23,9 +23,9 @@ import ts from 'typescript';
 import { createProgram, findProjects, parseProject, realFile } from './programs.ts';
 
 /** One leaf of the contract — a method or value the renderer can read — that nothing reads. */
-export type UnusedBridgeMember = { member: string; file: string; line: number };
+type UnusedBridgeMember = { member: string; file: string; line: number };
 
-export type BridgeReachability = {
+type BridgeReachability = {
     /** Every leaf of the contract, by dotted path. */
     members: number;
     unused: UnusedBridgeMember[];

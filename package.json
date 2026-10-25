@@ -1,17 +1,13 @@
 {
     "name": "@larrydarko/lint-config",
     "version": "0.1.0-beta.10",
-    "type": "module",
     "description": "Shared formatting, commit and style configuration for my projects.",
     "license": "MIT",
     "author": "Lorenzo Mazzola",
-    "publishConfig": {
-        "access": "public",
-        "tag": "beta"
-    },
-    "engines": {
-        "node": ">=24"
-    },
+    "type": "module",
+    "files": [
+        "dist"
+    ],
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",
@@ -36,6 +32,10 @@
         "./eslint/fullstack": {
             "types": "./dist/eslint/fullstack/index.d.ts",
             "default": "./dist/eslint/fullstack/index.js"
+        },
+        "./eslint/library": {
+            "types": "./dist/eslint/library/index.d.ts",
+            "default": "./dist/eslint/library/index.js"
         },
         "./eslint/spa": {
             "types": "./dist/eslint/spa/index.d.ts",
@@ -161,6 +161,10 @@
             "types": "./dist/gates/pipeline.d.ts",
             "default": "./dist/gates/pipeline.js"
         },
+        "./gates/publish": {
+            "types": "./dist/gates/publish.d.ts",
+            "default": "./dist/gates/publish.js"
+        },
         "./gates/refactoring": {
             "types": "./dist/gates/refactoring.d.ts",
             "default": "./dist/gates/refactoring.js"
@@ -218,17 +222,27 @@
             "default": "./dist/stylelint.js"
         }
     },
-    "files": [
-        "dist"
-    ],
     "scripts": {
         "build": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
         "typecheck": "tsc -p tsconfig.json",
+        "lint": "eslint .",
+        "format:check": "prettier --check .",
         "prepack": "npm run build",
         "prepublishOnly": "npm run typecheck && npm test && npm run check:package",
         "test": "node --test test/*.test.js",
         "snapshot": "node scripts/eslint-snapshot.js",
-        "check:package": "node scripts/check-package.js"
+        "presets:record": "node test/presets/record.js",
+        "check:package": "node scripts/checks/check-publish.ts",
+        "audit:check": "node scripts/checks/check-audit.ts",
+        "style:check": "node scripts/checks/check-code-style.ts",
+        "deadcode:check": "node scripts/checks/check-dead-code.ts",
+        "order:check": "node scripts/checks/check-declaration-order.ts",
+        "dup:check": "node scripts/checks/check-duplication.ts",
+        "manifest:check": "node scripts/checks/check-package-json.ts",
+        "pipeline:check": "node scripts/checks/check-pipeline.ts",
+        "refactor:check": "node scripts/checks/check-refactoring.ts",
+        "tsconfig:check": "node scripts/checks/check-tsconfigs.ts",
+        "ci:check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run audit:check && npm run style:check && npm run deadcode:check && npm run order:check && npm run dup:check && npm run manifest:check && npm run pipeline:check && npm run refactor:check && npm run tsconfig:check && npm run check:package"
     },
     "dependencies": {
         "@commitlint/cli": "21.2.4",
@@ -264,5 +278,12 @@
     },
     "devDependencies": {
         "@types/node": "^24.13.6"
+    },
+    "engines": {
+        "node": ">=24"
+    },
+    "publishConfig": {
+        "access": "public",
+        "tag": "beta"
     }
 }

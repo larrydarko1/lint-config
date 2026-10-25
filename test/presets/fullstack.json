@@ -1,0 +1,1213 @@
+{
+    "@eslint-community/eslint-comments/disable-enable-pair": [
+        { "files": "*", "entry": ["error",{"allowWholeFile":true}] }
+    ],
+    "@eslint-community/eslint-comments/no-aggregating-enable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/no-duplicate-disable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/no-unlimited-disable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/no-unused-enable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/require-description": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@intlify/vue-i18n/no-i18n-t-path-prop": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "@intlify/vue-i18n/no-missing-keys": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts"], "entry": "error" }
+    ],
+    "@intlify/vue-i18n/no-raw-text": [
+        { "files": ["frontend/src/App.vue"], "entry": ["error",{"ignorePattern":"^[\\s\\d\\p{P}\\p{S}]*$","ignoreText":[]}] }
+    ],
+    "@intlify/vue-i18n/no-unknown-locale": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts"], "entry": ["error",{"locales":[]}] }
+    ],
+    "@intlify/vue-i18n/prefer-linked-key-with-paren": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts"], "entry": "error" }
+    ],
+    "@intlify/vue-i18n/valid-message-syntax": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts"], "entry": "error" }
+    ],
+    "@intlify/vue-i18n/valid-plural-forms": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/adjacent-overload-signatures": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/array-type": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/await-thenable": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","worker/src/index.ts","packages/shared/src/index.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/ban-ts-comment": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": ["error",{"minimumDescriptionLength":10}] },
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "@typescript-eslint/ban-tslint-comment": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/class-literal-property-style": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-generic-constructors": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-indexed-object-style": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-type-assertions": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-type-definitions": [
+        { "files": "*", "entry": ["error","type"] }
+    ],
+    "@typescript-eslint/consistent-type-exports": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-type-imports": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","worker/src/index.ts","packages/shared/src/index.ts"], "entry": ["error",{"prefer":"type-imports","fixStyle":"inline-type-imports"}] }
+    ],
+    "@typescript-eslint/explicit-function-return-type": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","worker/src/index.ts","packages/shared/src/index.ts"], "entry": ["error",{"allowTypedFunctionExpressions":false,"allowIIFEs":true}] }
+    ],
+    "@typescript-eslint/explicit-module-boundary-types": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/max-params": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": ["error",{"max":6}] }
+    ],
+    "@typescript-eslint/naming-convention": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": [
+                "error",
+                {"selector":"default","format":["camelCase"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"variable","format":["camelCase","UPPER_CASE","PascalCase"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"import","format":["camelCase","PascalCase"]},
+                {"selector":"function","format":["camelCase","PascalCase"]},
+                {"selector":"parameter","format":["camelCase"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"property","format":["camelCase","UPPER_CASE"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"property","modifiers":["requiresQuotes"],"format":null},
+                {"selector":"objectLiteralProperty","format":["camelCase","UPPER_CASE","PascalCase","snake_case"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"objectLiteralProperty","modifiers":["requiresQuotes"],"format":null},
+                {"selector":"typeLike","format":["PascalCase"]},
+                {"selector":"enumMember","format":["UPPER_CASE"]},
+                {"selector":"typeParameter","format":["PascalCase"],"prefix":["T"]}
+            ] }
+    ],
+    "@typescript-eslint/no-array-constructor": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-array-delete": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-base-to-string": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-confusing-non-null-assertion": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-confusing-void-expression": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": ["error",{"ignoreArrowShorthand":true}] }
+    ],
+    "@typescript-eslint/no-deprecated": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-duplicate-enum-values": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-duplicate-type-constituents": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-dynamic-delete": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","worker/src/index.ts","packages/shared/src/index.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-empty-function": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","worker/src/index.ts","packages/shared/src/index.ts"], "entry": ["error",{"allow":["arrowFunctions"]}] }
+    ],
+    "@typescript-eslint/no-empty-object-type": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-explicit-any": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-extra-non-null-assertion": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-extraneous-class": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-floating-promises": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-for-in-array": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-generated-empty-object-type": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-implied-eval": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-inferrable-types": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-invalid-void-type": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-meaningless-void-operator": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-misused-new": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-misused-promises": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-misused-spread": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-mixed-enums": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-namespace": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-non-null-asserted-nullish-coalescing": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-non-null-asserted-optional-chain": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-non-null-assertion": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","worker/src/index.ts","packages/shared/src/index.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-redundant-type-constituents": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-require-imports": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-this-alias": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-boolean-literal-compare": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-condition": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": ["error",{"allowConstantLoopConditions":"only-allowed-literals"}] }
+    ],
+    "@typescript-eslint/no-unnecessary-template-expression": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-arguments": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-assertion": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","worker/src/index.ts","packages/shared/src/index.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-constraint": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-conversion": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-parameters": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-argument": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-assignment": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-call": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-declaration-merging": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-enum-comparison": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-function-type": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-member-access": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-return": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-type-assertion": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-unary-minus": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unused-expressions": [
+        { "files": "*", "entry": ["error",{"allowShortCircuit":false,"allowTaggedTemplates":false,"allowTernary":false}] }
+    ],
+    "@typescript-eslint/no-unused-private-class-members": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unused-vars": [
+        { "files": "*", "entry": ["error",{"argsIgnorePattern":"^_","varsIgnorePattern":"^_","caughtErrorsIgnorePattern":"^_"}] }
+    ],
+    "@typescript-eslint/no-useless-constructor": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-useless-default-assignment": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-wrapper-object-types": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/non-nullable-type-assertion-style": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/only-throw-error": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-as-const": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-find": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-for-of": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-function-type": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-includes": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-literal-enum-member": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-namespace-keyword": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-nullish-coalescing": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-optional-chain": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-promise-reject-errors": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-readonly": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-reduce-type-parameter": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-regexp-exec": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-return-this-type": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-string-starts-ends-with": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/related-getter-setter-pairs": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/require-array-sort-compare": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/require-await": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","worker/src/index.ts","packages/shared/src/index.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/restrict-plus-operands": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/restrict-template-expressions": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/return-await": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": ["error","error-handling-correctness-only"] }
+    ],
+    "@typescript-eslint/strict-boolean-expressions": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","worker/src/index.ts","packages/shared/src/index.ts"], "entry": ["error",{"allowString":false,"allowNumber":false,"allowNullableObject":false}] }
+    ],
+    "@typescript-eslint/switch-exhaustiveness-check": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": ["error",{"considerDefaultExhaustiveForUnions":true}] }
+    ],
+    "@typescript-eslint/triple-slash-reference": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/unbound-method": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","worker/src/index.ts","packages/shared/src/index.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/unified-signatures": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "a11y/alt-text": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/anchor-has-content": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/aria-props": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/aria-role": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/aria-unsupported-elements": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/click-events-have-key-events": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/form-control-has-label": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/heading-has-content": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/iframe-has-title": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/interactive-supports-focus": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/label-has-for": [
+        { "files": ["frontend/src/App.vue"], "entry": ["error",{"required":{"some":["nesting","id"]}}] }
+    ],
+    "a11y/media-has-caption": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/mouse-events-have-key-events": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/no-access-key": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/no-aria-hidden-on-focusable": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/no-autofocus": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/no-distracting-elements": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/no-redundant-roles": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/no-static-element-interactions": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/role-has-required-aria-props": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "a11y/tabindex-no-positive": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "array-callback-return": [
+        { "files": "*", "entry": ["error",{"allowImplicit":false,"checkForEach":false,"allowVoid":false}] }
+    ],
+    "constructor-super": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "eqeqeq": [
+        { "files": "*", "entry": ["error","always",{"null":"ignore"}] }
+    ],
+    "for-direction": [
+        { "files": "*", "entry": "error" }
+    ],
+    "getter-return": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": ["error",{"allowImplicit":false}] }
+    ],
+    "larry/no-caught-message-leak": [
+        { "files": ["api/src/routes/users.ts","api/src/lib/config.ts","worker/src/index.ts"], "entry": ["error",{}] }
+    ],
+    "larry/no-inline-svg": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "larry/no-native-dialog": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts"], "entry": "error" }
+    ],
+    "max-depth": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","worker/src/index.ts","packages/shared/src/index.ts"], "entry": ["error",3] },
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": ["error",4] }
+    ],
+    "no-async-promise-executor": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-case-declarations": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-class-assign": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-compare-neg-zero": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-cond-assign": [
+        { "files": "*", "entry": ["error","except-parens"] }
+    ],
+    "no-console": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","worker/src/index.ts"], "entry": ["error",{}] }
+    ],
+    "no-const-assign": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-constant-binary-expression": [
+        { "files": "*", "entry": ["error",{"checkRelationalComparisons":false}] }
+    ],
+    "no-constant-condition": [
+        { "files": "*", "entry": ["error",{"checkLoops":"allExceptWhileTrue"}] }
+    ],
+    "no-constructor-return": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-control-regex": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-debugger": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-delete-var": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-dupe-args": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-dupe-class-members": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-dupe-else-if": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-dupe-keys": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-duplicate-case": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-else-return": [
+        { "files": "*", "entry": ["error",{"allowElseIf":false}] }
+    ],
+    "no-empty": [
+        { "files": "*", "entry": ["error",{"allowEmptyCatch":false}] }
+    ],
+    "no-empty-character-class": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-empty-pattern": [
+        { "files": "*", "entry": ["error",{"allowObjectPatternsAsParameters":false}] }
+    ],
+    "no-empty-static-block": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-eval": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts"], "entry": ["error",{"allowIndirect":false}] }
+    ],
+    "no-ex-assign": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-extra-boolean-cast": [
+        { "files": "*", "entry": ["error",{}] }
+    ],
+    "no-fallthrough": [
+        { "files": "*", "entry": ["error",{"allowEmptyCase":false,"reportUnusedFallthroughComment":false}] }
+    ],
+    "no-func-assign": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-global-assign": [
+        { "files": "*", "entry": ["error",{"exceptions":[]}] }
+    ],
+    "no-implicit-coercion": [
+        { "files": "*", "entry": ["error",{"allow":[],"boolean":true,"disallowTemplateShorthand":false,"number":true,"string":true}] }
+    ],
+    "no-implied-eval": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts"], "entry": "error" }
+    ],
+    "no-import-assign": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-invalid-regexp": [
+        { "files": "*", "entry": ["error",{}] }
+    ],
+    "no-irregular-whitespace": [
+        { "files": "*", "entry": ["error",{"skipComments":false,"skipJSXText":false,"skipRegExps":false,"skipStrings":true,"skipTemplates":false}] }
+    ],
+    "no-loss-of-precision": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-misleading-character-class": [
+        { "files": "*", "entry": ["error",{"allowEscape":false}] }
+    ],
+    "no-new-func": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-new-native-nonconstructor": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-nonoctal-decimal-escape": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-obj-calls": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-octal": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-param-reassign": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-process-env": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","worker/src/index.ts","packages/shared/src/index.ts","eslint.config.js"], "entry": "error" }
+    ],
+    "no-prototype-builtins": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-redeclare": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": ["error",{"builtinGlobals":true}] }
+    ],
+    "no-regex-spaces": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-restricted-exports": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": [
+                "error",
+                {"restrictDefaultExports":{"direct":true,"named":true,"defaultFrom":true,"namedFrom":true,"namespaceFrom":true}}
+            ] }
+    ],
+    "no-restricted-globals": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": [
+                "error",
+                {"name":"__dirname","message":"Use `import.meta.dirname` (Node 21.2+) — `__dirname` is CommonJS-only."},
+                {"name":"__filename","message":"Use `import.meta.filename` (Node 21.2+) — `__filename` is CommonJS-only."}
+            ] }
+    ],
+    "no-restricted-imports": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts"], "entry": [
+                "error",
+                {"paths":[{"name":"bcrypt","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"bcryptjs","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"scrypt-js","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"scryptsy","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"crypto-js","message":"Use Node’s built-in `node:crypto` (AES-256-GCM / HMAC-SHA-256), not crypto-js"}]}
+            ] },
+        { "files": ["db/migrations/001-init.js"], "entry": [
+                "error",
+                {"paths":[{"name":"mongoose","message":"No ODM. Use the native mongodb driver — TypeScript types give compile-time safety and the index manifest gives explicit control."},{"name":"typeorm","message":"No ORM/ODM. Use the native mongodb driver."},{"name":"@prisma/client","message":"No ORM/ODM. Use the native mongodb driver."},{"name":"uuid","message":"Do not add a `uuid` dependency — `crypto.randomUUID()` is in the Node standard library and is what the ID strategy specifies for URL-facing identifiers."}]}
+            ] }
+    ],
+    "no-restricted-syntax": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts"], "entry": [
+                "error",
+                {"selector":"TSPropertySignature[key.name='data'] TSPropertySignature[key.name='errors']","message":"Do not type the API's per-field `errors[]` — those messages are English dev fallbacks, never shown to users. Render the localised `data.error` instead, and validate client-side (utils/validation.ts) for localised field-level feedback."},
+                {"selector":"MemberExpression[property.name='map'][object.property.name='errors']","message":"Do not map over API `errors[]` — those messages are English dev fallbacks. Render the localised `data.error` instead, and validate client-side (utils/validation.ts) for localised field-level feedback."}
+            ] },
+        { "files": ["api/src/routes/users.ts","api/src/lib/config.ts"], "entry": [
+                "error",
+                {"selector":"CallExpression[callee.property.name='createIndex']","message":"Do not call createIndex here. Add an entry to the index manifest (packages/shared/src/db/indexes.ts) — it is applied by ensureIndexes() in lib/db.ts on the next boot."},
+                {"selector":"CallExpression[callee.property.name='dropIndex']","message":"Never drop an index from application code. It re-runs on every boot of every replica — the old connectDb() dropped and rebuilt both Views indexes on every single restart. Dropping is one-shot work: write a migration in db/migrations/, where dropIndex is allowed."},
+                {"selector":"NewExpression[callee.name='MongoClient']","message":"One MongoDB connection per process. Use getDb() from lib/db.ts — the singleton is created once by connectDb() at startup."},
+                {"selector":"CallExpression[callee.property.name='collection'][arguments.0.type='Literal']:not([typeArguments])","message":"Give every collection its document type: `db.collection<MediaDoc>('Media')`, with the Doc types from the shared package's db/collections. Untyped, every read is `any`-shaped and a write with a misspelt or wrong-typed field compiles fine — which is how the worker never used MediaDoc."}
+            ] },
+        { "files": ["worker/src/index.ts"], "entry": [
+                "error",
+                {"selector":"CallExpression[callee.property.name='createIndex']","message":"Do not call createIndex here. Add an entry to the index manifest (packages/shared/src/db/indexes.ts) — it is applied by ensureIndexes() in lib/db.ts on the next boot."},
+                {"selector":"CallExpression[callee.property.name='dropIndex']","message":"Never drop an index from application code. It re-runs on every boot of every replica — the old connectDb() dropped and rebuilt both Views indexes on every single restart. Dropping is one-shot work: write a migration in db/migrations/, where dropIndex is allowed."},
+                {"selector":"CallExpression[callee.property.name='collection'][arguments.0.type='Literal']:not([typeArguments])","message":"Give every collection its document type: `db.collection<MediaDoc>('Media')`, with the Doc types from the shared package's db/collections. Untyped, every read is `any`-shaped and a write with a misspelt or wrong-typed field compiles fine — which is how the worker never used MediaDoc."}
+            ] },
+        { "files": ["db/migrations/001-init.js"], "entry": [
+                "error",
+                {"selector":"ExportNamedDeclaration > FunctionDeclaration[id.name='down']","message":"Migrations are forward-only: no down(). A reversal that loses data is not a rollback (the bootstrap down() dropped all 28 collections). To undo a migration, write a new forward migration. See db/migrations/README.md."},
+                {"selector":"ExportNamedDeclaration > VariableDeclaration > VariableDeclarator[id.name='down']","message":"Migrations are forward-only: no down(). A reversal that loses data is not a rollback (the bootstrap down() dropped all 28 collections). To undo a migration, write a new forward migration. See db/migrations/README.md."},
+                {"selector":"Property[key.name='down']","message":"Migrations are forward-only: no down(). A reversal that loses data is not a rollback (the bootstrap down() dropped all 28 collections). To undo a migration, write a new forward migration. See db/migrations/README.md."},
+                {"selector":"CallExpression[callee.property.name='createIndex']","message":"Do not create indexes in a migration. Every index is declared once in packages/shared/src/db/indexes.ts and applied by ensureIndexes() at API boot. Declaring them here too is what let HashDatabase{source,addedAt} drift. See db/migrations/README.md."}
+            ] }
+    ],
+    "no-self-assign": [
+        { "files": "*", "entry": ["error",{"props":true}] }
+    ],
+    "no-self-compare": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-setter-return": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-shadow-restricted-names": [
+        { "files": "*", "entry": ["error",{"reportGlobalThis":true}] }
+    ],
+    "no-sparse-arrays": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-template-curly-in-string": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-this-before-super": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-unassigned-vars": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-undef": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": ["error",{"typeof":false}] }
+    ],
+    "no-unmodified-loop-condition": [
+        { "files": "*", "entry": ["error",{"checkConditionalExpressions":false}] }
+    ],
+    "no-unreachable": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-unreachable-loop": [
+        { "files": "*", "entry": ["error",{"ignore":[]}] }
+    ],
+    "no-unsafe-finally": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-unsafe-negation": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": ["error",{"enforceForOrderingRelations":false}] }
+    ],
+    "no-unsafe-optional-chaining": [
+        { "files": "*", "entry": ["error",{"disallowArithmeticOperators":false}] }
+    ],
+    "no-unused-labels": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-unused-private-class-members": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-assignment": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-backreference": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-call": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-catch": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-computed-key": [
+        { "files": "*", "entry": ["error",{"enforceForClassMembers":true}] }
+    ],
+    "no-useless-concat": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-escape": [
+        { "files": "*", "entry": ["error",{"allowRegexCharacters":[]}] }
+    ],
+    "no-useless-rename": [
+        { "files": "*", "entry": ["error",{"ignoreDestructuring":false,"ignoreImport":false,"ignoreExport":false}] }
+    ],
+    "no-useless-return": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-var": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "no-warning-comments": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts","db/migrations/001-init.js"], "entry": ["error",{"location":"anywhere","terms":["todo","fixme","fix me","hack","xxx","wip","tbd"]}] }
+    ],
+    "no-with": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "object-shorthand": [
+        { "files": "*", "entry": ["error","always"] }
+    ],
+    "prefer-const": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": ["error",{"destructuring":"all","ignoreReadBeforeAssign":false}] }
+    ],
+    "prefer-rest-params": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "prefer-spread": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "prefer-template": [
+        { "files": "*", "entry": "error" }
+    ],
+    "preserve-caught-error": [
+        { "files": "*", "entry": ["error",{"requireCatchParameter":false,"errorClassNames":[]}] }
+    ],
+    "radix": [
+        { "files": "*", "entry": "error" }
+    ],
+    "require-yield": [
+        { "files": "*", "entry": "error" }
+    ],
+    "use-isnan": [
+        { "files": "*", "entry": ["error",{"enforceForIndexOf":false,"enforceForSwitchCase":true}] }
+    ],
+    "valid-typeof": [
+        { "files": "*", "entry": ["error",{"requireStringLiterals":false}] }
+    ],
+    "vitest/consistent-test-it": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": ["error",{"fn":"test","withinDescribe":"it"}] }
+    ],
+    "vitest/expect-expect": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": ["error",{"assertFunctionNames":["expect","assert"],"additionalTestBlockFunctions":[]}] }
+    ],
+    "vitest/no-commented-out-tests": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/no-conditional-expect": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": ["error",{"expectAssertions":false}] }
+    ],
+    "vitest/no-conditional-in-test": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/no-disabled-tests": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/no-duplicate-hooks": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/no-focused-tests": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": ["error",{"fixable":true}] }
+    ],
+    "vitest/no-identical-title": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/no-standalone-expect": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": ["error",{"additionalTestBlockFunctions":[]}] }
+    ],
+    "vitest/no-test-return-statement": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/prefer-hooks-on-top": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/prefer-to-be": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/prefer-to-have-length": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/require-awaited-expect-poll": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/require-to-throw-message": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/valid-describe-callback": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/valid-expect": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": ["error",{"alwaysAwait":false,"asyncMatchers":["toReject","toResolve"],"minArgs":1,"maxArgs":1}] }
+    ],
+    "vitest/valid-expect-in-promise": [
+        { "files": ["api/src/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vue/attribute-hyphenation": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/attributes-order": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/block-lang": [
+        { "files": ["frontend/src/App.vue"], "entry": ["error",{"script":{"lang":"ts"}}] }
+    ],
+    "vue/block-order": [
+        { "files": ["frontend/src/App.vue"], "entry": ["error",{"order":["script","template","style"]}] },
+        { "files": ["frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts","db/migrations/001-init.js","eslint.config.js"], "entry": "warn" }
+    ],
+    "vue/comment-directive": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/component-api-style": [
+        { "files": ["frontend/src/App.vue"], "entry": ["error",["script-setup"]] }
+    ],
+    "vue/component-definition-name-casing": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/define-emits-declaration": [
+        { "files": ["frontend/src/App.vue"], "entry": ["error","type-based"] }
+    ],
+    "vue/define-macros-order": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/define-props-declaration": [
+        { "files": ["frontend/src/App.vue"], "entry": ["error","type-based"] }
+    ],
+    "vue/enforce-style-attribute": [
+        { "files": ["frontend/src/App.vue"], "entry": ["error",{"allow":["scoped"]}] }
+    ],
+    "vue/first-attribute-linebreak": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/jsx-uses-vars": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-arrow-functions-in-watch": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-async-in-computed-properties": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-child-content": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-computed-properties-in-data": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-data-object-declaration": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-delete-set": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-destroyed-lifecycle": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-dollar-listeners-api": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-dollar-scopedslots-api": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-events-api": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-filter": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-functional-template": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-html-element-is": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-inline-template": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-model-definition": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-props-default-this": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-router-link-tag-prop": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-scope-attribute": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-slot-attribute": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-slot-scope-attribute": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-v-bind-sync": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-v-is": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-v-on-native-modifier": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-v-on-number-modifiers": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-vue-config-keycodes": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-dupe-keys": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-dupe-v-else-if": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-duplicate-attributes": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-export-in-script-setup": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-expose-after-await": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-lifecycle-after-await": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-lone-template": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/no-multiple-slot-args": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/no-mutating-props": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-parsing-error": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-ref-as-operand": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-ref-object-reactivity-loss": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts"], "entry": "error" }
+    ],
+    "vue/no-required-prop-with-default": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" },
+        { "files": ["frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts","db/migrations/001-init.js","eslint.config.js"], "entry": "warn" }
+    ],
+    "vue/no-reserved-component-names": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-reserved-keys": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-reserved-props": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-restricted-block": [
+        { "files": ["frontend/src/App.vue"], "entry": [
+                "error",
+                {"element":"i18n","message":"No per-component <i18n> blocks — every key lives in frontend/src/i18n/locales/<locale>.json. A block splits a key away from its siblings, and no locale-parity check can see it."}
+            ] }
+    ],
+    "vue/no-restricted-syntax": [
+        { "files": ["frontend/src/App.vue"], "entry": [
+                "error",
+                {"selector":"TSAsExpression","message":"No `as` in a template: the type rules cannot see it there. Move the expression into `<script setup>` and narrow it with a check — `targetOf(e, HTMLInputElement)`, a typed computed, a typed helper."}
+            ] }
+    ],
+    "vue/no-shared-component-data": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-side-effects-in-computed-properties": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-template-key": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-template-shadow": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" },
+        { "files": ["frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts","db/migrations/001-init.js","eslint.config.js"], "entry": "warn" }
+    ],
+    "vue/no-template-target-blank": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-textarea-mustache": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-undef-components": [
+        { "files": ["frontend/src/App.vue"], "entry": ["error",{"ignorePatterns":["^(RouterView|RouterLink|router-view|router-link|i18n-t|I18nT)$"]}] }
+    ],
+    "vue/no-undef-properties": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-unused-components": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-unused-emit-declarations": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-unused-properties": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-unused-refs": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-unused-vars": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-use-computed-property-like-method": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-use-v-if-with-v-for": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-useless-mustaches": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-useless-template-attributes": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-useless-v-bind": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-v-for-template-key-on-child": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-v-html": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" },
+        { "files": ["frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts","db/migrations/001-init.js","eslint.config.js"], "entry": "warn" }
+    ],
+    "vue/no-v-text": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-v-text-v-html-on-component": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-watch-after-await": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/one-component-per-file": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/order-in-components": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/prefer-import-from-vue": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/prefer-separate-static-class": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/prefer-true-attribute-shorthand": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/prefer-use-template-ref": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/prop-name-casing": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/require-component-is": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/require-default-prop": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/require-explicit-emits": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" },
+        { "files": ["frontend/src/composables/useClock.ts","api/src/routes/users.ts","api/src/lib/config.ts","api/src/__tests__/users.test.ts","worker/src/index.ts","packages/shared/src/index.ts","e2e/login.spec.ts","db/migrations/001-init.js","eslint.config.js"], "entry": "warn" }
+    ],
+    "vue/require-explicit-slots": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/require-macro-variable-name": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/require-prop-type-constructor": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/require-prop-types": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/require-render-return": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/require-slots-as-functions": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/require-toggle-inside-transition": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/require-typed-ref": [
+        { "files": ["frontend/src/App.vue","frontend/src/composables/useClock.ts"], "entry": "error" }
+    ],
+    "vue/require-v-for-key": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/require-valid-default-prop": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/return-in-computed-property": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/return-in-emits-validator": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/this-in-template": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/use-v-on-exact": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/v-bind-style": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/v-for-delimiter-style": [
+        { "files": ["frontend/src/App.vue"], "entry": "error" }
+    ],
+    "vue/v-on-event-hyphenation": [
+        { "files": "*", "entry": ["warn","always",{"autofix":true}] }
+    ],
+    "vue/v-on-style": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/v-slot-style": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/valid-attribute-name": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-define-emits": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-define-options": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-define-props": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-next-tick": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-template-root": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-bind": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-cloak": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-else": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-else-if": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-for": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-html": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-if": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-is": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-memo": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-model": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-on": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-once": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-pre": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-show": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-slot": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-text": [
+        { "files": "*", "entry": "error" }
+    ]
+}

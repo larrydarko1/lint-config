@@ -1,0 +1,652 @@
+{
+    "@eslint-community/eslint-comments/disable-enable-pair": [
+        { "files": "*", "entry": ["error",{"allowWholeFile":true}] }
+    ],
+    "@eslint-community/eslint-comments/no-aggregating-enable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/no-duplicate-disable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/no-unlimited-disable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/no-unused-enable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/require-description": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/adjacent-overload-signatures": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/array-type": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/await-thenable": [
+        { "files": ["src/index.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/ban-ts-comment": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": ["error",{"minimumDescriptionLength":10}] },
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": "error" }
+    ],
+    "@typescript-eslint/ban-tslint-comment": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/class-literal-property-style": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-generic-constructors": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-indexed-object-style": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-type-assertions": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-type-definitions": [
+        { "files": "*", "entry": ["error","type"] }
+    ],
+    "@typescript-eslint/consistent-type-exports": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-type-imports": [
+        { "files": ["src/index.ts","scripts/release.ts"], "entry": ["error",{"prefer":"type-imports","fixStyle":"inline-type-imports"}] }
+    ],
+    "@typescript-eslint/explicit-function-return-type": [
+        { "files": ["src/index.ts","scripts/release.ts"], "entry": ["error",{"allowTypedFunctionExpressions":false,"allowIIFEs":true}] }
+    ],
+    "@typescript-eslint/explicit-module-boundary-types": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/max-params": [
+        { "files": ["src/index.ts","test/index.test.js","test/index.test.ts","scripts/release.ts"], "entry": ["error",{"max":6}] }
+    ],
+    "@typescript-eslint/naming-convention": [
+        { "files": ["src/index.ts","scripts/release.ts"], "entry": [
+                "error",
+                {"selector":"default","format":["camelCase"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"variable","format":["camelCase","UPPER_CASE","PascalCase"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"import","format":["camelCase","PascalCase"]},
+                {"selector":"function","format":["camelCase","PascalCase"]},
+                {"selector":"parameter","format":["camelCase"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"property","format":["camelCase","UPPER_CASE"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"property","modifiers":["requiresQuotes"],"format":null},
+                {"selector":"objectLiteralProperty","format":["camelCase","UPPER_CASE","PascalCase","snake_case"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"objectLiteralProperty","modifiers":["requiresQuotes"],"format":null},
+                {"selector":"typeLike","format":["PascalCase"]},
+                {"selector":"enumMember","format":["UPPER_CASE"]},
+                {"selector":"typeParameter","format":["PascalCase"],"prefix":["T"]}
+            ] }
+    ],
+    "@typescript-eslint/no-array-constructor": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-array-delete": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-base-to-string": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-confusing-non-null-assertion": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-confusing-void-expression": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": ["error",{"ignoreArrowShorthand":true}] }
+    ],
+    "@typescript-eslint/no-deprecated": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-duplicate-enum-values": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-duplicate-type-constituents": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-dynamic-delete": [
+        { "files": ["src/index.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-empty-function": [
+        { "files": ["src/index.ts","scripts/release.ts"], "entry": ["error",{"allow":["arrowFunctions"]}] }
+    ],
+    "@typescript-eslint/no-empty-object-type": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-explicit-any": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-extra-non-null-assertion": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-extraneous-class": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-floating-promises": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-for-in-array": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-generated-empty-object-type": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-implied-eval": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-inferrable-types": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-invalid-void-type": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-meaningless-void-operator": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-misused-new": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-misused-promises": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-misused-spread": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-mixed-enums": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-namespace": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-non-null-asserted-nullish-coalescing": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-non-null-asserted-optional-chain": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-non-null-assertion": [
+        { "files": ["src/index.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-redundant-type-constituents": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-require-imports": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-this-alias": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-boolean-literal-compare": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-condition": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": ["error",{"allowConstantLoopConditions":"only-allowed-literals"}] }
+    ],
+    "@typescript-eslint/no-unnecessary-template-expression": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-arguments": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-assertion": [
+        { "files": ["src/index.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-constraint": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-conversion": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-parameters": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-argument": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-assignment": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-call": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-declaration-merging": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-enum-comparison": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-function-type": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-member-access": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-return": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-type-assertion": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-unary-minus": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unused-expressions": [
+        { "files": "*", "entry": ["error",{"allowShortCircuit":false,"allowTaggedTemplates":false,"allowTernary":false}] }
+    ],
+    "@typescript-eslint/no-unused-private-class-members": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unused-vars": [
+        { "files": "*", "entry": ["error",{"argsIgnorePattern":"^_","varsIgnorePattern":"^_","caughtErrorsIgnorePattern":"^_"}] }
+    ],
+    "@typescript-eslint/no-useless-constructor": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-useless-default-assignment": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-wrapper-object-types": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/non-nullable-type-assertion-style": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/only-throw-error": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-as-const": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-find": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-for-of": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-function-type": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-includes": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-literal-enum-member": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-namespace-keyword": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-nullish-coalescing": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-optional-chain": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-promise-reject-errors": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-readonly": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-reduce-type-parameter": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-regexp-exec": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-return-this-type": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-string-starts-ends-with": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/related-getter-setter-pairs": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/require-array-sort-compare": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/require-await": [
+        { "files": ["src/index.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/restrict-plus-operands": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/restrict-template-expressions": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/return-await": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": ["error","error-handling-correctness-only"] }
+    ],
+    "@typescript-eslint/strict-boolean-expressions": [
+        { "files": ["src/index.ts","scripts/release.ts"], "entry": ["error",{"allowString":false,"allowNumber":false,"allowNullableObject":false}] }
+    ],
+    "@typescript-eslint/switch-exhaustiveness-check": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": ["error",{"considerDefaultExhaustiveForUnions":true}] }
+    ],
+    "@typescript-eslint/triple-slash-reference": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/unbound-method": [
+        { "files": ["src/index.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/unified-signatures": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "array-callback-return": [
+        { "files": "*", "entry": ["error",{"allowImplicit":false,"checkForEach":false,"allowVoid":false}] }
+    ],
+    "constructor-super": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": "error" }
+    ],
+    "eqeqeq": [
+        { "files": "*", "entry": ["error","always",{"null":"ignore"}] }
+    ],
+    "for-direction": [
+        { "files": "*", "entry": "error" }
+    ],
+    "getter-return": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": ["error",{"allowImplicit":false}] }
+    ],
+    "max-depth": [
+        { "files": ["src/index.ts"], "entry": ["error",3] },
+        { "files": ["test/index.test.js","test/index.test.ts","scripts/release.ts"], "entry": ["error",4] }
+    ],
+    "no-async-promise-executor": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-case-declarations": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-class-assign": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-compare-neg-zero": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-cond-assign": [
+        { "files": "*", "entry": ["error","except-parens"] }
+    ],
+    "no-console": [
+        { "files": ["src/index.ts"], "entry": ["error",{}] }
+    ],
+    "no-const-assign": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-constant-binary-expression": [
+        { "files": "*", "entry": ["error",{"checkRelationalComparisons":false}] }
+    ],
+    "no-constant-condition": [
+        { "files": "*", "entry": ["error",{"checkLoops":"allExceptWhileTrue"}] }
+    ],
+    "no-constructor-return": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-control-regex": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-debugger": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-delete-var": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-dupe-args": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-dupe-class-members": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-dupe-else-if": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-dupe-keys": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-duplicate-case": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-else-return": [
+        { "files": "*", "entry": ["error",{"allowElseIf":false}] }
+    ],
+    "no-empty": [
+        { "files": "*", "entry": ["error",{"allowEmptyCatch":false}] }
+    ],
+    "no-empty-character-class": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-empty-pattern": [
+        { "files": "*", "entry": ["error",{"allowObjectPatternsAsParameters":false}] }
+    ],
+    "no-empty-static-block": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-eval": [
+        { "files": ["src/index.ts","scripts/release.ts"], "entry": ["error",{"allowIndirect":false}] }
+    ],
+    "no-ex-assign": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-extra-boolean-cast": [
+        { "files": "*", "entry": ["error",{}] }
+    ],
+    "no-fallthrough": [
+        { "files": "*", "entry": ["error",{"allowEmptyCase":false,"reportUnusedFallthroughComment":false}] }
+    ],
+    "no-func-assign": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-global-assign": [
+        { "files": "*", "entry": ["error",{"exceptions":[]}] }
+    ],
+    "no-implicit-coercion": [
+        { "files": "*", "entry": ["error",{"allow":[],"boolean":true,"disallowTemplateShorthand":false,"number":true,"string":true}] }
+    ],
+    "no-implied-eval": [
+        { "files": ["src/index.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "no-import-assign": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-invalid-regexp": [
+        { "files": "*", "entry": ["error",{}] }
+    ],
+    "no-irregular-whitespace": [
+        { "files": "*", "entry": ["error",{"skipComments":false,"skipJSXText":false,"skipRegExps":false,"skipStrings":true,"skipTemplates":false}] }
+    ],
+    "no-loss-of-precision": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-misleading-character-class": [
+        { "files": "*", "entry": ["error",{"allowEscape":false}] }
+    ],
+    "no-new-func": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-new-native-nonconstructor": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-nonoctal-decimal-escape": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-obj-calls": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-octal": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-param-reassign": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-process-env": [
+        { "files": ["src/index.ts"], "entry": "error" }
+    ],
+    "no-prototype-builtins": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-redeclare": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": ["error",{"builtinGlobals":true}] }
+    ],
+    "no-regex-spaces": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-restricted-exports": [
+        { "files": ["src/index.ts"], "entry": [
+                "error",
+                {"restrictDefaultExports":{"direct":true,"named":true,"defaultFrom":true,"namedFrom":true,"namespaceFrom":true}}
+            ] }
+    ],
+    "no-restricted-globals": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": [
+                "error",
+                {"name":"__dirname","message":"Use `import.meta.dirname` (Node 21.2+) — `__dirname` is CommonJS-only."},
+                {"name":"__filename","message":"Use `import.meta.filename` (Node 21.2+) — `__filename` is CommonJS-only."}
+            ] }
+    ],
+    "no-restricted-imports": [
+        { "files": ["src/index.ts","scripts/release.ts"], "entry": [
+                "error",
+                {"paths":[{"name":"bcrypt","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"bcryptjs","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"scrypt-js","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"scryptsy","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"crypto-js","message":"Use Node’s built-in `node:crypto` (AES-256-GCM / HMAC-SHA-256), not crypto-js"}]}
+            ] },
+        { "files": ["test/index.test.js","test/index.test.ts"], "entry": [
+                "error",
+                {"paths":[{"name":"assert","message":"Import `node:assert/strict`. The legacy API compares with `==`, so `assert.equal(1, '1')` passes."},{"name":"node:assert","message":"Import `node:assert/strict`. The legacy API compares with `==`, so `assert.equal(1, '1')` passes."}]}
+            ] }
+    ],
+    "no-restricted-properties": [
+        { "files": ["src/index.ts"], "entry": [
+                "error",
+                {"object":"process","property":"exit","message":"A library that exits ends the process it was imported into, and exit() can cut off output still buffered on a pipe. Throw, or set `process.exitCode` and return."}
+            ] }
+    ],
+    "no-restricted-syntax": [
+        { "files": ["test/index.test.js","test/index.test.ts"], "entry": [
+                "error",
+                {"selector":"CallExpression > MemberExpression.callee[object.name=/^(test|it|describe|suite)$/][property.name='only']","message":"`.only` narrows a `--test-only` run to this case and silently drops the rest. Remove it before committing."},
+                {"selector":"CallExpression > MemberExpression.callee[object.name=/^(test|it|describe|suite)$/][property.name=/^(skip|todo)$/]","message":"A skipped or todo case reports as passing while checking nothing. Fix it or delete it; deferred work goes in the tracker."},
+                {"selector":"CallExpression[callee.name=/^(test|it|describe|suite)$/] > ObjectExpression > Property[key.name=/^(only|skip|todo)$/]","message":"A focused, skipped or todo case reports as passing while checking nothing. Fix it or delete it; deferred work goes in the tracker."}
+            ] }
+    ],
+    "no-self-assign": [
+        { "files": "*", "entry": ["error",{"props":true}] }
+    ],
+    "no-self-compare": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-setter-return": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-shadow-restricted-names": [
+        { "files": "*", "entry": ["error",{"reportGlobalThis":true}] }
+    ],
+    "no-sparse-arrays": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-template-curly-in-string": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-this-before-super": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-unassigned-vars": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-undef": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": ["error",{"typeof":false}] }
+    ],
+    "no-unmodified-loop-condition": [
+        { "files": "*", "entry": ["error",{"checkConditionalExpressions":false}] }
+    ],
+    "no-unreachable": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-unreachable-loop": [
+        { "files": "*", "entry": ["error",{"ignore":[]}] }
+    ],
+    "no-unsafe-finally": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-unsafe-negation": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": ["error",{"enforceForOrderingRelations":false}] }
+    ],
+    "no-unsafe-optional-chaining": [
+        { "files": "*", "entry": ["error",{"disallowArithmeticOperators":false}] }
+    ],
+    "no-unused-labels": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-unused-private-class-members": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-assignment": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-backreference": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-call": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-catch": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-computed-key": [
+        { "files": "*", "entry": ["error",{"enforceForClassMembers":true}] }
+    ],
+    "no-useless-concat": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-escape": [
+        { "files": "*", "entry": ["error",{"allowRegexCharacters":[]}] }
+    ],
+    "no-useless-rename": [
+        { "files": "*", "entry": ["error",{"ignoreDestructuring":false,"ignoreImport":false,"ignoreExport":false}] }
+    ],
+    "no-useless-return": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-var": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "no-warning-comments": [
+        { "files": ["src/index.ts","test/index.test.js","test/index.test.ts","scripts/release.ts"], "entry": ["error",{"location":"anywhere","terms":["todo","fixme","fix me","hack","xxx","wip","tbd"]}] }
+    ],
+    "no-with": [
+        { "files": ["test/index.test.js","eslint.config.js"], "entry": "error" }
+    ],
+    "object-shorthand": [
+        { "files": "*", "entry": ["error","always"] }
+    ],
+    "prefer-const": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": ["error",{"destructuring":"all","ignoreReadBeforeAssign":false}] }
+    ],
+    "prefer-rest-params": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "prefer-spread": [
+        { "files": ["src/index.ts","test/index.test.ts","scripts/release.ts"], "entry": "error" }
+    ],
+    "prefer-template": [
+        { "files": "*", "entry": "error" }
+    ],
+    "preserve-caught-error": [
+        { "files": "*", "entry": ["error",{"requireCatchParameter":false,"errorClassNames":[]}] }
+    ],
+    "radix": [
+        { "files": "*", "entry": "error" }
+    ],
+    "require-yield": [
+        { "files": "*", "entry": "error" }
+    ],
+    "use-isnan": [
+        { "files": "*", "entry": ["error",{"enforceForIndexOf":false,"enforceForSwitchCase":true}] }
+    ],
+    "valid-typeof": [
+        { "files": "*", "entry": ["error",{"requireStringLiterals":false}] }
+    ],
+    "vitest/no-commented-out-tests": [
+        { "files": ["test/index.test.js","test/index.test.ts"], "entry": "error" }
+    ]
+}

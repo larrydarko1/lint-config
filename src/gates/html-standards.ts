@@ -55,7 +55,6 @@ type HeadRequirement =
     | 'themeColor'
     | 'icon';
 
-
 type HtmlStandardsInput = HtmlStandardsOptions & { root: string };
 
 type HtmlStandardsInspection = {

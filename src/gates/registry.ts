@@ -15,7 +15,11 @@ type GateEntry = {
     load: () => Promise<(options: never) => void | Promise<void>>;
 };
 
-const ALL: readonly PresetName[] = ['api', 'electron', 'fullstack', 'spa', 'tauri'];
+type GateName = keyof typeof GATES;
+
+const ALL: readonly PresetName[] = ['api', 'electron', 'fullstack', 'library', 'spa', 'tauri'];
+/** The families whose suites run on Vitest. A library's run on `node --test`, which ESLint checks instead. */
+const VITEST: readonly PresetName[] = ['api', 'electron', 'fullstack', 'spa', 'tauri'];
 /** The families with a frontend in the repository: an `index.html`, styles and locale files. */
 const UI: readonly PresetName[] = ['electron', 'fullstack', 'spa', 'tauri'];
 /** The families with an Express API: on its own (`api`) or as a workspace (`fullstack`). */
@@ -38,7 +42,7 @@ export const GATES = {
     'pipeline': { families: ALL, load: async () => (await import('./pipeline.ts')).checkPipeline },
     'refactoring': { families: ALL, load: async () => (await import('./refactoring.ts')).checkRefactoring },
     'scss-standards': { families: UI, load: async () => (await import('./scss-standards.ts')).checkScssStandards },
-    'testing': { families: ALL, load: async () => (await import('./testing.ts')).checkTesting },
+    'testing': { families: VITEST, load: async () => (await import('./testing.ts')).checkTesting },
     'tsconfigs': { families: ALL, load: async () => (await import('./tsconfigs.ts')).checkTsconfigs },
     'electron-security': {
         families: ['electron'],
@@ -64,6 +68,7 @@ export const GATES = {
         families: ['tauri'],
         load: async () => (await import('./error-handling/tauri.ts')).checkTauriErrorHandling,
     },
+    'publish': { families: ['library'], load: async () => (await import('./publish.ts')).checkPublish },
     'api-standards': { families: BACKEND, load: async () => (await import('./api-standards.ts')).checkApiStandards },
     'db-drift': { families: BACKEND, load: async () => (await import('./db-drift.ts')).checkDbDrift },
     'docker': { families: BACKEND, load: async () => (await import('./docker.ts')).checkDocker },
@@ -76,11 +81,6 @@ export const GATES = {
     'security-drift': { families: BACKEND, load: async () => (await import('./security-drift.ts')).checkSecurityDrift },
     'ws-standards': { families: BACKEND, load: async () => (await import('./ws-standards.ts')).checkWsStandards },
 } as const satisfies Record<string, GateEntry>;
-
-export type GateName = keyof typeof GATES;
-
-/** The options a gate takes, as its `check*` function declares them. */
-export type GateOptions<N extends GateName> = Parameters<Awaited<ReturnType<(typeof GATES)[N]['load']>>>[0];
 
 /** The gates a project of `family` runs, in the order they are listed above. */
 export function gatesFor(family: PresetName): GateName[] {

@@ -102,28 +102,6 @@ type WsStandardsInspection = {
 /** Socket.IO's own events. A listener for one of these is not an app contract. */
 const LIFECYCLE = new Set(['connect', 'connection', 'disconnect', 'disconnecting', 'connect_error', 'error']);
 
-/** Every `try { … } catch { … }` pair in a file, brace-balanced. */
-function tryCatchPairs(source: string): { attempt: string; recovery: string }[] {
-    const pairs: { attempt: string; recovery: string }[] = [];
-
-    for (const match of source.matchAll(/\btry\s*\{/g)) {
-        const open = match.index + match[0].length - 1;
-        let depth = 0;
-        for (let j = open; j < source.length; j++) {
-            if (source[j] === '{') depth++;
-            else if (source[j] === '}' && --depth === 0) {
-                const rest = source.slice(j + 1);
-                // Only a catch that immediately follows belongs to this try.
-                const recovery = /^\s*catch\b/.test(rest) ? braceBlock(rest, /catch\s*(?:\([^)]*\))?\s*\{/) : '';
-                pairs.push({ attempt: source.slice(open + 1, j), recovery });
-                break;
-            }
-        }
-    }
-
-    return pairs;
-}
-
 /** Every problem found, without printing. */
 export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspection {
     const {
@@ -196,7 +174,7 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
 
     // ── 2. The Redis adapter — required here, forbidden there ───────────────
     if (redisAdapter.mode === 'required') {
-        if (!/@socket\.io\/redis-adapter/.test(body)) {
+        if (!body.includes('@socket.io/redis-adapter')) {
             fail(
                 gateway,
                 'no Redis adapter',
@@ -204,7 +182,7 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
             );
         }
         // The install must be in a try/catch that warns: neither crash nor silent fallback.
-        const guarded = tryCatchPairs(body).find((pair) => /io\.adapter\(/.test(pair.attempt));
+        const guarded = tryCatchPairs(body).find((pair) => pair.attempt.includes('io.adapter('));
 
         if (guarded === undefined) {
             fail(
@@ -212,7 +190,7 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
                 'the adapter is not installed inside a try/catch',
                 'Degrade to the in-memory adapter when Redis is unavailable — never crash the server because the adapter did not connect.',
             );
-        } else if (!/logger\.warn\(/.test(guarded.recovery)) {
+        } else if (!guarded.recovery.includes('logger.warn(')) {
             fail(
                 gateway,
                 'the adapter catch does not warn',
@@ -302,7 +280,7 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
                 "Pin `{ algorithms: ['HS256'] }`. An unpinned verify accepts a token whose algorithm the attacker chose, which is how `alg: none` and the RS256-to-HS256 confusion both work.",
             );
         }
-        if (!/handshake\.auth/.test(body)) {
+        if (!body.includes('handshake.auth')) {
             fail(
                 gateway,
                 'the handshake token is not read from `handshake.auth`',
@@ -366,7 +344,7 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
             'Socket.IO does not honour Express `trust proxy` — it has no such setting. Without parsing the header here, every rate limit keys off the proxy address and collapses to one shared bucket.',
         );
     } else {
-        if (!/config\.trustProxyHops/.test(body)) {
+        if (!body.includes('config.trustProxyHops')) {
             fail(
                 gateway,
                 'the hop count is not `config.trustProxyHops`',
@@ -415,7 +393,7 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
 
     for (const rel of serverFiles) {
         if (rel.startsWith(gatewayDir)) continue;
-        if (/\.emit\(/.test(code(rel))) {
+        if (code(rel).includes('.emit(')) {
             fail(
                 rel,
                 'emits on a socket directly',
@@ -618,7 +596,7 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
         for (const rel of clientFiles) {
             if (rel === client) continue;
             const src = code(rel);
-            if (/socket\.io-client/.test(src) && /\bio\(/.test(src)) {
+            if (src.includes('socket.io-client') && /\bio\(/.test(src)) {
                 fail(
                     rel,
                     'opens a second socket.io-client connection',
@@ -675,9 +653,32 @@ export function checkWsStandards(options: WsStandardsOptions): void {
         summary:
             `WebSocket architecture OK — one server on the existing HTTP listener, ${adapter}, ` +
             `upgrade origin checked, handshake auth pinned and the rate limit ahead of it, hop count mirrored, emits confined to the gateway; ` +
-            `${plural(counts.outbound, 'outbound event')} and ${plural(counts.inbound, 'inbound event')} all matching the header contract` +
-            (options.frontend === false ? '.' : `, frontend on one client module with every listener cleaned up.`),
+            `${plural(counts.outbound, 'outbound event')} and ${plural(counts.inbound, 'inbound event')} all matching the header contract${
+                options.frontend === false ? '.' : `, frontend on one client module with every listener cleaned up.`
+            }`,
         notMachineChecked:
             'Whether a given feature should be a socket at all rather than REST, whether a payload is small enough to push, whether the connection bucket’s capacity is the right number, or whether a reconnect resubscribes to everything it was watching.',
     });
+}
+
+/** Every `try { … } catch { … }` pair in a file, brace-balanced. */
+function tryCatchPairs(source: string): { attempt: string; recovery: string }[] {
+    const pairs: { attempt: string; recovery: string }[] = [];
+
+    for (const match of source.matchAll(/\btry\s*\{/g)) {
+        const open = match.index + match[0].length - 1;
+        let depth = 0;
+        for (let j = open; j < source.length; j++) {
+            if (source[j] === '{') depth++;
+            else if (source[j] === '}' && --depth === 0) {
+                const rest = source.slice(j + 1);
+                // Only a catch that immediately follows belongs to this try.
+                const recovery = /^\s*catch\b/.test(rest) ? braceBlock(rest, /catch\s*(?:\([^)]*\))?\s*\{/) : '';
+                pairs.push({ attempt: source.slice(open + 1, j), recovery });
+                break;
+            }
+        }
+    }
+
+    return pairs;
 }

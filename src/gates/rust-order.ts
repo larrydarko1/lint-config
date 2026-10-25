@@ -48,33 +48,6 @@ const TYPE_KINDS = new Set(['struct', 'enum', 'union', 'type', 'trait']);
 const STD_CRATES = new Set(['std', 'core', 'alloc', 'proc_macro', 'test']);
 const LOCAL_ROOTS = new Set(['crate', 'self', 'super']);
 
-/** The layer an item belongs to before impls are matched to their types; `null` for what the table leaves alone. */
-function categoryOf(item: RustItem): string | null {
-    switch (item.kind) {
-        case 'mod':
-            if (isTestModule(item)) return 'tests';
-            return item.body === null ? 'mod' : null;
-        case 'use':
-        case 'extern-crate':
-            return item.public ? 'pub use' : 'use';
-        case 'const':
-        case 'static':
-            return 'const';
-        case 'fn':
-            return item.public ? 'public fns' : 'private fns';
-        case 'impl':
-            return 'private types';
-        default:
-            return TYPE_KINDS.has(item.kind) ? (item.public ? 'public types' : 'private types') : null;
-    }
-}
-
-const label = (item: RustItem): string => {
-    if (item.kind === 'impl') return `impl ${item.trait === undefined ? '' : `${item.trait} for `}${item.name}`;
-    if (item.kind === 'extern-crate') return `extern crate ${item.name}`;
-    return `${item.kind} ${item.name}`;
-};
-
 /**
  * The items of one Rust file that are out of the table's order. A type and its `impl`s
  * sort as one unit, so an `impl` stranded below another type is reported on its own.
@@ -163,3 +136,30 @@ export function checkRustImports(source: string): { count: number; problems: Rus
     }
     return { count: uses.length, problems };
 }
+
+/** The layer an item belongs to before impls are matched to their types; `null` for what the table leaves alone. */
+function categoryOf(item: RustItem): string | null {
+    switch (item.kind) {
+        case 'mod':
+            if (isTestModule(item)) return 'tests';
+            return item.body === null ? 'mod' : null;
+        case 'use':
+        case 'extern-crate':
+            return item.public ? 'pub use' : 'use';
+        case 'const':
+        case 'static':
+            return 'const';
+        case 'fn':
+            return item.public ? 'public fns' : 'private fns';
+        case 'impl':
+            return 'private types';
+        default:
+            return TYPE_KINDS.has(item.kind) ? (item.public ? 'public types' : 'private types') : null;
+    }
+}
+
+const label = (item: RustItem): string => {
+    if (item.kind === 'impl') return `impl ${item.trait === undefined ? '' : `${item.trait} for `}${item.name}`;
+    if (item.kind === 'extern-crate') return `extern crate ${item.name}`;
+    return `${item.kind} ${item.name}`;
+};

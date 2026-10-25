@@ -344,9 +344,10 @@ test('an invoke whose name is not a literal fails', (t) => {
 });
 
 test('a nested type argument on invoke is skipped, and a plugin command is not the app’s', (t) => {
-    const ts =
-        COMMANDS_TS.replace('invoke<string[]>', 'invoke<Array<Record<string, number>>>') +
-        "\nexport async function x(): Promise<void> {\n    await invoke('plugin:dialog|open');\n}\n";
+    const ts = `${COMMANDS_TS.replace(
+        'invoke<string[]>',
+        'invoke<Array<Record<string, number>>>',
+    )}\nexport async function x(): Promise<void> {\n    await invoke('plugin:dialog|open');\n}\n`;
     assert.deepEqual(whats(app(t, { 'src/bridge/commands.ts': ts })), []);
 });
 

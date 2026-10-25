@@ -138,13 +138,6 @@ const RUST_GETTER = /\bfn\s+(get_\w+)\s*(?:<[^>]*>)?\s*\(\s*&\s*(?:'\w+\s+)?(?:m
 const SHOUTED_ACRONYM = /[A-Z]{2,}[a-z]/;
 const RELATIVE_IMPORT = /(?:from|import)\s*['"](\.[^'"]*)['"]/g;
 
-const isSpec = (rel: string): boolean => rel.includes('__tests__') || /\.(test|spec)\.(ts|tsx)$/.test(rel);
-const isDeclaration = (rel: string) => rel.endsWith('.d.ts');
-const isCargoOutput = (rel: string) => rel.endsWith('.rs') && /(^|\/)target\//.test(rel);
-
-/** 1-based line of a byte offset, so a per-occurrence finding can point at it. */
-const lineAt = (source: string, index: number): number => source.slice(0, index).split('\n').length;
-
 /** Non-blank lines, excluding an SFC's `<style>` block. */
 export function measureFile(source: string, rel: string): number {
     const body = rel.endsWith('.vue') ? source.replace(/<style[\s\S]*?<\/style>/g, '') : source;
@@ -482,3 +475,10 @@ export function checkCodeStyle(options: CodeStyleOptions): void {
             'whether a comment explains WHY rather than what, whether a header earns its place, whether a file really is one concern, whether a name means anything beyond being long enough.',
     });
 }
+
+const isSpec = (rel: string): boolean => rel.includes('__tests__') || /\.(test|spec)\.(ts|tsx)$/.test(rel);
+const isDeclaration = (rel: string) => rel.endsWith('.d.ts');
+const isCargoOutput = (rel: string) => rel.endsWith('.rs') && /(^|\/)target\//.test(rel);
+
+/** 1-based line of a byte offset, so a per-occurrence finding can point at it. */
+const lineAt = (source: string, index: number): number => source.slice(0, index).split('\n').length;

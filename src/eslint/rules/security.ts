@@ -1,3 +1,11 @@
+export type SecurityOptions = {
+    /**
+     * Components allowed to use `v-html`: markup sanitised on the way in, or static copy
+     * the project authors itself — never anything a user submitted.
+     */
+    vHtmlAllowed?: string[];
+};
+
 export const bannedCryptoModules = [
     {
         name: 'bcrypt',
@@ -20,14 +28,6 @@ export const bannedCryptoModules = [
         message: 'Use Node’s built-in `node:crypto` (AES-256-GCM / HMAC-SHA-256), not crypto-js',
     },
 ];
-
-export type SecurityOptions = {
-    /**
-     * Components allowed to use `v-html`: markup sanitised on the way in, or static copy
-     * the project authors itself — never anything a user submitted.
-     */
-    vHtmlAllowed?: string[];
-};
 
 /**
  * @param layout.code Everything the crypto and `eval` bans cover.

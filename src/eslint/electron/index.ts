@@ -27,12 +27,6 @@ export { errorHandlingSelectors } from './error-handling.ts';
 export { schemasBannedImports, rendererBannedImports, mainBannedImports } from './boundaries.ts';
 export { utilsBannedImportPatterns, libBannedImportPatterns } from './code-style.ts';
 
-/** The renderer's components, and everything that runs in the window. */
-const { vue, browser: renderer } = PRESETS.electron;
-/** All three processes. */
-const SOURCE = ['src/**/*.{ts,vue}'];
-const TESTS = ['tests/**/*.ts'];
-
 export type ElectronStandardsOptions = {
     /** See rules/security.ts — `vHtmlAllowed`. */
     security?: SecurityOptions;
@@ -43,6 +37,12 @@ export type ElectronStandardsOptions = {
     /** See rules/i18n.ts. Pass `false` for a single-language app. */
     i18n?: I18nOptions | false;
 };
+/** All three processes. */
+const SOURCE = ['src/**/*.{ts,vue}'];
+const TESTS = ['tests/**/*.ts'];
+
+/** The renderer's components, and everything that runs in the window. */
+const { vue, browser: renderer } = PRESETS.electron;
 
 export function electronStandards(options: ElectronStandardsOptions = {}) {
     const { security, html, refactoring, i18n } = options;

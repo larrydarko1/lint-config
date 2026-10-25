@@ -43,9 +43,6 @@ export { sharedPackageBannedImports } from './boundaries.ts';
 export { utilsBannedImportPatterns, libBannedImportPatterns } from './code-style.ts';
 export { wsGatewaySelectors, wsEventNameSelectors, wsGatewayBannedImports, wsSocketClientBannedImports } from './ws.ts';
 
-/** Tests live inside each workspace's `src/`, beside the code they test. */
-const TESTS = ['**/__tests__/**', '**/*.test.ts', '**/*.spec.ts'];
-
 export type FullstackStandardsOptions = {
     /** See rules/security.ts — `vHtmlAllowed`. */
     security?: SecurityOptions;
@@ -61,6 +58,9 @@ export type FullstackStandardsOptions = {
 
 /** What `fullstackStandards()` returns: `larry()` calls it with the project's resolved workspaces. */
 export type FullstackStandards = (layout: FullstackLayout) => Linter.Config[];
+
+/** Tests live inside each workspace's `src/`, beside the code they test. */
+const TESTS = ['**/__tests__/**', '**/*.test.ts', '**/*.spec.ts'];
 
 export function fullstackStandards(options: FullstackStandardsOptions = {}): FullstackStandards {
     const { security, logging, html, refactoring, i18n } = options;

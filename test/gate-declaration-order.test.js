@@ -296,6 +296,26 @@ export function run(): number {
     assert.match(err, /side-effects "console\.log\(run\(\)\);" belongs after exported-fns "run"/);
 });
 
+test('a function called at load time reads its body at load time, so what that reads stays above the call', (t) => {
+    // `ROOT` is a constant and `walk` a private function, so the table alone would put
+    // `ROOT` first — where `find()` runs before `walk` is initialised, a TDZ error at
+    // import. Hoisting `find` does not hoist the arrow it calls.
+    const root = project(t, {
+        'src/a.ts': `const walk = (dir: string): string => dir;
+
+export function find(dir: string): string {
+    return walk(dir);
+}
+
+export const ROOT = find('.');
+`,
+    });
+    const { misplaced, order } = analyzeFile('src/a.ts', root);
+    // Statements 0, 1, 2 are walk, find, ROOT: ROOT may move, but never above walk.
+    assert.ok(order.indexOf(2) > order.indexOf(0), `order ${order}`);
+    assert.ok(!misplaced.some((m) => m.name === 'ROOT'));
+});
+
 test('a load-time cycle is reported as a cycle, not as a pile of misplaced statements', (t) => {
     const { err, failed } = run(
         project(t, {

@@ -88,64 +88,6 @@ const REAL_SECRET_SHAPES = [
 /** A `VITE_*` key whose name claims it holds a secret. Vite ships all of them. */
 const VITE_SECRET_RE = /^#?\s*(VITE_[A-Z0-9_]*(?:SECRET|KEY|PASSWORD|TOKEN))\s*=/gm;
 
-/** UPPER_SNAKE object keys: a Zod schema's env fields, declared as `KEY:` at the start of a line. */
-function schemaFieldKeys(source: string): Set<string> {
-    return new Set([...source.matchAll(/^\s*([A-Z][A-Z0-9_]*):/gm)].map((m) => m[1] ?? ''));
-}
-
-/** Each `export const NAME = { … }` fragment in the shared env module, mapped to its keys. */
-function sharedFragments(source: string): Record<string, Set<string>> {
-    const fragments: Record<string, Set<string>> = {};
-    for (const [, name = '', body = ''] of source.matchAll(/export const (\w+) = \{([\s\S]*?)\n\};/g)) {
-        fragments[name] = schemaFieldKeys(body);
-    }
-    return fragments;
-}
-
-/**
- * The env keys a config module reads: its own schema fields plus the keys of
- * every shared fragment it spreads.
- */
-function configKeys(source: string, fragments: Record<string, Set<string>>, ignored: Set<string>): Set<string> {
-    const keys = schemaFieldKeys(source);
-    for (const [, name = ''] of source.matchAll(/\.\.\.(\w+)/g)) {
-        for (const key of fragments[name] ?? []) keys.add(key);
-    }
-    for (const key of ignored) keys.delete(key);
-    return keys;
-}
-
-/**
- * The keys declared in a dotenv-style file. `commentedCounts`: in `.env.example` a
- * commented `# KEY=` documents an optional var; in `.env` it is unset.
- */
-function dotenvKeys(
-    source: string,
-    { commentedCounts }: { commentedCounts: boolean },
-    ignored: Set<string>,
-): Set<string> {
-    const keys: Set<string> = new Set();
-    for (const raw of source.split('\n')) {
-        const line = raw.trim();
-        const isComment = line.startsWith('#');
-        if (isComment && !commentedCounts) continue;
-        const key = /^([A-Z0-9_]+)=/.exec(isComment ? line.replace(/^#\s*/, '') : line)?.[1];
-        if (key !== undefined && !ignored.has(key)) keys.add(key);
-    }
-    return keys;
-}
-
-/** Every `.ts` file under a directory, recursively. */
-function walk(root: string, dir: string): string[] {
-    const abs = path.join(root, dir);
-    if (!fs.existsSync(abs)) return [];
-    return fs.readdirSync(abs, { withFileTypes: true }).flatMap((entry) => {
-        const rel = path.join(dir, entry.name);
-        if (entry.isDirectory()) return walk(root, rel);
-        return entry.name.endsWith('.ts') ? [rel] : [];
-    });
-}
-
 /** Read the gate's findings without printing them. */
 export function inspectEnvDrift(input: EnvDriftInput): EnvDriftInspection {
     const {
@@ -259,7 +201,7 @@ export function inspectEnvDrift(input: EnvDriftInput): EnvDriftInspection {
         for (const [, key = '', declaration = ''] of source.matchAll(/^\s+([A-Z][A-Z0-9_]*):\s*(.+?),?\s*$/gm)) {
             if (!SECRET_KEY_RE.test(key)) continue;
             if (SAFE_SECRET_FORMS.test(declaration)) continue;
-            if (!/\.default\(/.test(declaration)) continue;
+            if (!declaration.includes('.default(')) continue;
             if (guard.includes(key)) continue;
 
             fail(
@@ -404,4 +346,62 @@ export function checkEnvDrift({ root = REPO_ROOT, ...rest }: EnvDriftOptions): v
 
     // After the report; warnings never set an exit code.
     if (report.count === 0) for (const warning of warnings) console.warn(`\n⚠ ${warning}`);
+}
+
+/** UPPER_SNAKE object keys: a Zod schema's env fields, declared as `KEY:` at the start of a line. */
+function schemaFieldKeys(source: string): Set<string> {
+    return new Set([...source.matchAll(/^\s*([A-Z][A-Z0-9_]*):/gm)].map((m) => m[1] ?? ''));
+}
+
+/** Each `export const NAME = { … }` fragment in the shared env module, mapped to its keys. */
+function sharedFragments(source: string): Record<string, Set<string>> {
+    const fragments: Record<string, Set<string>> = {};
+    for (const [, name = '', body = ''] of source.matchAll(/export const (\w+) = \{([\s\S]*?)\n\};/g)) {
+        fragments[name] = schemaFieldKeys(body);
+    }
+    return fragments;
+}
+
+/**
+ * The env keys a config module reads: its own schema fields plus the keys of
+ * every shared fragment it spreads.
+ */
+function configKeys(source: string, fragments: Record<string, Set<string>>, ignored: Set<string>): Set<string> {
+    const keys = schemaFieldKeys(source);
+    for (const [, name = ''] of source.matchAll(/\.\.\.(\w+)/g)) {
+        for (const key of fragments[name] ?? []) keys.add(key);
+    }
+    for (const key of ignored) keys.delete(key);
+    return keys;
+}
+
+/**
+ * The keys declared in a dotenv-style file. `commentedCounts`: in `.env.example` a
+ * commented `# KEY=` documents an optional var; in `.env` it is unset.
+ */
+function dotenvKeys(
+    source: string,
+    { commentedCounts }: { commentedCounts: boolean },
+    ignored: Set<string>,
+): Set<string> {
+    const keys = new Set<string>();
+    for (const raw of source.split('\n')) {
+        const line = raw.trim();
+        const isComment = line.startsWith('#');
+        if (isComment && !commentedCounts) continue;
+        const key = /^([A-Z0-9_]+)=/.exec(isComment ? line.replace(/^#\s*/, '') : line)?.[1];
+        if (key !== undefined && !ignored.has(key)) keys.add(key);
+    }
+    return keys;
+}
+
+/** Every `.ts` file under a directory, recursively. */
+function walk(root: string, dir: string): string[] {
+    const abs = path.join(root, dir);
+    if (!fs.existsSync(abs)) return [];
+    return fs.readdirSync(abs, { withFileTypes: true }).flatMap((entry) => {
+        const rel = path.join(dir, entry.name);
+        if (entry.isDirectory()) return walk(root, rel);
+        return entry.name.endsWith('.ts') ? [rel] : [];
+    });
 }

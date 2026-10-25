@@ -61,95 +61,11 @@ const EXEMPT = /\/\*[\s\S]*?contrast-exempt:[ \t]*\S[\s\S]*?\*\//;
 
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
-/** WCAG 2.x relative luminance of a `#rgb` or `#rrggbb` colour. */
-function luminance(hex: string): number {
-    const digits = hex.slice(1);
-    const full = digits.length === 3 ? digits.replace(/./g, '$&$&') : digits;
-    const [red = 0, green = 0, blue = 0] = [0, 2, 4].map((at) => {
-        const channel = Number.parseInt(full.slice(at, at + 2), 16) / 255;
-        return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-    });
-    return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
-}
-
 /** The WCAG contrast ratio between two colours, from 1 to 21. */
 export function contrastRatio(first: string, second: string): number {
     const [light, dark] = [luminance(first), luminance(second)].sort((a, b) => b - a);
     return ((light ?? 0) + 0.05) / ((dark ?? 0) + 0.05);
 }
-
-/** Every palette's colours, whichever way the project spells them. */
-function readPaletteColours(root: string, themes: ThemeSource): Map<string, Palette> {
-    const read = (rel: string): string | null => {
-        const absolute = path.join(root, rel);
-        return fs.existsSync(absolute) ? fs.readFileSync(absolute, 'utf8') : null;
-    };
-    const palettes = new Map<string, Palette>();
-
-    if (themes.source === 'json-presets') {
-        const dir = path.join(root, themes.dir);
-        const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((file) => file.endsWith('.json')) : [];
-        for (const file of files.sort()) {
-            const parsed: unknown = JSON.parse(read(`${themes.dir}/${file}`) ?? '{}');
-            const colours = typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'colors') : undefined;
-            if (typeof colours !== 'object' || colours === null) continue;
-            const entries = Object.entries(colours).filter(
-                (entry): entry is [string, string] => typeof entry[1] === 'string',
-            );
-            palettes.set(file.replace(/\.json$/, ''), new Map(entries));
-        }
-    } else if (themes.source === 'css-blocks') {
-        const source = read(themes.file) ?? '';
-        const selector =
-            themes.selector === 'data-theme'
-                ? String.raw`\[data-theme=['"]([a-z0-9-]+)['"]\]`
-                : String.raw`#app\.([a-z0-9-]+)`;
-        for (const [, name = '', body = ''] of source.matchAll(
-            new RegExp(String.raw`${selector}\s*\{([\s\S]*?)\n\}`, 'gi'),
-        )) {
-            palettes.set(
-                name,
-                new Map(
-                    [...body.matchAll(/--([a-z0-9-]+)\s*:\s*([^;]+);/gi)].map((m) => [m[1] ?? '', (m[2] ?? '').trim()]),
-                ),
-            );
-        }
-    } else {
-        const source = read(themes.file) ?? '';
-        for (const [, name = '', body = ''] of source.matchAll(/^\$([a-z0-9-]+):\s*\(\n?([\s\S]*?)^\);/gm)) {
-            if (name === themes.registryName) continue;
-            const colours = new Map(
-                [...body.matchAll(/'([a-z0-9-]+)'\s*:\s*(.+?),?[ \t]*$/gm)].map((m) => [
-                    m[1] ?? '',
-                    (m[2] ?? '').trim(),
-                ]),
-            );
-            if (colours.size > 0) palettes.set(name.replace(/^theme-/, ''), colours);
-        }
-    }
-    return palettes;
-}
-
-/** `selector { declarations }` pairs, with whatever precedes the selector (its comment) kept on it. */
-function* styleRules(source: string): Generator<{ selector: string; body: string; index: number }> {
-    for (const match of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-        yield { selector: match[1] ?? '', body: match[2] ?? '', index: match.index };
-    }
-}
-
-/** A `.vue` file's `<style>` blocks, kept at their offsets so line numbers stay true; a stylesheet whole. */
-function styleSource(file: string, source: string): string {
-    if (!file.endsWith('.vue')) return source;
-    let kept = source.replace(/[^\n]/g, ' ');
-    for (const match of source.matchAll(/(<style[^>]*>)([\s\S]*?)<\/style>/g)) {
-        const start = match.index + (match[1] ?? '').length;
-        const body = match[2] ?? '';
-        kept = kept.slice(0, start) + body + kept.slice(start + body.length);
-    }
-    return kept;
-}
-
-const escape = (text: string): string => text.replace(/[$.*+?^()[\]{}|\\]/g, '\\$&');
 
 /** Inspect the palettes and the style tree without printing. */
 export function inspectContrast(input: ContrastInput): ContrastInspection {
@@ -249,12 +165,96 @@ export function checkContrast(options: ContrastOptions): void {
     report.done({
         summary:
             `Contrast OK — ${plural(pairs.length, 'text/background pair')} across ${plural(palettes.length, 'palette')} ` +
-            `(${palettes.join(', ')}) clear ${rest.minRatio ?? 4.5}:1` +
-            (worst === undefined
-                ? ''
-                : `; the tightest is ${worst.text} on ${worst.background} in ${worst.palette} at ${worst.ratio.toFixed(2)}:1`) +
-            (rest.scan === undefined ? '.' : `. No text dimmed by opacity in ${plural(swept, 'style file')}.`),
+            `(${palettes.join(', ')}) clear ${rest.minRatio ?? 4.5}:1${
+                worst === undefined
+                    ? ''
+                    : `; the tightest is ${worst.text} on ${worst.background} in ${worst.palette} at ${worst.ratio.toFixed(2)}:1`
+            }${rest.scan === undefined ? '.' : `. No text dimmed by opacity in ${plural(swept, 'style file')}.`}`,
         notMachineChecked:
             'text over images or gradients, focus rings and borders (WCAG 1.4.11), and whether a pairing looks good.',
     });
 }
+
+/** WCAG 2.x relative luminance of a `#rgb` or `#rrggbb` colour. */
+function luminance(hex: string): number {
+    const digits = hex.slice(1);
+    const full = digits.length === 3 ? digits.replace(/./g, '$&$&') : digits;
+    const [red = 0, green = 0, blue = 0] = [0, 2, 4].map((at) => {
+        const channel = Number.parseInt(full.slice(at, at + 2), 16) / 255;
+        return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+/** Every palette's colours, whichever way the project spells them. */
+function readPaletteColours(root: string, themes: ThemeSource): Map<string, Palette> {
+    const read = (rel: string): string | null => {
+        const absolute = path.join(root, rel);
+        return fs.existsSync(absolute) ? fs.readFileSync(absolute, 'utf8') : null;
+    };
+    const palettes = new Map<string, Palette>();
+
+    if (themes.source === 'json-presets') {
+        const dir = path.join(root, themes.dir);
+        const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((file) => file.endsWith('.json')) : [];
+        for (const file of files.sort()) {
+            const parsed: unknown = JSON.parse(read(`${themes.dir}/${file}`) ?? '{}');
+            const colours = typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'colors') : undefined;
+            if (typeof colours !== 'object' || colours === null) continue;
+            const entries = Object.entries(colours).filter(
+                (entry): entry is [string, string] => typeof entry[1] === 'string',
+            );
+            palettes.set(file.replace(/\.json$/, ''), new Map(entries));
+        }
+    } else if (themes.source === 'css-blocks') {
+        const source = read(themes.file) ?? '';
+        const selector =
+            themes.selector === 'data-theme'
+                ? String.raw`\[data-theme=['"]([a-z0-9-]+)['"]\]`
+                : String.raw`#app\.([a-z0-9-]+)`;
+        for (const [, name = '', body = ''] of source.matchAll(
+            new RegExp(String.raw`${selector}\s*\{([\s\S]*?)\n\}`, 'gi'),
+        )) {
+            palettes.set(
+                name,
+                new Map(
+                    [...body.matchAll(/--([a-z0-9-]+)\s*:\s*([^;]+);/gi)].map((m) => [m[1] ?? '', (m[2] ?? '').trim()]),
+                ),
+            );
+        }
+    } else {
+        const source = read(themes.file) ?? '';
+        for (const [, name = '', body = ''] of source.matchAll(/^\$([a-z0-9-]+):\s*\(\n?([\s\S]*?)^\);/gm)) {
+            if (name === themes.registryName) continue;
+            const colours = new Map(
+                [...body.matchAll(/'([a-z0-9-]+)'\s*:\s*(.+?),?[ \t]*$/gm)].map((m) => [
+                    m[1] ?? '',
+                    (m[2] ?? '').trim(),
+                ]),
+            );
+            if (colours.size > 0) palettes.set(name.replace(/^theme-/, ''), colours);
+        }
+    }
+    return palettes;
+}
+
+/** `selector { declarations }` pairs, with whatever precedes the selector (its comment) kept on it. */
+function* styleRules(source: string): Generator<{ selector: string; body: string; index: number }> {
+    for (const match of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        yield { selector: match[1] ?? '', body: match[2] ?? '', index: match.index };
+    }
+}
+
+/** A `.vue` file's `<style>` blocks, kept at their offsets so line numbers stay true; a stylesheet whole. */
+function styleSource(file: string, source: string): string {
+    if (!file.endsWith('.vue')) return source;
+    let kept = source.replace(/[^\n]/g, ' ');
+    for (const match of source.matchAll(/(<style[^>]*>)([\s\S]*?)<\/style>/g)) {
+        const start = match.index + (match[1] ?? '').length;
+        const body = match[2] ?? '';
+        kept = kept.slice(0, start) + body + kept.slice(start + body.length);
+    }
+    return kept;
+}
+
+const escape = (text: string): string => text.replace(/[$.*+?^()[\]{}|\\]/g, '\\$&');

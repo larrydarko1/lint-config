@@ -23,13 +23,11 @@ export type SwallowScanOptions = {
 const REASONLESS =
     /^(ignore|ignored|silently (fail|ignore)|no-?op|noop|skip|skipped|cleanup|whatever|nothing|n\/a|todo|fixme)\.?$/i;
 
-/** Whether the text of a comment is a placeholder rather than a reason. */
-export const isPlaceholderReason = (reason: string): boolean => reason === '' || REASONLESS.test(reason);
-
 /** A catch block whose body is empty once comments are blanked. A nested block means not empty. */
 const EMPTY_CATCH = /\}\s*catch\s*(?:\([^)]*\)\s*)?\{([^{}]*)\}/g;
 
-const lineOf = (src: string, index: number): number => src.slice(0, index).split('\n').length;
+/** Whether the text of a comment is a placeholder rather than a reason. */
+export const isPlaceholderReason = (reason: string): boolean => reason === '' || REASONLESS.test(reason);
 
 /**
  * @param options.root Repository root.
@@ -82,3 +80,5 @@ export function countSwallows(options: SwallowScanOptions): number {
     }
     return total;
 }
+
+const lineOf = (src: string, index: number): number => src.slice(0, index).split('\n').length;

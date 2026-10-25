@@ -286,7 +286,7 @@ export function inspectScssStandards({
         }
         const configSrc = read(viteConfig);
         const additionalData = /additionalData:\s*([\s\S]{0,400}?)\n\s*\},/.exec(configSrc);
-        if (!/additionalData:/.test(configSrc)) {
+        if (!configSrc.includes('additionalData:')) {
             fail(
                 viteConfig,
                 'has no `css.preprocessorOptions.scss.additionalData`',
@@ -398,7 +398,7 @@ export function inspectScssStandards({
         ...styleFiles.flatMap((rel) => cssCustomProps(stripComments(read(rel)))),
     ]);
     if (declared.size > 0) {
-        const unresolved: Map<string, string> = new Map();
+        const unresolved = new Map<string, string>();
         for (const rel of styleFiles) {
             for (const [, token = ''] of stripComments(read(rel)).matchAll(/var\(\s*--([a-z0-9-]+)/gi)) {
                 if (!declared.has(token) && !unresolved.has(token)) unresolved.set(token, rel);
@@ -465,11 +465,11 @@ export function inspectScssStandards({
 
     // Silent on a system font stack.
     const fontFaceSrc = fontFaceFile !== undefined && exists(fontFaceFile) ? read(fontFaceFile) : '';
-    if (/@font-face/.test(fontFaceSrc)) {
+    if (fontFaceFile !== undefined && fontFaceSrc.includes('@font-face')) {
         for (const [, url = ''] of fontFaceSrc.matchAll(/src:\s*url\(['"]?([^'")]+)['"]?\)/g)) {
             if (/^https?:\/\//.test(url)) {
                 fail(
-                    fontFaceFile as string,
+                    fontFaceFile,
                     `@font-face loads a remote URL (${url})`,
                     'A font must resolve to a bundled asset so the build fingerprints it and no request leaves the origin.',
                 );
@@ -495,6 +495,20 @@ export function inspectScssStandards({
         }
         return out;
     }
+}
+
+/** Run the gate and print. */
+export function checkScssStandards({ root = REPO_ROOT, ...rest }: ScssStandardsOptions): void {
+    const report = createGateReport({ name: 'SCSS architecture' });
+    const { problems, styleFiles, palettes, tokenCount } = inspectScssStandards({ root, ...rest });
+
+    for (const { file, what, why } of problems) report.fail(file, what, why);
+
+    report.done({
+        summary: `entry and injection intact with nothing emitting from the injected module, ${palettes.length} palettes agreeing on ${tokenCount} tokens, ${styleFiles.length} style files with no Sass maths on a token, no @extend in an SFC and no remote font.`,
+        notMachineChecked:
+            'Whether a token is the RIGHT token, whether a palette is legible, whether a pattern had earned promotion to a partial, grid-vs-flex, line-height judgement. stylelint owns BEM, unit allow-lists and declaration-strict-value.',
+    });
 }
 
 /**
@@ -557,8 +571,8 @@ function readPalettes({
         return '';
     };
 
-    const palettes: Map<string, Set<string>> = new Map();
-    let invariant: Set<string> = new Set();
+    const palettes = new Map<string, Set<string>>();
+    let invariant = new Set<string>();
     let fallback: Set<string> | undefined;
     /** The prefix the `emit-theme` mixin puts before a map key, read from the mixin. */
     let emitPrefix = '';
@@ -718,7 +732,7 @@ function readPalettes({
                 'It is the single place that turns a theme map into custom properties and sets `color-scheme` — without it the maps are inert.',
             );
         }
-        if (!/color-scheme:/.test(mixinSrc)) {
+        if (!mixinSrc.includes('color-scheme:')) {
             fail(
                 themes.mixinFile ?? themes.file,
                 'no `color-scheme` declaration',
@@ -771,18 +785,4 @@ function describe(themes: ThemeSource, name: string) {
 
 function escapeRe(literal: string) {
     return literal.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-}
-
-/** Run the gate and print. */
-export function checkScssStandards({ root = REPO_ROOT, ...rest }: ScssStandardsOptions): void {
-    const report = createGateReport({ name: 'SCSS architecture' });
-    const { problems, styleFiles, palettes, tokenCount } = inspectScssStandards({ root, ...rest });
-
-    for (const { file, what, why } of problems) report.fail(file, what, why);
-
-    report.done({
-        summary: `entry and injection intact with nothing emitting from the injected module, ${palettes.length} palettes agreeing on ${tokenCount} tokens, ${styleFiles.length} style files with no Sass maths on a token, no @extend in an SFC and no remote font.`,
-        notMachineChecked:
-            'Whether a token is the RIGHT token, whether a palette is legible, whether a pattern had earned promotion to a partial, grid-vs-flex, line-height judgement. stylelint owns BEM, unit allow-lists and declaration-strict-value.',
-    });
 }

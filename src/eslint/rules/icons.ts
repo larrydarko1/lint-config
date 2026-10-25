@@ -29,50 +29,8 @@ type TemplateServices = {
     defineTemplateBodyVisitor(templateVisitor: Record<string, (node: VElement) => void>): Rule.RuleListener;
 };
 
-/** vue-eslint-parser's hook, or null when the file is not an SFC it parsed. */
-function templateServices(context: Rule.RuleContext): TemplateServices | null {
-    const services: unknown = context.sourceCode.parserServices;
-    if (typeof services !== 'object' || services === null) return null;
-    if (!('defineTemplateBodyVisitor' in services) || typeof services.defineTemplateBodyVisitor !== 'function')
-        return null;
-    return services as TemplateServices;
-}
-
-const isElement = (node: VElement | VNode): node is VElement => node.type === 'VElement';
-
 /** Directives that only choose WHICH fixed drawing shows — they do not make it one drawn from data. */
 const CHOOSING = new Set(['if', 'else', 'else-if', 'show']);
-
-const directives = (element: VElement): string[] =>
-    element.startTag.attributes.flatMap((a) => (a.directive ? [a.key.name.name] : []));
-
-const staticAttribute = (element: VElement, name: string): VAttribute | undefined =>
-    element.startTag.attributes.find((a): a is VAttribute => !a.directive && a.key.name === name);
-
-/**
- * Whether the picture comes from data: a binding, a loop, an interpolation, injected
- * markup or a `<slot>` anywhere inside it. The root's own `v-if`, `class` or `:class`
- * place the drawing; they do not draw it.
- */
-function drawnFromData(svg: VElement): boolean {
-    if (directives(svg).some((d) => d === 'html' || d === 'text')) return true;
-    const visit = (node: VElement | VNode): boolean => {
-        if (node.type === 'VExpressionContainer') return true;
-        if (!isElement(node)) return false;
-        if (node.name === 'slot') return true;
-        if (node !== svg && directives(node).some((d) => !CHOOSING.has(d))) return true;
-        return node.children.some(visit);
-    };
-    return visit(svg);
-}
-
-/** Only the outermost `<svg>` is judged; a nested one is part of its drawing. */
-function insideSvg(element: VElement): boolean {
-    for (let node = element.parent; isElement(node); node = node.parent) {
-        if (node.name === 'svg') return true;
-    }
-    return false;
-}
 
 const noInlineSvg: Rule.RuleModule = {
     meta: {
@@ -141,3 +99,45 @@ export const iconRules = {
     'no-inline-svg': noInlineSvg,
     'icon-component': iconComponent,
 };
+
+/** vue-eslint-parser's hook, or null when the file is not an SFC it parsed. */
+function templateServices(context: Rule.RuleContext): TemplateServices | null {
+    const services: unknown = context.sourceCode.parserServices;
+    if (typeof services !== 'object' || services === null) return null;
+    if (!('defineTemplateBodyVisitor' in services) || typeof services.defineTemplateBodyVisitor !== 'function')
+        return null;
+    return services as TemplateServices;
+}
+
+const isElement = (node: VElement | VNode): node is VElement => node.type === 'VElement';
+
+const directives = (element: VElement): string[] =>
+    element.startTag.attributes.flatMap((a) => (a.directive ? [a.key.name.name] : []));
+
+const staticAttribute = (element: VElement, name: string): VAttribute | undefined =>
+    element.startTag.attributes.find((a): a is VAttribute => !a.directive && a.key.name === name);
+
+/**
+ * Whether the picture comes from data: a binding, a loop, an interpolation, injected
+ * markup or a `<slot>` anywhere inside it. The root's own `v-if`, `class` or `:class`
+ * place the drawing; they do not draw it.
+ */
+function drawnFromData(svg: VElement): boolean {
+    if (directives(svg).some((d) => d === 'html' || d === 'text')) return true;
+    const visit = (node: VElement | VNode): boolean => {
+        if (node.type === 'VExpressionContainer') return true;
+        if (!isElement(node)) return false;
+        if (node.name === 'slot') return true;
+        if (node !== svg && directives(node).some((d) => !CHOOSING.has(d))) return true;
+        return node.children.some(visit);
+    };
+    return visit(svg);
+}
+
+/** Only the outermost `<svg>` is judged; a nested one is part of its drawing. */
+function insideSvg(element: VElement): boolean {
+    for (let node = element.parent; isElement(node); node = node.parent) {
+        if (node.name === 'svg') return true;
+    }
+    return false;
+}

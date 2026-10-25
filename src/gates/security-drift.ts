@@ -134,80 +134,6 @@ const DERIVATIONS = ['emailBlindIndex', 'blindIndex', 'throttleKey', 'createHash
 /** The three functions a login throttle is made of. */
 const THROTTLE_FNS = ['assertLoginAllowed', 'recordLoginFailure', 'clearLoginFailures'];
 
-/**
- * True when a CSP `script-src` list carries neither unsafe token. Per directive:
- * `unsafe-inline` is accepted on `style-src` for Vue's `:style`.
- *
- * @param directives The `scriptSrc: [...]` array body or an nginx `script-src …` run.
- */
-const scriptSrcClean = (directives: string): boolean => !/unsafe-inline|unsafe-eval/.test(directives);
-
-/** `{ m, t, p }` out of an encoded Argon2 hash (`$argon2id$v=19$m=65536,t=3,p=4$…`), by name. */
-function encodedArgonParams(source: string): Record<string, number> {
-    const encoded = /\$argon2id\$v=\d+\$([^$]+)\$/.exec(source)?.[1] ?? '';
-    return Object.fromEntries([...encoded.matchAll(/([mtp])=(\d+)/g)].map((f) => [f[1] ?? '', Number(f[2])]));
-}
-
-/**
- * Every `location … { … }` block of an nginx config, brace-balanced.
- *
- * @param source Comment-stripped nginx configuration.
- */
-function nginxLocations(source: string): { name: string; body: string }[] {
-    const blocks: { name: string; body: string }[] = [];
-    let i = 0;
-
-    while ((i = source.indexOf('location', i)) !== -1) {
-        const open = source.indexOf('{', i);
-        if (open === -1) break;
-        let depth = 0;
-        let closed = false;
-        for (let j = open; j < source.length; j++) {
-            if (source[j] === '{') depth++;
-            else if (source[j] === '}') {
-                depth -= 1;
-                if (depth === 0) {
-                    blocks.push({ name: source.slice(i, open).trim(), body: source.slice(open, j) });
-                    i = j + 1;
-                    closed = true;
-                    break;
-                }
-            }
-        }
-        if (!closed) break;
-    }
-
-    return blocks;
-}
-
-/** Source with every `function name(` blanked, so a definition cannot answer for a call. */
-const callsOnly = (source: string): string => source.replace(/\bfunction\s+(\w+)\s*\(/g, (m) => ' '.repeat(m.length));
-
-/**
- * The expression a local `const name = …` was last bound to before `before`
- * (nearest, since short names are rebound per function).
- *
- * @param before Offset of the call site.
- * @returns The right-hand side, or null when nothing binds it here.
- */
-function bindingBefore(source: string, name: string, before: number): string | null {
-    if (!/^[A-Za-z_$][\w$]*$/.test(name)) return null;
-
-    const re = new RegExp(
-        String.raw`\b(?:const|let|var)\s+${name}\s*=\s*([^;\n]*(?:\n(?!\s*(?:const|let|var|return)\b)[^;\n]*)*)`,
-        'g',
-    );
-    let found: string | null = null;
-    let match: RegExpExecArray | null;
-
-    while ((match = re.exec(source)) !== null) {
-        if (match.index > before) break;
-        found = (match[1] ?? '').trim();
-    }
-
-    return found;
-}
-
 /** Every problem found, without printing; `checkSecurityDrift` prints. */
 export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftInspection {
     const {
@@ -391,7 +317,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
             'Preloading is hard to reverse and forces HTTPS on every present and future subdomain. Writing `preload: false` records that the decision was made; omitting the key leaves nothing showing it was ever considered.',
         );
     }
-    if (!/Permissions-Policy/.test(entrySource)) {
+    if (!entrySource.includes('Permissions-Policy')) {
         fail(
             entry,
             'sends no Permissions-Policy header',
@@ -417,7 +343,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
 
     // ── 6. trust proxy is a hop COUNT ────────────────────────────────────────
     const trustArg = /app\.set\(\s*['"]trust proxy['"]\s*,\s*([^)]+?)\s*\)/.exec(entrySource)?.[1];
-    if (trustArg === undefined || !/^config\./.test(trustArg)) {
+    if (!trustArg?.startsWith('config.')) {
         fail(
             entry,
             trustArg === undefined
@@ -637,15 +563,15 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
                 'An unhandled Redis error propagates as a 500 from the login route, which is fail-closed with extra steps: a cache blip becomes a total auth outage.',
             );
         }
-        for (const body_ of catches) {
-            if (/\bthrow\b/.test(body_)) {
+        for (const catchBody of catches) {
+            if (/\bthrow\b/.test(catchBody)) {
                 fail(
                     auth.throttleFile,
                     `${name}() rethrows from its catch`,
                     'That is fail-closed. A Redis outage then locks every user out of the platform — a worse availability failure than briefly relaxed throttling.',
                 );
             }
-            if (!/logger\.(?:warn|error)\(/.test(body_)) {
+            if (!/logger\.(?:warn|error)\(/.test(catchBody)) {
                 fail(
                     auth.throttleFile,
                     `${name}() swallows its Redis error without logging`,
@@ -869,7 +795,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
             );
         }
 
-        if (!/deleteOne\(/.test(reset) || !/revokeAllUserTokens\(/.test(reset)) {
+        if (!reset.includes('deleteOne(') || !reset.includes('revokeAllUserTokens(')) {
             fail(
                 auth.passwordReset.file,
                 'completing a reset is not single-use, or does not revoke the sessions',
@@ -916,7 +842,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
             );
         }
         const ingress = read(traefik.ingress);
-        if (!/options:/.test(ingress) || !ingress.includes(traefik.optionName)) {
+        if (!ingress.includes('options:') || !ingress.includes(traefik.optionName)) {
             fail(
                 traefik.ingress,
                 `does not reference the \`${traefik.optionName}\` TLSOption`,
@@ -1004,6 +930,98 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     return { problems, counts };
 }
 
+/** Run the gate and print. */
+export function checkSecurityDrift({ root = REPO_ROOT, ...rest }: SecurityDriftOptions): void {
+    const report = createGateReport({ name: 'Security drift' });
+    const { problems, counts } = inspectSecurityDrift({ root, ...rest });
+
+    for (const { file, what, why } of problems) report.fail(file, what, why);
+
+    report.done({
+        summary:
+            `Security invariants hold across ${plural(counts.backend, 'backend file')} and ${plural(counts.frontend, 'frontend file')}: ` +
+            'headers and CSP locked, the proxy trusted by hop count, Argon2 at the OWASP floor and matching its dummy hash, ' +
+            `the throttle failing open on ${plural(counts.throttleCalls, 'derived key', 'derived keys')}, rotation atomic and ceilinged, ` +
+            'and no regex or HTML built from user input.',
+        notMachineChecked:
+            'Whether the values are the RIGHT values for this deployment, whether a route that should require auth does, whether the secrets in production are the ones you think, and everything only observable at runtime — the contract tests own that half.',
+    });
+}
+
+/**
+ * True when a CSP `script-src` list carries neither unsafe token. Per directive:
+ * `unsafe-inline` is accepted on `style-src` for Vue's `:style`.
+ *
+ * @param directives The `scriptSrc: [...]` array body or an nginx `script-src …` run.
+ */
+const scriptSrcClean = (directives: string): boolean => !/unsafe-inline|unsafe-eval/.test(directives);
+
+/** `{ m, t, p }` out of an encoded Argon2 hash (`$argon2id$v=19$m=65536,t=3,p=4$…`), by name. */
+function encodedArgonParams(source: string): Record<string, number> {
+    const encoded = /\$argon2id\$v=\d+\$([^$]+)\$/.exec(source)?.[1] ?? '';
+    return Object.fromEntries([...encoded.matchAll(/([mtp])=(\d+)/g)].map((f) => [f[1] ?? '', Number(f[2])]));
+}
+
+/**
+ * Every `location … { … }` block of an nginx config, brace-balanced.
+ *
+ * @param source Comment-stripped nginx configuration.
+ */
+function nginxLocations(source: string): { name: string; body: string }[] {
+    const blocks: { name: string; body: string }[] = [];
+    let i = 0;
+
+    while ((i = source.indexOf('location', i)) !== -1) {
+        const open = source.indexOf('{', i);
+        if (open === -1) break;
+        let depth = 0;
+        let closed = false;
+        for (let j = open; j < source.length; j++) {
+            if (source[j] === '{') depth++;
+            else if (source[j] === '}') {
+                depth -= 1;
+                if (depth === 0) {
+                    blocks.push({ name: source.slice(i, open).trim(), body: source.slice(open, j) });
+                    i = j + 1;
+                    closed = true;
+                    break;
+                }
+            }
+        }
+        if (!closed) break;
+    }
+
+    return blocks;
+}
+
+/** Source with every `function name(` blanked, so a definition cannot answer for a call. */
+const callsOnly = (source: string): string => source.replace(/\bfunction\s+(\w+)\s*\(/g, (m) => ' '.repeat(m.length));
+
+/**
+ * The expression a local `const name = …` was last bound to before `before`
+ * (nearest, since short names are rebound per function).
+ *
+ * @param before Offset of the call site.
+ * @returns The right-hand side, or null when nothing binds it here.
+ */
+function bindingBefore(source: string, name: string, before: number): string | null {
+    if (!/^[A-Za-z_$][\w$]*$/.test(name)) return null;
+
+    const re = new RegExp(
+        String.raw`\b(?:const|let|var)\s+${name}\s*=\s*([^;\n]*(?:\n(?!\s*(?:const|let|var|return)\b)[^;\n]*)*)`,
+        'g',
+    );
+    let found: string | null = null;
+    let match: RegExpExecArray | null;
+
+    while ((match = re.exec(source)) !== null) {
+        if (match.index > before) break;
+        found = (match[1] ?? '').trim();
+    }
+
+    return found;
+}
+
 /**
  * The `:segments` of a file route that no `z.string().regex(…)` checks. The
  * schema is read from the route file, or from the module `params` names — in
@@ -1021,26 +1039,8 @@ function uncheckedSegments(source: string, route: FileRoute, code: (rel: string)
         if (!new RegExp(String.raw`\bparams:\s*${name}\b`).test(source)) return [`params: ${name}`];
         schema = braceBlock(code(file), new RegExp(String.raw`export const ${name}\s*=\s*z\.object\(\s*\{`));
     }
-    if (segments.length === 0) return /z\.string\(\)\.regex\(/.test(schema) ? [] : ['every segment'];
+    if (segments.length === 0) return schema.includes('z.string().regex(') ? [] : ['every segment'];
     return segments
         .filter((name) => !new RegExp(String.raw`\b${name}:\s*z\.string\(\)\.regex\(`).test(schema))
         .map((name) => `:${name}`);
-}
-
-/** Run the gate and print. */
-export function checkSecurityDrift({ root = REPO_ROOT, ...rest }: SecurityDriftOptions): void {
-    const report = createGateReport({ name: 'Security drift' });
-    const { problems, counts } = inspectSecurityDrift({ root, ...rest });
-
-    for (const { file, what, why } of problems) report.fail(file, what, why);
-
-    report.done({
-        summary:
-            `Security invariants hold across ${plural(counts.backend, 'backend file')} and ${plural(counts.frontend, 'frontend file')}: ` +
-            'headers and CSP locked, the proxy trusted by hop count, Argon2 at the OWASP floor and matching its dummy hash, ' +
-            `the throttle failing open on ${plural(counts.throttleCalls, 'derived key', 'derived keys')}, rotation atomic and ceilinged, ` +
-            'and no regex or HTML built from user input.',
-        notMachineChecked:
-            'Whether the values are the RIGHT values for this deployment, whether a route that should require auth does, whether the secrets in production are the ones you think, and everything only observable at runtime — the contract tests own that half.',
-    });
 }

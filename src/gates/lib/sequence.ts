@@ -17,7 +17,7 @@ export function inPlace(actual: number[], ideal: number[]): Set<number> {
             dp[x * (n + 1) + y] = actual[x] === ideal[y] ? at(x + 1, y + 1) + 1 : Math.max(at(x + 1, y), at(x, y + 1));
         }
     }
-    const keep: Set<number> = new Set();
+    const keep = new Set<number>();
     let x = 0;
     let y = 0;
     while (x < n && y < n) {

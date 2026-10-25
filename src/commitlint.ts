@@ -14,9 +14,6 @@ export type CommitlintOptions = {
     rules?: Record<string, unknown>;
 };
 
-/** Resolved from here for the same reason as in stylelint.ts: so the project does not need its own copy. */
-const dep = (name: string) => fileURLToPath(import.meta.resolve(name));
-
 const TYPES = [
     // Core work (most common)
     'feat', // A new feature
@@ -45,11 +42,6 @@ const MULTI_WHY = [
     /;\s*(also|plus)\s/i,
 ];
 
-const singleWhy = ({ subject }: { subject: string | null }): [boolean, string] => [
-    subject === null || !MULTI_WHY.some((p) => p.test(subject)),
-    'subject names two pieces of work — a commit answers one "why". Consider splitting it; a refactor and the feature that uses it review far better apart.',
-];
-
 export function commitlint(options: CommitlintOptions = {}) {
     const {
         subjectSingleWhy = true,
@@ -71,5 +63,13 @@ export function commitlint(options: CommitlintOptions = {}) {
         },
     };
 }
+
+/** Resolved from here for the same reason as in stylelint.ts: so the project does not need its own copy. */
+const dep = (name: string) => fileURLToPath(import.meta.resolve(name));
+
+const singleWhy = ({ subject }: { subject: string | null }): [boolean, string] => [
+    subject === null || !MULTI_WHY.some((p) => p.test(subject)),
+    'subject names two pieces of work — a commit answers one "why". Consider splitting it; a refactor and the feature that uses it review far better apart.',
+];
 
 export default commitlint();

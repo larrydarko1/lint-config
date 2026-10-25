@@ -407,7 +407,7 @@ test('an example carrying a field no type declares is reported', async (t) => {
 });
 
 test('an example missing a required field is reported', async (t) => {
-    const { username, ...rest } = JSON.parse(USER_EXAMPLE);
+    const { username: _username, ...rest } = JSON.parse(USER_EXAMPLE);
     const result = await run(t, good({ 'db/docs/examples/users.json': JSON.stringify(rest) }));
     assert.deepEqual(whats(result), ['is missing `username`, which UserDoc declares as required']);
 });
@@ -755,9 +755,10 @@ test('an applier reached through .then() counts as calling it', async (t) => {
 test('declaring the applier function without ever calling it is reported', async (t) => {
     // The failure this catches: a file that defines ensureIndexes() and never
     // runs it. Every environment boots with no indexes, and nothing says so.
-    const db =
-        DB_TS.replace('    await ensureIndexes(db);\n', '') +
-        '\nasync function ensureIndexes(target) {\n    await target.createIndex();\n}\n';
+    const db = `${DB_TS.replace(
+        '    await ensureIndexes(db);\n',
+        '',
+    )}\nasync function ensureIndexes(target) {\n    await target.createIndex();\n}\n`;
     const result = await run(t, good({ 'api/src/lib/db.ts': db }));
     assert.deepEqual(whats(result), ['never calls ensureIndexes()']);
 });

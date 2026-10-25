@@ -51,7 +51,6 @@ type TsconfigsInspection = {
     flagCount: number;
 };
 
-
 type TsconfigsInput = Omit<TsconfigsOptions, 'root'> & { root: string };
 
 /** compilerOptions, naming only the settings this gate reads by name. */
@@ -141,7 +140,7 @@ const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
 /** Inspect every tsconfig in the repo without printing. */
 export function inspectTsconfigs({
     root,
-    base: BASE = 'tsconfig.base.json',
+    base = 'tsconfig.base.json',
     baseFlags = BASE_FLAGS,
     environmental = ENVIRONMENTAL,
     sections = SECTIONS,
@@ -160,11 +159,11 @@ export function inspectTsconfigs({
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
 
     const configs = new Map(listConfigs('.').map((rel) => [rel, parse(rel)]));
-    const baseConfig = configs.get(BASE);
+    const baseConfig = configs.get(base);
 
     if (baseConfig === undefined) {
         fail(
-            BASE,
+            base,
             'is missing',
             'It is the one file that decides what is checked. Every other rule here is about whether a project honours it.',
         );
@@ -172,33 +171,33 @@ export function inspectTsconfigs({
     }
 
     /** Configs that actually check code: not the base, not a `files: []` solution file. */
-    const projects = [...configs].filter(([rel, cfg]) => rel !== BASE && cfg.options !== undefined);
+    const projects = [...configs].filter(([rel, cfg]) => rel !== base && cfg.options !== undefined);
 
     // ── 1. Every project extends the base, and the base wins ────────────────
     // Resolved, not spelled: tsc only warns on a missing `extends` target.
     for (const [rel, cfg] of projects) {
         const parents = cfg.data.extends === undefined ? [] : [cfg.data.extends].flat();
-        const at = parents.findIndex((p) => resolveExtends(p, rel) === BASE);
+        const at = parents.findIndex((p) => resolveExtends(p, rel) === base);
 
         if (at === -1) {
-            const spelled = parents.find((p) => p.endsWith(BASE));
+            const spelled = parents.find((p) => p.endsWith(base));
             if (spelled !== undefined) {
                 fail(
                     rel,
-                    `extends "${spelled}", which does not resolve to ${BASE}`,
+                    `extends "${spelled}", which does not resolve to ${base}`,
                     `From this file that path is ${path.relative(root, path.resolve(path.dirname(path.join(root, rel)), spelled))}, which is not a file. tsc warns and carries on, so the project silently checks nothing it names.`,
                 );
             } else {
                 fail(
                     rel,
-                    `does not extend ${BASE}`,
+                    `does not extend ${base}`,
                     'A project outside the base decides its own strictness, and the default is lax. Extend it, even to override one flag afterwards.',
                 );
             }
         } else if (at !== parents.length - 1) {
             fail(
                 rel,
-                `extends ${BASE} at position ${at + 1} of ${parents.length}`,
+                `extends ${base} at position ${at + 1} of ${parents.length}`,
                 'Later entries win. A base ahead of a preset is overridden by it: the file names the strict config and compiles under the lax one, with nothing to show for it. Put the base last.',
             );
         }
@@ -209,13 +208,13 @@ export function inspectTsconfigs({
         const actual = baseConfig.options?.[flag];
         if (actual === undefined) {
             fail(
-                BASE,
+                base,
                 `does not set \`${flag}\``,
                 'Every checking rule lives here, so that turning one off is one visible edit rather than a value a workspace quietly never set.',
             );
         } else if (actual !== strictValue) {
             fail(
-                BASE,
+                base,
                 `sets \`${flag}: ${JSON.stringify(actual)}\``,
                 `The base carries the strict value (${strictValue}). A project that genuinely cannot hold this overrides it locally, with the reason next to it — rule 3.`,
             );
@@ -224,7 +223,7 @@ export function inspectTsconfigs({
     for (const setting of environmental) {
         if (baseConfig.options?.[setting] !== undefined) {
             fail(
-                BASE,
+                base,
                 `sets \`${setting}\``,
                 'The base is checking rules only. A target, a lib or an emit path differs per project and each one records why it is what it is; a value here is one nobody chose and every project silently inherits.',
             );
@@ -249,16 +248,17 @@ export function inspectTsconfigs({
     for (const [rel, cfg] of projects) {
         const { target, lib } = cfg.own;
         if (target === undefined) continue;
+        const targetText = typeof target === 'string' ? target : JSON.stringify(target);
         if (lib === undefined) {
             fail(
                 rel,
-                `sets \`target: "${target}"\` with no \`lib\``,
+                `sets \`target: "${targetText}"\` with no \`lib\``,
                 'Without one the library surface is inferred from the target, which is fine until the target moves and nothing says the two are meant to agree. State it.',
             );
-        } else if (String(lib[0]).toLowerCase() !== String(target).toLowerCase()) {
+        } else if (lib[0]?.toLowerCase() !== targetText.toLowerCase()) {
             fail(
                 rel,
-                `targets ${target} but its lib starts at ${lib[0]}`,
+                `targets ${targetText} but its lib starts at ${lib[0]}`,
                 'A lib behind the target types the old standard library while the emit uses the new syntax; a lib ahead of it types methods the runtime floor does not have. The first lib entry is the ES year and must match.',
             );
         }
@@ -299,7 +299,7 @@ export function inspectTsconfigs({
             );
         }
         const libs = cfg.own.lib ?? [];
-        if (libs.some((entry) => !/^(es|dom)/i.test(String(entry)))) {
+        if (libs.some((entry) => !/^(es|dom)/i.test(entry))) {
             fail(rel, `declares lib ${JSON.stringify(libs)}`, 'A browser program takes ES and DOM libraries only.');
         }
     }

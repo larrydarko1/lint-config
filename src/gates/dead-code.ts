@@ -11,6 +11,7 @@
  * `budgets` is for clearing a backlog and should be zero; never raise one to land a change.
  */
 import { execFileSync } from 'node:child_process';
+import path from 'node:path';
 
 import { packageBin } from './lib/bin.ts';
 import { findLocalOnlyTypes } from './lib/local-only-types.ts';
@@ -25,6 +26,12 @@ export type DeadCodeOptions = {
     checksDir?: string;
     /** The runtime-reachability examples this repo would recognise. */
     notMachineChecked?: string;
+    /**
+     * A published package's API: the source files its `exports` resolve to, as
+     * `packageEntries()` from `/knip` reads them. Their exports are used outside the
+     * repository, so neither the test-only pass nor the local-only-types pass reports them.
+     */
+    publicApi?: string[];
 };
 
 type DeadCodeCategory = { label: string; fix: string };
@@ -126,6 +133,8 @@ export const LOCAL_ONLY_TYPES: DeadCodeCategory & { key: string } = {
 /** Only exports: under `--production` test helpers and test deps would all read as unused. */
 const PROD_INCLUDE = ['exports', 'types', 'nsExports', 'nsTypes', 'namespaceMembers', 'enumMembers'];
 const PROD_ARGS = ['--production', '--include-entry-exports'];
+/** A library's entry files are its API, so their exports are used by definition. */
+const LIBRARY_PROD_ARGS = ['--production'];
 
 /** Reported by `--all`, never gated: pnpm catalogs, which the family repos do not use. */
 const UNGATED = ['catalog', 'catalogReferences'];
@@ -133,45 +142,11 @@ const UNGATED = ['catalog', 'catalogReferences'];
 /** Categories whose finding is an ARRAY of symbols, and how its names are joined. */
 const JOINED: Record<string, string> = { duplicates: ' = ', cycles: ' → ' };
 
-/** `file` alone when the whole file is unused; `file:line — name` otherwise. */
-const where = ({ file, name, line }: DeadCodeHit): string =>
-    name === file ? file : `${file}${line === undefined ? '' : `:${line}`} — ${name}`;
-const identity = ({ file, name }: DeadCodeHit): string => `${file}::${name}`;
-
-/** One knip run, flattened and bucketed by category. */
-function runKnip(input: KnipRunInput): Record<string, DeadCodeHit[]> {
-    const { root, bin, include, extra = [] } = input;
-    const args = ['--no-progress', '--reporter', 'json', '--tags=-public', '--include', include.join(','), ...extra];
-
-    let raw: string;
-    try {
-        raw = execFileSync(process.execPath, [bin, ...args], {
-            cwd: root,
-            encoding: 'utf8',
-            maxBuffer: 32 * 1024 * 1024,
-            stdio: ['ignore', 'pipe', 'ignore'],
-            // dotenv's stdout banner would corrupt the JSON.
-            env: { ...process.env, DOTENV_CONFIG_QUIET: 'true' },
-        });
-    } catch (error) {
-        // knip exits non-zero whenever it finds anything, but still prints the report.
-        const { stdout, stderr } = error as { stdout?: string; stderr?: string | Buffer };
-        raw = stdout ?? '';
-        if (raw.trim() === '') {
-            const detail = stderr === undefined ? '' : `\n${stderr.toString().trim()}`;
-            throw new Error(`knip produced no output.${detail}`);
-        }
-    }
-
-    let report: KnipReport;
-    try {
-        report = JSON.parse(raw);
-    } catch {
-        throw new Error(`could not parse knip's JSON report.\n${raw.slice(0, 500)}`);
-    }
-
-    return collectHits(report, include);
-}
+const ALL_CATEGORIES: [string, DeadCodeCategory][] = [
+    ...Object.entries(CATEGORIES),
+    [TEST_ONLY.key, TEST_ONLY],
+    [LOCAL_ONLY_TYPES.key, LOCAL_ONLY_TYPES],
+];
 
 /** knip's JSON report, bucketed. Separate from the run so it is testable. */
 export function collectHits(report: KnipReport, include: string[]): Record<string, DeadCodeHit[]> {
@@ -203,31 +178,31 @@ export function collectHits(report: KnipReport, include: string[]): Record<strin
 /**
  * Pass one, then pass two minus whatever pass one already named, then the local-only
  * types minus whatever either pass named — an exported type nothing uses at all is
- * knip's `types` finding, and one dead type is reported once.
+ * knip's `types` finding, and one dead type is reported once. With a `publicApi`, its
+ * files' exports are the package's API: entry exports stay out of pass two, and its
+ * types out of pass three.
  */
 export function inspectDeadCode(
     knip: (include: string[], extra?: string[]) => Record<string, DeadCodeHit[]>,
     localOnlyTypes: () => DeadCodeHit[] = () => [],
+    publicApi: string[] = [],
 ): Record<string, DeadCodeHit[]> {
     const found = knip(Object.keys(CATEGORIES));
+    const isPublic = (hit: DeadCodeHit): boolean => publicApi.some((pattern) => path.matchesGlob(hit.file, pattern));
 
     const alreadyReported = new Set(Object.values(found).flat().map(identity));
-    const testOnly = Object.values(knip(PROD_INCLUDE, PROD_ARGS))
+    const testOnly = Object.values(knip(PROD_INCLUDE, publicApi.length > 0 ? LIBRARY_PROD_ARGS : PROD_ARGS))
         .flat()
         .filter((hit) => !alreadyReported.has(identity(hit)));
     found[TEST_ONLY.key] = testOnly;
 
     for (const hit of testOnly) alreadyReported.add(identity(hit));
-    found[LOCAL_ONLY_TYPES.key] = localOnlyTypes().filter((hit) => !alreadyReported.has(identity(hit)));
+    found[LOCAL_ONLY_TYPES.key] = localOnlyTypes().filter(
+        (hit) => !alreadyReported.has(identity(hit)) && !isPublic(hit),
+    );
 
     return found;
 }
-
-const ALL_CATEGORIES: [string, DeadCodeCategory][] = [
-    ...Object.entries(CATEGORIES),
-    [TEST_ONLY.key, TEST_ONLY],
-    [LOCAL_ONLY_TYPES.key, LOCAL_ONLY_TYPES],
-];
 
 /**
  * The categories over budget, in CATEGORIES order with the second pass last, then the
@@ -295,6 +270,7 @@ export function checkDeadCode(options: DeadCodeOptions = {}): void {
         budgets = {},
         checksDir = 'scripts/checks',
         notMachineChecked = 'code reachable from an entry point but never reached at RUNTIME — a route nothing links to, a branch no config enables, a queue with no producer.',
+        publicApi = [],
     } = options;
 
     const report = createGateReport({ name: 'Dead code' });
@@ -321,6 +297,7 @@ export function checkDeadCode(options: DeadCodeOptions = {}): void {
         found = inspectDeadCode(
             (include, extra) => runKnip({ root, bin, include, extra }),
             () => findLocalOnlyTypes(root),
+            publicApi,
         );
     } catch (error) {
         console.error(`✗ Dead code check failed — ${error instanceof Error ? error.message : String(error)}`);
@@ -334,4 +311,44 @@ export function checkDeadCode(options: DeadCodeOptions = {}): void {
         summary: deadCodeSummary(found, budgets),
         notMachineChecked,
     });
+}
+
+/** `file` alone when the whole file is unused; `file:line — name` otherwise. */
+const where = ({ file, name, line }: DeadCodeHit): string =>
+    name === file ? file : `${file}${line === undefined ? '' : `:${line}`} — ${name}`;
+const identity = ({ file, name }: DeadCodeHit): string => `${file}::${name}`;
+
+/** One knip run, flattened and bucketed by category. */
+function runKnip(input: KnipRunInput): Record<string, DeadCodeHit[]> {
+    const { root, bin, include, extra = [] } = input;
+    const args = ['--no-progress', '--reporter', 'json', '--tags=-public', '--include', include.join(','), ...extra];
+
+    let raw: string;
+    try {
+        raw = execFileSync(process.execPath, [bin, ...args], {
+            cwd: root,
+            encoding: 'utf8',
+            maxBuffer: 32 * 1024 * 1024,
+            stdio: ['ignore', 'pipe', 'ignore'],
+            // dotenv's stdout banner would corrupt the JSON.
+            env: { ...process.env, DOTENV_CONFIG_QUIET: 'true' },
+        });
+    } catch (error) {
+        // knip exits non-zero whenever it finds anything, but still prints the report.
+        const { stdout, stderr } = error as { stdout?: string; stderr?: string | Buffer };
+        raw = stdout ?? '';
+        if (raw.trim() === '') {
+            const detail = stderr === undefined ? '' : `\n${stderr.toString().trim()}`;
+            throw new Error(`knip produced no output.${detail}`, { cause: error });
+        }
+    }
+
+    let report: KnipReport;
+    try {
+        report = JSON.parse(raw);
+    } catch {
+        throw new Error(`could not parse knip's JSON report.\n${raw.slice(0, 500)}`);
+    }
+
+    return collectHits(report, include);
 }

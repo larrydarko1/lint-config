@@ -19,4 +19,5 @@ export const prettierConfig: Config = {
     singleAttributePerLine: true,
 };
 
+/** @alias The same config, for `export { default } from '@larrydarko/lint-config/prettier'`. */
 export default prettierConfig;

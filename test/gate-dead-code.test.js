@@ -133,6 +133,22 @@ test('the second pass does not ask for files or dependencies', () => {
     assert.ok(second.includes('exports'));
 });
 
+test("a library's second pass leaves entry exports out, since they are its API", () => {
+    const knip = knipStub({});
+    inspectDeadCode(knip, undefined, ['src/index.ts']);
+    assert.deepEqual(knip.calls[1]?.extra, ['--production']);
+});
+
+test("a library's public types are not local-only, even when only their own file names them", () => {
+    const hits = () => [
+        { file: 'src/index.ts', name: 'Options', line: 1 },
+        { file: 'src/icons/arrow.ts', name: 'ArrowProps', line: 2 },
+        { file: 'src/lib/walk.ts', name: 'WalkState', line: 3 },
+    ];
+    const found = inspectDeadCode(knipStub({}), hits, ['src/index.ts', 'src/icons/*.ts']);
+    assert.deepEqual(names(found[LOCAL_ONLY_TYPES.key]), ['src/lib/walk.ts:3 WalkState']);
+});
+
 test('an export only a test imports lands in testOnlyExports', () => {
     const knip = knipStub({ exports: [] }, { exports: [{ file: 'src/a.ts', name: 'requireOwner', line: 4 }] });
     const found = inspectDeadCode(knip);

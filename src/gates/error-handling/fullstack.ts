@@ -86,44 +86,6 @@ const SECURITY_EVENT_PATTERNS = [
 
 const DEFAULT_ALLOWED_STATUS = [400, 401, 403, 404, 409, 413, 422, 429, 500];
 
-/** Split the arguments of the call whose opening paren is at `open`. */
-function callArguments(src: string, open: number): string[] | null {
-    let depth = 0;
-    let start = open + 1;
-    const args: string[] = [];
-    for (let i = open; i < src.length; i += 1) {
-        const ch = src[i];
-        if (ch === '(' || ch === '[' || ch === '{') depth += 1;
-        else if (ch === ')' || ch === ']' || ch === '}') {
-            depth -= 1;
-            if (depth === 0) {
-                args.push(src.slice(start, i));
-                return args;
-            }
-        } else if (ch === ',' && depth === 1) {
-            args.push(src.slice(start, i));
-            start = i + 1;
-        } else if (ch === "'" || ch === '"' || ch === '`') {
-            i += 1;
-            while (i < src.length && src[i] !== ch) i += src[i] === '\\' ? 2 : 1;
-        }
-    }
-    return null;
-}
-
-/** One named field out of the `options` argument of a `new AppError(...)` call. */
-function optionField(args: string[], name: string): string | null {
-    const options = args[3]?.trim();
-    if (options === undefined || !options.startsWith('{')) return null;
-    const fields = callArguments(options, 0);
-    if (fields === null) return null;
-    for (const field of fields) {
-        const match = new RegExp(`^\\s*${name}\\s*:([\\s\\S]*)$`).exec(field);
-        if (match !== null) return (match[1] ?? '').trim();
-    }
-    return null;
-}
-
 /**
  * @param [input.root] Repository root.
  * @param [input.apiDir='api/src'] The HTTP service's sources.
@@ -244,7 +206,7 @@ export function inspectFullstackErrorHandling(
     }
 
     // ── 1b. A code means one thing: one code, one status ─────────────────────
-    const statusOf: Map<string, Map<number, string[]>> = new Map();
+    const statusOf = new Map<string, Map<number, string[]>>();
     for (const t of throws) {
         if (t.errorCode === null || !Number.isInteger(t.status)) continue;
         const seen = statusOf.get(t.errorCode) ?? new Map();
@@ -271,7 +233,7 @@ export function inspectFullstackErrorHandling(
         fail(appError, 'missing', 'One AppError class is the only way to raise a client-facing HTTP error.');
     } else {
         const src = code(appError);
-        if (!/class AppError extends Error/.test(src)) {
+        if (!src.includes('class AppError extends Error')) {
             fail(
                 appError,
                 'AppError does not extend Error',
@@ -488,7 +450,7 @@ export function inspectFullstackErrorHandling(
     // ── 6. `params` carry no request input ───────────────────────────────────
     for (const t of throws) {
         const params = optionField(t.args, 'params');
-        if (params === null || !params.startsWith('{')) continue;
+        if (!params?.startsWith('{')) continue;
         const hit = /\breq\.(params|body|query|headers)\b|\bidentifier\b|\bfilename\b/.exec(params);
         if (hit !== null) {
             fail(
@@ -530,14 +492,14 @@ export function inspectFullstackErrorHandling(
     if (frontend) {
         const src = code(client);
         // Two checks, not one regex, so the key may be built in a variable first.
-        if (!/errors\.\$\{/.test(src) || !/i18n\.global\.te\(/.test(src)) {
+        if (!src.includes('errors.${') || !src.includes('i18n.global.te(')) {
             fail(
                 client,
                 'the interceptor does not localise `data.error`',
                 'Translate the code once, in the interceptor, so every call site that reads `data.error` gets localised text with no per-site change.',
             );
         }
-        if (!/i18n\.global\.t\('errors\.INTERNAL'\)/.test(src)) {
+        if (!src.includes("i18n.global.t('errors.INTERNAL')")) {
             fail(
                 client,
                 'no fallback for an unknown code',
@@ -597,4 +559,42 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
             'a case, whether a best-effort call should be best-effort at all, or whether a code is specific enough ' +
             'for the UI to act on.',
     });
+}
+
+/** Split the arguments of the call whose opening paren is at `open`. */
+function callArguments(src: string, open: number): string[] | null {
+    let depth = 0;
+    let start = open + 1;
+    const args: string[] = [];
+    for (let i = open; i < src.length; i += 1) {
+        const ch = src[i];
+        if (ch === '(' || ch === '[' || ch === '{') depth += 1;
+        else if (ch === ')' || ch === ']' || ch === '}') {
+            depth -= 1;
+            if (depth === 0) {
+                args.push(src.slice(start, i));
+                return args;
+            }
+        } else if (ch === ',' && depth === 1) {
+            args.push(src.slice(start, i));
+            start = i + 1;
+        } else if (ch === "'" || ch === '"' || ch === '`') {
+            i += 1;
+            while (i < src.length && src[i] !== ch) i += src[i] === '\\' ? 2 : 1;
+        }
+    }
+    return null;
+}
+
+/** One named field out of the `options` argument of a `new AppError(...)` call. */
+function optionField(args: string[], name: string): string | null {
+    const options = args[3]?.trim();
+    if (!options?.startsWith('{')) return null;
+    const fields = callArguments(options, 0);
+    if (fields === null) return null;
+    for (const field of fields) {
+        const match = new RegExp(`^\\s*${name}\\s*:([\\s\\S]*)$`).exec(field);
+        if (match !== null) return (match[1] ?? '').trim();
+    }
+    return null;
 }

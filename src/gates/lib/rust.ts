@@ -80,7 +80,7 @@ export type RustDocBlock = {
 const IDENT_CHAR = /[A-Za-z0-9_]/;
 
 /** Items that end at their body's closing brace, when they have one. */
-const BLOCK_KINDS: Set<RustItemKind> = new Set([
+const BLOCK_KINDS = new Set<RustItemKind>([
     'mod',
     'struct',
     'enum',
@@ -98,41 +98,6 @@ const ITEM_HEAD =
     /^(pub(?:\s*\((?:crate|self|super|in\s+[\w:]+)\))?\s+)?((?:(?:const|async|unsafe|safe|default|auto)\s+|extern\s+"[^"]*"\s+)*)(fn|struct|enum|union|trait|impl|type|const|static|mod|use|extern\s+crate|macro_rules\s*!)(?![\w])/;
 
 const ESCAPES: Record<string, string> = { 'n': '\n', 't': '\t', 'r': '\r', '0': '\0' };
-
-const lineAt = (text: string, index: number): number => text.slice(0, index).split('\n').length;
-
-const blank = (text: string): string => text.replace(/[^\n]/g, ' ');
-
-/** The value of a non-raw literal's contents: the common escapes, enough for names and codes. */
-function unescape(text: string): string {
-    return text.replace(/\\(u\{[0-9a-fA-F]+\}|x[0-9a-fA-F]{2}|\n\s*|.)/g, (_, esc: string) => {
-        if (esc.startsWith('u{')) return String.fromCodePoint(Number.parseInt(esc.slice(2, -1), 16));
-        if (esc.startsWith('x')) return String.fromCharCode(Number.parseInt(esc.slice(1), 16));
-        if (esc.startsWith('\n')) return '';
-        return ESCAPES[esc] ?? esc;
-    });
-}
-
-/** Whether the identifier character at `i - 1` makes `source[i]` part of a longer word. */
-const continuesWord = (source: string, i: number): boolean => i > 0 && IDENT_CHAR.test(source.charAt(i - 1));
-
-/**
- * The offset just past a char literal opening at `i`, or `-1` when the `'` starts a
- * lifetime or a label instead.
- */
-function charLiteralEnd(source: string, i: number): number {
-    if (source[i + 1] === '\\') {
-        let j = i + 2;
-        if (source[j] === 'u' && source[j + 1] === '{') j = source.indexOf('}', j) + 1;
-        else if (source[j] === 'x') j += 3;
-        else j += 1;
-        return source[j] === "'" ? j + 1 : -1;
-    }
-    const point = source.codePointAt(i + 1);
-    if (point === undefined || source[i + 1] === "'" || source[i + 1] === '\n') return -1;
-    const width = point > 0xffff ? 2 : 1;
-    return source[i + 1 + width] === "'" ? i + 2 + width : -1;
-}
 
 /**
  * Blank `source`'s comments, and the contents of its string and char literals.
@@ -255,64 +220,6 @@ export function splitRustList(text: string): string[] {
     return parts.filter((p) => p !== '');
 }
 
-/** Where an item starting at `from` ends: past its `;`, or past the `}` closing a depth-zero block. */
-function itemEnd(code: string, from: number, block: boolean): { end: number; body: RustItem['body'] } {
-    let depth = 0;
-    for (let j = from; j < code.length; j++) {
-        const ch = code[j];
-        if (ch === ';' && depth === 0) return { end: j + 1, body: null };
-        if (ch === '{' && depth === 0 && block) {
-            const close = closingBracket(code, j);
-            if (close === -1) return { end: code.length, body: { start: j + 1, end: code.length } };
-            return { end: close + 1, body: { start: j + 1, end: close } };
-        }
-        if (ch === '(' || ch === '[' || ch === '{') depth++;
-        else if (ch === ')' || ch === ']' || ch === '}') depth--;
-    }
-    return { end: code.length, body: null };
-}
-
-/** The text after a generic parameter list that `text` starts with, or `text` itself. */
-function skipGenerics(text: string): string {
-    if (!text.startsWith('<')) return text;
-    let depth = 0;
-    for (let j = 0; j < text.length; j++) {
-        if (text[j] === '<') depth++;
-        else if (text[j] === '>' && text[j - 1] !== '-' && text[j - 1] !== '=' && --depth === 0) {
-            return text.slice(j + 1);
-        }
-    }
-    return '';
-}
-
-/** `impl<T> Trait<T> for Wrapper<T> where …` → the trait as written, and `Wrapper`. */
-function implTarget(head: string): { name: string; trait?: string } {
-    const afterImpl = skipGenerics(head.replace(/^(?:unsafe\s+)?impl\s*/, '').trimStart());
-    const signature = afterImpl.split(/\bwhere\b/)[0] ?? '';
-    let depth = 0;
-    let forAt = -1;
-    for (let j = 0; j < signature.length; j++) {
-        if (signature[j] === '<') depth++;
-        else if (signature[j] === '>' && signature[j - 1] !== '-') depth--;
-        else if (depth === 0 && /\sfor\s/.test(signature.slice(j - 1, j + 4)) && signature.startsWith('for', j)) {
-            forAt = j;
-            break;
-        }
-    }
-    const selfType = (forAt === -1 ? signature : signature.slice(forAt + 3)).trim();
-    const base = selfType
-        .replace(/^&\s*(?:'\w+\s+)?(?:mut\s+)?/, '')
-        .replace(/^dyn\s+/, '')
-        .split('<')[0]
-        ?.split('::')
-        .pop()
-        ?.trim();
-    const trait = forAt === -1 ? undefined : signature.slice(0, forAt).trim();
-    return trait === undefined ? { name: base ?? '' } : { name: base ?? '', trait };
-}
-
-const declaredName = (rest: string): string => /^(?:mut\s+)?(?:r#)?([A-Za-z_][\w]*)/.exec(rest.trimStart())?.[1] ?? '';
-
 /**
  * Every top-level item in a Rust file, in source order. A stray `;` after a block
  * item is skipped; anything unrecognised is `unknown` and still ends where it should.
@@ -378,7 +285,7 @@ export function rustItems(source: string, lexed: RustLex = lexRust(source)): Rus
         const head = code.slice(keywordStart, body === null ? end : body.start - 1).trim();
         const afterKeyword = m === null ? '' : rest.slice(m[0].length);
 
-        let name = '';
+        let name: string;
         let trait: string | undefined;
         if (kind === 'impl') ({ name, trait } = implTarget(head.slice((m?.[1] ?? '').length + (m?.[2] ?? '').length)));
         else if (kind === 'use')
@@ -466,3 +373,96 @@ export function summarySentences(lines: string[]): number {
 /** Whether an item is `#[cfg(test)] mod tests { … }`: Rust's own place for unit tests. */
 export const isTestModule = (item: RustItem): boolean =>
     item.kind === 'mod' && item.body !== null && item.attributes.some((a) => /\bcfg\s*\(\s*test\s*\)/.test(a));
+
+const lineAt = (text: string, index: number): number => text.slice(0, index).split('\n').length;
+
+const blank = (text: string): string => text.replace(/[^\n]/g, ' ');
+
+/** The value of a non-raw literal's contents: the common escapes, enough for names and codes. */
+function unescape(text: string): string {
+    return text.replace(/\\(u\{[0-9a-fA-F]+\}|x[0-9a-fA-F]{2}|\n\s*|.)/g, (_, esc: string) => {
+        if (esc.startsWith('u{')) return String.fromCodePoint(Number.parseInt(esc.slice(2, -1), 16));
+        if (esc.startsWith('x')) return String.fromCharCode(Number.parseInt(esc.slice(1), 16));
+        if (esc.startsWith('\n')) return '';
+        return ESCAPES[esc] ?? esc;
+    });
+}
+
+/** Whether the identifier character at `i - 1` makes `source[i]` part of a longer word. */
+const continuesWord = (source: string, i: number): boolean => i > 0 && IDENT_CHAR.test(source.charAt(i - 1));
+
+/**
+ * The offset just past a char literal opening at `i`, or `-1` when the `'` starts a
+ * lifetime or a label instead.
+ */
+function charLiteralEnd(source: string, i: number): number {
+    if (source[i + 1] === '\\') {
+        let j = i + 2;
+        if (source[j] === 'u' && source[j + 1] === '{') j = source.indexOf('}', j) + 1;
+        else if (source[j] === 'x') j += 3;
+        else j += 1;
+        return source[j] === "'" ? j + 1 : -1;
+    }
+    const point = source.codePointAt(i + 1);
+    if (point === undefined || source[i + 1] === "'" || source[i + 1] === '\n') return -1;
+    const width = point > 0xffff ? 2 : 1;
+    return source[i + 1 + width] === "'" ? i + 2 + width : -1;
+}
+
+/** Where an item starting at `from` ends: past its `;`, or past the `}` closing a depth-zero block. */
+function itemEnd(code: string, from: number, block: boolean): { end: number; body: RustItem['body'] } {
+    let depth = 0;
+    for (let j = from; j < code.length; j++) {
+        const ch = code[j];
+        if (ch === ';' && depth === 0) return { end: j + 1, body: null };
+        if (ch === '{' && depth === 0 && block) {
+            const close = closingBracket(code, j);
+            if (close === -1) return { end: code.length, body: { start: j + 1, end: code.length } };
+            return { end: close + 1, body: { start: j + 1, end: close } };
+        }
+        if (ch === '(' || ch === '[' || ch === '{') depth++;
+        else if (ch === ')' || ch === ']' || ch === '}') depth--;
+    }
+    return { end: code.length, body: null };
+}
+
+/** The text after a generic parameter list that `text` starts with, or `text` itself. */
+function skipGenerics(text: string): string {
+    if (!text.startsWith('<')) return text;
+    let depth = 0;
+    for (let j = 0; j < text.length; j++) {
+        if (text[j] === '<') depth++;
+        else if (text[j] === '>' && text[j - 1] !== '-' && text[j - 1] !== '=' && --depth === 0) {
+            return text.slice(j + 1);
+        }
+    }
+    return '';
+}
+
+/** `impl<T> Trait<T> for Wrapper<T> where …` → the trait as written, and `Wrapper`. */
+function implTarget(head: string): { name: string; trait?: string } {
+    const afterImpl = skipGenerics(head.replace(/^(?:unsafe\s+)?impl\s*/, '').trimStart());
+    const signature = afterImpl.split(/\bwhere\b/)[0] ?? '';
+    let depth = 0;
+    let forAt = -1;
+    for (let j = 0; j < signature.length; j++) {
+        if (signature[j] === '<') depth++;
+        else if (signature[j] === '>' && signature[j - 1] !== '-') depth--;
+        else if (depth === 0 && /\sfor\s/.test(signature.slice(j - 1, j + 4)) && signature.startsWith('for', j)) {
+            forAt = j;
+            break;
+        }
+    }
+    const selfType = (forAt === -1 ? signature : signature.slice(forAt + 3)).trim();
+    const base = selfType
+        .replace(/^&\s*(?:'\w+\s+)?(?:mut\s+)?/, '')
+        .replace(/^dyn\s+/, '')
+        .split('<')[0]
+        ?.split('::')
+        .pop()
+        ?.trim();
+    const trait = forAt === -1 ? undefined : signature.slice(0, forAt).trim();
+    return trait === undefined ? { name: base ?? '' } : { name: base ?? '', trait };
+}
+
+const declaredName = (rest: string): string => /^(?:mut\s+)?(?:r#)?([A-Za-z_][\w]*)/.exec(rest.trimStart())?.[1] ?? '';

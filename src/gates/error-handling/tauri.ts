@@ -49,27 +49,6 @@ const RUST_SWALLOWS: [pattern: RegExp, what: string][] = [
     [/\bif\s+let\s+Err\s*\([^)]*\)\s*=[^{;]*\{\s*\}/g, 'an `if let Err` block is empty'],
 ];
 
-const lineAt = (text: string, index: number): number => text.slice(0, index).split('\n').length;
-
-/**
- * The comment that explains a Rust swallow: inside it, at the end of its line, or on
- * the lines directly above it.
- */
-function swallowReason(source: string, start: number, end: number): string {
-    const lines = source.split('\n');
-    const first = lineAt(source, start) - 1;
-    const last = lineAt(source, end) - 1;
-    const said = [
-        ...lines
-            .slice(first, last + 1)
-            .join('\n')
-            .matchAll(/\/\/(.*)|\/\*([\s\S]*?)\*\//g),
-    ].map((m) => m[1] ?? m[2] ?? '');
-    for (let k = first - 1; k >= 0 && /^\s*\/\/(?![/!])/.test(lines[k] ?? ''); k--)
-        said.unshift((lines[k] ?? '').replace(/^\s*\/\//, ''));
-    return said.join(' ').replace(/\s+/g, ' ').trim();
-}
-
 /**
  * @param [input.tauriDir='src-tauri'] The Tauri crate.
  * @param [input.webviewDir='src'] The webview's sources.
@@ -185,4 +164,25 @@ export function checkTauriErrorHandling(options: TauriErrorHandlingOptions = {})
         notMachineChecked:
             'whether a caught failure is reported to the user or only logged, whether a failure logged by a helper the command calls is logged once, and an error replaced by a default (`unwrap_or_default`), which reads the same as an `Option` falling back.',
     });
+}
+
+const lineAt = (text: string, index: number): number => text.slice(0, index).split('\n').length;
+
+/**
+ * The comment that explains a Rust swallow: inside it, at the end of its line, or on
+ * the lines directly above it.
+ */
+function swallowReason(source: string, start: number, end: number): string {
+    const lines = source.split('\n');
+    const first = lineAt(source, start) - 1;
+    const last = lineAt(source, end) - 1;
+    const said = [
+        ...lines
+            .slice(first, last + 1)
+            .join('\n')
+            .matchAll(/\/\/(.*)|\/\*([\s\S]*?)\*\//g),
+    ].map((m) => m[1] ?? m[2] ?? '');
+    for (let k = first - 1; k >= 0 && /^\s*\/\/(?![/!])/.test(lines[k] ?? ''); k--)
+        said.unshift((lines[k] ?? '').replace(/^\s*\/\//, ''));
+    return said.join(' ').replace(/\s+/g, ' ').trim();
 }

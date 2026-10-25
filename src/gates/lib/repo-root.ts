@@ -5,6 +5,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+/**
+ * @param [startDir] Where to start looking. Defaults to this file's directory,
+ *   which is inside the installed package — the walk still reaches the consuming repo.
+ * @returns The repository root.
+ */
+export function findRepoRoot(startDir: string = import.meta.dirname): string {
+    const found = walkUp(startDir, isWorkspaceRoot) ?? walkUp(startDir, isGitRoot);
+    if (found !== null) return found;
+    throw new Error(
+        `Could not locate the repository root above ${startDir} — no ancestor has a .git directory ` +
+            `or a package.json declaring "workspaces".`,
+    );
+}
+
 /** True when `dir` holds a package.json with a `workspaces` array — a monorepo root. */
 const isWorkspaceRoot = (dir: string) => {
     const manifest = path.join(dir, 'package.json');
@@ -28,20 +42,6 @@ const walkUp = (startDir: string, marker: (dir: string) => boolean): string | nu
         dir = parent;
     }
 };
-
-/**
- * @param [startDir] Where to start looking. Defaults to this file's directory,
- *   which is inside the installed package — the walk still reaches the consuming repo.
- * @returns The repository root.
- */
-export function findRepoRoot(startDir: string = import.meta.dirname): string {
-    const found = walkUp(startDir, isWorkspaceRoot) ?? walkUp(startDir, isGitRoot);
-    if (found !== null) return found;
-    throw new Error(
-        `Could not locate the repository root above ${startDir} — no ancestor has a .git directory ` +
-            `or a package.json declaring "workspaces".`,
-    );
-}
 
 /** Resolved from the CWD, not this file: the package may be installed outside the repo it lints. */
 export const REPO_ROOT: string = findRepoRoot(process.cwd());

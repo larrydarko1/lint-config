@@ -10,13 +10,13 @@ import path from 'node:path';
 import { parse as parseSfc } from '@vue/compiler-sfc';
 import ts from 'typescript';
 
+type TsconfigJson = { extends?: string | string[]; files?: string[] };
+
 /** Build output and dependencies: never a project, and too big to walk. */
 const SKIPPED_DIRS = new Set(['node_modules', 'out', 'dist', 'dist-electron', 'coverage']);
 
 /** How a `.vue` file is shown to TypeScript: `<file>.vue.ts`, which never exists on disk. */
 const VUE_SUFFIX = '.vue.ts';
-
-type TsconfigJson = { extends?: string | string[]; files?: string[] };
 
 /**
  * Every tsconfig that checks code: not a `files: []` solution file, and not a base
@@ -101,11 +101,12 @@ function vueScript(vuePath: string): string {
 function vueAwareHost(options: ts.CompilerOptions): ts.CompilerHost {
     const host = ts.createCompilerHost(options);
     const isVirtual = (f: string) => f.endsWith(VUE_SUFFIX);
-    const { fileExists, getSourceFile } = host;
-    host.fileExists = (f) => (isVirtual(f) ? fs.existsSync(f.slice(0, -3)) : fileExists.call(host, f));
+    const fileExists = host.fileExists.bind(host);
+    const getSourceFile = host.getSourceFile.bind(host);
+    host.fileExists = (f) => (isVirtual(f) ? fs.existsSync(f.slice(0, -3)) : fileExists(f));
     host.getSourceFile = (f, language, ...rest) =>
         isVirtual(f)
             ? ts.createSourceFile(f, vueScript(f.slice(0, -3)), language, true, ts.ScriptKind.TS)
-            : getSourceFile.call(host, f, language, ...rest);
+            : getSourceFile(f, language, ...rest);
     return host;
 }

@@ -25,7 +25,7 @@ const fakeContext = () => {
 
 const logFile = (lines) => {
     const file = path.join(mkdtempSync(path.join(tmpdir(), 'server-errors-')), 'api.log');
-    writeFileSync(file, lines.map((line) => JSON.stringify(line)).join('\n') + '\n');
+    writeFileSync(file, `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`);
     return file;
 };
 
@@ -107,7 +107,7 @@ test('a log line written after the response is still found', async () => {
 
     context.emit('http://localhost:5173/api/me', 500, { requestId: 'late' });
     setTimeout(
-        () => appendFileSync(file, JSON.stringify({ ...BASE, level: 50, requestId: 'late', msg: 'boom' }) + '\n'),
+        () => appendFileSync(file, `${JSON.stringify({ ...BASE, level: 50, requestId: 'late', msg: 'boom' })}\n`),
         150,
     );
 

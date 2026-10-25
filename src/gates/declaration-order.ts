@@ -26,8 +26,8 @@ import path from 'node:path';
 import { parse as parseSfc } from '@vue/compiler-sfc';
 import ts from 'typescript';
 
-import { repoFiles, walkFiles } from './lib/files.ts';
 import { createImportOrder, type ImportOrderOptions } from './import-order.ts';
+import { repoFiles, walkFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { inPlace } from './lib/sequence.ts';
 import { analyzeRust, checkRustImports, RUST_CATEGORIES, RUST_IMPORT_GROUPS } from './rust-order.ts';
@@ -98,6 +98,22 @@ type Analysis = {
     order?: number[];
 };
 
+/** Classifies a statement by AST shape. Zod schemas count as types; SCREAMING_SNAKE as constants even when computed. */
+
+type Profile = { categories: string[]; classify: (s: ts.Statement) => string; eager?: string };
+type Item = {
+    i: number;
+    cat: string;
+    name: string;
+    line: number;
+    decls: string[];
+    refs: Set<string>;
+    /** What it reads when it runs: a function's or a class's body. Empty for anything else. */
+    bodyRefs: Set<string>;
+    hoisted: boolean;
+    typeOnly: boolean;
+};
+
 /** The canonical order of a module's top-level statements. */
 export const CATEGORIES: string[] = [
     'imports',
@@ -114,348 +130,21 @@ export const CATEGORIES: string[] = [
 /** A test file's order. Separate from CATEGORIES, which would sort `vi.mock` last as a side effect. */
 export const TEST_CATEGORIES: string[] = ['imports', 'types', 'mocks', 'constants', 'helpers', 'hooks', 'tests'];
 
-/** Classifies a statement by AST shape. Zod schemas count as types; SCREAMING_SNAKE as constants even when computed. */
-
-type Profile = { categories: string[]; classify: (s: ts.Statement) => string; eager?: string };
-type Item = {
-    i: number;
-    cat: string;
-    name: string;
-    line: number;
-    decls: string[];
-    refs: Set<string>;
-    hoisted: boolean;
-    typeOnly: boolean;
-};
-
 const PRODUCTION_PROFILE: Profile = { categories: CATEGORIES, classify: (s) => classify(s) };
 
 /** `eager`: the category whose function bodies run at import (`vi.mock` / `vi.hoisted` factories). */
 const TEST_PROFILE: Profile = { categories: TEST_CATEGORIES, classify: (s) => classifyTest(s), eager: 'mocks' };
 
-/** A suite, or a module under `tests/` that supports one. */
-export const isTestPath = (rel: string): boolean =>
-    /(^|\/)(tests|__tests__)\//.test(rel) || /\.(test|spec)\.ts$/.test(rel);
-
-const profileFor = (rel: string): Profile => (isTestPath(rel) ? TEST_PROFILE : PRODUCTION_PROFILE);
-
 const MACROS = new Set(['defineProps', 'defineEmits', 'defineModel', 'defineSlots', 'defineExpose', 'withDefaults']);
-
-const isFnLike = (n: ts.Node | undefined): boolean =>
-    n !== undefined && (ts.isArrowFunction(n) || ts.isFunctionExpression(n));
-
-/** A literal-ish initializer: safe to call "constant" rather than "state". */
-function isConstantInit(n: ts.Node | undefined): boolean {
-    if (n === undefined) return false;
-    if (ts.isAsExpression(n)) return isConstantInit(n.expression);
-    if (ts.isLiteralExpression(n) || ts.isNumericLiteral(n) || ts.isStringLiteral(n)) return true;
-    if (
-        n.kind === ts.SyntaxKind.TrueKeyword ||
-        n.kind === ts.SyntaxKind.FalseKeyword ||
-        n.kind === ts.SyntaxKind.NullKeyword
-    )
-        return true;
-    if (ts.isNoSubstitutionTemplateLiteral(n) || ts.isRegularExpressionLiteral(n)) return true;
-    if (ts.isPrefixUnaryExpression(n)) return isConstantInit(n.operand);
-    if (ts.isArrayLiteralExpression(n)) return n.elements.every(isConstantInit);
-    if (ts.isObjectLiteralExpression(n))
-        return n.properties.every((p) => ts.isPropertyAssignment(p) && isConstantInit(p.initializer));
-    if (
-        ts.isNewExpression(n) &&
-        ts.isIdentifier(n.expression) &&
-        ['Set', 'Map', 'RegExp'].includes(n.expression.text)
-    ) {
-        return (n.arguments ?? []).every(isConstantInit);
-    }
-    return false;
-}
-
-/** The identifier a call/property chain is rooted at: `z.object({}).strict()` → `z`. */
-function rootIdentifier(n: ts.Node | undefined): string | null {
-    let e = n;
-    while (e !== undefined) {
-        if (ts.isAsExpression(e) || ts.isParenthesizedExpression(e)) e = e.expression;
-        else if (ts.isCallExpression(e) || ts.isPropertyAccessExpression(e)) e = e.expression;
-        else break;
-    }
-    return e !== undefined && ts.isIdentifier(e) ? e.text : null;
-}
-
-function callName(n: ts.Node | undefined): string | null {
-    let e = n;
-    if (e !== undefined && ts.isAsExpression(e)) e = e.expression;
-    if (e !== undefined && ts.isCallExpression(e)) {
-        if (ts.isIdentifier(e.expression)) return e.expression.text;
-        if (ts.isPropertyAccessExpression(e.expression)) return e.expression.name.text;
-    }
-    return null;
-}
-
-function classify(stmt: ts.Statement): string {
-    if (ts.isImportDeclaration(stmt) || ts.isImportEqualsDeclaration(stmt)) return 'imports';
-    if (ts.isExportDeclaration(stmt) && stmt.moduleSpecifier !== undefined) return 'imports';
-    if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt)) return 'types';
-    if (ts.isClassDeclaration(stmt)) return 'classes';
-    if (ts.isEnumDeclaration(stmt)) return 'constants';
-
-    const modifiers = ts.canHaveModifiers(stmt) ? ts.getModifiers(stmt) : undefined;
-    const exported = (modifiers ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
-
-    if (ts.isFunctionDeclaration(stmt)) return exported ? 'exported-fns' : 'private-fns';
-
-    if (ts.isVariableStatement(stmt)) {
-        const decls = stmt.declarationList.declarations;
-        if (decls.some((d) => MACROS.has(callName(d.initializer) ?? ''))) return 'contract';
-        if (decls.some((d) => isFnLike(d.initializer))) return exported ? 'exported-fns' : 'private-fns';
-        const isConst = (stmt.declarationList.flags & ts.NodeFlags.Const) !== 0;
-        // A Zod schema sits beside its `z.infer` type.
-        if (isConst && decls.some((d) => rootIdentifier(d.initializer) === 'z' || /Schema$/.test(d.name.getText())))
-            return 'types';
-        if (!isConst) return 'state';
-        // A reactive container or an explicit mutable holder is state whatever it is named.
-        const REACTIVE = new Set([
-            'ref',
-            'shallowRef',
-            'reactive',
-            'shallowReactive',
-            'computed',
-            'customRef',
-            'useTemplateRef',
-        ]);
-        if (decls.some((d) => REACTIVE.has(callName(d.initializer) ?? ''))) return 'state';
-        // SCREAMING_SNAKE is config even when computed.
-        const allShouty = decls.every((d) => ts.isIdentifier(d.name) && /^[A-Z][A-Z0-9_]*$/.test(d.name.text));
-        if (allShouty) return 'constants';
-        if (decls.every((d) => isConstantInit(d.initializer))) return 'constants';
-        return 'state';
-    }
-
-    if (ts.isExpressionStatement(stmt)) {
-        if (MACROS.has(callName(stmt.expression) ?? '')) return 'contract';
-        return 'side-effects';
-    }
-    return 'side-effects';
-}
 
 /** `vi.hoisted` belongs to the mock block: the factory reads its spies and Vitest hoists both. */
 const MOCK_CALLS = new Set(['mock', 'doMock', 'unmock', 'doUnmock', 'hoisted']);
 const HOOK_CALLS = new Set(['beforeEach', 'afterEach', 'beforeAll', 'afterAll']);
 const TEST_CALLS = new Set(['describe', 'it', 'test']);
 
-function classifyTest(stmt: ts.Statement): string {
-    if (ts.isImportDeclaration(stmt) || ts.isImportEqualsDeclaration(stmt)) return 'imports';
-    if (ts.isExportDeclaration(stmt) && stmt.moduleSpecifier !== undefined) return 'imports';
-    if (ts.isFunctionDeclaration(stmt)) return 'helpers';
-    // Types, enums and fake classes sit above the mocks that use them.
-    if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt)) return 'types';
-    if (ts.isClassDeclaration(stmt) || ts.isEnumDeclaration(stmt)) return 'types';
-
-    if (ts.isVariableStatement(stmt)) {
-        const decls = stmt.declarationList.declarations;
-        if (decls.some((d) => MOCK_CALLS.has(callName(d.initializer) ?? ''))) return 'mocks';
-        if (decls.some((d) => isFnLike(d.initializer))) return 'helpers';
-        // Everything else a suite declares is fixture data.
-        return 'constants';
-    }
-
-    if (ts.isExpressionStatement(stmt)) {
-        const call = callName(stmt.expression);
-        const root = rootIdentifier(stmt.expression);
-        if (root === 'vi' && MOCK_CALLS.has(call ?? '')) return 'mocks';
-        if (HOOK_CALLS.has(call ?? '')) return 'hooks';
-        // `describe.each([...])('…')` roots at `describe` but has no callName —
-        // its callee is itself a call — so the root is what identifies it.
-        if (TEST_CALLS.has(root ?? '')) return 'tests';
-        // Anything else running at load — `vi.useFakeTimers()`, `expect.extend()`,
-        // `enableAutoUnmount(afterEach)` — is setup, and setup precedes the tests.
-        return 'hooks';
-    }
-    return 'hooks';
-}
-
-/** Names a statement binds at module scope. */
-function declaredNames(stmt: ts.Statement): string[] {
-    const out: string[] = [];
-    const push = (n: ts.Node | undefined) => {
-        if (n !== undefined && ts.isIdentifier(n)) out.push(n.text);
-    };
-    if (ts.isFunctionDeclaration(stmt) || ts.isClassDeclaration(stmt)) push(stmt.name);
-    else if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt) || ts.isEnumDeclaration(stmt))
-        push(stmt.name);
-    else if (ts.isVariableStatement(stmt)) {
-        for (const d of stmt.declarationList.declarations) {
-            const collect = (name: ts.BindingName) => {
-                if (ts.isIdentifier(name)) out.push(name.text);
-                else if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
-                    for (const el of name.elements) if (ts.isBindingElement(el)) collect(el.name);
-                }
-            };
-            collect(d.name);
-        }
-    } else if (ts.isImportDeclaration(stmt)) {
-        const c = stmt.importClause;
-        if (c?.name !== undefined) out.push(c.name.text);
-        if (c?.namedBindings !== undefined) {
-            if (ts.isNamespaceImport(c.namedBindings)) out.push(c.namedBindings.name.text);
-            else for (const e of c.namedBindings.elements) out.push(e.name.text);
-        }
-    }
-    return out;
-}
-
-/**
- * Identifiers a statement evaluates AT LOAD TIME. Function/arrow bodies are skipped:
- * they run later, so a name they reference need not be declared above them.
- */
-function loadTimeRefs(stmt: ts.Statement, eager = false): Set<string> {
-    const out: Set<string> = new Set();
-    const isTypePos = (n: ts.Node) => {
-        let p: ts.Node | undefined = n.parent;
-        while (p !== undefined) {
-            if (ts.isTypeNode(p) || ts.isTypeAliasDeclaration(p) || ts.isInterfaceDeclaration(p)) return true;
-            if (ts.isExpression(p) || ts.isStatement(p)) return false;
-            p = p.parent;
-        }
-        return false;
-    };
-    const visit = (n: ts.Node) => {
-        const isFnNode =
-            ts.isFunctionDeclaration(n) ||
-            ts.isFunctionExpression(n) ||
-            ts.isArrowFunction(n) ||
-            ts.isMethodDeclaration(n) ||
-            ts.isGetAccessor(n) ||
-            ts.isSetAccessor(n);
-        // Skip the body; parameter defaults still evaluate at call time, not load.
-        // Unless `eager`: a mock factory's body IS load time (see TEST_PROFILE).
-        if (isFnNode && !eager) return;
-        if (ts.isIdentifier(n)) {
-            const p = n.parent;
-            const isPropName =
-                (ts.isPropertyAccessExpression(p) && p.name === n) || (ts.isPropertyAssignment(p) && p.name === n);
-            if (!isPropName && !isTypePos(n)) out.add(n.text);
-        }
-        ts.forEachChild(n, visit);
-    };
-    if (ts.isImportDeclaration(stmt) || ts.isImportEqualsDeclaration(stmt)) return out;
-    if (ts.isFunctionDeclaration(stmt) || ts.isClassDeclaration(stmt)) {
-        // A class body's heritage clause evaluates at load; methods do not.
-        if (ts.isClassDeclaration(stmt) && stmt.heritageClauses !== undefined) {
-            for (const h of stmt.heritageClauses) ts.forEachChild(h, visit);
-        }
-        return out;
-    }
-    ts.forEachChild(stmt, visit);
-    // A declaration does not reference itself: the binding name is not a read.
-    for (const d of declaredNames(stmt)) out.delete(d);
-    return out;
-}
-
-function nameOf(s: ts.Statement, sf: ts.SourceFile): string {
-    if (
-        ts.isFunctionDeclaration(s) ||
-        ts.isClassDeclaration(s) ||
-        ts.isInterfaceDeclaration(s) ||
-        ts.isTypeAliasDeclaration(s) ||
-        ts.isEnumDeclaration(s)
-    )
-        return s.name?.text ?? '';
-    if (ts.isVariableStatement(s)) return s.declarationList.declarations.map((d) => d.name.getText(sf)).join(', ');
-    if (ts.isImportDeclaration(s)) return s.moduleSpecifier.getText(sf).replace(/['"]/g, '');
-    return (s.getText(sf).split('\n')[0] ?? '').slice(0, 40);
-}
-
-/**
- * The canonical order for a module's statements, and which of them are misplaced.
- *
- * A topological sort (Kahn's) with an edge A→B when B reads, at load time, a binding
- * A declares, always taking the lowest (category, original position). Hoisted
- * functions and type-only declarations add no edges. `misplaced` is everything
- * outside the longest common subsequence of actual and ideal order, so one moved
- * statement is one problem.
- */
-function analyze(code: string, filename: string, profile: Profile = PRODUCTION_PROFILE): Analysis {
-    const sf = ts.createSourceFile(filename, code, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
-    const stmts = [...sf.statements];
-    if (stmts.length < 2) return { misplaced: [], count: stmts.length };
-
-    const rank = (c: string) => profile.categories.indexOf(c);
-    const items: Item[] = stmts.map((s, i) => {
-        const cat = profile.classify(s);
-        return {
-            i,
-            cat,
-            name: nameOf(s, sf),
-            line: sf.getLineAndCharacterOfPosition(s.getStart(sf)).line + 1,
-            decls: declaredNames(s),
-            refs: loadTimeRefs(s, profile.eager === cat),
-            hoisted: ts.isFunctionDeclaration(s),
-            typeOnly: ts.isInterfaceDeclaration(s) || ts.isTypeAliasDeclaration(s),
-        };
-    });
-
-    const declaredBy: Map<string, Item> = new Map();
-    for (const it of items) {
-        if (it.hoisted || it.typeOnly) continue;
-        for (const d of it.decls) if (!declaredBy.has(d)) declaredBy.set(d, it);
-    }
-
-    // Every item is put in both maps here, so `edges` cannot miss.
-    const deps: Map<Item, Set<Item>> = new Map(items.map((it) => [it, new Set()]));
-    const dependents: Map<Item, Set<Item>> = new Map(items.map((it) => [it, new Set()]));
-    const edges = (graph: Map<Item, Set<Item>>, it: Item): Set<Item> => {
-        const set = graph.get(it);
-        if (set === undefined) throw new Error(`declaration-order: "${it.name}" is missing from the graph`);
-        return set;
-    };
-    for (const it of items) {
-        for (const r of it.refs) {
-            const src = declaredBy.get(r);
-            if (src !== undefined && src !== it) {
-                edges(deps, it).add(src);
-                edges(dependents, src).add(it);
-            }
-        }
-    }
-
-    const indegree = new Map(items.map((it) => [it, edges(deps, it).size]));
-    const ready = items.filter((it) => indegree.get(it) === 0);
-    const ideal: Item[] = [];
-    for (;;) {
-        ready.sort((a, b) => {
-            const byRank = rank(a.cat) - rank(b.cat);
-            return byRank !== 0 ? byRank : a.i - b.i;
-        });
-        const next = ready.shift();
-        if (next === undefined) break;
-        ideal.push(next);
-        for (const d of edges(dependents, next)) {
-            const left = (indegree.get(d) ?? 0) - 1;
-            indegree.set(d, left);
-            if (left === 0) ready.push(d);
-        }
-    }
-    // A cycle cannot be ordered; leave the module alone rather than guess.
-    if (ideal.length !== items.length) return { misplaced: [], count: items.length, cycle: true };
-
-    const keep = inPlace(
-        items.map((it) => it.i),
-        ideal.map((it) => it.i),
-    );
-
-    const misplaced: Misplaced[] = [];
-    for (const [p, it] of ideal.entries()) {
-        if (keep.has(it.i)) continue;
-        const after = p > 0 ? ideal[p - 1] : undefined;
-        misplaced.push({
-            cat: it.cat,
-            name: it.name,
-            line: it.line,
-            belongsAfter: after !== undefined ? `${after.cat} "${after.name}"` : 'the top of the module',
-        });
-    }
-    return { misplaced, count: items.length, order: ideal.map((it) => it.i) };
-}
+/** A suite, or a module under `tests/` that supports one. */
+export const isTestPath = (rel: string): boolean =>
+    /(^|\/)(tests|__tests__)\//.test(rel) || /\.(test|spec)\.ts$/.test(rel);
 
 /** Reads a file (unwrapping an SFC's <script setup>) and analyses it. */
 export function analyzeFile(rel: string, root: string, profile: Profile = profileFor(rel)): Analysis | null {
@@ -626,4 +315,356 @@ export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
             `${counts.statements} top-level statements, all in canonical order (or held by a load-time dependency); ` +
             `${counts.imports} imports grouped and sorted.${rust}`,
     );
+}
+
+const profileFor = (rel: string): Profile => (isTestPath(rel) ? TEST_PROFILE : PRODUCTION_PROFILE);
+
+const isFnLike = (n: ts.Node | undefined): boolean =>
+    n !== undefined && (ts.isArrowFunction(n) || ts.isFunctionExpression(n));
+
+/** A literal-ish initializer: safe to call "constant" rather than "state". */
+function isConstantInit(n: ts.Node | undefined): boolean {
+    if (n === undefined) return false;
+    if (ts.isAsExpression(n)) return isConstantInit(n.expression);
+    if (ts.isLiteralExpression(n) || ts.isNumericLiteral(n) || ts.isStringLiteral(n)) return true;
+    if (
+        n.kind === ts.SyntaxKind.TrueKeyword ||
+        n.kind === ts.SyntaxKind.FalseKeyword ||
+        n.kind === ts.SyntaxKind.NullKeyword
+    )
+        return true;
+    if (ts.isNoSubstitutionTemplateLiteral(n) || ts.isRegularExpressionLiteral(n)) return true;
+    if (ts.isPrefixUnaryExpression(n)) return isConstantInit(n.operand);
+    if (ts.isArrayLiteralExpression(n)) return n.elements.every(isConstantInit);
+    if (ts.isObjectLiteralExpression(n))
+        return n.properties.every((p) => ts.isPropertyAssignment(p) && isConstantInit(p.initializer));
+    if (
+        ts.isNewExpression(n) &&
+        ts.isIdentifier(n.expression) &&
+        ['Set', 'Map', 'RegExp'].includes(n.expression.text)
+    ) {
+        return (n.arguments ?? []).every(isConstantInit);
+    }
+    return false;
+}
+
+/** The identifier a call/property chain is rooted at: `z.object({}).strict()` → `z`. */
+function rootIdentifier(n: ts.Node | undefined): string | null {
+    let e = n;
+    while (e !== undefined) {
+        if (ts.isAsExpression(e) || ts.isParenthesizedExpression(e)) e = e.expression;
+        else if (ts.isCallExpression(e) || ts.isPropertyAccessExpression(e)) e = e.expression;
+        else break;
+    }
+    return e !== undefined && ts.isIdentifier(e) ? e.text : null;
+}
+
+function callName(n: ts.Node | undefined): string | null {
+    let e = n;
+    if (e !== undefined && ts.isAsExpression(e)) e = e.expression;
+    if (e !== undefined && ts.isCallExpression(e)) {
+        if (ts.isIdentifier(e.expression)) return e.expression.text;
+        if (ts.isPropertyAccessExpression(e.expression)) return e.expression.name.text;
+    }
+    return null;
+}
+
+function classify(stmt: ts.Statement): string {
+    if (ts.isImportDeclaration(stmt) || ts.isImportEqualsDeclaration(stmt)) return 'imports';
+    if (ts.isExportDeclaration(stmt) && stmt.moduleSpecifier !== undefined) return 'imports';
+    if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt)) return 'types';
+    if (ts.isClassDeclaration(stmt)) return 'classes';
+    if (ts.isEnumDeclaration(stmt)) return 'constants';
+
+    const modifiers = ts.canHaveModifiers(stmt) ? ts.getModifiers(stmt) : undefined;
+    const exported = (modifiers ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+
+    if (ts.isFunctionDeclaration(stmt)) return exported ? 'exported-fns' : 'private-fns';
+
+    if (ts.isVariableStatement(stmt)) {
+        const decls = stmt.declarationList.declarations;
+        if (decls.some((d) => MACROS.has(callName(d.initializer) ?? ''))) return 'contract';
+        if (decls.some((d) => isFnLike(d.initializer))) return exported ? 'exported-fns' : 'private-fns';
+        const isConst = (stmt.declarationList.flags & ts.NodeFlags.Const) !== 0;
+        // A Zod schema sits beside its `z.infer` type.
+        if (isConst && decls.some((d) => rootIdentifier(d.initializer) === 'z' || d.name.getText().endsWith('Schema')))
+            return 'types';
+        if (!isConst) return 'state';
+        // A reactive container or an explicit mutable holder is state whatever it is named.
+        const REACTIVE = new Set([
+            'ref',
+            'shallowRef',
+            'reactive',
+            'shallowReactive',
+            'computed',
+            'customRef',
+            'useTemplateRef',
+        ]);
+        if (decls.some((d) => REACTIVE.has(callName(d.initializer) ?? ''))) return 'state';
+        // SCREAMING_SNAKE is config even when computed.
+        const allShouty = decls.every((d) => ts.isIdentifier(d.name) && /^[A-Z][A-Z0-9_]*$/.test(d.name.text));
+        if (allShouty) return 'constants';
+        if (decls.every((d) => isConstantInit(d.initializer))) return 'constants';
+        return 'state';
+    }
+
+    if (ts.isExpressionStatement(stmt)) {
+        if (MACROS.has(callName(stmt.expression) ?? '')) return 'contract';
+        return 'side-effects';
+    }
+    return 'side-effects';
+}
+
+function classifyTest(stmt: ts.Statement): string {
+    if (ts.isImportDeclaration(stmt) || ts.isImportEqualsDeclaration(stmt)) return 'imports';
+    if (ts.isExportDeclaration(stmt) && stmt.moduleSpecifier !== undefined) return 'imports';
+    if (ts.isFunctionDeclaration(stmt)) return 'helpers';
+    // Types, enums and fake classes sit above the mocks that use them.
+    if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt)) return 'types';
+    if (ts.isClassDeclaration(stmt) || ts.isEnumDeclaration(stmt)) return 'types';
+
+    if (ts.isVariableStatement(stmt)) {
+        const decls = stmt.declarationList.declarations;
+        if (decls.some((d) => MOCK_CALLS.has(callName(d.initializer) ?? ''))) return 'mocks';
+        if (decls.some((d) => isFnLike(d.initializer))) return 'helpers';
+        // Everything else a suite declares is fixture data.
+        return 'constants';
+    }
+
+    if (ts.isExpressionStatement(stmt)) {
+        const call = callName(stmt.expression);
+        const root = rootIdentifier(stmt.expression);
+        if (root === 'vi' && MOCK_CALLS.has(call ?? '')) return 'mocks';
+        if (HOOK_CALLS.has(call ?? '')) return 'hooks';
+        // `describe.each([...])('…')` roots at `describe` but has no callName —
+        // its callee is itself a call — so the root is what identifies it.
+        if (TEST_CALLS.has(root ?? '')) return 'tests';
+        // Anything else running at load — `vi.useFakeTimers()`, `expect.extend()`,
+        // `enableAutoUnmount(afterEach)` — is setup, and setup precedes the tests.
+        return 'hooks';
+    }
+    return 'hooks';
+}
+
+/** Names a statement binds at module scope. */
+function declaredNames(stmt: ts.Statement): string[] {
+    const out: string[] = [];
+    const push = (n: ts.Node | undefined) => {
+        if (n !== undefined && ts.isIdentifier(n)) out.push(n.text);
+    };
+    if (ts.isFunctionDeclaration(stmt) || ts.isClassDeclaration(stmt)) push(stmt.name);
+    else if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt) || ts.isEnumDeclaration(stmt))
+        push(stmt.name);
+    else if (ts.isVariableStatement(stmt)) {
+        for (const d of stmt.declarationList.declarations) {
+            const collect = (name: ts.BindingName) => {
+                if (ts.isIdentifier(name)) out.push(name.text);
+                else if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+                    for (const el of name.elements) if (ts.isBindingElement(el)) collect(el.name);
+                }
+            };
+            collect(d.name);
+        }
+    } else if (ts.isImportDeclaration(stmt)) {
+        const c = stmt.importClause;
+        if (c?.name !== undefined) out.push(c.name.text);
+        if (c?.namedBindings !== undefined) {
+            if (ts.isNamespaceImport(c.namedBindings)) out.push(c.namedBindings.name.text);
+            else for (const e of c.namedBindings.elements) out.push(e.name.text);
+        }
+    }
+    return out;
+}
+
+/**
+ * Identifiers a statement evaluates AT LOAD TIME. Function/arrow bodies are skipped:
+ * they run later, so a name they reference need not be declared above them.
+ */
+function loadTimeRefs(stmt: ts.Statement, eager = false): Set<string> {
+    const out = new Set<string>();
+    const isTypePos = (n: ts.Node) => {
+        let p: ts.Node | undefined = n.parent;
+        while (p !== undefined) {
+            if (ts.isTypeNode(p) || ts.isTypeAliasDeclaration(p) || ts.isInterfaceDeclaration(p)) return true;
+            if (ts.isExpression(p) || ts.isStatement(p)) return false;
+            p = p.parent;
+        }
+        return false;
+    };
+    const visit = (n: ts.Node) => {
+        const isFnNode =
+            ts.isFunctionDeclaration(n) ||
+            ts.isFunctionExpression(n) ||
+            ts.isArrowFunction(n) ||
+            ts.isMethodDeclaration(n) ||
+            ts.isGetAccessor(n) ||
+            ts.isSetAccessor(n);
+        // Skip the body; parameter defaults still evaluate at call time, not load.
+        // Unless `eager`: a mock factory's body IS load time (see TEST_PROFILE).
+        if (isFnNode && !eager) return;
+        if (ts.isIdentifier(n)) {
+            const p = n.parent;
+            const isPropName =
+                (ts.isPropertyAccessExpression(p) && p.name === n) || (ts.isPropertyAssignment(p) && p.name === n);
+            if (!isPropName && !isTypePos(n)) out.add(n.text);
+        }
+        ts.forEachChild(n, visit);
+    };
+    if (ts.isImportDeclaration(stmt) || ts.isImportEqualsDeclaration(stmt)) return out;
+    if (ts.isFunctionDeclaration(stmt) || ts.isClassDeclaration(stmt)) {
+        // A class body's heritage clause evaluates at load; methods do not.
+        if (ts.isClassDeclaration(stmt) && stmt.heritageClauses !== undefined) {
+            for (const h of stmt.heritageClauses) ts.forEachChild(h, visit);
+        }
+        return out;
+    }
+    ts.forEachChild(stmt, visit);
+    // A declaration does not reference itself: the binding name is not a read.
+    for (const d of declaredNames(stmt)) out.delete(d);
+    return out;
+}
+
+/**
+ * Identifiers a function, class or arrow declaration reads when it runs: its whole
+ * body, nested callbacks included. Over-approximate on purpose (a local that shadows a
+ * module binding still counts): a dependency too many can only keep a statement where
+ * it is, and one too few moves it into its TDZ.
+ */
+function bodyRefs(stmt: ts.Statement): Set<string> {
+    const callable =
+        ts.isFunctionDeclaration(stmt) ||
+        ts.isClassDeclaration(stmt) ||
+        (ts.isVariableStatement(stmt) && stmt.declarationList.declarations.some((d) => isFnLike(d.initializer)));
+    if (!callable) return new Set();
+    const out = new Set<string>();
+    const visit = (n: ts.Node): void => {
+        if (ts.isIdentifier(n) && !(ts.isPropertyAccessExpression(n.parent) && n.parent.name === n)) out.add(n.text);
+        ts.forEachChild(n, visit);
+    };
+    ts.forEachChild(stmt, visit);
+    for (const d of declaredNames(stmt)) out.delete(d);
+    return out;
+}
+
+/** Adds to `it.refs` what each function it reads would read when called, and so on down. */
+function readThroughCalls(it: Item, runs: Map<string, Set<string>>): void {
+    const queue = [...it.refs];
+    for (let r = queue.pop(); r !== undefined; r = queue.pop()) {
+        const reached = [...(runs.get(r) ?? [])].filter((name) => !it.refs.has(name) && !it.decls.includes(name));
+        for (const name of reached) it.refs.add(name);
+        queue.push(...reached);
+    }
+}
+
+function nameOf(s: ts.Statement, sf: ts.SourceFile): string {
+    if (
+        ts.isFunctionDeclaration(s) ||
+        ts.isClassDeclaration(s) ||
+        ts.isInterfaceDeclaration(s) ||
+        ts.isTypeAliasDeclaration(s) ||
+        ts.isEnumDeclaration(s)
+    )
+        return s.name?.text ?? '';
+    if (ts.isVariableStatement(s)) return s.declarationList.declarations.map((d) => d.name.getText(sf)).join(', ');
+    if (ts.isImportDeclaration(s)) return s.moduleSpecifier.getText(sf).replace(/['"]/g, '');
+    return (s.getText(sf).split('\n')[0] ?? '').slice(0, 40);
+}
+
+/**
+ * The canonical order for a module's statements, and which of them are misplaced.
+ *
+ * A topological sort (Kahn's) with an edge A→B when B reads, at load time, a binding
+ * A declares, always taking the lowest (category, original position). Hoisted
+ * functions and type-only declarations add no edges. `misplaced` is everything
+ * outside the longest common subsequence of actual and ideal order, so one moved
+ * statement is one problem.
+ */
+function analyze(code: string, filename: string, profile: Profile = PRODUCTION_PROFILE): Analysis {
+    const sf = ts.createSourceFile(filename, code, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
+    const stmts = [...sf.statements];
+    if (stmts.length < 2) return { misplaced: [], count: stmts.length };
+
+    const rank = (c: string) => profile.categories.indexOf(c);
+    const items: Item[] = stmts.map((s, i) => {
+        const cat = profile.classify(s);
+        return {
+            i,
+            cat,
+            name: nameOf(s, sf),
+            line: sf.getLineAndCharacterOfPosition(s.getStart(sf)).line + 1,
+            decls: declaredNames(s),
+            refs: loadTimeRefs(s, profile.eager === cat),
+            bodyRefs: bodyRefs(s),
+            hoisted: ts.isFunctionDeclaration(s),
+            typeOnly: ts.isInterfaceDeclaration(s) || ts.isTypeAliasDeclaration(s),
+        };
+    });
+
+    const declaredBy = new Map<string, Item>();
+    for (const it of items) {
+        if (it.hoisted || it.typeOnly) continue;
+        for (const d of it.decls) if (!declaredBy.has(d)) declaredBy.set(d, it);
+    }
+
+    // A call at load time runs the callee's body at load time too, hoisted or not:
+    // `const ROOT = find()` reads everything `find` reads, and what that calls, and so on.
+    const runs = new Map<string, Set<string>>();
+    for (const it of items) for (const d of it.decls) if (it.bodyRefs.size > 0) runs.set(d, it.bodyRefs);
+    for (const it of items) readThroughCalls(it, runs);
+
+    // Every item is put in both maps here, so `edges` cannot miss.
+    const deps = new Map<Item, Set<Item>>(items.map((it) => [it, new Set()]));
+    const dependents = new Map<Item, Set<Item>>(items.map((it) => [it, new Set()]));
+    const edges = (graph: Map<Item, Set<Item>>, it: Item): Set<Item> => {
+        const set = graph.get(it);
+        if (set === undefined) throw new Error(`declaration-order: "${it.name}" is missing from the graph`);
+        return set;
+    };
+    for (const it of items) {
+        for (const r of it.refs) {
+            const src = declaredBy.get(r);
+            if (src !== undefined && src !== it) {
+                edges(deps, it).add(src);
+                edges(dependents, src).add(it);
+            }
+        }
+    }
+
+    const indegree = new Map(items.map((it) => [it, edges(deps, it).size]));
+    const ready = items.filter((it) => indegree.get(it) === 0);
+    const ideal: Item[] = [];
+    for (;;) {
+        ready.sort((a, b) => {
+            const byRank = rank(a.cat) - rank(b.cat);
+            return byRank !== 0 ? byRank : a.i - b.i;
+        });
+        const next = ready.shift();
+        if (next === undefined) break;
+        ideal.push(next);
+        for (const d of edges(dependents, next)) {
+            const left = (indegree.get(d) ?? 0) - 1;
+            indegree.set(d, left);
+            if (left === 0) ready.push(d);
+        }
+    }
+    // A cycle cannot be ordered; leave the module alone rather than guess.
+    if (ideal.length !== items.length) return { misplaced: [], count: items.length, cycle: true };
+
+    const keep = inPlace(
+        items.map((it) => it.i),
+        ideal.map((it) => it.i),
+    );
+
+    const misplaced: Misplaced[] = [];
+    for (const [p, it] of ideal.entries()) {
+        if (keep.has(it.i)) continue;
+        const after = p > 0 ? ideal[p - 1] : undefined;
+        misplaced.push({
+            cat: it.cat,
+            name: it.name,
+            line: it.line,
+            belongsAfter: after !== undefined ? `${after.cat} "${after.name}"` : 'the top of the module',
+        });
+    }
+    return { misplaced, count: items.length, order: ideal.map((it) => it.i) };
 }

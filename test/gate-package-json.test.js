@@ -40,7 +40,7 @@ test('a clean manifest has no problems', (t) => {
 
 // ── 1. Required metadata ────────────────────────────────────────────────────
 test('a missing required field fails', (t) => {
-    const { description, ...rest } = GOOD;
+    const { description: _description, ...rest } = GOOD;
     const result = run(t, { 'package.json': manifest(rest) });
     assert.match(whats(result), /is missing the required field `description`/);
 });
@@ -153,6 +153,24 @@ test('an allowlisted package on `^` fails, and the reason is the message', (t) =
     );
     assert.match(whats(result), /it is on the `~` allowlist/);
     assert.equal(result.problems[0].why, 'minors introduce type errors');
+});
+
+test('in a field pinned exactly, an exact version passes and anything looser fails with the reason', (t) => {
+    const why = 'the lockfile never reaches the projects';
+    const dependencies = { eslint: '10.13.0', prettier: '^3.9.10', knip: '6.x', typescript: '~6.0.2' };
+    const result = run(
+        t,
+        { 'package.json': manifest({ ...GOOD, dependencies, devDependencies: { vue: '^3.5.0' } }) },
+        { exactFields: { dependencies: why }, tildeAllowed: { typescript: 'the compiler' } },
+    );
+    assert.deepEqual(
+        result.problems.map(({ what }) => what),
+        [
+            'dependencies.prettier is "^3.9.10", in a field pinned exactly',
+            'dependencies.knip is "6.x", in a field pinned exactly',
+        ],
+    );
+    assert.ok(result.problems.every((p) => p.why === why));
 });
 
 test('a `^` range passes', (t) => {

@@ -22,12 +22,6 @@ export { tsSourceSelectors } from '../rules/typescript.ts';
 export { noStoreLibraryPatterns, noToastLibraryPatterns, aliasOnlyImportPatterns } from '../rules/vue.ts';
 export { functionContractsPlugin } from '../rules/function-contracts.ts';
 
-/** The components, and everything that runs in the app. */
-const { vue, browser: app, tests: TESTS } = PRESETS.spa;
-/** The app's own code: what ships. */
-const SOURCE = ['src/**/*.{ts,vue}'];
-const E2E = ['e2e/**/*.ts'];
-
 export type SpaStandardsOptions = {
     /** See rules/security.ts — `vHtmlAllowed`. */
     security?: SecurityOptions;
@@ -43,6 +37,12 @@ export type SpaStandardsOptions = {
     /** See rules/i18n.ts. Pass `false` for a single-language app. */
     i18n?: I18nOptions | false;
 };
+/** The app's own code: what ships. */
+const SOURCE = ['src/**/*.{ts,vue}'];
+const E2E = ['e2e/**/*.ts'];
+
+/** The components, and everything that runs in the app. */
+const { vue, browser: app, tests: TESTS } = PRESETS.spa;
 
 export function spaStandards(options: SpaStandardsOptions = {}) {
     const { security, logging = {}, html, refactoring, i18n } = options;

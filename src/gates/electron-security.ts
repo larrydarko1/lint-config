@@ -1,6 +1,6 @@
 /**
  * The process-model invariants of a desktop app:
- * ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– 
+ * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1.  contextIsolation, nodeIntegration and sandbox set safely on every window.
  *   2.  No banned webPreferences (webviewTag, allowRunningInsecureContent,
  *       experimentalFeatures, enableRemoteModule, nodeIntegrationInWorker/SubFrames,
@@ -28,7 +28,14 @@ import path from 'node:path';
 import { walkFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './lib/report.ts';
-import { callSites, declaredBody, functionParts, propertyValue, splitTopLevel, type FunctionParts } from './lib/source.ts';
+import {
+    callSites,
+    declaredBody,
+    functionParts,
+    propertyValue,
+    splitTopLevel,
+    type FunctionParts,
+} from './lib/source.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
 export type ElectronSecurityOptions = Omit<ElectronSecurityInput, 'root'> & {
@@ -150,252 +157,6 @@ const TLS_OVERRIDES = [
     /NODE_TLS_REJECT_UNAUTHORIZED/,
     /rejectUnauthorized\s*:\s*false/,
 ];
-
-const lineAt = (code: string, index: number): number => code.slice(0, index).split('\n').length;
-
-/** The offset just inside the innermost function body containing `index` (control blocks walked through); `0` at top level. */
-function enclosingFunctionStart(code: string, index: number): number {
-    let depth = 0;
-    for (let j = index - 1; j >= 0; j--) {
-        const ch = code[j];
-        if (ch === '}') depth++;
-        else if (ch === '{') {
-            if (depth > 0) {
-                depth--;
-                continue;
-            }
-            const before = code.slice(0, j).trimEnd();
-            if (before.endsWith('=>')) return j + 1;
-            // A return-type annotation sits between the parameters and the body.
-            const typed = /\)\s*:\s*[\w$.<>[\]|&\s,'"]*$/.exec(before);
-            const close = typed !== null ? typed.index : before.endsWith(')') ? before.length - 1 : -1;
-            if (close === -1) continue;
-            let parens = 0;
-            let k = close;
-            for (; k >= 0; k--) {
-                if (before[k] === ')') parens++;
-                else if (before[k] === '(' && --parens === 0) break;
-            }
-            const keyword = /([\w$]+)\s*$/.exec(before.slice(0, Math.max(0, k)))?.[1] ?? '';
-            if (!['if', 'for', 'while', 'switch', 'catch', 'with'].includes(keyword)) return j + 1;
-        }
-    }
-    return 0;
-}
-
-/**
- * The interpolated expressions of a template literal, `${a} and ${b(c)}` → `['a', 'b(c)']`.
- * @param template The literal including its backticks.
- */
-function interpolations(template: string): string[] {
-    const found: string[] = [];
-    for (let j = 1; j < template.length - 1; j++) {
-        if (template[j] === '\\') {
-            j++;
-            continue;
-        }
-        if (template[j] !== '$' || template[j + 1] !== '{') continue;
-        let depth = 0;
-        const start = j + 2;
-        for (j += 1; j < template.length; j++) {
-            if (template[j] === '{') depth++;
-            else if (template[j] === '}' && --depth === 0) break;
-        }
-        found.push(template.slice(start, j).trim());
-    }
-    return found;
-}
-
-/**
- * The branches of a top-level `a ? b : c`, or `null` when `expr` is not one.
- * `?.` and `??` are not the conditional operator.
- */
-function ternaryBranches(expr: string): [string, string] | null {
-    const parts = splitTopLevel(
-        expr.replace(/\?\?|\?\./g, (m) => (m === '??' ? '\u0001\u0001' : '\u0002.')),
-        '?',
-    );
-    if (parts.length < 2) return null;
-    const rest = parts.slice(1).join('?');
-    const branches = splitTopLevel(rest, ':');
-    if (branches.length !== 2) return null;
-    const restore = (s: string) => s.replace(/\u0001\u0001/g, '??').replace(/\u0002\./g, '?.');
-    return [restore(branches[0] ?? ''), restore(branches[1] ?? '')];
-}
-
-/**
- * The right-hand side of the nearest `const|let|var name =` before `index`.
- *
- * @param constOnly A `let` can be reassigned after the line this reads.
- */
-function boundValue(code: string, name: string, index: number, constOnly: boolean): string | null {
-    const re = new RegExp(
-        String.raw`(?:^|[^\w$.])(${constOnly ? 'const' : 'const|let|var'})\s+${name}\s*(?::[^=]+)?=(?!=)`,
-        'g',
-    );
-    let last = -1;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(code)) !== null && m.index < index) last = m.index + m[0].length;
-    if (last === -1) {
-        // Declared after the use is still a declaration when it is a module-level const.
-        re.lastIndex = 0;
-        m = re.exec(code);
-        if (m === null) return null;
-        last = m.index + m[0].length;
-    }
-    const tail = code.slice(last);
-    const end = statementEnd(tail);
-    return tail.slice(0, end).trim();
-}
-
-/**
- * Where the statement starting at the beginning of `text` ends: the first `;`
- * at depth zero, or an unmatched closing bracket.
- */
-function statementEnd(text: string): number {
-    let depth = 0;
-    for (let j = 0; j < text.length; j++) {
-        const ch = text[j];
-        if (ch === "'" || ch === '"' || ch === '`') {
-            const quote = ch;
-            for (j += 1; j < text.length && text[j] !== quote; j++) if (text[j] === '\\') j++;
-            if (quote === '`') {
-                // A template may hold `${…}` with its own backticks; re-scan it properly.
-                const start = text.lastIndexOf('`', j - 1);
-                j = templateEnd(text, start === -1 ? j : start);
-            }
-        } else if (ch === '(' || ch === '{' || ch === '[') depth++;
-        else if (ch === ')' || ch === '}' || ch === ']') {
-            if (depth === 0) return j;
-            depth--;
-        } else if (ch === ';' && depth === 0) return j;
-    }
-    return text.length;
-}
-
-/**
- * @param start Offset of the opening backtick.
- * @returns Offset of the closing backtick.
- */
-function templateEnd(text: string, start: number): number {
-    for (let j = start + 1; j < text.length; j++) {
-        if (text[j] === '\\') j++;
-        else if (text[j] === '`') return j;
-        else if (text[j] === '$' && text[j + 1] === '{') {
-            let depth = 0;
-            for (j += 1; j < text.length; j++) {
-                if (text[j] === '`') j = templateEnd(text, j);
-                else if (text[j] === '{') depth++;
-                else if (text[j] === '}' && --depth === 0) break;
-            }
-        }
-    }
-    return text.length;
-}
-
-function unwrap(expr: string): string {
-    let e = expr.trim();
-    while (e.startsWith('(') && e.endsWith(')') && splitTopLevel(e.slice(1, -1), ',').length <= 1) {
-        const inner = e.slice(1, -1);
-        let depth = 0;
-        let balanced = true;
-        for (const ch of inner) {
-            if (ch === '(') depth++;
-            else if (ch === ')' && --depth < 0) balanced = false;
-        }
-        if (!balanced) break;
-        e = inner.trim();
-    }
-    return e;
-}
-
-const isStringLiteral = (e: string) => /^(['"])(?:\\.|(?!\1).)*\1$/s.test(e);
-const isTemplate = (e: string) => e.startsWith('`') && templateEnd(e, 0) === e.length - 1;
-const isIdentifier = (e: string) => /^[A-Za-z_$][\w$]*$/.test(e);
-
-/**
- * The first piece of `expr` that is not known-safe HTML, or `null`. Safe: a string
- * literal, a template of safe parts, a whole-expression sanitizer call, a number, or
- * a `const` in this file bound to something safe.
- *
- * @param seen Names followed on this path: a cycle guard, not a cache.
- */
-function unsafeHtml(expr: string, code: string, index: number, sanitizer: RegExp, seen: Set<string>): string | null {
-    const e = unwrap(expr);
-    if (e === '' || isStringLiteral(e) || /^-?\d/.test(e)) return null;
-    const ternary = ternaryBranches(e);
-    if (ternary !== null) {
-        for (const branch of ternary) {
-            const bad = unsafeHtml(branch, code, index, sanitizer, seen);
-            if (bad !== null) return bad;
-        }
-        return null;
-    }
-    const sum = splitTopLevel(e.replace(/\+\+|\+=/g, '\u0003'), '+');
-    if (sum.length > 1) {
-        for (const part of sum) {
-            const bad = unsafeHtml(part, code, index, sanitizer, seen);
-            if (bad !== null) return bad;
-        }
-        return null;
-    }
-    if (isTemplate(e)) {
-        for (const inner of interpolations(e)) {
-            const bad = unsafeHtml(inner, code, index, sanitizer, seen);
-            if (bad !== null) return bad;
-        }
-        return null;
-    }
-    const call = sanitizer.exec(e);
-    if (call !== null && callSites(e, e.slice(0, call[0].length))[0]?.end === e.length - 1) return null;
-    if (isIdentifier(e) && !seen.has(e)) {
-        const value = boundValue(code, e, index, true);
-        if (value !== null) return unsafeHtml(value, code, index, sanitizer, new Set([...seen, e]));
-    }
-    return e;
-}
-
-/**
- * The first piece of a RegExp source that is not a literal or escaped value, or
- * `null`. Escaped: the variable's declaration runs the escape, directly or via a local function.
- */
-function unescapedRegex(expr: string, code: string, index: number, seen: Set<string>): string | null {
-    const e = unwrap(expr);
-    if (e === '' || isStringLiteral(e) || /^\/.+\/[a-z]*$/s.test(e) || /\.source$/.test(e)) return null;
-    const sum = splitTopLevel(e, '+');
-    if (sum.length > 1) {
-        for (const part of sum) {
-            const bad = unescapedRegex(part, code, index, seen);
-            if (bad !== null) return bad;
-        }
-        return null;
-    }
-    if (isTemplate(e)) {
-        for (const inner of interpolations(e)) {
-            const bad = unescapedRegex(inner, code, index, seen);
-            if (bad !== null) return bad;
-        }
-        return null;
-    }
-    if (REGEX_ESCAPE.test(e)) return null;
-    const helper = /^([A-Za-z_$][\w$]*)\s*\(/.exec(e)?.[1];
-    if (helper !== undefined && REGEX_ESCAPE.test(declaredBody(code, helper))) return null;
-    if (isIdentifier(e) && !seen.has(e)) {
-        const value = boundValue(code, e, index, false);
-        if (value !== null) return unescapedRegex(value, code, index, new Set([...seen, e]));
-    }
-    return e;
-}
-
-/**
- * The handler function passed as the argument after a leading channel/event
- * string, e.g. the arrow in `on('will-navigate', (event, url) => {…})`.
- */
-function handlerAfterName(args: string): FunctionParts | null {
-    const parts = splitTopLevel(args, ',');
-    const fn = parts.slice(1).join(', ');
-    return functionParts(fn);
-}
 
 export function inspectElectronSecurity({
     root,
@@ -768,4 +529,250 @@ export function checkElectronSecurity({ root = REPO_ROOT, ...rest }: ElectronSec
         notMachineChecked:
             'Whether a v-html or sanitizer reason is still true, whether a permission allowlist grants the right permission, whether a guard before openExternal covers the path the call actually takes, whether a boundary check is correct (its unit tests own that), and anything only observable at runtime — a window a library opens, or a navigation Chromium starts itself.',
     });
+}
+
+const lineAt = (code: string, index: number): number => code.slice(0, index).split('\n').length;
+
+/** The offset just inside the innermost function body containing `index` (control blocks walked through); `0` at top level. */
+function enclosingFunctionStart(code: string, index: number): number {
+    let depth = 0;
+    for (let j = index - 1; j >= 0; j--) {
+        const ch = code[j];
+        if (ch === '}') depth++;
+        else if (ch === '{') {
+            if (depth > 0) {
+                depth--;
+                continue;
+            }
+            const before = code.slice(0, j).trimEnd();
+            if (before.endsWith('=>')) return j + 1;
+            // A return-type annotation sits between the parameters and the body.
+            const typed = /\)\s*:\s*[\w$.<>[\]|&\s,'"]*$/.exec(before);
+            const close = typed !== null ? typed.index : before.endsWith(')') ? before.length - 1 : -1;
+            if (close === -1) continue;
+            let parens = 0;
+            let k = close;
+            for (; k >= 0; k--) {
+                if (before[k] === ')') parens++;
+                else if (before[k] === '(' && --parens === 0) break;
+            }
+            const keyword = /([\w$]+)\s*$/.exec(before.slice(0, Math.max(0, k)))?.[1] ?? '';
+            if (!['if', 'for', 'while', 'switch', 'catch', 'with'].includes(keyword)) return j + 1;
+        }
+    }
+    return 0;
+}
+
+/**
+ * The interpolated expressions of a template literal, `${a} and ${b(c)}` → `['a', 'b(c)']`.
+ * @param template The literal including its backticks.
+ */
+function interpolations(template: string): string[] {
+    const found: string[] = [];
+    for (let j = 1; j < template.length - 1; j++) {
+        if (template[j] === '\\') {
+            j++;
+            continue;
+        }
+        if (template[j] !== '$' || template[j + 1] !== '{') continue;
+        let depth = 0;
+        const start = j + 2;
+        for (j += 1; j < template.length; j++) {
+            if (template[j] === '{') depth++;
+            else if (template[j] === '}' && --depth === 0) break;
+        }
+        found.push(template.slice(start, j).trim());
+    }
+    return found;
+}
+
+/**
+ * The branches of a top-level `a ? b : c`, or `null` when `expr` is not one.
+ * `?.` and `??` are not the conditional operator.
+ */
+function ternaryBranches(expr: string): [string, string] | null {
+    const parts = splitTopLevel(
+        expr.replace(/\?\?|\?\./g, (m) => (m === '??' ? '\u0001\u0001' : '\u0002.')),
+        '?',
+    );
+    if (parts.length < 2) return null;
+    const rest = parts.slice(1).join('?');
+    const branches = splitTopLevel(rest, ':');
+    if (branches.length !== 2) return null;
+    const restore = (s: string) => s.replaceAll('\u0001\u0001', '??').replaceAll('\u0002.', '?.');
+    return [restore(branches[0] ?? ''), restore(branches[1] ?? '')];
+}
+
+/**
+ * The right-hand side of the nearest `const|let|var name =` before `index`.
+ *
+ * @param constOnly A `let` can be reassigned after the line this reads.
+ */
+function boundValue(code: string, name: string, index: number, constOnly: boolean): string | null {
+    const re = new RegExp(
+        String.raw`(?:^|[^\w$.])(${constOnly ? 'const' : 'const|let|var'})\s+${name}\s*(?::[^=]+)?=(?!=)`,
+        'g',
+    );
+    let last = -1;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(code)) !== null && m.index < index) last = m.index + m[0].length;
+    if (last === -1) {
+        // Declared after the use is still a declaration when it is a module-level const.
+        re.lastIndex = 0;
+        m = re.exec(code);
+        if (m === null) return null;
+        last = m.index + m[0].length;
+    }
+    const tail = code.slice(last);
+    const end = statementEnd(tail);
+    return tail.slice(0, end).trim();
+}
+
+/**
+ * Where the statement starting at the beginning of `text` ends: the first `;`
+ * at depth zero, or an unmatched closing bracket.
+ */
+function statementEnd(text: string): number {
+    let depth = 0;
+    for (let j = 0; j < text.length; j++) {
+        const ch = text[j];
+        if (ch === "'" || ch === '"' || ch === '`') {
+            const quote = ch;
+            for (j += 1; j < text.length && text[j] !== quote; j++) if (text[j] === '\\') j++;
+            if (quote === '`') {
+                // A template may hold `${…}` with its own backticks; re-scan it properly.
+                const start = text.lastIndexOf('`', j - 1);
+                j = templateEnd(text, start === -1 ? j : start);
+            }
+        } else if (ch === '(' || ch === '{' || ch === '[') depth++;
+        else if (ch === ')' || ch === '}' || ch === ']') {
+            if (depth === 0) return j;
+            depth--;
+        } else if (ch === ';' && depth === 0) return j;
+    }
+    return text.length;
+}
+
+/**
+ * @param start Offset of the opening backtick.
+ * @returns Offset of the closing backtick.
+ */
+function templateEnd(text: string, start: number): number {
+    for (let j = start + 1; j < text.length; j++) {
+        if (text[j] === '\\') j++;
+        else if (text[j] === '`') return j;
+        else if (text[j] === '$' && text[j + 1] === '{') {
+            let depth = 0;
+            for (j += 1; j < text.length; j++) {
+                if (text[j] === '`') j = templateEnd(text, j);
+                else if (text[j] === '{') depth++;
+                else if (text[j] === '}' && --depth === 0) break;
+            }
+        }
+    }
+    return text.length;
+}
+
+function unwrap(expr: string): string {
+    let e = expr.trim();
+    while (e.startsWith('(') && e.endsWith(')') && splitTopLevel(e.slice(1, -1), ',').length <= 1) {
+        const inner = e.slice(1, -1);
+        let depth = 0;
+        let balanced = true;
+        for (const ch of inner) {
+            if (ch === '(') depth++;
+            else if (ch === ')' && --depth < 0) balanced = false;
+        }
+        if (!balanced) break;
+        e = inner.trim();
+    }
+    return e;
+}
+
+const isStringLiteral = (e: string) => /^(['"])(?:\\.|(?!\1).)*\1$/s.test(e);
+const isTemplate = (e: string) => e.startsWith('`') && templateEnd(e, 0) === e.length - 1;
+const isIdentifier = (e: string) => /^[A-Za-z_$][\w$]*$/.test(e);
+
+/**
+ * The first piece of `expr` that is not known-safe HTML, or `null`. Safe: a string
+ * literal, a template of safe parts, a whole-expression sanitizer call, a number, or
+ * a `const` in this file bound to something safe.
+ *
+ * @param seen Names followed on this path: a cycle guard, not a cache.
+ */
+function unsafeHtml(expr: string, code: string, index: number, sanitizer: RegExp, seen: Set<string>): string | null {
+    const e = unwrap(expr);
+    if (e === '' || isStringLiteral(e) || /^-?\d/.test(e)) return null;
+    const ternary = ternaryBranches(e);
+    if (ternary !== null) {
+        for (const branch of ternary) {
+            const bad = unsafeHtml(branch, code, index, sanitizer, seen);
+            if (bad !== null) return bad;
+        }
+        return null;
+    }
+    const sum = splitTopLevel(e.replace(/\+\+|\+=/g, '\u0003'), '+');
+    if (sum.length > 1) {
+        for (const part of sum) {
+            const bad = unsafeHtml(part, code, index, sanitizer, seen);
+            if (bad !== null) return bad;
+        }
+        return null;
+    }
+    if (isTemplate(e)) {
+        for (const inner of interpolations(e)) {
+            const bad = unsafeHtml(inner, code, index, sanitizer, seen);
+            if (bad !== null) return bad;
+        }
+        return null;
+    }
+    const call = sanitizer.exec(e);
+    if (call !== null && callSites(e, e.slice(0, call[0].length))[0]?.end === e.length - 1) return null;
+    if (isIdentifier(e) && !seen.has(e)) {
+        const value = boundValue(code, e, index, true);
+        if (value !== null) return unsafeHtml(value, code, index, sanitizer, new Set([...seen, e]));
+    }
+    return e;
+}
+
+/**
+ * The first piece of a RegExp source that is not a literal or escaped value, or
+ * `null`. Escaped: the variable's declaration runs the escape, directly or via a local function.
+ */
+function unescapedRegex(expr: string, code: string, index: number, seen: Set<string>): string | null {
+    const e = unwrap(expr);
+    if (e === '' || isStringLiteral(e) || /^\/.+\/[a-z]*$/s.test(e) || e.endsWith('.source')) return null;
+    const sum = splitTopLevel(e, '+');
+    if (sum.length > 1) {
+        for (const part of sum) {
+            const bad = unescapedRegex(part, code, index, seen);
+            if (bad !== null) return bad;
+        }
+        return null;
+    }
+    if (isTemplate(e)) {
+        for (const inner of interpolations(e)) {
+            const bad = unescapedRegex(inner, code, index, seen);
+            if (bad !== null) return bad;
+        }
+        return null;
+    }
+    if (REGEX_ESCAPE.test(e)) return null;
+    const helper = /^([A-Za-z_$][\w$]*)\s*\(/.exec(e)?.[1];
+    if (helper !== undefined && REGEX_ESCAPE.test(declaredBody(code, helper))) return null;
+    if (isIdentifier(e) && !seen.has(e)) {
+        const value = boundValue(code, e, index, false);
+        if (value !== null) return unescapedRegex(value, code, index, new Set([...seen, e]));
+    }
+    return e;
+}
+
+/**
+ * The handler function passed as the argument after a leading channel/event
+ * string, e.g. the arrow in `on('will-navigate', (event, url) => {…})`.
+ */
+function handlerAfterName(args: string): FunctionParts | null {
+    const parts = splitTopLevel(args, ',');
+    const fn = parts.slice(1).join(', ');
+    return functionParts(fn);
 }

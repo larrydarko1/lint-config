@@ -36,13 +36,6 @@ export type StylelintOptions = {
     overrides?: Config['overrides'];
 };
 
-/**
- * Plugins resolved from here as absolute paths: Stylelint resolves bare names next to
- * the project's config, which would need the project to install them. `import.meta.resolve`
- * because stylelint-config-standard-scss is ESM-only.
- */
-const dep = (name: string) => fileURLToPath(import.meta.resolve(name));
-
 const SPACING_PROPERTIES = [
     'margin',
     'margin-top',
@@ -65,7 +58,6 @@ const BEM_PATTERN = '^[a-z][a-z0-9]*(-[a-z0-9]+)*(__[a-z][a-z0-9]*(-[a-z0-9]+)*)
 /** SCSS colour functions handed a `$color-*` alias — see `noScssColorFunctions`. */
 const SCSS_COLOR_FUNCTION_PATTERN =
     '/(rgba|rgb|hsla|hsl|darken|lighten|saturate|desaturate|transparentize|opacify|fade-in|fade-out|adjust-color|scale-color|change-color|mix)\\(\\s*\\$color-/';
-
 
 export function stylelint(options: StylelintOptions = {}): Config {
     const {
@@ -243,5 +235,12 @@ export function stylelint(options: StylelintOptions = {}): Config {
         ],
     };
 }
+
+/**
+ * Plugins resolved from here as absolute paths: Stylelint resolves bare names next to
+ * the project's config, which would need the project to install them. `import.meta.resolve`
+ * because stylelint-config-standard-scss is ESM-only.
+ */
+const dep = (name: string) => fileURLToPath(import.meta.resolve(name));
 
 export default stylelint();

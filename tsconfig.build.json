@@ -13,5 +13,6 @@
 
         /* Paths & Types */
         "types": ["node"]
-    }
+    },
+    "include": ["src"]
 }

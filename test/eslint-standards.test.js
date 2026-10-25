@@ -12,6 +12,7 @@ import { larry } from '../src/eslint/index.ts';
 import * as api from '../src/eslint/api/index.ts';
 import * as electron from '../src/eslint/electron/index.ts';
 import * as fullstack from '../src/eslint/fullstack/index.ts';
+import * as library from '../src/eslint/library/index.ts';
 import * as spa from '../src/eslint/spa/index.ts';
 import * as tauri from '../src/eslint/tauri/index.ts';
 
@@ -35,6 +36,8 @@ const electronConfig = (options) =>
     larry({ preset: 'electron', rootDir: ROOT, standards: electron.electronStandards(options) });
 const fullstackConfig = (options) =>
     larry({ preset: 'fullstack', rootDir: ROOT, standards: fullstack.fullstackStandards(options) });
+const libraryConfig = (options) =>
+    larry({ preset: 'library', rootDir: ROOT, standards: library.libraryStandards(options) });
 const spaConfig = (options) => larry({ preset: 'spa', rootDir: ROOT, standards: spa.spaStandards(options) });
 const tauriConfig = (options) => larry({ preset: 'tauri', rootDir: ROOT, standards: tauri.tauriStandards(options) });
 
@@ -55,6 +58,13 @@ test('every family exports the same shared selectors, not copies of them', () =>
         assert.equal(spa[name], fullstack[name], name);
         assert.equal(tauri[name], fullstack[name], name);
     }
+    for (const name of [
+        'bannedCryptoModules',
+        'configModuleSelectors',
+        'noSingleLetterDeclaration',
+        'tsSourceSelectors',
+    ])
+        assert.equal(library[name], fullstack[name], name);
 });
 
 test('the shared rules reach each family’s own frontend', async () => {
@@ -342,4 +352,75 @@ test('the API is all Node: no browser globals, no Vue, and its tests are named l
         await severityOf(apiConfig(), 'src/routes/__tests__/users.test.ts', '@typescript-eslint/naming-convention'),
         2,
     );
+});
+
+test('a library is all Node: no browser globals, no Vue, and its suites in test/ may be JavaScript', async () => {
+    const eslint = new ESLint({ overrideConfigFile: true, baseConfig: libraryConfig(), cwd: ROOT });
+    for (const file of ['src/index.ts', 'test/index.test.js', 'test/index.test.ts']) {
+        const resolved = await eslint.calculateConfigForFile(`${ROOT}/${file}`);
+        assert.ok('process' in resolved.languageOptions.globals, file);
+        assert.ok(!('window' in resolved.languageOptions.globals), file);
+        assert.ok(!('vue' in resolved.plugins), file);
+    }
+    // Type-aware where there are types: a JavaScript suite gets the untyped rules only.
+    assert.equal(await severityOf(libraryConfig(), 'test/index.test.ts', '@typescript-eslint/no-floating-promises'), 2);
+    assert.equal(
+        await severityOf(libraryConfig(), 'test/index.test.js', '@typescript-eslint/no-floating-promises'),
+        'absent',
+    );
+    assert.equal(await severityOf(libraryConfig(), 'dist/index.js', 'no-console'), 'unlinted');
+});
+
+test('a library neither prints nor exits, except where a file says printing is its job', async () => {
+    assert.equal(await severityOf(libraryConfig(), 'src/index.ts', 'no-console'), 2);
+    assert.equal(await severityOf(libraryConfig(), 'test/index.test.js', 'no-console'), 'absent');
+    const cli = libraryConfig({ logging: { consoleAllowed: ['src/cli.ts'] } });
+    assert.equal(await severityOf(cli, 'src/cli.ts', 'no-console'), 0);
+    assert.equal(await severityOf(cli, 'src/index.ts', 'no-console'), 2);
+
+    const [severity, ...banned] = await entryOf(libraryConfig(), 'src/cli.ts', 'no-restricted-properties');
+    assert.equal(severity, 2);
+    assert.deepEqual(banned, [library.noProcessExit]);
+});
+
+test('a library reads process.env only in tests, scripts, tool configs and the files it names', async () => {
+    const rule = 'no-process-env';
+    assert.equal(await severityOf(libraryConfig(), 'src/index.ts', rule), 2);
+    for (const file of ['test/index.test.js', 'scripts/release.ts', 'eslint.config.js'])
+        assert.equal(await severityOf(libraryConfig(), file, rule), 0, file);
+    const child = libraryConfig({ env: { processEnvAllowed: ['src/spawn.ts'] } });
+    assert.equal(await severityOf(child, 'src/spawn.ts', rule), 0);
+});
+
+test('a library exports by name, except the shareable configs a tool loads by default export', async () => {
+    const rule = 'no-restricted-exports';
+    assert.equal(await severityOf(libraryConfig(), 'src/prettier.ts', rule), 2);
+    const shareable = libraryConfig({ defaultExportAllowed: ['src/prettier.ts'] });
+    assert.equal(await severityOf(shareable, 'src/prettier.ts', rule), 'absent');
+});
+
+test('a node:test suite cannot be focused, skipped or parked, and asserts strictly', async () => {
+    const eslint = new ESLint({ overrideConfigFile: true, baseConfig: libraryConfig(), cwd: ROOT });
+    const [result] = await eslint.lintText(
+        [
+            "import { test, describe, it } from 'node:test';",
+            "import assert from 'node:assert';",
+            "test.only('a', () => assert.equal(1, 1));",
+            "describe.skip('b', () => {});",
+            "test('c', { todo: true }, () => {});",
+            "// test('d', () => {});",
+            "test('e', () => assert.ok(true));",
+            // A reference wires a runner; only a call parks a case.
+            'globalThis.itOnly = it.only;',
+        ].join('\n'),
+        { filePath: `${ROOT}/test/thing.test.js` },
+    );
+    const byLine = result.messages.map(({ line, ruleId }) => `${line} ${ruleId}`);
+    assert.deepEqual(byLine, [
+        '2 no-restricted-imports',
+        '3 no-restricted-syntax',
+        '4 no-restricted-syntax',
+        '5 no-restricted-syntax',
+        '6 vitest/no-commented-out-tests',
+    ]);
 });

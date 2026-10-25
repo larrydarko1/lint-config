@@ -60,11 +60,14 @@ type GlibcImage = {
     why: string;
 };
 
-
 type DockerInspection = {
     problems: GateFailure[];
     counts: { images: number; stages: number; nodeMajor: string | null };
 };
+
+type Instruction = { instruction: string; args: string; line: number };
+type Stage = { name: string | null; base: string; from: number; instructions: Instruction[] };
+type Dockerfile = { rel: string; stages: Stage[] };
 
 /** Bases that run unprivileged by construction, so no USER is needed. */
 const NONROOT_BASES = [/^nginxinc\/nginx-unprivileged(:|$)/];
@@ -99,97 +102,6 @@ const ASKS_THE_PROCESS = /fetch\(|\bwget\b|\bcurl\b|https?:\/\/|\bhttp\.(get|req
 
 /** Tags that name a moving target rather than a build. */
 const MUTABLE_TAG = /^(latest|stable|main|master|prod|production)$/;
-
-type Instruction = { instruction: string; args: string; line: number };
-type Stage = { name: string | null; base: string; from: number; instructions: Instruction[] };
-type Dockerfile = { rel: string; stages: Stage[] };
-
-/**
- * The instructions of a Dockerfile, with continuation lines joined and comment
- * lines dropped — including a comment inside a continued instruction, which
- * Docker also ignores.
- */
-function parseInstructions(src: string): Instruction[] {
-    const out: Instruction[] = [];
-    const lines = src.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-        let text = lines[i] ?? '';
-        if (/^\s*(#|$)/.test(text)) continue;
-        const start = i;
-        while (/\\\s*$/.test(text) && i + 1 < lines.length) {
-            text = text.replace(/\\\s*$/, ' ');
-            i++;
-            const next = lines[i] ?? '';
-            text += /^\s*#/.test(next) ? ' \\' : next;
-        }
-        const m = /^\s*([A-Za-z]+)\s+([\s\S]*)$/.exec(text);
-        if (m !== null) {
-            out.push({ instruction: (m[1] ?? '').toUpperCase(), args: (m[2] ?? '').trim(), line: start + 1 });
-        }
-    }
-    return out;
-}
-
-/** The stages, with each FROM's flags dropped and global ARGs (before the first FROM) substituted. */
-function parseStages(src: string): Stage[] {
-    const stages: Stage[] = [];
-    const globalArgs: Map<string, string> = new Map();
-    for (const ins of parseInstructions(src)) {
-        if (ins.instruction === 'FROM') {
-            const args = ins.args
-                .replace(/^(?:--\S+\s+)*/, '')
-                .replace(/\$\{(\w+)\}|\$(\w+)/g, (whole, a, b) => globalArgs.get(a ?? b) ?? whole);
-            const m = /^(\S+)(?:\s+AS\s+(\S+))?$/i.exec(args);
-            stages.push({ name: m?.[2] ?? null, base: m?.[1] ?? args, from: ins.line, instructions: [] });
-        } else if (stages.length === 0) {
-            if (ins.instruction === 'ARG') {
-                const m = /^(\w+)=(\S+)/.exec(ins.args);
-                if (m !== null) globalArgs.set(m[1] ?? '', (m[2] ?? '').replace(/^["']|["']$/g, ''));
-            }
-        } else {
-            stages.at(-1)?.instructions.push(ins);
-        }
-    }
-    return stages;
-}
-
-/** A stage and every stage it is built `FROM`, root first: the chain USER, ENV and HEALTHCHECK inherit down. */
-function chainOf(stages: Stage[], stage: Stage): Stage[] {
-    const chain: Stage[] = [stage];
-    for (let parent = parentOf(stages, stage); parent !== undefined; parent = parentOf(stages, parent)) {
-        chain.unshift(parent);
-    }
-    return chain;
-}
-
-/** The earlier stage `stage` is built FROM, if any (case-insensitive). Only earlier stages count, so no loops. */
-function parentOf(stages: Stage[], stage: Stage): Stage | undefined {
-    const base = stage.base.toLowerCase();
-    return stages
-        .slice(0, stages.indexOf(stage))
-        .filter((s) => s.name?.toLowerCase() === base)
-        .at(-1);
-}
-
-/** The last instance of `instruction` in force for `stage`, inherited included. */
-function effective(stages: Stage[], stage: Stage, instruction: string): Instruction | undefined {
-    return chainOf(stages, stage)
-        .flatMap((s) => s.instructions)
-        .filter((i) => i.instruction === instruction)
-        .at(-1);
-}
-
-/** `ENV A=1 B=2` and the legacy `ENV A 1` both, as name/value pairs. */
-function assignments(args: string): [string, string][] {
-    if (!args.includes('=')) {
-        const m = /^([A-Za-z_]\w*)\s+(.+)$/.exec(args);
-        return m === null ? [] : [[m[1] ?? '', (m[2] ?? '').trim()]];
-    }
-    return [...args.matchAll(/([A-Za-z_]\w*)=("[^"]*"|'[^']*'|\S+)/g)].map((m) => [
-        m[1] ?? '',
-        (m[2] ?? '').replace(/^["']|["']$/g, ''),
-    ]);
-}
 
 export function inspectDocker(input: DockerOptions): DockerInspection {
     const {
@@ -337,7 +249,7 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
                     }
                     if (
                         /apk\s+add/.test(ins.args) &&
-                        !/--no-cache/.test(ins.args) &&
+                        !ins.args.includes('--no-cache') &&
                         !/rm\s+-rf\s+\/var\/cache\/apk/.test(ins.args)
                     ) {
                         fail(
@@ -489,7 +401,7 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
     }
 
     // ── 13. Every Dockerfile is built, from the configured context ──────────
-    const pushed: Set<string | undefined> = new Set();
+    const pushed = new Set<string | undefined>();
     if (!exists(buildWorkflow)) {
         fail(
             buildWorkflow,
@@ -574,7 +486,7 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
                     .filter((i) => i.instruction === 'EXPOSE')
                     .flatMap((i) => i.args.split(/\s+/).map((p) => Number.parseInt(p, 10))),
             );
-            const ports: Set<number> = new Set();
+            const ports = new Set<number>();
             for (const doc of yamlDocuments(manifest) ?? []) {
                 const spec = doc as {
                     spec?: { template?: { spec?: { containers?: { ports?: { containerPort?: number }[] }[] } } };
@@ -614,7 +526,12 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
                     fail(
                         kustomization,
                         `points \`${entry.name ?? '?'}\` at \`${entry.newName}\`, which ${path.basename(buildWorkflow)} does not push`,
-                        `It publishes: ${[...pushed].sort().join(', ') || 'nothing'}. Naming anything else pulls a tag that was never built — ImagePullBackOff on the cluster, and nothing red anywhere before that.`,
+                        `It publishes: ${
+                            [...pushed]
+                                .filter((name) => name !== undefined)
+                                .sort()
+                                .join(', ') || 'nothing'
+                        }. Naming anything else pulls a tag that was never built — ImagePullBackOff on the cluster, and nothing red anywhere before that.`,
                     );
                 }
                 if (/\byour-org\b|\bexample\b|<[^>]+>/.test(entry.newName)) {
@@ -647,7 +564,7 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
             continue;
         }
         for (const stage of image.stages) {
-            if (/alpine/.test(stage.base)) {
+            if (stage.base.includes('alpine')) {
                 fail(
                     file,
                     `line ${stage.from}: FROM ${stage.base} is musl-based`,
@@ -682,4 +599,91 @@ export function checkDocker(options: DockerOptions): void {
         notMachineChecked:
             "Whether a layer is ordered as cheaply as it could be, whether the base image is the right one for the workload, or whether an image is as small as it should be. `docker build --check` runs BuildKit's own linter over each image where a Docker daemon exists.",
     });
+}
+
+/**
+ * The instructions of a Dockerfile, with continuation lines joined and comment
+ * lines dropped — including a comment inside a continued instruction, which
+ * Docker also ignores.
+ */
+function parseInstructions(src: string): Instruction[] {
+    const out: Instruction[] = [];
+    const lines = src.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+        let text = lines[i] ?? '';
+        if (/^\s*(#|$)/.test(text)) continue;
+        const start = i;
+        while (/\\\s*$/.test(text) && i + 1 < lines.length) {
+            text = text.replace(/\\\s*$/, ' ');
+            i++;
+            const next = lines[i] ?? '';
+            text += /^\s*#/.test(next) ? ' \\' : next;
+        }
+        const m = /^\s*([A-Za-z]+)\s+([\s\S]*)$/.exec(text);
+        if (m !== null) {
+            out.push({ instruction: (m[1] ?? '').toUpperCase(), args: (m[2] ?? '').trim(), line: start + 1 });
+        }
+    }
+    return out;
+}
+
+/** The stages, with each FROM's flags dropped and global ARGs (before the first FROM) substituted. */
+function parseStages(src: string): Stage[] {
+    const stages: Stage[] = [];
+    const globalArgs = new Map<string, string>();
+    for (const ins of parseInstructions(src)) {
+        if (ins.instruction === 'FROM') {
+            const args = ins.args
+                .replace(/^(?:--\S+\s+)*/, '')
+                .replace(/\$\{(\w+)\}|\$(\w+)/g, (whole, a, b) => globalArgs.get(a ?? b) ?? whole);
+            const m = /^(\S+)(?:\s+AS\s+(\S+))?$/i.exec(args);
+            stages.push({ name: m?.[2] ?? null, base: m?.[1] ?? args, from: ins.line, instructions: [] });
+        } else if (stages.length === 0) {
+            if (ins.instruction === 'ARG') {
+                const m = /^(\w+)=(\S+)/.exec(ins.args);
+                if (m !== null) globalArgs.set(m[1] ?? '', (m[2] ?? '').replace(/^["']|["']$/g, ''));
+            }
+        } else {
+            stages.at(-1)?.instructions.push(ins);
+        }
+    }
+    return stages;
+}
+
+/** A stage and every stage it is built `FROM`, root first: the chain USER, ENV and HEALTHCHECK inherit down. */
+function chainOf(stages: Stage[], stage: Stage): Stage[] {
+    const chain: Stage[] = [stage];
+    for (let parent = parentOf(stages, stage); parent !== undefined; parent = parentOf(stages, parent)) {
+        chain.unshift(parent);
+    }
+    return chain;
+}
+
+/** The earlier stage `stage` is built FROM, if any (case-insensitive). Only earlier stages count, so no loops. */
+function parentOf(stages: Stage[], stage: Stage): Stage | undefined {
+    const base = stage.base.toLowerCase();
+    return stages
+        .slice(0, stages.indexOf(stage))
+        .filter((s) => s.name?.toLowerCase() === base)
+        .at(-1);
+}
+
+/** The last instance of `instruction` in force for `stage`, inherited included. */
+function effective(stages: Stage[], stage: Stage, instruction: string): Instruction | undefined {
+    return chainOf(stages, stage)
+        .flatMap((s) => s.instructions)
+        .filter((i) => i.instruction === instruction)
+        .at(-1);
+}
+
+/** `ENV A=1 B=2` and the legacy `ENV A 1` both, as name/value pairs. */
+function assignments(args: string): [string, string][] {
+    if (!args.includes('=')) {
+        const m = /^([A-Za-z_]\w*)\s+(.+)$/.exec(args);
+        return m === null ? [] : [[m[1] ?? '', (m[2] ?? '').trim()]];
+    }
+    return [...args.matchAll(/([A-Za-z_]\w*)=("[^"]*"|'[^']*'|\S+)/g)].map((m) => [
+        m[1] ?? '',
+        (m[2] ?? '').replace(/^["']|["']$/g, ''),
+    ]);
 }

@@ -27,6 +27,12 @@ export type PackageJsonOptions = {
     canonicalOrder?: string[];
     /** Packages allowed a `~` range, mapped to the reason. Anything else must be `^`. */
     tildeAllowed?: Record<string, string>;
+    /**
+     * Fields pinned exactly on purpose, mapped to the reason: a package whose lockfile never
+     * reaches the projects installing it, such as a shared toolchain, can only give them all
+     * the same versions by pinning its `dependencies`. In such a field a `^` fails instead.
+     */
+    exactFields?: Partial<Record<'dependencies' | 'devDependencies', string>>;
     /** Where the electron-vite config lives. Absent means the Electron rules stay silent. */
     electronViteConfig?: string;
     /**
@@ -41,7 +47,6 @@ type PackageJsonInspection = {
     /** Every manifest read: the root, plus each workspace that has one. */
     manifests: string[];
 };
-
 
 type PackageJsonInput = Omit<PackageJsonOptions, 'root'> & { root: string };
 
@@ -126,6 +131,7 @@ export function inspectPackageJson({
     workspaceRequired = [],
     canonicalOrder = CANONICAL_ORDER,
     tildeAllowed = {},
+    exactFields = {},
     electronViteConfig = 'electron.vite.config.ts',
     provided = providedPackages(),
 }: PackageJsonInput): PackageJsonInspection {
@@ -177,38 +183,12 @@ export function inspectPackageJson({
         }
 
         // ── 2. Semver prefixes ──────────────────────────────────────────────
-        for (const field of ['dependencies', 'devDependencies'] as const) {
-            for (const [name, range] of Object.entries(pkg[field] ?? {})) {
-                if (NOT_A_RANGE.test(range)) continue;
-
-                if (range.startsWith('~')) {
-                    if (!Object.hasOwn(tildeAllowed, name)) {
-                        fail(
-                            file,
-                            `${field}.${name} is "${range}" — a \`~\` range is not on the allowlist`,
-                            'Patch-only is a deliberate decision. Add it to `tildeAllowed` with the reason, or use `^`.',
-                        );
-                    }
-                    continue;
-                }
-
-                if (Object.hasOwn(tildeAllowed, name)) {
-                    fail(
-                        file,
-                        `${field}.${name} is "${range}" — it is on the \`~\` allowlist`,
-                        tildeAllowed[name] ?? '',
-                    );
-                    continue;
-                }
-
-                if (!range.startsWith('^')) {
-                    fail(
-                        file,
-                        `${field}.${name} is pinned exactly to "${range}"`,
-                        'An exact pin opts out of security patches while adding nothing — package-lock.json is what actually pins the installed tree.',
-                    );
-                }
-            }
+        const ranges = (['dependencies', 'devDependencies'] as const).flatMap((field) =>
+            Object.entries(pkg[field] ?? {}).map(([name, range]) => ({ field, name, range })),
+        );
+        for (const dependency of ranges) {
+            const problem = rangeProblem(dependency, { tildeAllowed, exactFields });
+            if (problem !== null) fail(file, ...problem);
         }
 
         // ── 3. Field order ──────────────────────────────────────────────────
@@ -247,7 +227,7 @@ export function inspectPackageJson({
                 'Electron resolves the main process from it; without it the app has no entry point.',
             );
         } else {
-            if (!/^out\//.test(rootPkg.main)) {
+            if (!rootPkg.main.startsWith('out/')) {
                 fail(
                     'package.json',
                     `\`main\` is "${rootPkg.main}", which is not under \`out/\``,
@@ -385,4 +365,35 @@ export function checkPackageJson({ root = REPO_ROOT, ...rest }: PackageJsonOptio
         notMachineChecked:
             'Dependency CATEGORY grouping — JSON has no comments, so the groups the standard asks for cannot be read back out of the file. Review that by hand.',
     });
+}
+
+/** What is wrong with one dependency's range, as `[what, why]`, or null when nothing is. */
+function rangeProblem(
+    dependency: { field: 'dependencies' | 'devDependencies'; name: string; range: string },
+    allowed: Required<Pick<PackageJsonOptions, 'tildeAllowed' | 'exactFields'>>,
+): [string, string] | null {
+    const { field, name, range } = dependency;
+    if (NOT_A_RANGE.test(range)) return null;
+    const tildeReason = Object.hasOwn(allowed.tildeAllowed, name) ? allowed.tildeAllowed[name] : undefined;
+
+    if (range.startsWith('~')) {
+        if (tildeReason !== undefined) return null;
+        return [
+            `${field}.${name} is "${range}" — a \`~\` range is not on the allowlist`,
+            'Patch-only is a deliberate decision. Add it to `tildeAllowed` with the reason, or use `^`.',
+        ];
+    }
+    if (tildeReason !== undefined)
+        return [`${field}.${name} is "${range}" — it is on the \`~\` allowlist`, tildeReason];
+
+    const exactReason = allowed.exactFields[field];
+    if (exactReason !== undefined) {
+        if (SEMVER.test(range)) return null;
+        return [`${field}.${name} is "${range}", in a field pinned exactly`, exactReason];
+    }
+    if (range.startsWith('^')) return null;
+    return [
+        `${field}.${name} is pinned exactly to "${range}"`,
+        'An exact pin opts out of security patches while adding nothing — package-lock.json is what actually pins the installed tree.',
+    ];
 }

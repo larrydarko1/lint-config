@@ -1,0 +1,845 @@
+{
+    "@eslint-community/eslint-comments/disable-enable-pair": [
+        { "files": "*", "entry": ["error",{"allowWholeFile":true}] }
+    ],
+    "@eslint-community/eslint-comments/no-aggregating-enable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/no-duplicate-disable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/no-unlimited-disable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/no-unused-enable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/require-description": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/adjacent-overload-signatures": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/array-type": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/await-thenable": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/ban-ts-comment": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": ["error",{"minimumDescriptionLength":10}] },
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "@typescript-eslint/ban-tslint-comment": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/class-literal-property-style": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-generic-constructors": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-indexed-object-style": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-type-assertions": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-type-definitions": [
+        { "files": "*", "entry": ["error","type"] }
+    ],
+    "@typescript-eslint/consistent-type-exports": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-type-imports": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","scripts/seed.ts"], "entry": ["error",{"prefer":"type-imports","fixStyle":"inline-type-imports"}] }
+    ],
+    "@typescript-eslint/explicit-function-return-type": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","scripts/seed.ts"], "entry": ["error",{"allowTypedFunctionExpressions":false,"allowIIFEs":true}] }
+    ],
+    "@typescript-eslint/explicit-module-boundary-types": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/max-params": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": ["error",{"max":6}] }
+    ],
+    "@typescript-eslint/naming-convention": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": [
+                "error",
+                {"selector":"default","format":["camelCase"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"variable","format":["camelCase","UPPER_CASE","PascalCase"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"import","format":["camelCase","PascalCase"]},
+                {"selector":"function","format":["camelCase","PascalCase"]},
+                {"selector":"parameter","format":["camelCase"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"property","format":["camelCase","UPPER_CASE"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"property","modifiers":["requiresQuotes"],"format":null},
+                {"selector":"objectLiteralProperty","format":["camelCase","UPPER_CASE","PascalCase","snake_case"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"objectLiteralProperty","modifiers":["requiresQuotes"],"format":null},
+                {"selector":"typeLike","format":["PascalCase"]},
+                {"selector":"enumMember","format":["UPPER_CASE"]},
+                {"selector":"typeParameter","format":["PascalCase"],"prefix":["T"]}
+            ] }
+    ],
+    "@typescript-eslint/no-array-constructor": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-array-delete": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-base-to-string": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-confusing-non-null-assertion": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-confusing-void-expression": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": ["error",{"ignoreArrowShorthand":true}] }
+    ],
+    "@typescript-eslint/no-deprecated": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-duplicate-enum-values": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-duplicate-type-constituents": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-dynamic-delete": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-empty-function": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","scripts/seed.ts"], "entry": ["error",{"allow":["arrowFunctions"]}] }
+    ],
+    "@typescript-eslint/no-empty-object-type": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-explicit-any": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-extra-non-null-assertion": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-extraneous-class": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-floating-promises": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-for-in-array": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-generated-empty-object-type": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-implied-eval": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-inferrable-types": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-invalid-void-type": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-meaningless-void-operator": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-misused-new": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-misused-promises": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-misused-spread": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-mixed-enums": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-namespace": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-non-null-asserted-nullish-coalescing": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-non-null-asserted-optional-chain": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-non-null-assertion": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-redundant-type-constituents": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-require-imports": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-this-alias": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-boolean-literal-compare": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-condition": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": ["error",{"allowConstantLoopConditions":"only-allowed-literals"}] }
+    ],
+    "@typescript-eslint/no-unnecessary-template-expression": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-arguments": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-assertion": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-constraint": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-conversion": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-parameters": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-argument": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-assignment": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-call": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-declaration-merging": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-enum-comparison": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-function-type": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-member-access": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-return": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-type-assertion": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-unary-minus": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unused-expressions": [
+        { "files": "*", "entry": ["error",{"allowShortCircuit":false,"allowTaggedTemplates":false,"allowTernary":false}] }
+    ],
+    "@typescript-eslint/no-unused-private-class-members": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unused-vars": [
+        { "files": "*", "entry": ["error",{"argsIgnorePattern":"^_","varsIgnorePattern":"^_","caughtErrorsIgnorePattern":"^_"}] }
+    ],
+    "@typescript-eslint/no-useless-constructor": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-useless-default-assignment": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-wrapper-object-types": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/non-nullable-type-assertion-style": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/only-throw-error": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-as-const": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-find": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-for-of": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-function-type": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-includes": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-literal-enum-member": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-namespace-keyword": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-nullish-coalescing": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-optional-chain": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-promise-reject-errors": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-readonly": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-reduce-type-parameter": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-regexp-exec": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-return-this-type": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-string-starts-ends-with": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/related-getter-setter-pairs": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/require-array-sort-compare": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/require-await": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/restrict-plus-operands": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/restrict-template-expressions": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/return-await": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": ["error","error-handling-correctness-only"] }
+    ],
+    "@typescript-eslint/strict-boolean-expressions": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","scripts/seed.ts"], "entry": ["error",{"allowString":false,"allowNumber":false,"allowNullableObject":false}] }
+    ],
+    "@typescript-eslint/switch-exhaustiveness-check": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": ["error",{"considerDefaultExhaustiveForUnions":true}] }
+    ],
+    "@typescript-eslint/triple-slash-reference": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/unbound-method": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/unified-signatures": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "array-callback-return": [
+        { "files": "*", "entry": ["error",{"allowImplicit":false,"checkForEach":false,"allowVoid":false}] }
+    ],
+    "constructor-super": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "eqeqeq": [
+        { "files": "*", "entry": ["error","always",{"null":"ignore"}] }
+    ],
+    "for-direction": [
+        { "files": "*", "entry": "error" }
+    ],
+    "getter-return": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": ["error",{"allowImplicit":false}] }
+    ],
+    "larry/no-caught-message-leak": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts"], "entry": ["error",{}] }
+    ],
+    "max-depth": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts"], "entry": ["error",3] },
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": ["error",4] }
+    ],
+    "no-async-promise-executor": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-case-declarations": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-class-assign": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-compare-neg-zero": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-cond-assign": [
+        { "files": "*", "entry": ["error","except-parens"] }
+    ],
+    "no-console": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts"], "entry": ["error",{}] }
+    ],
+    "no-const-assign": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-constant-binary-expression": [
+        { "files": "*", "entry": ["error",{"checkRelationalComparisons":false}] }
+    ],
+    "no-constant-condition": [
+        { "files": "*", "entry": ["error",{"checkLoops":"allExceptWhileTrue"}] }
+    ],
+    "no-constructor-return": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-control-regex": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-debugger": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-delete-var": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-dupe-args": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-dupe-class-members": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-dupe-else-if": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-dupe-keys": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-duplicate-case": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-else-return": [
+        { "files": "*", "entry": ["error",{"allowElseIf":false}] }
+    ],
+    "no-empty": [
+        { "files": "*", "entry": ["error",{"allowEmptyCatch":false}] }
+    ],
+    "no-empty-character-class": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-empty-pattern": [
+        { "files": "*", "entry": ["error",{"allowObjectPatternsAsParameters":false}] }
+    ],
+    "no-empty-static-block": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-eval": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts"], "entry": ["error",{"allowIndirect":false}] }
+    ],
+    "no-ex-assign": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-extra-boolean-cast": [
+        { "files": "*", "entry": ["error",{}] }
+    ],
+    "no-fallthrough": [
+        { "files": "*", "entry": ["error",{"allowEmptyCase":false,"reportUnusedFallthroughComment":false}] }
+    ],
+    "no-func-assign": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-global-assign": [
+        { "files": "*", "entry": ["error",{"exceptions":[]}] }
+    ],
+    "no-implicit-coercion": [
+        { "files": "*", "entry": ["error",{"allow":[],"boolean":true,"disallowTemplateShorthand":false,"number":true,"string":true}] }
+    ],
+    "no-implied-eval": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts"], "entry": "error" }
+    ],
+    "no-import-assign": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-invalid-regexp": [
+        { "files": "*", "entry": ["error",{}] }
+    ],
+    "no-irregular-whitespace": [
+        { "files": "*", "entry": ["error",{"skipComments":false,"skipJSXText":false,"skipRegExps":false,"skipStrings":true,"skipTemplates":false}] }
+    ],
+    "no-loss-of-precision": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-misleading-character-class": [
+        { "files": "*", "entry": ["error",{"allowEscape":false}] }
+    ],
+    "no-new-func": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-new-native-nonconstructor": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-nonoctal-decimal-escape": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-obj-calls": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-octal": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-param-reassign": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-process-env": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/db.ts","src/middleware/error-handler.ts"], "entry": "error" }
+    ],
+    "no-prototype-builtins": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-redeclare": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": ["error",{"builtinGlobals":true}] }
+    ],
+    "no-regex-spaces": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-restricted-exports": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts"], "entry": [
+                "error",
+                {"restrictDefaultExports":{"direct":true,"named":true,"defaultFrom":true,"namedFrom":true,"namespaceFrom":true}}
+            ] }
+    ],
+    "no-restricted-globals": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": [
+                "error",
+                {"name":"__dirname","message":"Use `import.meta.dirname` (Node 21.2+) — `__dirname` is CommonJS-only."},
+                {"name":"__filename","message":"Use `import.meta.filename` (Node 21.2+) — `__filename` is CommonJS-only."}
+            ] }
+    ],
+    "no-restricted-imports": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts"], "entry": [
+                "error",
+                {"paths":[{"name":"bcrypt","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"bcryptjs","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"scrypt-js","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"scryptsy","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"crypto-js","message":"Use Node’s built-in `node:crypto` (AES-256-GCM / HMAC-SHA-256), not crypto-js"},{"name":"mongoose","message":"No ODM. Use the native mongodb driver — TypeScript types give compile-time safety and the index manifest gives explicit control."},{"name":"typeorm","message":"No ORM/ODM. Use the native mongodb driver."},{"name":"@prisma/client","message":"No ORM/ODM. Use the native mongodb driver."},{"name":"uuid","message":"Do not add a `uuid` dependency — `crypto.randomUUID()` is in the Node standard library and is what the ID strategy specifies for URL-facing identifiers."},{"name":"express-rate-limit","message":"Fixed-window counter, not a token bucket — no burst capacity, and up to 2x the limit slips through across a window edge. Use the tiers in lib/rate-limiters.ts (atomic Redis Lua, fails open)."},{"name":"rate-limiter-flexible","message":"Also a fixed-window counter. Use the token-bucket tiers in lib/rate-limiters.ts."},{"name":"express-slow-down","message":"Same family as express-rate-limit. Use the token-bucket tiers in lib/rate-limiters.ts."},{"name":"compression","message":"Compress at the proxy (`gzip on` in nginx), not in Node. nginx is C and compresses far faster than a JS middleware doing identical work on the event loop."},{"name":"lru-cache","message":"In-process cache. Every pod gets its own copy, so the same request returns different data depending on which pod answers, and an invalidation reaches exactly one of them. Redis is the only application cache."},{"name":"node-cache","message":"In-process cache — see lru-cache. Redis is the only application cache."},{"name":"memory-cache","message":"In-process cache — see lru-cache. Redis is the only application cache."},{"name":"quick-lru","message":"In-process cache — see lru-cache. Redis is the only application cache."}]}
+            ] },
+        { "files": ["src/gateway/socket.ts"], "entry": [
+                "error",
+                {"paths":[{"name":"bcrypt","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"bcryptjs","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"scrypt-js","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"scryptsy","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"crypto-js","message":"Use Node’s built-in `node:crypto` (AES-256-GCM / HMAC-SHA-256), not crypto-js"},{"name":"mongoose","message":"No ODM. Use the native mongodb driver — TypeScript types give compile-time safety and the index manifest gives explicit control."},{"name":"typeorm","message":"No ORM/ODM. Use the native mongodb driver."},{"name":"@prisma/client","message":"No ORM/ODM. Use the native mongodb driver."},{"name":"uuid","message":"Do not add a `uuid` dependency — `crypto.randomUUID()` is in the Node standard library and is what the ID strategy specifies for URL-facing identifiers."},{"name":"express-rate-limit","message":"Fixed-window counter, not a token bucket — no burst capacity, and up to 2x the limit slips through across a window edge. Use the tiers in lib/rate-limiters.ts (atomic Redis Lua, fails open)."},{"name":"rate-limiter-flexible","message":"Also a fixed-window counter. Use the token-bucket tiers in lib/rate-limiters.ts."},{"name":"express-slow-down","message":"Same family as express-rate-limit. Use the token-bucket tiers in lib/rate-limiters.ts."},{"name":"compression","message":"Compress at the proxy (`gzip on` in nginx), not in Node. nginx is C and compresses far faster than a JS middleware doing identical work on the event loop."},{"name":"lru-cache","message":"In-process cache. Every pod gets its own copy, so the same request returns different data depending on which pod answers, and an invalidation reaches exactly one of them. Redis is the only application cache."},{"name":"node-cache","message":"In-process cache — see lru-cache. Redis is the only application cache."},{"name":"memory-cache","message":"In-process cache — see lru-cache. Redis is the only application cache."},{"name":"quick-lru","message":"In-process cache — see lru-cache. Redis is the only application cache."},{"name":"@/lib/app-error.js","message":"AppError is an HTTP concept (status code + Express error handler) and does not cross the socket boundary. Emit a coded `error` event instead."}]}
+            ] },
+        { "files": ["src/lib/config.ts","src/lib/db.ts"], "entry": [
+                "error",
+                {"paths":[{"name":"bcrypt","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"bcryptjs","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"scrypt-js","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"scryptsy","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"crypto-js","message":"Use Node’s built-in `node:crypto` (AES-256-GCM / HMAC-SHA-256), not crypto-js"},{"name":"mongoose","message":"No ODM. Use the native mongodb driver — TypeScript types give compile-time safety and the index manifest gives explicit control."},{"name":"typeorm","message":"No ORM/ODM. Use the native mongodb driver."},{"name":"@prisma/client","message":"No ORM/ODM. Use the native mongodb driver."},{"name":"uuid","message":"Do not add a `uuid` dependency — `crypto.randomUUID()` is in the Node standard library and is what the ID strategy specifies for URL-facing identifiers."},{"name":"express-rate-limit","message":"Fixed-window counter, not a token bucket — no burst capacity, and up to 2x the limit slips through across a window edge. Use the tiers in lib/rate-limiters.ts (atomic Redis Lua, fails open)."},{"name":"rate-limiter-flexible","message":"Also a fixed-window counter. Use the token-bucket tiers in lib/rate-limiters.ts."},{"name":"express-slow-down","message":"Same family as express-rate-limit. Use the token-bucket tiers in lib/rate-limiters.ts."},{"name":"compression","message":"Compress at the proxy (`gzip on` in nginx), not in Node. nginx is C and compresses far faster than a JS middleware doing identical work on the event loop."},{"name":"lru-cache","message":"In-process cache. Every pod gets its own copy, so the same request returns different data depending on which pod answers, and an invalidation reaches exactly one of them. Redis is the only application cache."},{"name":"node-cache","message":"In-process cache — see lru-cache. Redis is the only application cache."},{"name":"memory-cache","message":"In-process cache — see lru-cache. Redis is the only application cache."},{"name":"quick-lru","message":"In-process cache — see lru-cache. Redis is the only application cache."}],"patterns":[{"group":["@/services/*","@/services/**","**/services/*","**/services/**"],"message":"lib/ owns one external concern and is consumed BY services/ — never the reverse. If lib needs this type, the type belongs in lib (or packages/shared), not in the service."}]}
+            ] },
+        { "files": ["db/migrations/001-init.js"], "entry": [
+                "error",
+                {"paths":[{"name":"mongoose","message":"No ODM. Use the native mongodb driver — TypeScript types give compile-time safety and the index manifest gives explicit control."},{"name":"typeorm","message":"No ORM/ODM. Use the native mongodb driver."},{"name":"@prisma/client","message":"No ORM/ODM. Use the native mongodb driver."},{"name":"uuid","message":"Do not add a `uuid` dependency — `crypto.randomUUID()` is in the Node standard library and is what the ID strategy specifies for URL-facing identifiers."}]}
+            ] }
+    ],
+    "no-restricted-syntax": [
+        { "files": ["src/index.ts"], "entry": [
+                "error",
+                {"selector":"ThrowStatement > ObjectExpression","message":"Throw `new AppError(status, code, message)` — not a bare `{ status, message }` object. Client-facing errors must carry a machine code (see src/lib/app-error.ts)."},
+                {"selector":"CallExpression[callee.name='parseInt'] MemberExpression[object.name='req'][property.name='query']","message":"Do not parseInt() `req.query` — validate with a Zod schema via `validate({ query })` and read the coerced values from `req.validatedQuery`."},
+                {"selector":"CallExpression[callee.property.name='json'] Property[key.name='error'] > Literal[value=/[a-z]/]","message":"Error responses must be a machine code, not English — throw `new AppError(...)` or `res.json({ error: 'SOME_CODE' })`. The English text lives in the code's translation (frontend `errors.*`)."},
+                {"selector":"CallExpression[callee.property.name='json'] > ObjectExpression > Property[key.name='message']","message":"No `message` field on the wire — nothing localises it, so it reaches the UI as raw English. Return the resource, `res.status(204).end()` for a side effect, or `res.json({ error: SOME_CODE })` which the frontend translates via `errors.*`."},
+                {"selector":"CallExpression[callee.name='fetch']:not(:has(ObjectExpression > Property[key.name='signal']))","message":"Pass a timeout to every outbound fetch: `fetch(url, { signal: AbortSignal.timeout(5000) })`. Node applies no default, so a stalled upstream pins the request slot until the process restarts."},
+                {"selector":"ExportNamedDeclaration > FunctionDeclaration > TSTypeAnnotation TSTypeReference[typeName.name='Record'][typeArguments.params.1.type='TSUnknownKeyword']","message":"Do not return `Record<string, unknown>` from an exported function — it switches type checking off for everything the caller receives, which is how the API and frontend drifted apart on VideoMeta. Name the shape (e.g. `VideoMeta`) and export it from the module that returns it, so every caller compiles against one definition."},
+                {"selector":"ExportNamedDeclaration > VariableDeclaration > VariableDeclarator > ArrowFunctionExpression > TSTypeAnnotation TSTypeReference[typeName.name='Record'][typeArguments.params.1.type='TSUnknownKeyword']","message":"Do not return `Record<string, unknown>` from an exported function — it switches type checking off for everything the caller receives, which is how the API and frontend drifted apart on VideoMeta. Name the shape (e.g. `VideoMeta`) and export it from the module that returns it, so every caller compiles against one definition."},
+                {"selector":"CallExpression[callee.property.name='/^(trace|debug|info|warn|error|fatal)$/'] > TemplateLiteral[expressions.length>0]","message":"No interpolation in log messages — the message must be low-cardinality so identical events aggregate. Put variables in the structured object: logger.info({ userId }, 'Watched video')."},
+                {"selector":"CallExpression[callee.property.name='/^(trace|debug|info|warn|error|fatal)$/'] > Literal[value=/^\\[/]","message":"No prefix tags like '[worker]' in the message — the service name is a base binding (pino `name`), and the operation goes in an `op` field (e.g. { op: 'jobs.transcode' })."},
+                {"selector":"CallExpression[callee.property.name='/^(trace|debug|info|warn|error|fatal)$/'] Property[key.name='err'] > MemberExpression[property.name='message']","message":"Log the whole error as { err } — pino's serialiser keeps the stack AND the error's own fields (an S3 error's code, an ioredis error's command). { err: err.message } throws all of that away."},
+                {"selector":"CatchClause > BlockStatement > ExpressionStatement:has(CallExpression[callee.property.name=/^(error|warn|fatal)$/]) + ThrowStatement","message":"Do not log and rethrow — that logs the same failure once per layer. Log once at the boundary that handles it, or carry the extra fields as the AppError `logContext` argument so the error handler writes them into the single boundary line."},
+                {"selector":"CallExpression[callee.property.name='json'] > ObjectExpression > Property[key.name='error'] > MemberExpression[property.name=/^(message|stack)$/]","message":"Never put an Error's `message` or `stack` on the wire — it is English the frontend cannot translate and may carry internals or reflected input. Throw `new AppError(status, 'SOME_CODE', message)` instead: the code goes to the client, the message stays in the log."},
+                {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
+                {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."},
+                {"selector":"CallExpression[callee.object.name='res'][callee.property.name='status'] > Literal[value>=400]","message":"Do not respond to an error directly — throw `new AppError(status, code, message, params?, logContext?, securityEvent?)` so the central error handler owns the response + the boundary log. If this is a deliberate exception (a stream where headers may already be sent, a health probe, a self-logging operational path, or the error handler itself), add `// eslint-disable-next-line no-restricted-syntax -- <reason>`."},
+                {"selector":"CallExpression[callee.property.name='createIndex']","message":"Do not call createIndex here. Add an entry to the index manifest (src/db/indexes.ts) — it is applied by ensureIndexes() in lib/db.ts on the next boot."},
+                {"selector":"CallExpression[callee.property.name='dropIndex']","message":"Never drop an index from application code. It re-runs on every boot of every replica — the old connectDb() dropped and rebuilt both Views indexes on every single restart. Dropping is one-shot work: write a migration in db/migrations/, where dropIndex is allowed."},
+                {"selector":"NewExpression[callee.name='MongoClient']","message":"One MongoDB connection per process. Use getDb() from lib/db.ts — the singleton is created once by connectDb() at startup."},
+                {"selector":"CallExpression[callee.property.name='collection'][arguments.0.type='Literal']:not([typeArguments])","message":"Give every collection its document type: `db.collection<MediaDoc>('Media')`, with the Doc types from src/db/collections.ts. Untyped, every read is `any`-shaped and a write with a misspelt or wrong-typed field compiles fine — which is how the worker never used MediaDoc."}
+            ] },
+        { "files": ["src/routes/users.ts"], "entry": [
+                "error",
+                {"selector":"ThrowStatement > ObjectExpression","message":"Throw `new AppError(status, code, message)` — not a bare `{ status, message }` object. Client-facing errors must carry a machine code (see src/lib/app-error.ts)."},
+                {"selector":"CallExpression[callee.name='parseInt'] MemberExpression[object.name='req'][property.name='query']","message":"Do not parseInt() `req.query` — validate with a Zod schema via `validate({ query })` and read the coerced values from `req.validatedQuery`."},
+                {"selector":"CallExpression[callee.property.name='json'] Property[key.name='error'] > Literal[value=/[a-z]/]","message":"Error responses must be a machine code, not English — throw `new AppError(...)` or `res.json({ error: 'SOME_CODE' })`. The English text lives in the code's translation (frontend `errors.*`)."},
+                {"selector":"CallExpression[callee.property.name='json'] > ObjectExpression > Property[key.name='message']","message":"No `message` field on the wire — nothing localises it, so it reaches the UI as raw English. Return the resource, `res.status(204).end()` for a side effect, or `res.json({ error: SOME_CODE })` which the frontend translates via `errors.*`."},
+                {"selector":"CallExpression[callee.name='fetch']:not(:has(ObjectExpression > Property[key.name='signal']))","message":"Pass a timeout to every outbound fetch: `fetch(url, { signal: AbortSignal.timeout(5000) })`. Node applies no default, so a stalled upstream pins the request slot until the process restarts."},
+                {"selector":"ExportNamedDeclaration > FunctionDeclaration > TSTypeAnnotation TSTypeReference[typeName.name='Record'][typeArguments.params.1.type='TSUnknownKeyword']","message":"Do not return `Record<string, unknown>` from an exported function — it switches type checking off for everything the caller receives, which is how the API and frontend drifted apart on VideoMeta. Name the shape (e.g. `VideoMeta`) and export it from the module that returns it, so every caller compiles against one definition."},
+                {"selector":"ExportNamedDeclaration > VariableDeclaration > VariableDeclarator > ArrowFunctionExpression > TSTypeAnnotation TSTypeReference[typeName.name='Record'][typeArguments.params.1.type='TSUnknownKeyword']","message":"Do not return `Record<string, unknown>` from an exported function — it switches type checking off for everything the caller receives, which is how the API and frontend drifted apart on VideoMeta. Name the shape (e.g. `VideoMeta`) and export it from the module that returns it, so every caller compiles against one definition."},
+                {"selector":"CallExpression[callee.property.name='/^(trace|debug|info|warn|error|fatal)$/'] > TemplateLiteral[expressions.length>0]","message":"No interpolation in log messages — the message must be low-cardinality so identical events aggregate. Put variables in the structured object: logger.info({ userId }, 'Watched video')."},
+                {"selector":"CallExpression[callee.property.name='/^(trace|debug|info|warn|error|fatal)$/'] > Literal[value=/^\\[/]","message":"No prefix tags like '[worker]' in the message — the service name is a base binding (pino `name`), and the operation goes in an `op` field (e.g. { op: 'jobs.transcode' })."},
+                {"selector":"CallExpression[callee.property.name='/^(trace|debug|info|warn|error|fatal)$/'] Property[key.name='err'] > MemberExpression[property.name='message']","message":"Log the whole error as { err } — pino's serialiser keeps the stack AND the error's own fields (an S3 error's code, an ioredis error's command). { err: err.message } throws all of that away."},
+                {"selector":"CatchClause > BlockStatement > ExpressionStatement:has(CallExpression[callee.property.name=/^(error|warn|fatal)$/]) + ThrowStatement","message":"Do not log and rethrow — that logs the same failure once per layer. Log once at the boundary that handles it, or carry the extra fields as the AppError `logContext` argument so the error handler writes them into the single boundary line."},
+                {"selector":"CallExpression[callee.property.name='json'] > ObjectExpression > Property[key.name='error'] > MemberExpression[property.name=/^(message|stack)$/]","message":"Never put an Error's `message` or `stack` on the wire — it is English the frontend cannot translate and may carry internals or reflected input. Throw `new AppError(status, 'SOME_CODE', message)` instead: the code goes to the client, the message stays in the log."},
+                {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
+                {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."},
+                {"selector":"CallExpression[callee.property.name='json'] > ObjectExpression > Property[key.name='ok']","message":"No `{ ok: true }` success envelope — return the resource directly, or `res.status(204).end()` for a pure side-effect."},
+                {"selector":"MemberExpression[object.name='req'][property.name='query']","message":"Do not read `req.query` in a route — attach `validate({ query })` and read the coerced, capped values from `req.validatedQuery`. Handlers receive clean data or the request never reaches them."},
+                {"selector":"CallExpression[callee.object.name='res'][callee.property.name='status'] > Literal[value>=400]","message":"Do not respond to an error directly — throw `new AppError(status, code, message, params?, logContext?, securityEvent?)` so the central error handler owns the response + the boundary log. If this is a deliberate exception (a stream where headers may already be sent, a health probe, a self-logging operational path, or the error handler itself), add `// eslint-disable-next-line no-restricted-syntax -- <reason>`."},
+                {"selector":"CallExpression[callee.property.name='createIndex']","message":"Do not call createIndex here. Add an entry to the index manifest (src/db/indexes.ts) — it is applied by ensureIndexes() in lib/db.ts on the next boot."},
+                {"selector":"CallExpression[callee.property.name='dropIndex']","message":"Never drop an index from application code. It re-runs on every boot of every replica — the old connectDb() dropped and rebuilt both Views indexes on every single restart. Dropping is one-shot work: write a migration in db/migrations/, where dropIndex is allowed."},
+                {"selector":"NewExpression[callee.name='MongoClient']","message":"One MongoDB connection per process. Use getDb() from lib/db.ts — the singleton is created once by connectDb() at startup."},
+                {"selector":"CallExpression[callee.property.name='collection'][arguments.0.type='Literal']:not([typeArguments])","message":"Give every collection its document type: `db.collection<MediaDoc>('Media')`, with the Doc types from src/db/collections.ts. Untyped, every read is `any`-shaped and a write with a misspelt or wrong-typed field compiles fine — which is how the worker never used MediaDoc."}
+            ] },
+        { "files": ["src/gateway/socket.ts"], "entry": [
+                "error",
+                {"selector":"MemberExpression[object.property.name='handshake'][property.name='query']","message":"Read the handshake credential from `socket.handshake.auth.token`, not the query string — query strings are written verbatim into proxy and access logs."},
+                {"selector":"ThrowStatement","message":"Never throw across a socket boundary — Socket.IO will not route it to the Express error handler. Catch it here, `logger.error({ err, op, userId }, ...)` once, and emit a coded `error` event. To reject a handshake, call `next(new Error('...'))`."},
+                {"selector":"CallExpression[callee.property.name='emit'][arguments.0.value='error'] > ObjectExpression > Property[key.name='message']","message":"A socket error payload carries a machine code, not English: `emit('error', { code: 'RATE_LIMITED' })`. The user-facing text lives in the frontend translation, exactly as for REST error codes."},
+                {"selector":"CallExpression[callee.property.name='emit'] > Literal:first-child[value!=/^(?:connect|connection|disconnect|disconnecting|connect_error|error)$|^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$/]","message":"Socket events are named `resource:action` — lowercase and colon-namespaced (`notification:new`, `badge:awarded`). Add it to the event contract in the gateway's file header too; `npm run ws:check` checks the two agree."},
+                {"selector":"CallExpression[callee.object.name=/^(?:socket|sock)$/][callee.property.name='on'] > Literal:first-child[value!=/^(?:connect|connection|disconnect|disconnecting|connect_error|error)$|^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$/]","message":"Socket events are named `resource:action` — lowercase and colon-namespaced (`notification:new`, `badge:awarded`). Add it to the event contract in the gateway's file header too; `npm run ws:check` checks the two agree."},
+                {"selector":"ThrowStatement > ObjectExpression","message":"Throw `new AppError(status, code, message)` — not a bare `{ status, message }` object. Client-facing errors must carry a machine code (see src/lib/app-error.ts)."},
+                {"selector":"CallExpression[callee.name='parseInt'] MemberExpression[object.name='req'][property.name='query']","message":"Do not parseInt() `req.query` — validate with a Zod schema via `validate({ query })` and read the coerced values from `req.validatedQuery`."},
+                {"selector":"CallExpression[callee.property.name='json'] Property[key.name='error'] > Literal[value=/[a-z]/]","message":"Error responses must be a machine code, not English — throw `new AppError(...)` or `res.json({ error: 'SOME_CODE' })`. The English text lives in the code's translation (frontend `errors.*`)."},
+                {"selector":"CallExpression[callee.property.name='json'] > ObjectExpression > Property[key.name='message']","message":"No `message` field on the wire — nothing localises it, so it reaches the UI as raw English. Return the resource, `res.status(204).end()` for a side effect, or `res.json({ error: SOME_CODE })` which the frontend translates via `errors.*`."},
+                {"selector":"CallExpression[callee.name='fetch']:not(:has(ObjectExpression > Property[key.name='signal']))","message":"Pass a timeout to every outbound fetch: `fetch(url, { signal: AbortSignal.timeout(5000) })`. Node applies no default, so a stalled upstream pins the request slot until the process restarts."},
+                {"selector":"ExportNamedDeclaration > FunctionDeclaration > TSTypeAnnotation TSTypeReference[typeName.name='Record'][typeArguments.params.1.type='TSUnknownKeyword']","message":"Do not return `Record<string, unknown>` from an exported function — it switches type checking off for everything the caller receives, which is how the API and frontend drifted apart on VideoMeta. Name the shape (e.g. `VideoMeta`) and export it from the module that returns it, so every caller compiles against one definition."},
+                {"selector":"ExportNamedDeclaration > VariableDeclaration > VariableDeclarator > ArrowFunctionExpression > TSTypeAnnotation TSTypeReference[typeName.name='Record'][typeArguments.params.1.type='TSUnknownKeyword']","message":"Do not return `Record<string, unknown>` from an exported function — it switches type checking off for everything the caller receives, which is how the API and frontend drifted apart on VideoMeta. Name the shape (e.g. `VideoMeta`) and export it from the module that returns it, so every caller compiles against one definition."},
+                {"selector":"CallExpression[callee.property.name='/^(trace|debug|info|warn|error|fatal)$/'] > TemplateLiteral[expressions.length>0]","message":"No interpolation in log messages — the message must be low-cardinality so identical events aggregate. Put variables in the structured object: logger.info({ userId }, 'Watched video')."},
+                {"selector":"CallExpression[callee.property.name='/^(trace|debug|info|warn|error|fatal)$/'] > Literal[value=/^\\[/]","message":"No prefix tags like '[worker]' in the message — the service name is a base binding (pino `name`), and the operation goes in an `op` field (e.g. { op: 'jobs.transcode' })."},
+                {"selector":"CallExpression[callee.property.name='/^(trace|debug|info|warn|error|fatal)$/'] Property[key.name='err'] > MemberExpression[property.name='message']","message":"Log the whole error as { err } — pino's serialiser keeps the stack AND the error's own fields (an S3 error's code, an ioredis error's command). { err: err.message } throws all of that away."},
+                {"selector":"CatchClause > BlockStatement > ExpressionStatement:has(CallExpression[callee.property.name=/^(error|warn|fatal)$/]) + ThrowStatement","message":"Do not log and rethrow — that logs the same failure once per layer. Log once at the boundary that handles it, or carry the extra fields as the AppError `logContext` argument so the error handler writes them into the single boundary line."},
+                {"selector":"CallExpression[callee.property.name='json'] > ObjectExpression > Property[key.name='error'] > MemberExpression[property.name=/^(message|stack)$/]","message":"Never put an Error's `message` or `stack` on the wire — it is English the frontend cannot translate and may carry internals or reflected input. Throw `new AppError(status, 'SOME_CODE', message)` instead: the code goes to the client, the message stays in the log."},
+                {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
+                {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."},
+                {"selector":"CallExpression[callee.object.name='res'][callee.property.name='status'] > Literal[value>=400]","message":"Do not respond to an error directly — throw `new AppError(status, code, message, params?, logContext?, securityEvent?)` so the central error handler owns the response + the boundary log. If this is a deliberate exception (a stream where headers may already be sent, a health probe, a self-logging operational path, or the error handler itself), add `// eslint-disable-next-line no-restricted-syntax -- <reason>`."},
+                {"selector":"CallExpression[callee.property.name='createIndex']","message":"Do not call createIndex here. Add an entry to the index manifest (src/db/indexes.ts) — it is applied by ensureIndexes() in lib/db.ts on the next boot."},
+                {"selector":"CallExpression[callee.property.name='dropIndex']","message":"Never drop an index from application code. It re-runs on every boot of every replica — the old connectDb() dropped and rebuilt both Views indexes on every single restart. Dropping is one-shot work: write a migration in db/migrations/, where dropIndex is allowed."},
+                {"selector":"NewExpression[callee.name='MongoClient']","message":"One MongoDB connection per process. Use getDb() from lib/db.ts — the singleton is created once by connectDb() at startup."},
+                {"selector":"CallExpression[callee.property.name='collection'][arguments.0.type='Literal']:not([typeArguments])","message":"Give every collection its document type: `db.collection<MediaDoc>('Media')`, with the Doc types from src/db/collections.ts. Untyped, every read is `any`-shaped and a write with a misspelt or wrong-typed field compiles fine — which is how the worker never used MediaDoc."}
+            ] },
+        { "files": ["src/lib/config.ts"], "entry": [
+                "error",
+                {"selector":"MemberExpression[object.object.name='process'][object.property.name='env']","message":"Do not read process.env.X in config. Add the key to the Zod schema and read it from `parsed`."},
+                {"selector":"CallExpression[callee.name='parseInt']","message":"Use z.coerce.number() in the schema instead of parseInt()."},
+                {"selector":"CallExpression[callee.name='parseFloat']","message":"Use z.coerce.number() in the schema instead of parseFloat()."},
+                {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
+                {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."}
+            ] },
+        { "files": ["src/lib/db.ts"], "entry": [
+                "error",
+                {"selector":"ThrowStatement > ObjectExpression","message":"Throw `new AppError(status, code, message)` — not a bare `{ status, message }` object. Client-facing errors must carry a machine code (see src/lib/app-error.ts)."},
+                {"selector":"CallExpression[callee.name='parseInt'] MemberExpression[object.name='req'][property.name='query']","message":"Do not parseInt() `req.query` — validate with a Zod schema via `validate({ query })` and read the coerced values from `req.validatedQuery`."},
+                {"selector":"CallExpression[callee.property.name='json'] Property[key.name='error'] > Literal[value=/[a-z]/]","message":"Error responses must be a machine code, not English — throw `new AppError(...)` or `res.json({ error: 'SOME_CODE' })`. The English text lives in the code's translation (frontend `errors.*`)."},
+                {"selector":"CallExpression[callee.property.name='json'] > ObjectExpression > Property[key.name='message']","message":"No `message` field on the wire — nothing localises it, so it reaches the UI as raw English. Return the resource, `res.status(204).end()` for a side effect, or `res.json({ error: SOME_CODE })` which the frontend translates via `errors.*`."},
+                {"selector":"CallExpression[callee.name='fetch']:not(:has(ObjectExpression > Property[key.name='signal']))","message":"Pass a timeout to every outbound fetch: `fetch(url, { signal: AbortSignal.timeout(5000) })`. Node applies no default, so a stalled upstream pins the request slot until the process restarts."},
+                {"selector":"ExportNamedDeclaration > FunctionDeclaration > TSTypeAnnotation TSTypeReference[typeName.name='Record'][typeArguments.params.1.type='TSUnknownKeyword']","message":"Do not return `Record<string, unknown>` from an exported function — it switches type checking off for everything the caller receives, which is how the API and frontend drifted apart on VideoMeta. Name the shape (e.g. `VideoMeta`) and export it from the module that returns it, so every caller compiles against one definition."},
+                {"selector":"ExportNamedDeclaration > VariableDeclaration > VariableDeclarator > ArrowFunctionExpression > TSTypeAnnotation TSTypeReference[typeName.name='Record'][typeArguments.params.1.type='TSUnknownKeyword']","message":"Do not return `Record<string, unknown>` from an exported function — it switches type checking off for everything the caller receives, which is how the API and frontend drifted apart on VideoMeta. Name the shape (e.g. `VideoMeta`) and export it from the module that returns it, so every caller compiles against one definition."},
+                {"selector":"CallExpression[callee.property.name='/^(trace|debug|info|warn|error|fatal)$/'] > TemplateLiteral[expressions.length>0]","message":"No interpolation in log messages — the message must be low-cardinality so identical events aggregate. Put variables in the structured object: logger.info({ userId }, 'Watched video')."},
+                {"selector":"CallExpression[callee.property.name='/^(trace|debug|info|warn|error|fatal)$/'] > Literal[value=/^\\[/]","message":"No prefix tags like '[worker]' in the message — the service name is a base binding (pino `name`), and the operation goes in an `op` field (e.g. { op: 'jobs.transcode' })."},
+                {"selector":"CallExpression[callee.property.name='/^(trace|debug|info|warn|error|fatal)$/'] Property[key.name='err'] > MemberExpression[property.name='message']","message":"Log the whole error as { err } — pino's serialiser keeps the stack AND the error's own fields (an S3 error's code, an ioredis error's command). { err: err.message } throws all of that away."},
+                {"selector":"CatchClause > BlockStatement > ExpressionStatement:has(CallExpression[callee.property.name=/^(error|warn|fatal)$/]) + ThrowStatement","message":"Do not log and rethrow — that logs the same failure once per layer. Log once at the boundary that handles it, or carry the extra fields as the AppError `logContext` argument so the error handler writes them into the single boundary line."},
+                {"selector":"CallExpression[callee.property.name='json'] > ObjectExpression > Property[key.name='error'] > MemberExpression[property.name=/^(message|stack)$/]","message":"Never put an Error's `message` or `stack` on the wire — it is English the frontend cannot translate and may carry internals or reflected input. Throw `new AppError(status, 'SOME_CODE', message)` instead: the code goes to the client, the message stays in the log."},
+                {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
+                {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."},
+                {"selector":"CallExpression[callee.object.name='res'][callee.property.name='status'] > Literal[value>=400]","message":"Do not respond to an error directly — throw `new AppError(status, code, message, params?, logContext?, securityEvent?)` so the central error handler owns the response + the boundary log. If this is a deliberate exception (a stream where headers may already be sent, a health probe, a self-logging operational path, or the error handler itself), add `// eslint-disable-next-line no-restricted-syntax -- <reason>`."},
+                {"selector":"CallExpression[callee.property.name='dropIndex']","message":"Never drop an index from application code. It re-runs on every boot of every replica — the old connectDb() dropped and rebuilt both Views indexes on every single restart. Dropping is one-shot work: write a migration in db/migrations/, where dropIndex is allowed."},
+                {"selector":"CallExpression[callee.property.name='collection'][arguments.0.type='Literal']:not([typeArguments])","message":"Give every collection its document type: `db.collection<MediaDoc>('Media')`, with the Doc types from src/db/collections.ts. Untyped, every read is `any`-shaped and a write with a misspelt or wrong-typed field compiles fine — which is how the worker never used MediaDoc."}
+            ] },
+        { "files": ["src/middleware/error-handler.ts"], "entry": [
+                "error",
+                {"selector":"ThrowStatement > ObjectExpression","message":"Throw `new AppError(status, code, message)` — not a bare `{ status, message }` object. Client-facing errors must carry a machine code (see src/lib/app-error.ts)."},
+                {"selector":"CallExpression[callee.name='parseInt'] MemberExpression[object.name='req'][property.name='query']","message":"Do not parseInt() `req.query` — validate with a Zod schema via `validate({ query })` and read the coerced values from `req.validatedQuery`."},
+                {"selector":"CallExpression[callee.property.name='json'] Property[key.name='error'] > Literal[value=/[a-z]/]","message":"Error responses must be a machine code, not English — throw `new AppError(...)` or `res.json({ error: 'SOME_CODE' })`. The English text lives in the code's translation (frontend `errors.*`)."},
+                {"selector":"CallExpression[callee.property.name='json'] > ObjectExpression > Property[key.name='message']","message":"No `message` field on the wire — nothing localises it, so it reaches the UI as raw English. Return the resource, `res.status(204).end()` for a side effect, or `res.json({ error: SOME_CODE })` which the frontend translates via `errors.*`."},
+                {"selector":"CallExpression[callee.name='fetch']:not(:has(ObjectExpression > Property[key.name='signal']))","message":"Pass a timeout to every outbound fetch: `fetch(url, { signal: AbortSignal.timeout(5000) })`. Node applies no default, so a stalled upstream pins the request slot until the process restarts."},
+                {"selector":"ExportNamedDeclaration > FunctionDeclaration > TSTypeAnnotation TSTypeReference[typeName.name='Record'][typeArguments.params.1.type='TSUnknownKeyword']","message":"Do not return `Record<string, unknown>` from an exported function — it switches type checking off for everything the caller receives, which is how the API and frontend drifted apart on VideoMeta. Name the shape (e.g. `VideoMeta`) and export it from the module that returns it, so every caller compiles against one definition."},
+                {"selector":"ExportNamedDeclaration > VariableDeclaration > VariableDeclarator > ArrowFunctionExpression > TSTypeAnnotation TSTypeReference[typeName.name='Record'][typeArguments.params.1.type='TSUnknownKeyword']","message":"Do not return `Record<string, unknown>` from an exported function — it switches type checking off for everything the caller receives, which is how the API and frontend drifted apart on VideoMeta. Name the shape (e.g. `VideoMeta`) and export it from the module that returns it, so every caller compiles against one definition."},
+                {"selector":"CallExpression[callee.property.name='/^(trace|debug|info|warn|error|fatal)$/'] > TemplateLiteral[expressions.length>0]","message":"No interpolation in log messages — the message must be low-cardinality so identical events aggregate. Put variables in the structured object: logger.info({ userId }, 'Watched video')."},
+                {"selector":"CallExpression[callee.property.name='/^(trace|debug|info|warn|error|fatal)$/'] > Literal[value=/^\\[/]","message":"No prefix tags like '[worker]' in the message — the service name is a base binding (pino `name`), and the operation goes in an `op` field (e.g. { op: 'jobs.transcode' })."},
+                {"selector":"CallExpression[callee.property.name='/^(trace|debug|info|warn|error|fatal)$/'] Property[key.name='err'] > MemberExpression[property.name='message']","message":"Log the whole error as { err } — pino's serialiser keeps the stack AND the error's own fields (an S3 error's code, an ioredis error's command). { err: err.message } throws all of that away."},
+                {"selector":"CatchClause > BlockStatement > ExpressionStatement:has(CallExpression[callee.property.name=/^(error|warn|fatal)$/]) + ThrowStatement","message":"Do not log and rethrow — that logs the same failure once per layer. Log once at the boundary that handles it, or carry the extra fields as the AppError `logContext` argument so the error handler writes them into the single boundary line."},
+                {"selector":"CallExpression[callee.property.name='json'] > ObjectExpression > Property[key.name='error'] > MemberExpression[property.name=/^(message|stack)$/]","message":"Never put an Error's `message` or `stack` on the wire — it is English the frontend cannot translate and may carry internals or reflected input. Throw `new AppError(status, 'SOME_CODE', message)` instead: the code goes to the client, the message stays in the log."},
+                {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
+                {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."},
+                {"selector":"CallExpression[callee.property.name='createIndex']","message":"Do not call createIndex here. Add an entry to the index manifest (src/db/indexes.ts) — it is applied by ensureIndexes() in lib/db.ts on the next boot."},
+                {"selector":"CallExpression[callee.property.name='dropIndex']","message":"Never drop an index from application code. It re-runs on every boot of every replica — the old connectDb() dropped and rebuilt both Views indexes on every single restart. Dropping is one-shot work: write a migration in db/migrations/, where dropIndex is allowed."},
+                {"selector":"NewExpression[callee.name='MongoClient']","message":"One MongoDB connection per process. Use getDb() from lib/db.ts — the singleton is created once by connectDb() at startup."},
+                {"selector":"CallExpression[callee.property.name='collection'][arguments.0.type='Literal']:not([typeArguments])","message":"Give every collection its document type: `db.collection<MediaDoc>('Media')`, with the Doc types from src/db/collections.ts. Untyped, every read is `any`-shaped and a write with a misspelt or wrong-typed field compiles fine — which is how the worker never used MediaDoc."}
+            ] },
+        { "files": ["e2e/login.spec.ts"], "entry": [
+                "error",
+                {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
+                {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."},
+                {"selector":"CallExpression[callee.name=\"fileURLToPath\"]","message":"Use `import.meta.dirname` directly with `path.resolve()` instead of the `fileURLToPath` pattern. Modern ES modules support `import.meta.dirname` natively (Node.js 20.11.0+), which is simpler and more readable than converting `import.meta.url` through fileURLToPath."}
+            ] },
+        { "files": ["scripts/seed.ts"], "entry": [
+                "error",
+                {"selector":"LogicalExpression[operator=/^(\\|\\||\\?\\?)$/] > MemberExpression[object.object.name='process'][object.property.name='env']","message":"No silent env fallback. Use getRequiredEnv('X') from scripts/lib/env.ts — it throws on a missing variable instead of guessing localhost. If a wrong value genuinely cannot destroy or mis-target data, use optionalEnv('X', default) and say why."}
+            ] },
+        { "files": ["db/migrations/001-init.js"], "entry": [
+                "error",
+                {"selector":"ExportNamedDeclaration > FunctionDeclaration[id.name='down']","message":"Migrations are forward-only: no down(). A reversal that loses data is not a rollback (the bootstrap down() dropped all 28 collections). To undo a migration, write a new forward migration. See db/migrations/README.md."},
+                {"selector":"ExportNamedDeclaration > VariableDeclaration > VariableDeclarator[id.name='down']","message":"Migrations are forward-only: no down(). A reversal that loses data is not a rollback (the bootstrap down() dropped all 28 collections). To undo a migration, write a new forward migration. See db/migrations/README.md."},
+                {"selector":"Property[key.name='down']","message":"Migrations are forward-only: no down(). A reversal that loses data is not a rollback (the bootstrap down() dropped all 28 collections). To undo a migration, write a new forward migration. See db/migrations/README.md."},
+                {"selector":"CallExpression[callee.property.name='createIndex']","message":"Do not create indexes in a migration. Every index is declared once in src/db/indexes.ts and applied by ensureIndexes() at API boot. Declaring them here too is what let HashDatabase{source,addedAt} drift. See db/migrations/README.md."}
+            ] }
+    ],
+    "no-self-assign": [
+        { "files": "*", "entry": ["error",{"props":true}] }
+    ],
+    "no-self-compare": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-setter-return": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-shadow-restricted-names": [
+        { "files": "*", "entry": ["error",{"reportGlobalThis":true}] }
+    ],
+    "no-sparse-arrays": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-template-curly-in-string": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-this-before-super": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-unassigned-vars": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-undef": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": ["error",{"typeof":false}] }
+    ],
+    "no-unmodified-loop-condition": [
+        { "files": "*", "entry": ["error",{"checkConditionalExpressions":false}] }
+    ],
+    "no-unreachable": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "no-unreachable-loop": [
+        { "files": "*", "entry": ["error",{"ignore":[]}] }
+    ],
+    "no-unsafe-finally": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-unsafe-negation": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": ["error",{"enforceForOrderingRelations":false}] }
+    ],
+    "no-unsafe-optional-chaining": [
+        { "files": "*", "entry": ["error",{"disallowArithmeticOperators":false}] }
+    ],
+    "no-unused-labels": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-unused-private-class-members": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-assignment": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-backreference": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-call": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-catch": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-computed-key": [
+        { "files": "*", "entry": ["error",{"enforceForClassMembers":true}] }
+    ],
+    "no-useless-concat": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-escape": [
+        { "files": "*", "entry": ["error",{"allowRegexCharacters":[]}] }
+    ],
+    "no-useless-rename": [
+        { "files": "*", "entry": ["error",{"ignoreDestructuring":false,"ignoreImport":false,"ignoreExport":false}] }
+    ],
+    "no-useless-return": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-var": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "no-warning-comments": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts","db/migrations/001-init.js"], "entry": ["error",{"location":"anywhere","terms":["todo","fixme","fix me","hack","xxx","wip","tbd"]}] }
+    ],
+    "no-with": [
+        { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": "error" }
+    ],
+    "object-shorthand": [
+        { "files": "*", "entry": ["error","always"] }
+    ],
+    "prefer-const": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": ["error",{"destructuring":"all","ignoreReadBeforeAssign":false}] },
+        { "files": ["scripts/seed.ts"], "entry": ["error",{"destructuring":"any","ignoreReadBeforeAssign":false}] }
+    ],
+    "prefer-rest-params": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "prefer-spread": [
+        { "files": ["src/index.ts","src/routes/users.ts","src/gateway/socket.ts","src/lib/config.ts","src/lib/db.ts","src/middleware/error-handler.ts","src/routes/__tests__/users.test.ts","e2e/login.spec.ts","scripts/seed.ts"], "entry": "error" }
+    ],
+    "prefer-template": [
+        { "files": "*", "entry": "error" }
+    ],
+    "preserve-caught-error": [
+        { "files": "*", "entry": ["error",{"requireCatchParameter":false,"errorClassNames":[]}] }
+    ],
+    "radix": [
+        { "files": "*", "entry": "error" }
+    ],
+    "require-yield": [
+        { "files": "*", "entry": "error" }
+    ],
+    "use-isnan": [
+        { "files": "*", "entry": ["error",{"enforceForIndexOf":false,"enforceForSwitchCase":true}] }
+    ],
+    "valid-typeof": [
+        { "files": "*", "entry": ["error",{"requireStringLiterals":false}] }
+    ],
+    "vitest/consistent-test-it": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": ["error",{"fn":"test","withinDescribe":"it"}] }
+    ],
+    "vitest/expect-expect": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": ["error",{"assertFunctionNames":["expect","assert"],"additionalTestBlockFunctions":[]}] }
+    ],
+    "vitest/no-commented-out-tests": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/no-conditional-expect": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": ["error",{"expectAssertions":false}] }
+    ],
+    "vitest/no-conditional-in-test": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/no-disabled-tests": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/no-duplicate-hooks": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/no-focused-tests": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": ["error",{"fixable":true}] }
+    ],
+    "vitest/no-identical-title": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/no-standalone-expect": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": ["error",{"additionalTestBlockFunctions":[]}] }
+    ],
+    "vitest/no-test-return-statement": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/prefer-hooks-on-top": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/prefer-to-be": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/prefer-to-have-length": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/require-awaited-expect-poll": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/require-to-throw-message": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/valid-describe-callback": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ],
+    "vitest/valid-expect": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": ["error",{"alwaysAwait":false,"asyncMatchers":["toReject","toResolve"],"minArgs":1,"maxArgs":1}] }
+    ],
+    "vitest/valid-expect-in-promise": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": "error" }
+    ]
+}

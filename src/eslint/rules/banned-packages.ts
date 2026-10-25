@@ -8,11 +8,11 @@
  * every `node:` specifier.
  */
 
-const escape = (name: string): string => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const alternative = (name: string): string => (name.endsWith(':') ? `${escape(name)}.*` : `${escape(name)}(?:/.*)?`);
-
 export const bannedPackages = (names: string[], message: string) => ({
     regex: `^(?:${names.map(alternative).join('|')})$`,
     message,
 });
+
+const escape = (name: string): string => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const alternative = (name: string): string => (name.endsWith(':') ? `${escape(name)}.*` : `${escape(name)}(?:/.*)?`);

@@ -131,70 +131,8 @@ type DbDriftInspection = {
     migrations: number;
 };
 
-
 /** Fields whose name says the index is meant to expire documents, not just sort them. */
 const DEFAULT_TTL_FIELDS = ['expiresAt', 'expireAt', 'expiresOn'];
-
-/** `Users` → `users`, `HashDatabase` → `hash-database`, `AssetInfo` → `asset-info`. */
-const kebab = (name: string) => name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
-
-/** The top-level fields of `type Name = { … }`, brace-counted, ignoring anything nested. */
-function typeFields(
-    source: string,
-    typeName: string,
-): { open: boolean; fields: { name: string; optional: boolean }[] } | null {
-    const opener = new RegExp(String.raw`^\s*(?:export\s+)?type ${typeName}\s*=\s*\{`, 'm').exec(source);
-    if (opener === null) return null;
-
-    let depth = 1;
-    let top = '';
-    for (let i = opener.index + opener[0].length; i < source.length && depth > 0; i++) {
-        const ch = source[i];
-        if (ch === '{') {
-            if (depth === 1) top += ch;
-            depth++;
-        } else if (ch === '}') {
-            depth--;
-        } else if (depth === 1) {
-            top += ch;
-        }
-    }
-
-    const code = top.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-    return {
-        // An index signature allows extra example keys.
-        open: /\[\s*\w+\s*:\s*string\s*\]\s*:/.test(code),
-        fields: [...code.matchAll(/(?:^|[;\n{])\s*(\w+)(\??)\s*:/g)].map((m) => ({
-            name: m[1] ?? '',
-            optional: m[2] === '?',
-        })),
-    };
-}
-
-/**
- * The field names listed in the `#### Collection` table of the architecture doc.
- *
- * @returns Null when the collection has no section at all.
- */
-function documentedFields(doc: string, collection: string): string[] | null {
-    const start = doc.indexOf(`#### ${collection}\n`);
-    if (start === -1) return null;
-    const rest = doc.slice(start + 1);
-    const next = rest.search(/\n#{2,4} /);
-    const section = next === -1 ? rest : rest.slice(0, next);
-    return [...section.matchAll(/^\| `(\w+)`\s*\|/gm)].map((m) => m[1] ?? '');
-}
-
-/** Every `.ts` file under a directory, recursively. */
-function walk(root: string, dir: string): string[] {
-    const abs = path.join(root, dir);
-    if (!fs.existsSync(abs)) return [];
-    return fs.readdirSync(abs, { withFileTypes: true }).flatMap((entry) => {
-        const rel = path.join(dir, entry.name);
-        if (entry.isDirectory()) return walk(root, rel);
-        return entry.name.endsWith('.ts') ? [rel] : [];
-    });
-}
 
 /** Read the gate's findings without printing them. */
 export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspection> {
@@ -253,7 +191,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
     } catch (err) {
         fail(
             manifest,
-            `does not load under plain Node: ${String((err as Error).message).split('\n')[0]}`,
+            `does not load under plain Node: ${(err as Error).message.split('\n')[0]}`,
             'The bootstrap migration imports it through the migrate-mongo CLI, where there is no bundler and no path aliases. Every import in this file has to be type-only.',
         );
         return { problems, warnings, collections: [], indexes: 0, migrations: 0 };
@@ -562,7 +500,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
             fail(
                 rel,
                 `fails to import under plain Node (${code ?? 'error'})`,
-                `migrate-mongo would fail the same way, at deploy time. ${String(message).split('\n')[0]}`,
+                `migrate-mongo would fail the same way, at deploy time. ${message.split('\n')[0]}`,
             );
         }
     }
@@ -633,7 +571,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
                 'Every rolling deploy and pod eviction sends it. Without a handler, in-flight queries are severed mid-write rather than drained — and an HTTP server without one fails loudly on the next deploy, while a worker without one just silently corrupts whatever job was running.',
             );
         }
-        if (service.closes !== false && !/closeDb\(\)/.test(source)) {
+        if (service.closes !== false && !source.includes('closeDb()')) {
             fail(
                 service.entry,
                 'does not call closeDb() on shutdown',
@@ -717,7 +655,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
         );
     }
     for (const service of services) {
-        if (!/migrate-mongo/.test(read(service.entry))) continue;
+        if (!read(service.entry).includes('migrate-mongo')) continue;
         fail(
             service.entry,
             'runs migrations at startup',
@@ -773,7 +711,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
 
         if (ops.backup !== undefined) {
             const source = read(ops.backup.file);
-            if (!/manifest\.json/.test(source) || !/latest\.json/.test(source)) {
+            if (!source.includes('manifest.json') || !source.includes('latest.json')) {
                 fail(
                     ops.backup.file,
                     'no longer writes manifest.json and latest.json',
@@ -835,7 +773,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
             if (new RegExp(`from\\s*['"][^'"]*${ops.envLoader ?? 'lib/env'}`).test(read(rel))) continue;
             fail(
                 rel,
-                `does not load env through ${String(ops.envLoader ?? 'the shared loader')}`,
+                `does not load env through ${ops.envLoader ?? 'the shared loader'}`,
                 'Two loaders means two .env precedence rules, and then the migrate script and the backup script can quietly target two different databases. That is not a hypothetical: it is the failure the shared loader was written for.',
             );
         }
@@ -854,7 +792,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
             );
         } else {
             const doc = read(backups.drills).replace(/<!--[\s\S]*?-->/g, '');
-            const dates = [...doc.matchAll(/^\| (\d{4}-\d{2}-\d{2}) \|/gm)].map((m) => m[1]).sort();
+            const dates = [...doc.matchAll(/^\| (\d{4}-\d{2}-\d{2}) \|/gm)].map((m) => m[1] ?? '').sort();
             const last = dates.at(-1);
 
             if (last === undefined) {
@@ -924,4 +862,65 @@ export async function checkDbDrift({ root = REPO_ROOT, ...rest }: DbDriftOptions
     });
 
     if (report.count === 0) for (const warning of warnings) console.warn(`\n⚠ ${warning}`);
+}
+
+/** `Users` → `users`, `HashDatabase` → `hash-database`, `AssetInfo` → `asset-info`. */
+const kebab = (name: string) => name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+
+/** The top-level fields of `type Name = { … }`, brace-counted, ignoring anything nested. */
+function typeFields(
+    source: string,
+    typeName: string,
+): { open: boolean; fields: { name: string; optional: boolean }[] } | null {
+    const opener = new RegExp(String.raw`^\s*(?:export\s+)?type ${typeName}\s*=\s*\{`, 'm').exec(source);
+    if (opener === null) return null;
+
+    let depth = 1;
+    let top = '';
+    for (let i = opener.index + opener[0].length; i < source.length && depth > 0; i++) {
+        const ch = source[i];
+        if (ch === '{') {
+            if (depth === 1) top += ch;
+            depth++;
+        } else if (ch === '}') {
+            depth--;
+        } else if (depth === 1) {
+            top += ch;
+        }
+    }
+
+    const code = top.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    return {
+        // An index signature allows extra example keys.
+        open: /\[\s*\w+\s*:\s*string\s*\]\s*:/.test(code),
+        fields: [...code.matchAll(/(?:^|[;\n{])\s*(\w+)(\??)\s*:/g)].map((m) => ({
+            name: m[1] ?? '',
+            optional: m[2] === '?',
+        })),
+    };
+}
+
+/**
+ * The field names listed in the `#### Collection` table of the architecture doc.
+ *
+ * @returns Null when the collection has no section at all.
+ */
+function documentedFields(doc: string, collection: string): string[] | null {
+    const start = doc.indexOf(`#### ${collection}\n`);
+    if (start === -1) return null;
+    const rest = doc.slice(start + 1);
+    const next = rest.search(/\n#{2,4} /);
+    const section = next === -1 ? rest : rest.slice(0, next);
+    return [...section.matchAll(/^\| `(\w+)`\s*\|/gm)].map((m) => m[1] ?? '');
+}
+
+/** Every `.ts` file under a directory, recursively. */
+function walk(root: string, dir: string): string[] {
+    const abs = path.join(root, dir);
+    if (!fs.existsSync(abs)) return [];
+    return fs.readdirSync(abs, { withFileTypes: true }).flatMap((entry) => {
+        const rel = path.join(dir, entry.name);
+        if (entry.isDirectory()) return walk(root, rel);
+        return entry.name.endsWith('.ts') ? [rel] : [];
+    });
 }

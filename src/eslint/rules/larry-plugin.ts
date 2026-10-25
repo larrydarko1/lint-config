@@ -49,36 +49,6 @@ const PASS_THROUGH = new Set([
     'TaggedTemplateExpression',
 ]);
 
-const calleeName = (callee: Node): string => {
-    if (callee.type === 'Identifier') return callee.name;
-    if (callee.type === 'MemberExpression' && callee.property.type === 'Identifier') {
-        return `${calleeName(callee.object)}.${callee.property.name}`;
-    }
-    if (callee.type === 'ThisExpression') return 'this';
-    return '…';
-};
-
-function isLoggerCall(call: TSESTree.CallExpression): boolean {
-    const callee = call.callee;
-    if (callee.type !== 'MemberExpression' || callee.property.type !== 'Identifier') return false;
-    if (!LOG_LEVEL.test(callee.property.name)) return false;
-    const owner = callee.object;
-    if (owner.type === 'Identifier') return LOGGER_NAME.test(owner.name);
-    if (owner.type === 'MemberExpression' && owner.property.type === 'Identifier') {
-        return LOGGER_NAME.test(owner.property.name);
-    }
-    return false;
-}
-
-/** The variable `name` resolves to from `node`'s scope, walking outwards. */
-function findVariable(context: Context, node: Node, name: string): Variable | null {
-    for (let scope: TSESLint.Scope.Scope | null = context.sourceCode.getScope(node); scope; scope = scope.upper) {
-        const found = scope.set.get(name);
-        if (found !== undefined) return found;
-    }
-    return null;
-}
-
 /**
  * A caught error's `message` (and `stack`) is written for whoever reads the log.
  * Put on the wire it is English the client cannot translate, and it can carry
@@ -91,8 +61,8 @@ function findVariable(context: Context, node: Node, name: string): Variable | nu
  * It follows a message through a variable, but not into a function it is passed to.
  */
 const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOptions]> = {
-    defaultOptions: [{}],
     meta: {
+        defaultOptions: [{}],
         type: 'problem',
         docs: {
             description: "A caught error's message may reach a log or an error's message, nothing else.",
@@ -310,3 +280,33 @@ export const larryPlugin = {
         ...tauriRules,
     },
 };
+
+const calleeName = (callee: Node): string => {
+    if (callee.type === 'Identifier') return callee.name;
+    if (callee.type === 'MemberExpression' && callee.property.type === 'Identifier') {
+        return `${calleeName(callee.object)}.${callee.property.name}`;
+    }
+    if (callee.type === 'ThisExpression') return 'this';
+    return '…';
+};
+
+function isLoggerCall(call: TSESTree.CallExpression): boolean {
+    const callee = call.callee;
+    if (callee.type !== 'MemberExpression' || callee.property.type !== 'Identifier') return false;
+    if (!LOG_LEVEL.test(callee.property.name)) return false;
+    const owner = callee.object;
+    if (owner.type === 'Identifier') return LOGGER_NAME.test(owner.name);
+    if (owner.type === 'MemberExpression' && owner.property.type === 'Identifier') {
+        return LOGGER_NAME.test(owner.property.name);
+    }
+    return false;
+}
+
+/** The variable `name` resolves to from `node`'s scope, walking outwards. */
+function findVariable(context: Context, node: Node, name: string): Variable | null {
+    for (let scope: TSESLint.Scope.Scope | null = context.sourceCode.getScope(node); scope; scope = scope.upper) {
+        const found = scope.set.get(name);
+        if (found !== undefined) return found;
+    }
+    return null;
+}

@@ -25,6 +25,9 @@ import { larryPlugin } from './rules/larry-plugin.ts';
 import { NAMING_CONVENTION } from './rules/naming.ts';
 import { assertWorkspacesCovered } from './workspace-guard.ts';
 
+export { PRESETS, FULLSTACK_WORKSPACES, fullstackLayout, resolvePaths } from './presets.ts';
+export { NAMING_CONVENTION } from './rules/naming.ts';
+
 export type LarryOptions = {
     /** Which family's folder layout to assume. */
     preset: PresetName;
@@ -38,7 +41,7 @@ export type LarryOptions = {
     workspaces?: Partial<FullstackWorkspaces>;
     /** Override any path set from the preset. See presets.ts. */
     paths?: Partial<PresetPaths>;
-    /** Load the Vue plugin and parse `.vue` files. Defaults to true, and to false for the `api` preset, which has no components. */
+    /** Load the Vue plugin and parse `.vue` files. Defaults to true, and to false for the `api` and `library` presets, which have no components. */
     vue?: boolean;
     /** Enforce import specifiers: no extension on TS/JS, but `.vue` and `.json` keep theirs. Defaults to false.*/
     importExtensions?: boolean | ImportExtensionsOptions;
@@ -48,7 +51,7 @@ export type LarryOptions = {
     testRules?: Linter.RulesRecord;
     /** Extra rules for all source files, merged last. */
     rules?: Linter.RulesRecord;
-    /** Standards blocks (security, logging, …) to splice in: `apiStandards()`, `electronStandards()`, `fullstackStandards()`, `spaStandards()` or `tauriStandards()`. */
+    /** Standards blocks (security, logging, …) to splice in: `apiStandards()`, `electronStandards()`, `fullstackStandards()`, `libraryStandards()`, `spaStandards()` or `tauriStandards()`. */
     standards?: Linter.Config[] | ((layout: FullstackLayout) => Linter.Config[]);
     /** The project's own blocks — the per-area `no-restricted-syntax`/`no-restricted-imports` wiring. Appended last, before Prettier. */
     overrides?: Linter.Config[];
@@ -76,38 +79,6 @@ const TEST_RELAXATIONS: Linter.RulesRecord = {
     '@typescript-eslint/await-thenable': 'off',
 };
 
-/** Bundled code omits `.ts`; code Node runs directly must name it. */
-const importExtensionBlocks = (option: boolean | ImportExtensionsOptions): Linter.Config[] => {
-    const { nodeRun = [] } = typeof option === 'object' ? option : {};
-    return [
-        {
-            files: ['**/*.{ts,tsx,vue}'],
-            plugins: { 'import-x': importX },
-            settings: {
-                'import-x/resolver-next': [createTypeScriptImportResolver({ alwaysTryTypes: true })],
-            },
-            rules: {
-                // ignorePackages skips deep package imports (e.g. 'electron-log/main.js').
-                'import-x/extensions': [
-                    'error',
-                    'never',
-                    { ignorePackages: true, pattern: { vue: 'always', json: 'always' } },
-                ],
-            },
-        },
-        ...(nodeRun.length
-            ? [
-                  {
-                      files: nodeRun,
-                      rules: {
-                          'import-x/extensions': ['error', 'always', { ignorePackages: true }],
-                      },
-                  } satisfies Linter.Config,
-              ]
-            : []),
-    ];
-};
-
 /** The shared ESLint flat config. See {@link LarryOptions} for what a project passes. */
 export function larry(options: LarryOptions): Linter.Config[] {
     // The `as Linter.Config` casts: third-party preset types disagree with ESLint's under
@@ -122,7 +93,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
         rootDir,
         workspaces = {},
         paths: pathOverrides = {},
-        vue: useVue = preset !== 'api',
+        vue: useVue = preset !== 'api' && preset !== 'library',
         importExtensions = false,
         testProject = null,
         testRules = {},
@@ -150,11 +121,11 @@ export function larry(options: LarryOptions): Linter.Config[] {
         { ignores: paths.ignores },
 
         // ── Base JS and TypeScript ───────────────────────────────────────────
-        js.configs.recommended as Linter.Config,
+        js.configs.recommended,
         ...(ts.configs.recommended as Linter.Config[]),
-        ...typedOnly(ts.configs.recommendedTypeChecked as Linter.Config[]),
-        ...typedOnly(ts.configs.strict as Linter.Config[]),
-        ...typedOnly(ts.configs.stylistic as Linter.Config[]),
+        ...typedOnly(ts.configs.recommendedTypeChecked),
+        ...typedOnly(ts.configs.strict),
+        ...typedOnly(ts.configs.stylistic),
 
         // ── Vue ──────────────────────────────────────────────────────────────
         ...(useVue ? (vuePlugin.configs['flat/recommended'] as Linter.Config[]) : []),
@@ -220,6 +191,15 @@ export function larry(options: LarryOptions): Linter.Config[] {
                 'no-useless-concat': 'error',
                 'no-useless-rename': 'error',
                 'no-useless-return': 'error',
+                // A leading `_` marks a binding unused on purpose, typed or not: an omitted key in a rest pattern.
+                '@typescript-eslint/no-unused-vars': [
+                    'error',
+                    {
+                        argsIgnorePattern: '^_',
+                        varsIgnorePattern: '^_',
+                        caughtErrorsIgnorePattern: '^_',
+                    },
+                ],
                 '@typescript-eslint/consistent-type-definitions': ['error', 'type'],
                 '@typescript-eslint/no-empty-object-type': 'error',
                 ...(useVue
@@ -311,14 +291,6 @@ export function larry(options: LarryOptions): Linter.Config[] {
                     { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
                 ],
                 '@typescript-eslint/no-empty-function': ['error', { allow: ['arrowFunctions'] }],
-                '@typescript-eslint/no-unused-vars': [
-                    'error',
-                    {
-                        argsIgnorePattern: '^_',
-                        varsIgnorePattern: '^_',
-                        caughtErrorsIgnorePattern: '^_',
-                    },
-                ],
                 ...rules,
             },
         },
@@ -373,9 +345,38 @@ export function larry(options: LarryOptions): Linter.Config[] {
             rules: { '@typescript-eslint/naming-convention': 'off' },
         },
 
-        prettier as Linter.Config, // Prettier last — it switches off the formatting rules that conflict.
+        prettier, // Prettier last — it switches off the formatting rules that conflict.
     ];
 }
 
-export { PRESETS, FULLSTACK_WORKSPACES, fullstackLayout, resolvePaths } from './presets.ts';
-export { NAMING_CONVENTION } from './rules/naming.ts';
+/** Bundled code omits `.ts`; code Node runs directly must name it. */
+const importExtensionBlocks = (option: boolean | ImportExtensionsOptions): Linter.Config[] => {
+    const { nodeRun = [] } = typeof option === 'object' ? option : {};
+    return [
+        {
+            files: ['**/*.{ts,tsx,vue}'],
+            plugins: { 'import-x': importX },
+            settings: {
+                'import-x/resolver-next': [createTypeScriptImportResolver({ alwaysTryTypes: true })],
+            },
+            rules: {
+                // ignorePackages skips deep package imports (e.g. 'electron-log/main.js').
+                'import-x/extensions': [
+                    'error',
+                    'never',
+                    { ignorePackages: true, pattern: { vue: 'always', json: 'always' } },
+                ],
+            },
+        },
+        ...(nodeRun.length
+            ? [
+                  {
+                      files: nodeRun,
+                      rules: {
+                          'import-x/extensions': ['error', 'always', { ignorePackages: true }],
+                      },
+                  } satisfies Linter.Config,
+              ]
+            : []),
+    ];
+};

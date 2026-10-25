@@ -12,10 +12,6 @@ export const SELF_NAME = SELF.name;
 /** Dependencies a project may still list because its own code uses them; everything else is lint-only. */
 const ALSO_THE_PROJECTS = new Set(['typescript', 'yaml', '@vue/compiler-sfc']);
 
-/** Every package this one provides, mapped to the exact version it pins. */
-export const providedPackages = (): Record<string, string> =>
-    Object.fromEntries(Object.entries(SELF.dependencies).filter(([name]) => !ALSO_THE_PROJECTS.has(name)));
-
 /**
  * Package → binary for the CLIs a project runs by name (scripts, hooks, editor).
  * These must land in the project's top-level `node_modules`.
@@ -28,3 +24,7 @@ export const PROJECT_CLIS: Record<string, string> = {
     'lint-staged': 'lint-staged',
     'husky': 'husky',
 };
+
+/** Every package this one provides, mapped to the exact version it pins. */
+export const providedPackages = (): Record<string, string> =>
+    Object.fromEntries(Object.entries(SELF.dependencies).filter(([name]) => !ALSO_THE_PROJECTS.has(name)));

@@ -130,7 +130,7 @@ export function iconDrawing(source: string): string | null {
         .replace(/<([\w:-]+)([^>]*?)>\s*<\/\1>/g, '<$1$2/>')
         .replace(
             /<([\w:-]+)([^>]*?)\s*(\/?)>/g,
-            (_, tag: string, raw: string, close: string) => [`<${tag}`, ...attrs(raw).sort()].join(' ') + `${close}>`,
+            (_, tag: string, raw: string, close: string) => `${[`<${tag}`, ...attrs(raw).sort()].join(' ')}${close}>`,
         )
         .replace(/\s+/g, ' ')
         .replace(/>\s+</g, '><')
@@ -149,34 +149,6 @@ export function iconDrawings(root: string, scan: string[]): Map<string, string[]
     return groups;
 }
 
-/** jscpd reports an SFC's script block as `Foo.vue:typescript`; strip the suffix. */
-const relative = (root: string, file: string): string => path.relative(root, file.replace(/:[a-z]+$/, ''));
-
-/** Run jscpd over `paths` and read its JSON report. */
-function runJscpd(root: string, paths: string[], config: string): JscpdReport {
-    const bin = packageBin('jscpd');
-    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jscpd-'));
-    try {
-        execFileSync(
-            process.execPath,
-            [bin, ...paths, '--config', config, '--absolute', '--reporters', 'json', '--output', outDir],
-            { cwd: root, stdio: 'ignore' },
-        );
-    } catch {
-        /* jscpd exits non-zero on its own thresholds and on its own errors; either way the report is written. */
-    }
-
-    const reportPath = path.join(outDir, 'jscpd-report.json');
-    if (!fs.existsSync(reportPath)) {
-        fs.rmSync(outDir, { recursive: true, force: true });
-        throw new Error(`jscpd produced no report for ${paths.join(', ')}. Run it with \`--all\` to see why.`);
-    }
-
-    const parsed = JSON.parse(fs.readFileSync(reportPath, 'utf8')) as JscpdReport;
-    fs.rmSync(outDir, { recursive: true, force: true });
-    return parsed;
-}
-
 /** Every exported type and interface name, and where it was declared. */
 export function exportedTypes(
     root: string,
@@ -184,7 +156,7 @@ export function exportedTypes(
     ignoreDirs: string[] = DEFAULT_IGNORE_DIRS,
 ): Map<string, TypeDeclaration[]> {
     const excluded = new RegExp(`(^|/)(${ignoreDirs.join('|')})/`);
-    const declarations: Map<string, { root: string; where: string }[]> = new Map();
+    const declarations = new Map<string, { root: string; where: string }[]>();
 
     for (const scanRoot of scan) {
         const files = walkFiles(root, scanRoot, {
@@ -279,7 +251,7 @@ export function inspectDuplication(input: DuplicationInput): DuplicationInspecti
 
     // -- 3. No block copied between scan roots, whatever the percentage ----------
     const rootOf = (file: string) => scan.find((r) => rel(file).startsWith(`${r}/`));
-    const isPair = /** @param c @param {[string, string]} pair */ (c: Clone, [a, b]: [string, string]) => {
+    const isPair = (c: Clone, [a, b]: [string, string]) => {
         const files = [rel(c.firstFile.name), rel(c.secondFile.name)];
         return files.includes(a) && files.includes(b);
     };
@@ -407,13 +379,40 @@ export function checkDuplication(options: DuplicationOptions): void {
     report.done({
         summary:
             `Duplication OK — ${percentages}; ${plural(full.statistics.total.clones, 'clone')} across ` +
-            `${plural(scan.length, 'scan root')}, largest ${largest} tokens${cap}` +
-            (scan.length > 1
-                ? `; no cross-root copies and no name among ${plural(types, 'exported type')} declared twice`
-                : '') +
-            (icons > 0 ? `; ${plural(icons, 'icon')}, none drawn twice` : '') +
-            '.',
+            `${plural(scan.length, 'scan root')}, largest ${largest} tokens${cap}${
+                scan.length > 1
+                    ? `; no cross-root copies and no name among ${plural(types, 'exported type')} declared twice`
+                    : ''
+            }${icons > 0 ? `; ${plural(icons, 'icon')}, none drawn twice` : ''}.`,
         notMachineChecked:
             'whether two identical blocks mean the same thing. jscpd matches tokens, not intent — a false positive is answered by raising the ceiling with a comment, not by contorting the code. Two icons that draw one picture with different shapes (a `<polyline>` and the `<path>` tracing it, four slightly different bins) — only identical drawings are caught. The full report, including formats this gate does not gate, is this gate run with `--all`.',
     });
+}
+
+/** jscpd reports an SFC's script block as `Foo.vue:typescript`; strip the suffix. */
+const relative = (root: string, file: string): string => path.relative(root, file.replace(/:[a-z]+$/, ''));
+
+/** Run jscpd over `paths` and read its JSON report. */
+function runJscpd(root: string, paths: string[], config: string): JscpdReport {
+    const bin = packageBin('jscpd');
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jscpd-'));
+    try {
+        execFileSync(
+            process.execPath,
+            [bin, ...paths, '--config', config, '--absolute', '--reporters', 'json', '--output', outDir],
+            { cwd: root, stdio: 'ignore' },
+        );
+    } catch {
+        /* jscpd exits non-zero on its own thresholds and on its own errors; either way the report is written. */
+    }
+
+    const reportPath = path.join(outDir, 'jscpd-report.json');
+    if (!fs.existsSync(reportPath)) {
+        fs.rmSync(outDir, { recursive: true, force: true });
+        throw new Error(`jscpd produced no report for ${paths.join(', ')}. Run it with \`--all\` to see why.`);
+    }
+
+    const parsed = JSON.parse(fs.readFileSync(reportPath, 'utf8')) as JscpdReport;
+    fs.rmSync(outDir, { recursive: true, force: true });
+    return parsed;
 }

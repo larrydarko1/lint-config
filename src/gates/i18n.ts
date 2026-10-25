@@ -67,45 +67,12 @@ const REQUIRED_OPTIONS = [
     },
 ];
 
-/** One locale file as a flat map of key path → value. Arrays also get a `key[]` entry holding their length. */
-function flatten(root: unknown): Record<string, string> {
-    const out: Record<string, string> = {};
-    const visit = (node: unknown, prefix: string): void => {
-        if (Array.isArray(node)) {
-            out[`${prefix}[]`] = `__array:${node.length}`;
-            node.forEach((v, i) => {
-                visit(v, `${prefix}[${i}]`);
-            });
-        } else if (node !== null && typeof node === 'object') {
-            for (const [k, v] of Object.entries(node)) {
-                visit(v, prefix === '' ? k : `${prefix}.${k}`);
-            }
-        } else if (typeof node === 'string') {
-            out[prefix] = node;
-        }
-    };
-    visit(root, '');
-    return out;
-}
-
-/**
- * The set of {named} tokens in a message, sorted so order differences don't register.
- * `{'@'}` is vue-i18n's escape for a literal @, not an interpolation.
- */
-function placeholders(str: string): string[] {
-    return [...new Set((str.match(/\{[^}]+\}/g) ?? []).filter((t) => t !== "{'@'}"))].sort();
-}
-
 /**
  * ISO 639-1. The app picks its locale from the browser's language subtag — the house
  * pattern is `navigator.language.split('-')[0]` — and that is never `pt-BR`, so a
  * region-named file is never selected; a three-letter code only matches by accident.
  */
 const LOCALE_CODE = /^[a-z]{2}$/;
-
-function pluralSegments(str: string): number {
-    return str.split('|').length;
-}
 
 /**
  * Run the gate and return what it found, without printing or exiting.
@@ -248,4 +215,37 @@ export function checkI18n(options: I18nGateOptions): void {
         `✓ i18n check passed — ${locales.length} locales, ${keyCount} keys, ` +
             `plural/placeholder/array shapes consistent, createI18n options intact.`,
     );
+}
+
+/** One locale file as a flat map of key path → value. Arrays also get a `key[]` entry holding their length. */
+function flatten(root: unknown): Record<string, string> {
+    const out: Record<string, string> = {};
+    const visit = (node: unknown, prefix: string): void => {
+        if (Array.isArray(node)) {
+            out[`${prefix}[]`] = `__array:${node.length}`;
+            node.forEach((v, i) => {
+                visit(v, `${prefix}[${i}]`);
+            });
+        } else if (node !== null && typeof node === 'object') {
+            for (const [k, v] of Object.entries(node)) {
+                visit(v, prefix === '' ? k : `${prefix}.${k}`);
+            }
+        } else if (typeof node === 'string') {
+            out[prefix] = node;
+        }
+    };
+    visit(root, '');
+    return out;
+}
+
+/**
+ * The set of {named} tokens in a message, sorted so order differences don't register.
+ * `{'@'}` is vue-i18n's escape for a literal @, not an interpolation.
+ */
+function placeholders(str: string): string[] {
+    return [...new Set((str.match(/\{[^}]+\}/g) ?? []).filter((t) => t !== "{'@'}"))].sort();
+}
+
+function pluralSegments(str: string): number {
+    return str.split('|').length;
 }

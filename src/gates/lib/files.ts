@@ -18,9 +18,6 @@ export type WalkOptions = {
 
 type PathFilter = RegExp | ((rel: string) => boolean);
 
-const matches = (filter: PathFilter, rel: string): boolean =>
-    filter instanceof RegExp ? filter.test(rel) : filter(rel);
-
 /**
  * Every file under `dirs`, as paths relative to `root`, sorted so output is stable
  * across filesystems.
@@ -83,3 +80,6 @@ export function gitIgnores(root: string, rel: string): boolean | null {
     if (error !== undefined || status === null || status > 1) return null;
     return status === 0;
 }
+
+const matches = (filter: PathFilter, rel: string): boolean =>
+    filter instanceof RegExp ? filter.test(rel) : filter(rel);

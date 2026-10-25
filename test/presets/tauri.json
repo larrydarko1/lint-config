@@ -1,0 +1,1185 @@
+{
+    "@eslint-community/eslint-comments/disable-enable-pair": [
+        { "files": "*", "entry": ["error",{"allowWholeFile":true}] }
+    ],
+    "@eslint-community/eslint-comments/no-aggregating-enable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/no-duplicate-disable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/no-unlimited-disable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/no-unused-enable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/require-description": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@intlify/vue-i18n/no-i18n-t-path-prop": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "@intlify/vue-i18n/no-missing-keys": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": "error" }
+    ],
+    "@intlify/vue-i18n/no-raw-text": [
+        { "files": ["src/App.vue"], "entry": ["error",{"ignorePattern":"^[\\s\\d\\p{P}\\p{S}]*$","ignoreText":[]}] }
+    ],
+    "@intlify/vue-i18n/no-unknown-locale": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": ["error",{"locales":[]}] }
+    ],
+    "@intlify/vue-i18n/prefer-linked-key-with-paren": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": "error" }
+    ],
+    "@intlify/vue-i18n/valid-message-syntax": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": "error" }
+    ],
+    "@intlify/vue-i18n/valid-plural-forms": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/adjacent-overload-signatures": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/array-type": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/await-thenable": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/ban-ts-comment": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": ["error",{"minimumDescriptionLength":10}] },
+        { "files": ["eslint.config.js"], "entry": "error" }
+    ],
+    "@typescript-eslint/ban-tslint-comment": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/class-literal-property-style": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-generic-constructors": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-indexed-object-style": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-type-assertions": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-type-definitions": [
+        { "files": "*", "entry": ["error","type"] }
+    ],
+    "@typescript-eslint/consistent-type-exports": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-type-imports": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": ["error",{"prefer":"type-imports","fixStyle":"inline-type-imports"}] }
+    ],
+    "@typescript-eslint/explicit-function-return-type": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": ["error",{"allowTypedFunctionExpressions":false,"allowIIFEs":true}] }
+    ],
+    "@typescript-eslint/explicit-module-boundary-types": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/max-params": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": ["error",{"max":6}] }
+    ],
+    "@typescript-eslint/naming-convention": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": [
+                "error",
+                {"selector":"default","format":["camelCase"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"variable","format":["camelCase","UPPER_CASE","PascalCase"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"import","format":["camelCase","PascalCase"]},
+                {"selector":"function","format":["camelCase","PascalCase"]},
+                {"selector":"parameter","format":["camelCase"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"property","format":["camelCase","UPPER_CASE"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"property","modifiers":["requiresQuotes"],"format":null},
+                {"selector":"objectLiteralProperty","format":["camelCase","UPPER_CASE","PascalCase","snake_case"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"objectLiteralProperty","modifiers":["requiresQuotes"],"format":null},
+                {"selector":"typeLike","format":["PascalCase"]},
+                {"selector":"enumMember","format":["UPPER_CASE"]},
+                {"selector":"typeParameter","format":["PascalCase"],"prefix":["T"]}
+            ] }
+    ],
+    "@typescript-eslint/no-array-constructor": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-array-delete": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-base-to-string": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-confusing-non-null-assertion": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-confusing-void-expression": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": ["error",{"ignoreArrowShorthand":true}] }
+    ],
+    "@typescript-eslint/no-deprecated": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-duplicate-enum-values": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-duplicate-type-constituents": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-dynamic-delete": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-empty-function": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": ["error",{"allow":["arrowFunctions"]}] }
+    ],
+    "@typescript-eslint/no-empty-object-type": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-explicit-any": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-extra-non-null-assertion": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-extraneous-class": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-floating-promises": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-for-in-array": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-generated-empty-object-type": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-implied-eval": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-inferrable-types": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-invalid-void-type": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-meaningless-void-operator": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-misused-new": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-misused-promises": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-misused-spread": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-mixed-enums": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-namespace": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-non-null-asserted-nullish-coalescing": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-non-null-asserted-optional-chain": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-non-null-assertion": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-redundant-type-constituents": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-require-imports": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-this-alias": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-boolean-literal-compare": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-condition": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": ["error",{"allowConstantLoopConditions":"only-allowed-literals"}] }
+    ],
+    "@typescript-eslint/no-unnecessary-template-expression": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-arguments": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-assertion": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-constraint": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-conversion": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-parameters": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-argument": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-assignment": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-call": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-declaration-merging": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-enum-comparison": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-function-type": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-member-access": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-return": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-type-assertion": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-unary-minus": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unused-expressions": [
+        { "files": "*", "entry": ["error",{"allowShortCircuit":false,"allowTaggedTemplates":false,"allowTernary":false}] }
+    ],
+    "@typescript-eslint/no-unused-private-class-members": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unused-vars": [
+        { "files": "*", "entry": ["error",{"argsIgnorePattern":"^_","varsIgnorePattern":"^_","caughtErrorsIgnorePattern":"^_"}] }
+    ],
+    "@typescript-eslint/no-useless-constructor": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-useless-default-assignment": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-wrapper-object-types": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/non-nullable-type-assertion-style": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/only-throw-error": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-as-const": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-find": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-for-of": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-function-type": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-includes": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-literal-enum-member": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-namespace-keyword": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-nullish-coalescing": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-optional-chain": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-promise-reject-errors": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-readonly": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-reduce-type-parameter": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-regexp-exec": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-return-this-type": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-string-starts-ends-with": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/related-getter-setter-pairs": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/require-array-sort-compare": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/require-await": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/restrict-plus-operands": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/restrict-template-expressions": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/return-await": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": ["error","error-handling-correctness-only"] }
+    ],
+    "@typescript-eslint/strict-boolean-expressions": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": ["error",{"allowString":false,"allowNumber":false,"allowNullableObject":false}] }
+    ],
+    "@typescript-eslint/switch-exhaustiveness-check": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": ["error",{"considerDefaultExhaustiveForUnions":true}] }
+    ],
+    "@typescript-eslint/triple-slash-reference": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/unbound-method": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/unified-signatures": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "a11y/alt-text": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/anchor-has-content": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/aria-props": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/aria-role": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/aria-unsupported-elements": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/click-events-have-key-events": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/form-control-has-label": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/heading-has-content": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/iframe-has-title": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/interactive-supports-focus": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/label-has-for": [
+        { "files": ["src/App.vue"], "entry": ["error",{"required":{"some":["nesting","id"]}}] }
+    ],
+    "a11y/media-has-caption": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/mouse-events-have-key-events": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/no-access-key": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/no-aria-hidden-on-focusable": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/no-autofocus": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/no-distracting-elements": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/no-redundant-roles": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/no-static-element-interactions": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/role-has-required-aria-props": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "a11y/tabindex-no-positive": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "array-callback-return": [
+        { "files": "*", "entry": ["error",{"allowImplicit":false,"checkForEach":false,"allowVoid":false}] }
+    ],
+    "constructor-super": [
+        { "files": ["eslint.config.js"], "entry": "error" }
+    ],
+    "eqeqeq": [
+        { "files": "*", "entry": ["error","always",{"null":"ignore"}] }
+    ],
+    "for-direction": [
+        { "files": "*", "entry": "error" }
+    ],
+    "getter-return": [
+        { "files": ["eslint.config.js"], "entry": ["error",{"allowImplicit":false}] }
+    ],
+    "larry/no-caught-message-leak": [
+        { "files": ["src/bridge/commands.ts"], "entry": ["error",{}] }
+    ],
+    "larry/no-inline-svg": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "larry/no-native-dialog": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": "error" }
+    ],
+    "larry/no-tauri-outside-bridge": [
+        { "files": ["src/main.ts","src/App.vue"], "entry": "error" }
+    ],
+    "max-depth": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": ["error",3] },
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": ["error",4] }
+    ],
+    "no-async-promise-executor": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-case-declarations": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-class-assign": [
+        { "files": ["eslint.config.js"], "entry": "error" }
+    ],
+    "no-compare-neg-zero": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-cond-assign": [
+        { "files": "*", "entry": ["error","except-parens"] }
+    ],
+    "no-console": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": ["error",{}] }
+    ],
+    "no-const-assign": [
+        { "files": ["eslint.config.js"], "entry": "error" }
+    ],
+    "no-constant-binary-expression": [
+        { "files": "*", "entry": ["error",{"checkRelationalComparisons":false}] }
+    ],
+    "no-constant-condition": [
+        { "files": "*", "entry": ["error",{"checkLoops":"allExceptWhileTrue"}] }
+    ],
+    "no-constructor-return": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-control-regex": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-debugger": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-delete-var": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-dupe-args": [
+        { "files": ["eslint.config.js"], "entry": "error" }
+    ],
+    "no-dupe-class-members": [
+        { "files": ["eslint.config.js"], "entry": "error" }
+    ],
+    "no-dupe-else-if": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-dupe-keys": [
+        { "files": ["eslint.config.js"], "entry": "error" }
+    ],
+    "no-duplicate-case": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-else-return": [
+        { "files": "*", "entry": ["error",{"allowElseIf":false}] }
+    ],
+    "no-empty": [
+        { "files": "*", "entry": ["error",{"allowEmptyCatch":false}] }
+    ],
+    "no-empty-character-class": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-empty-pattern": [
+        { "files": "*", "entry": ["error",{"allowObjectPatternsAsParameters":false}] }
+    ],
+    "no-empty-static-block": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-eval": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": ["error",{"allowIndirect":false}] }
+    ],
+    "no-ex-assign": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-extra-boolean-cast": [
+        { "files": "*", "entry": ["error",{}] }
+    ],
+    "no-fallthrough": [
+        { "files": "*", "entry": ["error",{"allowEmptyCase":false,"reportUnusedFallthroughComment":false}] }
+    ],
+    "no-func-assign": [
+        { "files": ["eslint.config.js"], "entry": "error" }
+    ],
+    "no-global-assign": [
+        { "files": "*", "entry": ["error",{"exceptions":[]}] }
+    ],
+    "no-implicit-coercion": [
+        { "files": "*", "entry": ["error",{"allow":[],"boolean":true,"disallowTemplateShorthand":false,"number":true,"string":true}] }
+    ],
+    "no-implied-eval": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": "error" }
+    ],
+    "no-import-assign": [
+        { "files": ["eslint.config.js"], "entry": "error" }
+    ],
+    "no-invalid-regexp": [
+        { "files": "*", "entry": ["error",{}] }
+    ],
+    "no-irregular-whitespace": [
+        { "files": "*", "entry": ["error",{"skipComments":false,"skipJSXText":false,"skipRegExps":false,"skipStrings":true,"skipTemplates":false}] }
+    ],
+    "no-loss-of-precision": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-misleading-character-class": [
+        { "files": "*", "entry": ["error",{"allowEscape":false}] }
+    ],
+    "no-new-func": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-new-native-nonconstructor": [
+        { "files": ["eslint.config.js"], "entry": "error" }
+    ],
+    "no-nonoctal-decimal-escape": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-obj-calls": [
+        { "files": ["eslint.config.js"], "entry": "error" }
+    ],
+    "no-octal": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-param-reassign": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-process-env": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": "error" }
+    ],
+    "no-prototype-builtins": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-redeclare": [
+        { "files": ["eslint.config.js"], "entry": ["error",{"builtinGlobals":true}] }
+    ],
+    "no-regex-spaces": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-restricted-exports": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": [
+                "error",
+                {"restrictDefaultExports":{"direct":true,"named":true,"defaultFrom":true,"namedFrom":true,"namespaceFrom":true}}
+            ] }
+    ],
+    "no-restricted-globals": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": [
+                "error",
+                {"name":"__dirname","message":"Use `import.meta.dirname` (Node 21.2+) — `__dirname` is CommonJS-only."},
+                {"name":"__filename","message":"Use `import.meta.filename` (Node 21.2+) — `__filename` is CommonJS-only."}
+            ] }
+    ],
+    "no-restricted-imports": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": [
+                "error",
+                {"paths":[{"name":"bcrypt","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"bcryptjs","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"scrypt-js","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"scryptsy","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"crypto-js","message":"Use Node’s built-in `node:crypto` (AES-256-GCM / HMAC-SHA-256), not crypto-js"}]}
+            ] }
+    ],
+    "no-self-assign": [
+        { "files": "*", "entry": ["error",{"props":true}] }
+    ],
+    "no-self-compare": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-setter-return": [
+        { "files": ["eslint.config.js"], "entry": "error" }
+    ],
+    "no-shadow-restricted-names": [
+        { "files": "*", "entry": ["error",{"reportGlobalThis":true}] }
+    ],
+    "no-sparse-arrays": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-template-curly-in-string": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-this-before-super": [
+        { "files": ["eslint.config.js"], "entry": "error" }
+    ],
+    "no-unassigned-vars": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-undef": [
+        { "files": ["eslint.config.js"], "entry": ["error",{"typeof":false}] }
+    ],
+    "no-unmodified-loop-condition": [
+        { "files": "*", "entry": ["error",{"checkConditionalExpressions":false}] }
+    ],
+    "no-unreachable": [
+        { "files": ["eslint.config.js"], "entry": "error" }
+    ],
+    "no-unreachable-loop": [
+        { "files": "*", "entry": ["error",{"ignore":[]}] }
+    ],
+    "no-unsafe-finally": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-unsafe-negation": [
+        { "files": ["eslint.config.js"], "entry": ["error",{"enforceForOrderingRelations":false}] }
+    ],
+    "no-unsafe-optional-chaining": [
+        { "files": "*", "entry": ["error",{"disallowArithmeticOperators":false}] }
+    ],
+    "no-unused-labels": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-unused-private-class-members": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-assignment": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-backreference": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-call": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-catch": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-computed-key": [
+        { "files": "*", "entry": ["error",{"enforceForClassMembers":true}] }
+    ],
+    "no-useless-concat": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-escape": [
+        { "files": "*", "entry": ["error",{"allowRegexCharacters":[]}] }
+    ],
+    "no-useless-rename": [
+        { "files": "*", "entry": ["error",{"ignoreDestructuring":false,"ignoreImport":false,"ignoreExport":false}] }
+    ],
+    "no-useless-return": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-var": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "no-warning-comments": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": ["error",{"location":"anywhere","terms":["todo","fixme","fix me","hack","xxx","wip","tbd"]}] }
+    ],
+    "no-with": [
+        { "files": ["eslint.config.js"], "entry": "error" }
+    ],
+    "object-shorthand": [
+        { "files": "*", "entry": ["error","always"] }
+    ],
+    "prefer-const": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": ["error",{"destructuring":"all","ignoreReadBeforeAssign":false}] }
+    ],
+    "prefer-rest-params": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "prefer-spread": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "prefer-template": [
+        { "files": "*", "entry": "error" }
+    ],
+    "preserve-caught-error": [
+        { "files": "*", "entry": ["error",{"requireCatchParameter":false,"errorClassNames":[]}] }
+    ],
+    "radix": [
+        { "files": "*", "entry": "error" }
+    ],
+    "require-yield": [
+        { "files": "*", "entry": "error" }
+    ],
+    "use-isnan": [
+        { "files": "*", "entry": ["error",{"enforceForIndexOf":false,"enforceForSwitchCase":true}] }
+    ],
+    "valid-typeof": [
+        { "files": "*", "entry": ["error",{"requireStringLiterals":false}] }
+    ],
+    "vitest/consistent-test-it": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": ["error",{"fn":"test","withinDescribe":"it"}] }
+    ],
+    "vitest/expect-expect": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": ["error",{"assertFunctionNames":["expect","assert"],"additionalTestBlockFunctions":[]}] }
+    ],
+    "vitest/no-commented-out-tests": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "vitest/no-conditional-expect": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": ["error",{"expectAssertions":false}] }
+    ],
+    "vitest/no-conditional-in-test": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "vitest/no-disabled-tests": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "vitest/no-duplicate-hooks": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "vitest/no-focused-tests": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": ["error",{"fixable":true}] }
+    ],
+    "vitest/no-identical-title": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "vitest/no-standalone-expect": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": ["error",{"additionalTestBlockFunctions":[]}] }
+    ],
+    "vitest/no-test-return-statement": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "vitest/prefer-hooks-on-top": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "vitest/prefer-to-be": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "vitest/prefer-to-have-length": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "vitest/require-awaited-expect-poll": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "vitest/require-to-throw-message": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "vitest/valid-describe-callback": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "vitest/valid-expect": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": ["error",{"alwaysAwait":false,"asyncMatchers":["toReject","toResolve"],"minArgs":1,"maxArgs":1}] }
+    ],
+    "vitest/valid-expect-in-promise": [
+        { "files": ["tests/composables/useClock.test.ts","vitest.setup.ts"], "entry": "error" }
+    ],
+    "vue/attribute-hyphenation": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/attributes-order": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/block-lang": [
+        { "files": ["src/App.vue"], "entry": ["error",{"script":{"lang":"ts"}}] }
+    ],
+    "vue/block-order": [
+        { "files": ["src/main.ts","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts","eslint.config.js"], "entry": "warn" },
+        { "files": ["src/App.vue"], "entry": ["error",{"order":["script","template","style"]}] }
+    ],
+    "vue/comment-directive": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/component-api-style": [
+        { "files": ["src/App.vue"], "entry": ["error",["script-setup"]] }
+    ],
+    "vue/component-definition-name-casing": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/define-emits-declaration": [
+        { "files": ["src/App.vue"], "entry": ["error","type-based"] }
+    ],
+    "vue/define-macros-order": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/define-props-declaration": [
+        { "files": ["src/App.vue"], "entry": ["error","type-based"] }
+    ],
+    "vue/enforce-style-attribute": [
+        { "files": ["src/App.vue"], "entry": ["error",{"allow":["scoped"]}] }
+    ],
+    "vue/first-attribute-linebreak": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/jsx-uses-vars": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-arrow-functions-in-watch": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-async-in-computed-properties": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-child-content": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-computed-properties-in-data": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-data-object-declaration": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-delete-set": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-destroyed-lifecycle": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-dollar-listeners-api": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-dollar-scopedslots-api": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-events-api": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-filter": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-functional-template": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-html-element-is": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-inline-template": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-model-definition": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-props-default-this": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-router-link-tag-prop": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-scope-attribute": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-slot-attribute": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-slot-scope-attribute": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-v-bind-sync": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-v-is": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-v-on-native-modifier": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-v-on-number-modifiers": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-deprecated-vue-config-keycodes": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-dupe-keys": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-dupe-v-else-if": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-duplicate-attributes": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-export-in-script-setup": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-expose-after-await": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-lifecycle-after-await": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-lone-template": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/no-multiple-slot-args": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/no-mutating-props": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-parsing-error": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-ref-as-operand": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-ref-object-reactivity-loss": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": "error" }
+    ],
+    "vue/no-required-prop-with-default": [
+        { "files": ["src/main.ts","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts","eslint.config.js"], "entry": "warn" },
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-reserved-component-names": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-reserved-keys": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-reserved-props": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-restricted-block": [
+        { "files": ["src/App.vue"], "entry": [
+                "error",
+                {"element":"i18n","message":"No per-component <i18n> blocks — every key lives in src/i18n/locales/<locale>.json. A block splits a key away from its siblings, and no locale-parity check can see it."}
+            ] }
+    ],
+    "vue/no-restricted-syntax": [
+        { "files": ["src/App.vue"], "entry": [
+                "error",
+                {"selector":"TSAsExpression","message":"No `as` in a template: the type rules cannot see it there. Move the expression into `<script setup>` and narrow it with a check — `targetOf(e, HTMLInputElement)`, a typed computed, a typed helper."}
+            ] }
+    ],
+    "vue/no-shared-component-data": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-side-effects-in-computed-properties": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-template-key": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-template-shadow": [
+        { "files": ["src/main.ts","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts","eslint.config.js"], "entry": "warn" },
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-template-target-blank": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-textarea-mustache": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-undef-components": [
+        { "files": ["src/App.vue"], "entry": ["error",{"ignorePatterns":["^(RouterView|RouterLink|router-view|router-link|i18n-t|I18nT)$"]}] }
+    ],
+    "vue/no-undef-properties": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-unused-components": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-unused-emit-declarations": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-unused-properties": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-unused-refs": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-unused-vars": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-use-computed-property-like-method": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-use-v-if-with-v-for": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-useless-mustaches": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-useless-template-attributes": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-useless-v-bind": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-v-for-template-key-on-child": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-v-html": [
+        { "files": ["src/main.ts","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts","eslint.config.js"], "entry": "warn" },
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-v-text": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/no-v-text-v-html-on-component": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/no-watch-after-await": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/one-component-per-file": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/order-in-components": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/prefer-import-from-vue": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/prefer-separate-static-class": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/prefer-true-attribute-shorthand": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/prefer-use-template-ref": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/prop-name-casing": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/require-component-is": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/require-default-prop": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/require-explicit-emits": [
+        { "files": ["src/main.ts","src/bridge/commands.ts","tests/composables/useClock.test.ts","vitest.setup.ts","eslint.config.js"], "entry": "warn" },
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/require-explicit-slots": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/require-macro-variable-name": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/require-prop-type-constructor": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/require-prop-types": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/require-render-return": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/require-slots-as-functions": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/require-toggle-inside-transition": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/require-typed-ref": [
+        { "files": ["src/main.ts","src/App.vue","src/bridge/commands.ts"], "entry": "error" }
+    ],
+    "vue/require-v-for-key": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/require-valid-default-prop": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/return-in-computed-property": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/return-in-emits-validator": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/this-in-template": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/use-v-on-exact": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/v-bind-style": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/v-for-delimiter-style": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "vue/v-on-event-hyphenation": [
+        { "files": "*", "entry": ["warn","always",{"autofix":true}] }
+    ],
+    "vue/v-on-style": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/v-slot-style": [
+        { "files": "*", "entry": "warn" }
+    ],
+    "vue/valid-attribute-name": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-define-emits": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-define-options": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-define-props": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-next-tick": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-template-root": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-bind": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-cloak": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-else": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-else-if": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-for": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-html": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-if": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-is": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-memo": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-model": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-on": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-once": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-pre": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-show": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-slot": [
+        { "files": "*", "entry": "error" }
+    ],
+    "vue/valid-v-text": [
+        { "files": "*", "entry": "error" }
+    ]
+}

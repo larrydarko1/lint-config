@@ -13,6 +13,33 @@ type Context = Readonly<TSESLint.RuleContext<Dialog, []>>;
 /** The names the window is reachable by. */
 const OWNERS = new Set(['window', 'globalThis', 'self']);
 
+const noNativeDialog: TSESLint.RuleModule<Dialog> = {
+    meta: {
+        defaultOptions: [],
+        type: 'problem',
+        docs: {
+            description: "Tell the user through the app's notification function, not the browser's blocking dialogs.",
+        },
+        schema: [],
+        messages: {
+            alert: "`alert()` freezes the whole window until it is dismissed, and ignores the theme and the layout. Tell the user through the app's notification function — `notify.error(t(…))` — so every message reaches them through one component, and a failure that repeats updates one notice instead of stacking dialogs.",
+            confirm:
+                "`confirm()` freezes the whole window, and its buttons follow the OS language, not the app's. Ask through the app's own confirm dialog; in Electron, `dialog.showMessageBox` from the main process is the native alternative.",
+            prompt: "`prompt()` freezes the whole window, and Electron does not implement it: it returns nothing. Ask with an inline input or the app's own dialog.",
+        },
+    },
+    create(context) {
+        return {
+            CallExpression(node) {
+                const dialog = dialogCalled(context, node.callee);
+                if (dialog !== null) context.report({ node, messageId: dialog });
+            },
+        };
+    },
+};
+
+export const dialogRules = { 'no-native-dialog': noNativeDialog };
+
 const isDialog = (name: string | null): name is Dialog => name === 'alert' || name === 'confirm' || name === 'prompt';
 
 /** Whether `name` at `node` is the global, not a local or an import that shadows it. */
@@ -41,30 +68,3 @@ function dialogCalled(context: Context, callee: TSESTree.Node): Dialog | null {
     const name = propertyName(callee);
     return isDialog(name) ? name : null;
 }
-
-const noNativeDialog: TSESLint.RuleModule<Dialog, []> = {
-    meta: {
-        type: 'problem',
-        docs: {
-            description: "Tell the user through the app's notification function, not the browser's blocking dialogs.",
-        },
-        schema: [],
-        messages: {
-            alert: "`alert()` freezes the whole window until it is dismissed, and ignores the theme and the layout. Tell the user through the app's notification function — `notify.error(t(…))` — so every message reaches them through one component, and a failure that repeats updates one notice instead of stacking dialogs.",
-            confirm:
-                "`confirm()` freezes the whole window, and its buttons follow the OS language, not the app's. Ask through the app's own confirm dialog; in Electron, `dialog.showMessageBox` from the main process is the native alternative.",
-            prompt: "`prompt()` freezes the whole window, and Electron does not implement it: it returns nothing. Ask with an inline input or the app's own dialog.",
-        },
-    },
-    defaultOptions: [],
-    create(context) {
-        return {
-            CallExpression(node) {
-                const dialog = dialogCalled(context, node.callee);
-                if (dialog !== null) context.report({ node, messageId: dialog });
-            },
-        };
-    },
-};
-
-export const dialogRules = { 'no-native-dialog': noNativeDialog };

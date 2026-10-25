@@ -10,9 +10,52 @@ import type { TSESLint, TSESTree } from '@typescript-eslint/utils';
 type MessageId = 'import' | 'global';
 type Context = Readonly<TSESLint.RuleContext<MessageId, []>>;
 
-const TAURI_PACKAGE = /^@tauri-apps\//;
+const TAURI_PACKAGE = '@tauri-apps/';
 /** `__TAURI__` (`withGlobalTauri`), `__TAURI_INTERNALS__` (what `invoke` calls), and any later one. */
-const TAURI_GLOBAL = /^__TAURI/;
+const TAURI_GLOBAL = '__TAURI';
+
+const noTauriOutsideBridge: TSESLint.RuleModule<MessageId> = {
+    meta: {
+        defaultOptions: [],
+        type: 'problem',
+        docs: { description: 'Reach Tauri through the bridge module, never from a component or composable.' },
+        schema: [],
+        messages: {
+            import: "`{{source}}` is imported in src/bridge/ and nowhere else. Call the bridge's typed function — add one there if it is missing — and import its types from the bridge too, so the rest of the app never learns it runs in Tauri and a test replaces one module instead of mocking IPC.",
+            global: '`{{name}}` is Tauri’s internal plumbing. Go through src/bridge/: an `invoke` wrapper for a command, `isTauri()` from `@tauri-apps/api/core` for detection — and keep `withGlobalTauri` off, which is what puts the whole API on `window.__TAURI__` for any script to call.',
+        },
+    },
+    create(context) {
+        const reportGlobal = (node: TSESTree.Node, name: string): void => {
+            context.report({ node, messageId: 'global', data: { name } });
+        };
+        return {
+            'ImportDeclaration': (node) => checkSource(context, node.source),
+            'ImportExpression': (node) => checkSource(context, node.source),
+            'ExportNamedDeclaration': (node) => checkSource(context, node.source),
+            'ExportAllDeclaration': (node) => checkSource(context, node.source),
+            // `window.__TAURI__`, `globalThis['__TAURI_INTERNALS__']`
+            'MemberExpression'(node) {
+                const name = propertyName(node);
+                if (name?.startsWith(TAURI_GLOBAL) === true) reportGlobal(node, name);
+            },
+            // `'__TAURI__' in window`
+            'BinaryExpression'(node) {
+                const name = node.operator === 'in' ? stringValue(node.left) : null;
+                if (name?.startsWith(TAURI_GLOBAL) === true) reportGlobal(node, name);
+            },
+            // A bare `__TAURI__.core.invoke(…)`: a global nothing in the module declares.
+            'Program:exit'(program) {
+                for (const reference of context.sourceCode.getScope(program).through) {
+                    const { identifier } = reference;
+                    if (identifier.name.startsWith(TAURI_GLOBAL)) reportGlobal(identifier, identifier.name);
+                }
+            },
+        };
+    },
+};
+
+export const tauriRules = { 'no-tauri-outside-bridge': noTauriOutsideBridge };
 
 const stringValue = (node: TSESTree.Node): string | null =>
     node.type === 'Literal' && typeof node.value === 'string' ? node.value : null;
@@ -26,50 +69,7 @@ function propertyName(member: TSESTree.MemberExpression): string | null {
 
 function checkSource(context: Context, source: TSESTree.Node | null): void {
     if (source?.type !== 'Literal' || typeof source.value !== 'string') return;
-    if (TAURI_PACKAGE.test(source.value)) {
+    if (source.value.startsWith(TAURI_PACKAGE)) {
         context.report({ node: source, messageId: 'import', data: { source: source.value } });
     }
 }
-
-const noTauriOutsideBridge: TSESLint.RuleModule<MessageId, []> = {
-    meta: {
-        type: 'problem',
-        docs: { description: 'Reach Tauri through the bridge module, never from a component or composable.' },
-        schema: [],
-        messages: {
-            import: "`{{source}}` is imported in src/bridge/ and nowhere else. Call the bridge's typed function — add one there if it is missing — and import its types from the bridge too, so the rest of the app never learns it runs in Tauri and a test replaces one module instead of mocking IPC.",
-            global: '`{{name}}` is Tauri’s internal plumbing. Go through src/bridge/: an `invoke` wrapper for a command, `isTauri()` from `@tauri-apps/api/core` for detection — and keep `withGlobalTauri` off, which is what puts the whole API on `window.__TAURI__` for any script to call.',
-        },
-    },
-    defaultOptions: [],
-    create(context) {
-        const reportGlobal = (node: TSESTree.Node, name: string): void => {
-            context.report({ node, messageId: 'global', data: { name } });
-        };
-        return {
-            'ImportDeclaration': (node) => checkSource(context, node.source),
-            'ImportExpression': (node) => checkSource(context, node.source),
-            'ExportNamedDeclaration': (node) => checkSource(context, node.source),
-            'ExportAllDeclaration': (node) => checkSource(context, node.source),
-            // `window.__TAURI__`, `globalThis['__TAURI_INTERNALS__']`
-            'MemberExpression'(node) {
-                const name = propertyName(node);
-                if (name !== null && TAURI_GLOBAL.test(name)) reportGlobal(node, name);
-            },
-            // `'__TAURI__' in window`
-            'BinaryExpression'(node) {
-                const name = node.operator === 'in' ? stringValue(node.left) : null;
-                if (name !== null && TAURI_GLOBAL.test(name)) reportGlobal(node, name);
-            },
-            // A bare `__TAURI__.core.invoke(…)`: a global nothing in the module declares.
-            'Program:exit'(program) {
-                for (const reference of context.sourceCode.getScope(program).through) {
-                    const { identifier } = reference;
-                    if (TAURI_GLOBAL.test(identifier.name)) reportGlobal(identifier, identifier.name);
-                }
-            },
-        };
-    },
-};
-
-export const tauriRules = { 'no-tauri-outside-bridge': noTauriOutsideBridge };
