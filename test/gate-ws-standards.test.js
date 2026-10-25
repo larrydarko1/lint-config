@@ -1147,6 +1147,22 @@ test('a second connection in a test file is not graded', (t) => {
     assert.deepEqual(whats(root), []);
 });
 
+test('frontend: false is an API whose clients live elsewhere: no client module is required', (t) => {
+    const files = good();
+    delete files['frontend/src/api/socket.ts'];
+    delete files['frontend/src/api/auth.ts'];
+    delete files['frontend/src/composables/useNotifications.ts'];
+    const { client: _client, clientDirs: _clientDirs, ...server } = OPTIONS;
+    const root = tree(t, files);
+    assert.deepEqual(
+        inspectWsStandards({ root, ...server, frontend: false }).problems.map((problem) => problem.what),
+        [],
+    );
+    // The server half is still held to every rule.
+    const thrown = tree(t, { ...files, 'api/src/services/notify.ts': `import { Server } from 'socket.io';\n` });
+    assert.ok(inspectWsStandards({ root: thrown, ...server, frontend: false }).problems.length > 0);
+});
+
 // ─── 10b. Listener cleanup ───────────────────────────────────────────────────
 
 test('a listener with no teardown hook is reported', (t) => {

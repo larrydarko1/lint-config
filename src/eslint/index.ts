@@ -38,7 +38,7 @@ export type LarryOptions = {
     workspaces?: Partial<FullstackWorkspaces>;
     /** Override any path set from the preset. See presets.ts. */
     paths?: Partial<PresetPaths>;
-    /** Load the Vue plugin and parse `.vue` files. Defaults to true. */
+    /** Load the Vue plugin and parse `.vue` files. Defaults to true, and to false for the `api` preset, which has no components. */
     vue?: boolean;
     /** Enforce import specifiers: no extension on TS/JS, but `.vue` and `.json` keep theirs. Defaults to false.*/
     importExtensions?: boolean | ImportExtensionsOptions;
@@ -48,7 +48,7 @@ export type LarryOptions = {
     testRules?: Linter.RulesRecord;
     /** Extra rules for all source files, merged last. */
     rules?: Linter.RulesRecord;
-    /** Standards blocks (security, logging, …) to splice in: `electronStandards()`, `fullstackStandards()`, `spaStandards()` or `tauriStandards()`. */
+    /** Standards blocks (security, logging, …) to splice in: `apiStandards()`, `electronStandards()`, `fullstackStandards()`, `spaStandards()` or `tauriStandards()`. */
     standards?: Linter.Config[] | ((layout: FullstackLayout) => Linter.Config[]);
     /** The project's own blocks — the per-area `no-restricted-syntax`/`no-restricted-imports` wiring. Appended last, before Prettier. */
     overrides?: Linter.Config[];
@@ -122,7 +122,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
         rootDir,
         workspaces = {},
         paths: pathOverrides = {},
-        vue: useVue = true,
+        vue: useVue = preset !== 'api',
         importExtensions = false,
         testProject = null,
         testRules = {},
@@ -168,7 +168,10 @@ export function larry(options: LarryOptions): Linter.Config[] {
             : []),
 
         // ── Which globals exist where ────────────────────────────────────────
-        { files: paths.browser, languageOptions: { globals: globals.browser } },
+        // ESLint refuses an empty `files`, and an API has no browser code.
+        ...(paths.browser.length
+            ? [{ files: paths.browser, languageOptions: { globals: globals.browser } } satisfies Linter.Config]
+            : []),
         {
             files: paths.node,
             languageOptions: { globals: globals.node, sourceType: 'module' },

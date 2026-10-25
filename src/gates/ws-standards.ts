@@ -13,7 +13,7 @@
  *   9. Inbound events are validated (a parse in the listener, or a schema named
  *      after the event) and rate limited.
  *  10. The frontend: one client, listeners torn down (`onScopeDispose` or
- *      `onUnmounted`), the socket dropped on sign-out.
+ *      `onUnmounted`), the socket dropped on sign-out. Skipped with `frontend: false`.
  *  11. Outbound payloads have schemas (opt-in: `events`): the shared event table
  *      lists exactly the events the gateway emits, and the gateway reads it.
  */
@@ -26,7 +26,23 @@ import { createGateReport, plural, type GateFailure } from './lib/report.ts';
 import { braceBlock, callSites, declaredBody, propertyValue } from './lib/source.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
-export type WsStandardsOptions = {
+export type WsStandardsOptions = WsServerOptions & WsClientOptions;
+
+/**
+ * The frontend half (rule 10). An API on its own passes `frontend: false`: its clients
+ * connect from other repositories, so there is no client module here to hold to it.
+ */
+type WsClientOptions =
+    | {
+          frontend?: true;
+          /** The one frontend socket client module. */
+          client: string;
+          /** Frontend directories swept for second connections and leaked listeners. */
+          clientDirs: string | string[];
+      }
+    | { frontend: false; client?: never; clientDirs?: never };
+
+type WsServerOptions = {
     /** Repository root. Defaults to the nearest ancestor holding a package.json. */
     root?: string;
     /** The gateway module that constructs the Socket.IO server. */
@@ -35,10 +51,6 @@ export type WsStandardsOptions = {
     gatewayDir: string;
     /** Server directories swept for stray imports and stray emits. */
     serverDirs: string | string[];
-    /** The one frontend socket client module. */
-    client: string;
-    /** Frontend directories swept for second connections and leaked listeners. */
-    clientDirs: string | string[];
     /** Where the handshake verify really happens, when it is not inline. */
     authModule?: { file: string; fn: string };
     /** Required here, forbidden there. Defaults to required. */
@@ -119,8 +131,6 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
         gateway,
         gatewayDir,
         serverDirs,
-        client,
-        clientDirs,
         authModule,
         redisAdapter = { mode: 'required' },
         rooms,
@@ -132,6 +142,7 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
         sessionTeardown,
         events,
     } = input;
+    const { client, clientDirs } = input.frontend === false ? { client: null, clientDirs: [] } : input;
 
     const problems: GateFailure[] = [];
     const fail = (file: string | null, what: string, why: string) => {
@@ -550,9 +561,9 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
     }
 
     // ── 10. The frontend half ───────────────────────────────────────────────
-    if (!exists(client)) {
+    if (client !== null && !exists(client)) {
         fail(client, 'missing', 'One socket client module for the whole frontend — one connection per tab.');
-    } else {
+    } else if (client !== null) {
         const clientSource = code(client);
 
         if (!/auth:\s*\(/.test(clientSource)) {
@@ -664,8 +675,8 @@ export function checkWsStandards(options: WsStandardsOptions): void {
         summary:
             `WebSocket architecture OK — one server on the existing HTTP listener, ${adapter}, ` +
             `upgrade origin checked, handshake auth pinned and the rate limit ahead of it, hop count mirrored, emits confined to the gateway; ` +
-            `${plural(counts.outbound, 'outbound event')} and ${plural(counts.inbound, 'inbound event')} all matching the header contract, ` +
-            `frontend on one client module with every listener cleaned up.`,
+            `${plural(counts.outbound, 'outbound event')} and ${plural(counts.inbound, 'inbound event')} all matching the header contract` +
+            (options.frontend === false ? '.' : `, frontend on one client module with every listener cleaned up.`),
         notMachineChecked:
             'Whether a given feature should be a socket at all rather than REST, whether a payload is small enough to push, whether the connection bucket’s capacity is the right number, or whether a reconnect resubscribes to everything it was watching.',
     });

@@ -1,10 +1,22 @@
 import type { FullstackLayout } from '../presets.ts';
 
-const noThrowObject = {
-    selector: 'ThrowStatement > ObjectExpression',
-    message:
-        'Throw `new AppError(status, code, message)` — not a bare `{ status, message }` object. Client-facing errors must carry a machine code (see api/src/lib/app-error.ts).',
+/** What the messages point the reader at. The API family has the same files at its own root. */
+export type ApiMessagePaths = {
+    /** The module holding AppError. */
+    appError: string;
+    /** Where a returned shape gets its name, and who compiles against it. */
+    namedShapes: string;
 };
+
+const FULLSTACK_MESSAGE_PATHS: ApiMessagePaths = {
+    appError: 'api/src/lib/app-error.ts',
+    namedShapes: 'in packages/shared so the API and the frontend both compile against it',
+};
+
+const noThrowObject = (appError: string) => ({
+    selector: 'ThrowStatement > ObjectExpression',
+    message: `Throw \`new AppError(status, code, message)\` — not a bare \`{ status, message }\` object. Client-facing errors must carry a machine code (see ${appError}).`,
+});
 
 const noParseIntQuery = {
     selector: "CallExpression[callee.name='parseInt'] MemberExpression[object.name='req'][property.name='query']",
@@ -42,21 +54,21 @@ const noUntimedFetch = {
         'Pass a timeout to every outbound fetch: `fetch(url, { signal: AbortSignal.timeout(5000) })`. Node applies no default, so a stalled upstream pins the request slot until the process restarts.',
 };
 
-const LOOSE_SHAPE_MESSAGE =
-    'Do not return `Record<string, unknown>` from an exported function — it switches type checking off for everything the caller receives, which is how the API and frontend drifted apart on VideoMeta. Name the shape (e.g. `VideoMeta`) in packages/shared so the API and the frontend both compile against it.';
-
-const noLooseReturnShape = [
-    {
-        selector:
-            "ExportNamedDeclaration > FunctionDeclaration > TSTypeAnnotation TSTypeReference[typeName.name='Record'][typeArguments.params.1.type='TSUnknownKeyword']",
-        message: LOOSE_SHAPE_MESSAGE,
-    },
-    {
-        selector:
-            "ExportNamedDeclaration > VariableDeclaration > VariableDeclarator > ArrowFunctionExpression > TSTypeAnnotation TSTypeReference[typeName.name='Record'][typeArguments.params.1.type='TSUnknownKeyword']",
-        message: LOOSE_SHAPE_MESSAGE,
-    },
-];
+const noLooseReturnShape = (namedShapes: string) => {
+    const message = `Do not return \`Record<string, unknown>\` from an exported function — it switches type checking off for everything the caller receives, which is how the API and frontend drifted apart on VideoMeta. Name the shape (e.g. \`VideoMeta\`) ${namedShapes}.`;
+    return [
+        {
+            selector:
+                "ExportNamedDeclaration > FunctionDeclaration > TSTypeAnnotation TSTypeReference[typeName.name='Record'][typeArguments.params.1.type='TSUnknownKeyword']",
+            message,
+        },
+        {
+            selector:
+                "ExportNamedDeclaration > VariableDeclaration > VariableDeclarator > ArrowFunctionExpression > TSTypeAnnotation TSTypeReference[typeName.name='Record'][typeArguments.params.1.type='TSUnknownKeyword']",
+            message,
+        },
+    ];
+};
 
 const noApiErrorsFieldType = {
     selector: "TSPropertySignature[key.name='data'] TSPropertySignature[key.name='errors']",
@@ -70,14 +82,17 @@ const noApiErrorsRender = {
         'Do not map over API `errors[]` — those messages are English dev fallbacks. Render the localised `data.error` instead, and validate client-side (utils/validation.ts) for localised field-level feedback.',
 };
 
-export const apiSourceSelectors = [
-    noThrowObject,
+/** The selectors for an HTTP service's source, with the messages pointing at `paths`. */
+export const httpServiceSelectors = ({ appError, namedShapes }: ApiMessagePaths) => [
+    noThrowObject(appError),
     noParseIntQuery,
     noEnglishErrorResponse,
     noMessageResponse,
     noUntimedFetch,
-    ...noLooseReturnShape,
+    ...noLooseReturnShape(namedShapes),
 ];
+
+export const apiSourceSelectors = httpServiceSelectors(FULLSTACK_MESSAGE_PATHS);
 
 /** Additional selectors for api routes only (success envelope, raw query). */
 export const apiRoutesOnlySelectors = [noOkEnvelope, noRawReqQuery];
@@ -85,7 +100,8 @@ export const apiRoutesOnlySelectors = [noOkEnvelope, noRawReqQuery];
 /** The outbound-timeout rule on its own, for the worker, which makes outbound calls but serves no HTTP. */
 export const outboundCallSelectors = [noUntimedFetch];
 
-export const apiBannedImports = [
+/** Fixed-window limiters, banned because the tiers are a token bucket in Redis. */
+const fixedWindowLimiters = [
     {
         name: 'express-rate-limit',
         message:
@@ -99,11 +115,19 @@ export const apiBannedImports = [
         name: 'express-slow-down',
         message: 'Same family as express-rate-limit. Use the token-bucket tiers in lib/rate-limiters.ts.',
     },
+];
+
+/** Work that belongs to the proxy in front of Node, Redis or not. */
+export const proxyWorkBannedImports = [
     {
         name: 'compression',
         message:
             'Compress at the proxy (`gzip on` in nginx), not in Node. nginx is C and compresses far faster than a JS middleware doing identical work on the event loop.',
     },
+];
+
+/** In-process caches, banned because Redis is the one cache every replica shares. */
+const inProcessCaches = [
     {
         name: 'lru-cache',
         message:
@@ -122,6 +146,8 @@ export const apiBannedImports = [
         message: 'In-process cache — see lru-cache. Redis is the only application cache.',
     },
 ];
+
+export const apiBannedImports = [...fixedWindowLimiters, ...proxyWorkBannedImports, ...inProcessCaches];
 
 /** Frontend selectors — the client side of the same wire contract. */
 export const frontendSelectors = [noApiErrorsFieldType, noApiErrorsRender];

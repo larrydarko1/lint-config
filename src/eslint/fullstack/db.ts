@@ -15,17 +15,28 @@ const noMigrationDown = [
     { selector: "Property[key.name='down']", message: DOWN_MESSAGE },
 ];
 
-const noCreateIndexInMigration = {
-    selector: "CallExpression[callee.property.name='createIndex']",
-    message:
-        'Do not create indexes in a migration. Every index is declared once in packages/shared/src/db/indexes.ts and applied by ensureIndexes() at API boot. Declaring them here too is what let HashDatabase{source,addedAt} drift. See db/migrations/README.md.',
+/** What the messages point the reader at. The API family keeps both in its own `src/db/`. */
+export type DbMessagePaths = {
+    /** The index manifest ensureIndexes() applies. */
+    indexManifest: string;
+    /** Where each collection's document type is declared. */
+    documentTypes: string;
 };
 
-const noCreateIndexInApi = {
-    selector: "CallExpression[callee.property.name='createIndex']",
-    message:
-        'Do not call createIndex here. Add an entry to the index manifest (packages/shared/src/db/indexes.ts) — it is applied by ensureIndexes() in lib/db.ts on the next boot.',
+const FULLSTACK_MESSAGE_PATHS: DbMessagePaths = {
+    indexManifest: 'packages/shared/src/db/indexes.ts',
+    documentTypes: "the shared package's db/collections",
 };
+
+const noCreateIndexInMigration = (indexManifest: string) => ({
+    selector: "CallExpression[callee.property.name='createIndex']",
+    message: `Do not create indexes in a migration. Every index is declared once in ${indexManifest} and applied by ensureIndexes() at API boot. Declaring them here too is what let HashDatabase{source,addedAt} drift. See db/migrations/README.md.`,
+});
+
+const noCreateIndexInApi = (indexManifest: string) => ({
+    selector: "CallExpression[callee.property.name='createIndex']",
+    message: `Do not call createIndex here. Add an entry to the index manifest (${indexManifest}) — it is applied by ensureIndexes() in lib/db.ts on the next boot.`,
+});
 
 const noDropIndexInApi = {
     selector: "CallExpression[callee.property.name='dropIndex']",
@@ -40,11 +51,10 @@ const noEnvFallbackInScripts = {
         "No silent env fallback. Use getRequiredEnv('X') from scripts/lib/env.ts — it throws on a missing variable instead of guessing localhost. If a wrong value genuinely cannot destroy or mis-target data, use optionalEnv('X', default) and say why.",
 };
 
-const noUntypedCollection = {
+const noUntypedCollection = (documentTypes: string) => ({
     selector: "CallExpression[callee.property.name='collection'][arguments.0.type='Literal']:not([typeArguments])",
-    message:
-        "Give every collection its document type: `db.collection<MediaDoc>('Media')`, with the Doc types from the shared package's db/collections. Untyped, every read is `any`-shaped and a write with a misspelt or wrong-typed field compiles fine — which is how the worker never used MediaDoc.",
-};
+    message: `Give every collection its document type: \`db.collection<MediaDoc>('Media')\`, with the Doc types from ${documentTypes}. Untyped, every read is \`any\`-shaped and a write with a misspelt or wrong-typed field compiles fine — which is how the worker never used MediaDoc.`,
+});
 
 const noExtraMongoClient = {
     selector: "NewExpression[callee.name='MongoClient']",
@@ -73,13 +83,35 @@ export const dbBannedImports = [
 /** The same list in the shape `no-restricted-imports` takes. */
 const noOdm = { paths: dbBannedImports };
 
-export const dbApiWorkerSelectors = [noCreateIndexInApi, noDropIndexInApi, noExtraMongoClient, noUntypedCollection];
+/** Each area's selectors, with the messages pointing at `paths`. */
+export const mongoSelectors = ({ indexManifest, documentTypes }: DbMessagePaths) => ({
+    /** A migration: forward-only, and no indexes of its own. */
+    migration: [...noMigrationDown, noCreateIndexInMigration(indexManifest)],
+    /** Application code: the manifest owns indexes, lib/db.ts owns the client. */
+    application: [
+        noCreateIndexInApi(indexManifest),
+        noDropIndexInApi,
+        noExtraMongoClient,
+        noUntypedCollection(documentTypes),
+    ],
+    /** lib/db.ts, which applies the manifest and holds the client. */
+    dbModule: [noDropIndexInApi, noUntypedCollection(documentTypes)],
+    /** A service's index.ts, which holds that process's client. */
+    serviceEntry: [noCreateIndexInApi(indexManifest), noDropIndexInApi, noUntypedCollection(documentTypes)],
+});
+
+const fullstackMongo = mongoSelectors(FULLSTACK_MESSAGE_PATHS);
+
+export const dbApiWorkerSelectors = fullstackMongo.application;
 
 /** The api's lib/db.ts — the manifest applier + singleton (createIndex/new MongoClient are its job). */
-export const dbDbTsSelectors = [noDropIndexInApi, noUntypedCollection];
+export const dbDbTsSelectors = fullstackMongo.dbModule;
 
 /** A service's index.ts — that process's singleton (new MongoClient is its job). */
-export const dbWorkerIndexSelectors = [noCreateIndexInApi, noDropIndexInApi, noUntypedCollection];
+export const dbWorkerIndexSelectors = fullstackMongo.serviceEntry;
+
+/** Ops scripts: no guessed default for a variable that picks what they touch. */
+export const scriptEnvSelectors = [noEnvFallbackInScripts];
 
 /**
  * @param layout The full-stack workspaces. The api's `src/lib/db.ts` and each service's
@@ -93,7 +125,7 @@ export const dbStandards = (layout: FullstackLayout) => {
         {
             files: ['db/migrations/**/*.js'],
             rules: {
-                'no-restricted-syntax': ['error', ...noMigrationDown, noCreateIndexInMigration],
+                'no-restricted-syntax': ['error', ...fullstackMongo.migration],
                 'no-restricted-imports': ['error', noOdm],
             },
         },
@@ -123,7 +155,7 @@ export const dbStandards = (layout: FullstackLayout) => {
             files: ['scripts/**/*.ts'],
             ignores: ['scripts/download-models.ts'],
             rules: {
-                'no-restricted-syntax': ['error', noEnvFallbackInScripts],
+                'no-restricted-syntax': ['error', ...scriptEnvSelectors],
             },
         },
     ];

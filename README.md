@@ -3,12 +3,14 @@
 Formatting, linting, commit rules and CI quality gates for my projects, kept in one package so a
 rule is changed once and every project picks it up on its next update.
 
-It is opinionated and built for three kinds of project:
+It is opinionated and built for five kinds of project:
 
 - **fullstack**: a Vue frontend and an Express API as npm workspaces, with a worker, a database
   and a websocket gateway.
+- **api**: an Express API in one package, with its clients in other repositories.
 - **electron**: a Vue desktop app split into main, preload and renderer.
 - **spa**: a Vue app built by Vite, in one package, with no server of its own.
+- **tauri**: a Vue app in a Tauri webview, with a Rust side.
 
 You are welcome to use it, but expect the defaults to be mine. Every setting that varies between
 projects is an option, and everything else is fixed.
@@ -101,7 +103,7 @@ import { larry } from '@larrydarko/lint-config/eslint';
 import { electronStandards } from '@larrydarko/lint-config/eslint/electron';
 
 export default larry({
-    preset: 'electron', // or 'fullstack', 'spa' or 'tauri'
+    preset: 'electron', // or 'api', 'fullstack', 'spa' or 'tauri'
     rootDir: import.meta.dirname,
     standards: electronStandards(),
     overrides: [/* this project's own blocks */],
@@ -117,17 +119,17 @@ export default larry({
 - Prettier compatibility, applied last
 
 `preset` chooses a family's folder layout, and `paths` overrides any part of it. The family
-modules (`/eslint/electron`, `/eslint/fullstack`, `/eslint/spa` and `/eslint/tauri`) export the standards blocks.
+modules (`/eslint/api`, `/eslint/electron`, `/eslint/fullstack`, `/eslint/spa` and `/eslint/tauri`) export the standards blocks.
 They also export the selectors, banned-import lists and rule plugins those blocks are built from,
 so the project's own per-folder blocks can reuse them in `overrides`.
 
 Most standards are the same in every family. Security, TypeScript, env, Vue, HTML and a11y,
 i18n, refactoring, testing and the function contracts are one implementation each, applied to
 that family's folders. Only the rules about a family's architecture differ: process or
-workspace boundaries, its logger, and the full-stack api, database and websocket rules. All four
-standards functions accept the same options: `security.vHtmlAllowed`, `html.globalStylesheet`,
-`refactoring.markerFiles` and `i18n` (or `i18n: false`). `fullstackStandards()` and
-`spaStandards()` also accept `logging.consoleAllowed`.
+workspace boundaries, its logger, and the api, database and websocket rules. The four
+standards functions with a frontend accept the same options: `security.vHtmlAllowed`,
+`html.globalStylesheet`, `refactoring.markerFiles` and `i18n` (or `i18n: false`).
+`fullstackStandards()`, `spaStandards()` and `apiStandards()` also accept `logging.consoleAllowed`.
 
 **The SPA family is the full-stack frontend on its own.** It applies the shared standards to
 `src/` and nothing for a backend, since it has none. Its layout follows the full-stack frontend:
@@ -146,6 +148,46 @@ export default larry({
     standards: spaStandards({ i18n: { ignoreText: ['Acme'] } }),
 });
 ```
+
+**The API family is the full-stack api on its own.** It applies the full-stack api, database,
+logging and websocket rules to `src/`, and nothing for a frontend or a shared package, since it
+has neither. Its layout is the full-stack `api` workspace at the root of its own repository:
+routes in `src/routes/`, the socket gateway in `src/gateway/`, `src/lib/config.ts`,
+`src/lib/db.ts` and `src/middleware/error-handler.ts`, tests in a `__tests__/` folder beside the
+code, and forward-only migrations in `db/migrations/`. Everything runs in Node, so there are no
+browser globals and `vue` defaults to `false`.
+
+`no-restricted-syntax` and `no-restricted-imports` are last-match-wins, so `apiStandards()` names
+each area's whole list itself: a route gets the AppError and wire rules, the routes-only rules, the
+logger, Mongo and TypeScript selectors together. The family needs no `overrides` to be complete. A
+project that adds a selector to one area names that area's whole list again, from the selectors the
+module exports. Messages point at this layout's files: the index manifest is `src/db/indexes.ts`
+and the document types are in `src/db/collections.ts`.
+
+MongoDB, Redis and a socket gateway are assumed. Each is a switch that defaults to on:
+
+| Option  | Off means                                                                           |
+| ------- | ----------------------------------------------------------------------------------- |
+| `mongo` | no ODM ban, collection typing, client singleton or migration rules                  |
+| `redis` | in-process caches and fixed-window limiters are allowed; `compression` stays banned |
+| `ws`    | no `src/gateway/` rules                                                             |
+
+```js
+// eslint.config.js
+import { larry } from '@larrydarko/lint-config/eslint';
+import { apiStandards } from '@larrydarko/lint-config/eslint/api';
+
+export default larry({
+    preset: 'api',
+    rootDir: import.meta.dirname,
+    standards: apiStandards({ ws: false }),
+});
+```
+
+The backend gates take their paths as options rather than assuming the workspace folders. Two of
+them also check a frontend in the same repository: pass `frontend: false` to
+`error-handling/fullstack` and `ws-standards`, and each skips its frontend half (the interceptor
+that translates codes, the one socket client), which lives in the client's repository.
 
 **The Tauri family is an SPA in a webview, plus one boundary.** ESLint sees only the webview. It
 never walks `src-tauri/`, where the Rust side is linted by Clippy. So `tauriStandards()` applies the
@@ -249,11 +291,11 @@ quietly find no tsconfig.
 
 | Option             | Default      | What it is for                                                          |
 | ------------------ | ------------ | ----------------------------------------------------------------------- |
-| `preset`           | —            | `'electron'`, `'fullstack'`, `'spa'` or `'tauri'`                       |
+| `preset`           | —            | `'api'`, `'electron'`, `'fullstack'`, `'spa'` or `'tauri'`              |
 | `rootDir`          | —            | the project root; **required**                                          |
 | `workspaces`       | the four     | full-stack only: which workspace plays which role                       |
 | `paths`            | the preset's | override `source`, `tests`, `browser`, `node`, `ignores`, …             |
-| `vue`              | `true`       | load the Vue plugin and parse `.vue` files                              |
+| `vue`              | `true`       | load the Vue plugin and parse `.vue` files; `false` for `api`           |
 | `importExtensions` | `false`      | enforce import specifiers; `{ nodeRun }` for folders Node runs directly |
 | `testProject`      | none         | a dedicated tsconfig for tests, such as `./tsconfig.test.json`          |
 | `testRules`        | `{}`         | extra relaxations for tests                                             |

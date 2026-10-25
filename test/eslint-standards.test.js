@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { ESLint, Linter } from 'eslint';
 
 import { larry } from '../src/eslint/index.ts';
+import * as api from '../src/eslint/api/index.ts';
 import * as electron from '../src/eslint/electron/index.ts';
 import * as fullstack from '../src/eslint/fullstack/index.ts';
 import * as spa from '../src/eslint/spa/index.ts';
@@ -29,6 +30,7 @@ const severityOf = async (config, file, rule) => {
     return Array.isArray(entry) ? entry[0] : entry;
 };
 
+const apiConfig = (options) => larry({ preset: 'api', rootDir: ROOT, standards: api.apiStandards(options) });
 const electronConfig = (options) =>
     larry({ preset: 'electron', rootDir: ROOT, standards: electron.electronStandards(options) });
 const fullstackConfig = (options) =>
@@ -78,6 +80,7 @@ test('a test whose expect sits behind an if is caught in every family', async ()
     assert.equal(await severityOf(fullstackConfig(), 'api/src/__tests__/thing.test.ts', rule), 2, 'fullstack');
     assert.equal(await severityOf(spaConfig(), 'src/composables/__tests__/thing.test.ts', rule), 2, 'spa');
     assert.equal(await severityOf(tauriConfig(), 'tests/composables/thing.test.ts', rule), 2, 'tauri');
+    assert.equal(await severityOf(apiConfig(), 'src/routes/__tests__/thing.test.ts', rule), 2, 'api');
 });
 
 test('the globally registered router and i18n components are not undefined components', async () => {
@@ -235,4 +238,108 @@ test('a package ban covers the package and its subpaths, not a local module of t
         for (const specifier of banned) assert.ok(bans(patterns, specifier), `${specifier} should be banned`);
         for (const specifier of allowed) assert.ok(!bans(patterns, specifier), `${specifier} should be allowed`);
     }
+});
+
+test('the API family exports the full-stack backend selectors, not copies of them', () => {
+    const shared = [
+        'bannedCryptoModules',
+        'configModuleSelectors',
+        'noSingleLetterDeclaration',
+        'noFileURLToPath',
+        'tsSourceSelectors',
+        'functionContractsPlugin',
+        'apiRoutesOnlySelectors',
+        'apiBannedImports',
+        'dbBannedImports',
+        'loggerCallSelectors',
+        'noDirectErrorResponse',
+        'errorHandlingSelectors',
+        'libBannedImportPatterns',
+        'wsGatewaySelectors',
+        'wsEventNameSelectors',
+        'wsGatewayBannedImports',
+    ];
+    for (const name of shared) assert.equal(api[name], fullstack[name], name);
+    // Same rules, with the messages pointed at a single package's files.
+    for (const name of ['apiSourceSelectors', 'dbApiWorkerSelectors', 'dbDbTsSelectors']) {
+        assert.deepEqual(
+            api[name].map((entry) => entry.selector),
+            fullstack[name].map((entry) => entry.selector),
+            name,
+        );
+        for (const { message } of api[name])
+            assert.doesNotMatch(message, /api\/src|packages\/shared|shared package/, name);
+    }
+});
+
+/** The selectors and banned import names ESLint resolves for `file`. */
+const restrictionsOf = async (config, file) => {
+    const syntax = await entryOf(config, file, 'no-restricted-syntax');
+    const imports = await entryOf(config, file, 'no-restricted-imports');
+    return {
+        selectors: Array.isArray(syntax) ? syntax.slice(1).map((entry) => entry.selector) : [],
+        imports: Array.isArray(imports)
+            ? imports.slice(1).flatMap((entry) => entry.paths.map((path) => path.name))
+            : [],
+    };
+};
+
+test('every API area resolves its whole list, since the last matching block replaces the rest', async () => {
+    const has = (list, entries) => entries.every((entry) => list.includes(entry.selector));
+    const routes = await restrictionsOf(apiConfig(), 'src/routes/users.ts');
+    assert.ok(has(routes.selectors, api.apiSourceSelectors), 'AppError and the wire rules');
+    assert.ok(has(routes.selectors, api.apiRoutesOnlySelectors), 'the routes-only rules');
+    assert.ok(has(routes.selectors, api.dbApiWorkerSelectors), 'the Mongo rules');
+    assert.ok(has(routes.selectors, api.loggerCallSelectors), 'the logger rules');
+    assert.ok(has(routes.selectors, [api.noDirectErrorResponse]), 'errors go through AppError');
+    for (const name of ['bcrypt', 'mongoose', 'express-rate-limit', 'lru-cache', 'compression'])
+        assert.ok(routes.imports.includes(name), name);
+
+    const gateway = await restrictionsOf(apiConfig(), 'src/gateway/socket.ts');
+    assert.ok(has(gateway.selectors, api.wsGatewaySelectors) && has(gateway.selectors, api.apiSourceSelectors));
+    assert.ok(gateway.imports.includes('@/lib/app-error.js') && gateway.imports.includes('mongoose'));
+
+    // The handler answers errors directly, and lib/db.ts is where the client is built.
+    const handler = await restrictionsOf(apiConfig(), 'src/middleware/error-handler.ts');
+    assert.ok(!has(handler.selectors, [api.noDirectErrorResponse]) && has(handler.selectors, api.apiSourceSelectors));
+    const db = await restrictionsOf(apiConfig(), 'src/lib/db.ts');
+    assert.ok(
+        has(db.selectors, api.dbDbTsSelectors) && !db.selectors.includes("NewExpression[callee.name='MongoClient']"),
+    );
+
+    const config = await restrictionsOf(apiConfig(), 'src/lib/config.ts');
+    assert.ok(has(config.selectors, api.configModuleSelectors) && !has(config.selectors, api.apiSourceSelectors));
+    assert.equal((await restrictionsOf(apiConfig(), 'db/migrations/001-init.js')).selectors.length > 0, true);
+});
+
+test('the API switches drop only their own rules', async () => {
+    const plain = apiConfig({ mongo: false, redis: false, ws: false });
+    const routes = await restrictionsOf(plain, 'src/routes/users.ts');
+    assert.ok(!routes.selectors.includes("NewExpression[callee.name='MongoClient']"), 'mongo: false');
+    assert.ok(!routes.imports.includes('mongoose'), 'mongo: false');
+    assert.ok(!routes.imports.includes('lru-cache') && !routes.imports.includes('express-rate-limit'), 'redis: false');
+    assert.ok(
+        routes.imports.includes('compression') && routes.imports.includes('bcrypt'),
+        'the proxy and crypto bans stay',
+    );
+    assert.ok(routes.selectors.includes(api.apiSourceSelectors[0].selector), 'the HTTP rules stay');
+    const gateway = await restrictionsOf(plain, 'src/gateway/socket.ts');
+    assert.ok(!gateway.selectors.includes(api.wsGatewaySelectors[0].selector), 'ws: false');
+    assert.deepEqual((await restrictionsOf(plain, 'db/migrations/001-init.js')).selectors, [], 'mongo: false');
+});
+
+test('the API is all Node: no browser globals, no Vue, and its tests are named like its code', async () => {
+    const eslint = new ESLint({ overrideConfigFile: true, baseConfig: apiConfig(), cwd: ROOT });
+    const source = await eslint.calculateConfigForFile(`${ROOT}/src/index.ts`);
+    assert.ok('process' in source.languageOptions.globals);
+    assert.ok(!('window' in source.languageOptions.globals));
+    // Prettier's config still lists the Vue formatting rules as off; the plugin itself is not loaded.
+    assert.ok(!('vue' in source.plugins));
+    assert.equal(await severityOf(apiConfig(), 'src/index.ts', 'no-console'), 2);
+    assert.equal(await severityOf(apiConfig(), 'src/index.ts', 'larry/no-caught-message-leak'), 2);
+    assert.equal(await severityOf(apiConfig(), 'src/__tests__/index.test.ts', 'no-console'), 'absent');
+    assert.equal(
+        await severityOf(apiConfig(), 'src/routes/__tests__/users.test.ts', '@typescript-eslint/naming-convention'),
+        2,
+    );
 });

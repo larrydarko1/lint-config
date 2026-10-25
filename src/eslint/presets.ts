@@ -3,7 +3,7 @@
  * a project overrides any of them with the `paths` option.
  */
 
-export type PresetName = 'electron' | 'fullstack' | 'spa' | 'tauri';
+export type PresetName = 'api' | 'electron' | 'fullstack' | 'spa' | 'tauri';
 
 /** Glob lists, one per area the shared rules address. */
 export type PresetPaths = {
@@ -57,6 +57,25 @@ const spa: PresetPaths = {
     vue: ['src/**/*.vue'],
     // `public/` is copied into the build as it is, so it holds assets, not source.
     ignores: ['dist/', 'node_modules/', 'public/', '**/.venv/', 'coverage/', 'playwright-report/'],
+    configFiles: ['eslint/**/*.js', 'eslint.config.js'],
+};
+
+/**
+ * An API on its own: one Express service in one package, laid out like the full-stack `api`
+ * workspace at the root of its own repository, with its clients in other repositories.
+ * Everything runs in Node. Tests sit in `__tests__/` beside the code they test, and the
+ * migrations in `db/` are run by Node directly.
+ */
+const api: PresetPaths = {
+    source: ['src/**/*.ts', 'scripts/**/*.ts'],
+    typedSource: ['src/**/*.ts', 'scripts/**/*.ts', 'e2e/**/*.ts'],
+    tests: ['**/__tests__/**/*.ts', '**/*.test.ts', '**/*.spec.ts', '**/*.setup.ts', 'e2e/**/*.ts'],
+    namingIgnores: [],
+    browser: [],
+    node: ['src/**/*.ts', 'scripts/**/*.ts', 'e2e/**/*.ts', '**/*.setup.ts', 'db/**/*.js', '*.config.{js,ts}'],
+    nodeAndBrowser: [],
+    vue: [],
+    ignores: ['dist/', 'node_modules/', '**/.venv/', 'backups/', 'coverage/'],
     configFiles: ['eslint/**/*.js', 'eslint.config.js'],
 };
 
@@ -156,6 +175,7 @@ const fullstackPaths = (layout: FullstackLayout): PresetPaths => ({
 });
 
 export const PRESETS: Record<PresetName, PresetPaths> = {
+    api,
     electron,
     fullstack: fullstackPaths(fullstackLayout()),
     spa,

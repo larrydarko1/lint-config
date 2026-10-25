@@ -339,6 +339,13 @@ test('fullstack NEGATIVE: AppError outside the API is caught, on both kinds of d
     assert.ok(!/swallows a failure/.test(inShared.err), "a shared package's swallows are not this gate's business");
 });
 
+test('fullstack: frontend: false skips the interceptor for an API whose clients live elsewhere', () => {
+    const withoutClient = { 'frontend/src/api/client.ts': `data.error = data.error;\n` };
+    assert.match(fullstack(withoutClient).err, /the interceptor does not localise/);
+    const { failed, err } = fullstack(withoutClient, { frontend: false });
+    assert.equal(failed, false, err);
+});
+
 test('fullstack NEGATIVE: the interceptor contract is checked in both halves', () => {
     const noLocalise = fullstack({ 'frontend/src/api/client.ts': `data.error = data.error;\n` });
     assert.match(noLocalise.err, /the interceptor does not localise `data\.error`/);

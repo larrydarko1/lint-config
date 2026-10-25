@@ -31,7 +31,7 @@ export type SecurityOptions = {
 
 /**
  * @param layout.code Everything the crypto and `eval` bans cover.
- * @param layout.vue The components `v-html` is banned in.
+ * @param layout.vue The components `v-html` is banned in; none for a family with no frontend.
  */
 export const securityStandards = (layout: { code: string[]; vue: string[] }, options: SecurityOptions = {}) => {
     const { vHtmlAllowed = [] } = options;
@@ -45,10 +45,7 @@ export const securityStandards = (layout: { code: string[]; vue: string[] }, opt
                 'no-implied-eval': 'error',
             },
         },
-        {
-            files: layout.vue,
-            rules: { 'vue/no-v-html': 'error' },
-        },
+        ...(layout.vue.length ? [{ files: layout.vue, rules: { 'vue/no-v-html': 'error' } }] : []),
         ...(vHtmlAllowed.length ? [{ files: vHtmlAllowed, rules: { 'vue/no-v-html': 'off' } }] : []),
     ];
 };

@@ -9,7 +9,7 @@
  *   5.  Credential failures carry `securityEvent: true`.
  *   6.  `params` (sent to the client) carry no request input; `message` (logged) may.
  *   7.  Non-HTTP services do not use AppError.
- *   8.  Exactly one frontend interceptor translates codes, with a fallback.
+ *   8.  Exactly one frontend interceptor translates codes, with a fallback (unless `frontend: false`).
  *   9.  A swallowed failure states its reason (../lib/swallowed-errors.ts).
  */
 import fs from 'node:fs';
@@ -30,6 +30,11 @@ export type FullstackErrorHandlingOptions = {
     serviceDirs?: string[];
     /** Further directories barred from AppError but not scanned for swallows — a shared package. */
     appErrorBanDirs?: string[];
+    /**
+     * Whether the frontend is in this repository. Defaults to true. An API on its own passes
+     * `false`: its clients translate the codes in their own repositories, so check 8 is skipped.
+     */
+    frontend?: boolean;
     /** Defaults to `frontend/src`. */
     frontendDir?: string;
     /** Defaults to `api/src/lib/app-error.ts`. */
@@ -111,6 +116,7 @@ function optionField(args: string[], name: string): string | null {
  * @param [options.apiDir='api/src'] The HTTP service's sources.
  * @param [options.serviceDirs=['worker/src']] Services outside the request cycle.
  * @param [options.appErrorBanDirs=[]] Further directories barred from AppError only.
+ * @param [options.frontend=true] Whether the frontend is in this repository.
  * @param [options.allowedStatus] The status policy table.
  * @param [options.parseLevel400=[]] Codes that legitimately answer 400.
  * @param [options.handlerBranches=['AppError','ZodError','MulterError']] The typed
@@ -125,6 +131,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
         apiDir = 'api/src',
         serviceDirs = ['worker/src'],
         appErrorBanDirs = [],
+        frontend = true,
         frontendDir = 'frontend/src',
         appError = 'api/src/lib/app-error.ts',
         handler = 'api/src/middleware/error-handler.ts',
@@ -506,7 +513,7 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
     }
 
     // ── 8. The frontend end of the contract ──────────────────────────────────
-    {
+    if (frontend) {
         const src = code(client);
         // Two checks, not one regex, so the key may be built in a variable first.
         if (!/errors\.\$\{/.test(src) || !/i18n\.global\.te\(/.test(src)) {
