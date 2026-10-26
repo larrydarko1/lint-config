@@ -126,7 +126,29 @@ test('NEGATIVE: no larry.config.ts but gate scripts from an older release points
     );
     assert.match(
         result.out,
-        /^✗ no larry\.config\.ts or larry\.config\.js in .*\n {2}scripts\/checks holds 1 gate script from before `larry`: `npx larry upgrade` moves it into larry\.config\.ts\.$/m,
+        /^✗ no larry\.config\.ts or larry\.config\.js in .*\n {2}scripts\/checks\/check-audit\.ts is a gate script from before `larry`: `npx larry upgrade` moves it into larry\.config\.ts\.$/m,
+    );
+});
+
+test('NEGATIVE: gate scripts kept elsewhere are found by the package.json scripts that run them', (t) => {
+    const gate = "import { checkAudit } from '@larrydarko/lint-config/gates/audit';\n\ncheckAudit();\n";
+    const root = project(t, {
+        'larry.config.js': null,
+        'scripts/check/check-audit.ts': gate,
+        'scripts/check/check-testing.ts': gate,
+        'scripts/build.ts': 'console.log(1);\n',
+    });
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    manifest.scripts = {
+        ...manifest.scripts,
+        'audit:check': 'node scripts/check/check-audit.ts',
+        'test:check': 'node scripts/check/check-testing.ts',
+        'build': 'node scripts/build.ts',
+    };
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify(manifest));
+    assert.match(
+        doctor(root).out,
+        /^ {2}scripts\/check\/check-audit\.ts and 1 other are gate scripts from before `larry`: `npx larry upgrade` moves them into larry\.config\.ts\.$/m,
     );
 });
 

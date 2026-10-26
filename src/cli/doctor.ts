@@ -14,6 +14,8 @@ import { plural } from '../gates/lib/report.ts';
 import { inspectToolchainInstall } from '../gates/lib/toolchain-install.ts';
 import { NODE_FLOOR, PROJECT_CLIS, SELF_NAME, SELF_VERSION } from '../toolchain.ts';
 import { loadConfig } from './load-config.ts';
+import { findGateScripts } from './migrations/gate-scripts.ts';
+import { createTree } from './migrations/tree.ts';
 import { UI_FAMILIES } from './templates.ts';
 
 type Diagnosis = {
@@ -110,15 +112,19 @@ async function diagnoseConfig(root: string): Promise<{ family: PresetName | null
             diagnoses: [ok(`${config.file} loads: the ${config.family} family${skipped}`)],
         };
     } catch (error) {
-        const checks = path.join(root, 'scripts/checks');
-        const scripts = fs.existsSync(checks) ? fs.readdirSync(checks).filter((f) => /^check-.+\.ts$/.test(f)) : [];
+        const scripts = findGateScripts(createTree(root));
+        const [first = '', ...rest] = scripts;
+        const named =
+            rest.length === 0
+                ? `${first} is a gate script`
+                : `${first} and ${plural(rest.length, 'other')} are gate scripts`;
         return {
             family: null,
             diagnoses: [
                 problem(
                     error instanceof Error ? error.message : String(error),
                     scripts.length > 0
-                        ? `scripts/checks holds ${plural(scripts.length, 'gate script')} from before \`larry\`: \`npx larry upgrade\` moves ${scripts.length === 1 ? 'it' : 'them'} into larry.config.ts.`
+                        ? `${named} from before \`larry\`: \`npx larry upgrade\` moves ${rest.length === 0 ? 'it' : 'them'} into larry.config.ts.`
                         : 'With no config, `npx larry init <family>` writes one. One that does not load fails `larry check` too.',
                 ),
             ],

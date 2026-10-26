@@ -73,8 +73,9 @@ it on every run until it is set up. A library has none of those, an app with a U
 `larry doctor` checks what goes wrong before any gate can run, and changes nothing:
 
 - Node is at least the version this package needs, and `package.json` is an ES module.
-- `larry.config.ts` loads and validates. With none, and gate scripts in `scripts/checks`, it
-  points at `larry upgrade`. An option under a name a release changed is noted.
+- `larry.config.ts` loads and validates. With none, and gate scripts from an older release, it
+  points at `larry upgrade`. An option under a name a release changed fails it, with the same
+  pointer.
 - This package is a dependency and installed. A copy installed from a local path is noted, since
   it can't be committed. A `node_modules` entry that is a symlink to a folder is a problem: the
   tools it installs stay inside that folder, so the CLIs are missing.
@@ -100,12 +101,15 @@ a project skipped, and running it again changes nothing. Nothing is written unle
 runs.
 
 - **Gate scripts → `larry.config.ts`.** Before `larry`, a project ran each gate from its own
-  `scripts/checks/check-*.ts`. A script that imports one gate and calls its `check*` function once
+  script: any `scripts/checks/check-*.ts`, or any file a package.json script runs that imports a
+  gate, wherever it is kept. A script that imports one gate and calls its `check*` function once
   becomes that gate's entry in `larry.config.ts`, with the call's argument as its options, comments
-  included, and the imports those options use. The package.json script that ran it is removed,
-  and `ci:check` and the CI workflow run `larry check` where they ran it. A script that does
-  anything more stays, and the upgrade says why: it declares something of its own, passes `root`,
-  uses `import.meta`, or is run along with other commands. When the upgrade writes a new
+  included, and the imports those options use. A `const` above the call that the options use, such
+  as a size baseline, moves too, above the config's default export. The package.json script that
+  ran it is removed, and `ci:check` and the CI workflow run `larry check` where they ran it, taking
+  out the steps it replaces. A script that does anything more stays, and the upgrade says why: it
+  runs code of its own, declares something its options don't use or another script also declares,
+  passes `root`, uses `import.meta`, or is run with arguments or along with other commands. When the upgrade writes a new
   `larry.config.ts`, each gate no script ran is skipped with that as the reason, so the project is
   checked the same way as before. Remove a skip to run that gate.
 - **Renamed options.** When a release renames a gate's option, `larry check` stops on the old name
@@ -144,7 +148,9 @@ override that key, so the change is visible in the project's own config.
 Use `knip()` rather than a plain `knip.json`. knip turns on its ESLint, Prettier and lint-staged
 support only for packages the project lists itself, and a project using this package lists none
 of them. Without the helper, knip reports every config file above as unused. `knip()` turns that
-support back on and tells knip which CLIs are installed. Options you pass win.
+support back on and tells knip which CLIs are installed. It also makes `larry.config.ts` an entry
+point, since nothing imports it: `larry check` loads it by path. When your config names no `entry`,
+knip's default entries are kept alongside it. Options you pass win.
 
 A library's entry points are the files behind its `exports`. `packageEntries()` reads them back
 from `package.json` (`./dist/gates/audit.js` is `src/gates/audit.ts`), so the list can't drift

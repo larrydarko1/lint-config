@@ -28,6 +28,15 @@ import ts from 'typescript';
 
 import { createImportOrder, type ImportOrderOptions } from './import-order.ts';
 import { repoFiles, walkFiles } from './lib/files.ts';
+import {
+    bodyCalls,
+    bodyRefs,
+    calledNames,
+    declaredNames,
+    isFnLike,
+    loadTimeRefs,
+    readThroughCalls,
+} from './lib/load-time.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { inPlace } from './lib/sequence.ts';
 import { analyzeRust, checkRustImports, RUST_CATEGORIES, RUST_IMPORT_GROUPS } from './rust-order.ts';
@@ -108,8 +117,12 @@ type Item = {
     line: number;
     decls: string[];
     refs: Set<string>;
+    /** What it may run at load time, by `calledNames`. */
+    calls: Set<string>;
     /** What it reads when it runs: a function's or a class's body. Empty for anything else. */
     bodyRefs: Set<string>;
+    /** What its body may run, by `calledNames`. Empty for anything but a function or a class. */
+    bodyCalls: Set<string>;
     hoisted: boolean;
     typeOnly: boolean;
 };
@@ -319,9 +332,6 @@ export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
 
 const profileFor = (rel: string): Profile => (isTestPath(rel) ? TEST_PROFILE : PRODUCTION_PROFILE);
 
-const isFnLike = (n: ts.Node | undefined): boolean =>
-    n !== undefined && (ts.isArrowFunction(n) || ts.isFunctionExpression(n));
-
 /** A literal-ish initializer: safe to call "constant" rather than "state". */
 function isConstantInit(n: ts.Node | undefined): boolean {
     if (n === undefined) return false;
@@ -446,116 +456,6 @@ function classifyTest(stmt: ts.Statement): string {
     return 'hooks';
 }
 
-/** Names a statement binds at module scope. */
-function declaredNames(stmt: ts.Statement): string[] {
-    const out: string[] = [];
-    const push = (n: ts.Node | undefined) => {
-        if (n !== undefined && ts.isIdentifier(n)) out.push(n.text);
-    };
-    if (ts.isFunctionDeclaration(stmt) || ts.isClassDeclaration(stmt)) push(stmt.name);
-    else if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt) || ts.isEnumDeclaration(stmt))
-        push(stmt.name);
-    else if (ts.isVariableStatement(stmt)) {
-        for (const d of stmt.declarationList.declarations) {
-            const collect = (name: ts.BindingName) => {
-                if (ts.isIdentifier(name)) out.push(name.text);
-                else if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
-                    for (const el of name.elements) if (ts.isBindingElement(el)) collect(el.name);
-                }
-            };
-            collect(d.name);
-        }
-    } else if (ts.isImportDeclaration(stmt)) {
-        const c = stmt.importClause;
-        if (c?.name !== undefined) out.push(c.name.text);
-        if (c?.namedBindings !== undefined) {
-            if (ts.isNamespaceImport(c.namedBindings)) out.push(c.namedBindings.name.text);
-            else for (const e of c.namedBindings.elements) out.push(e.name.text);
-        }
-    }
-    return out;
-}
-
-/**
- * Identifiers a statement evaluates AT LOAD TIME. Function/arrow bodies are skipped:
- * they run later, so a name they reference need not be declared above them.
- */
-function loadTimeRefs(stmt: ts.Statement, eager = false): Set<string> {
-    const out = new Set<string>();
-    const isTypePos = (n: ts.Node) => {
-        let p: ts.Node | undefined = n.parent;
-        while (p !== undefined) {
-            if (ts.isTypeNode(p) || ts.isTypeAliasDeclaration(p) || ts.isInterfaceDeclaration(p)) return true;
-            if (ts.isExpression(p) || ts.isStatement(p)) return false;
-            p = p.parent;
-        }
-        return false;
-    };
-    const visit = (n: ts.Node) => {
-        const isFnNode =
-            ts.isFunctionDeclaration(n) ||
-            ts.isFunctionExpression(n) ||
-            ts.isArrowFunction(n) ||
-            ts.isMethodDeclaration(n) ||
-            ts.isGetAccessor(n) ||
-            ts.isSetAccessor(n);
-        // Skip the body; parameter defaults still evaluate at call time, not load.
-        // Unless `eager`: a mock factory's body IS load time (see TEST_PROFILE).
-        if (isFnNode && !eager) return;
-        if (ts.isIdentifier(n)) {
-            const p = n.parent;
-            const isPropName =
-                (ts.isPropertyAccessExpression(p) && p.name === n) || (ts.isPropertyAssignment(p) && p.name === n);
-            if (!isPropName && !isTypePos(n)) out.add(n.text);
-        }
-        ts.forEachChild(n, visit);
-    };
-    if (ts.isImportDeclaration(stmt) || ts.isImportEqualsDeclaration(stmt)) return out;
-    if (ts.isFunctionDeclaration(stmt) || ts.isClassDeclaration(stmt)) {
-        // A class body's heritage clause evaluates at load; methods do not.
-        if (ts.isClassDeclaration(stmt) && stmt.heritageClauses !== undefined) {
-            for (const h of stmt.heritageClauses) ts.forEachChild(h, visit);
-        }
-        return out;
-    }
-    ts.forEachChild(stmt, visit);
-    // A declaration does not reference itself: the binding name is not a read.
-    for (const d of declaredNames(stmt)) out.delete(d);
-    return out;
-}
-
-/**
- * Identifiers a function, class or arrow declaration reads when it runs: its whole
- * body, nested callbacks included. Over-approximate on purpose (a local that shadows a
- * module binding still counts): a dependency too many can only keep a statement where
- * it is, and one too few moves it into its TDZ.
- */
-function bodyRefs(stmt: ts.Statement): Set<string> {
-    const callable =
-        ts.isFunctionDeclaration(stmt) ||
-        ts.isClassDeclaration(stmt) ||
-        (ts.isVariableStatement(stmt) && stmt.declarationList.declarations.some((d) => isFnLike(d.initializer)));
-    if (!callable) return new Set();
-    const out = new Set<string>();
-    const visit = (n: ts.Node): void => {
-        if (ts.isIdentifier(n) && !(ts.isPropertyAccessExpression(n.parent) && n.parent.name === n)) out.add(n.text);
-        ts.forEachChild(n, visit);
-    };
-    ts.forEachChild(stmt, visit);
-    for (const d of declaredNames(stmt)) out.delete(d);
-    return out;
-}
-
-/** Adds to `it.refs` what each function it reads would read when called, and so on down. */
-function readThroughCalls(it: Item, runs: Map<string, Set<string>>): void {
-    const queue = [...it.refs];
-    for (let r = queue.pop(); r !== undefined; r = queue.pop()) {
-        const reached = [...(runs.get(r) ?? [])].filter((name) => !it.refs.has(name) && !it.decls.includes(name));
-        for (const name of reached) it.refs.add(name);
-        queue.push(...reached);
-    }
-}
-
 function nameOf(s: ts.Statement, sf: ts.SourceFile): string {
     if (
         ts.isFunctionDeclaration(s) ||
@@ -594,7 +494,9 @@ function analyze(code: string, filename: string, profile: Profile = PRODUCTION_P
             line: sf.getLineAndCharacterOfPosition(s.getStart(sf)).line + 1,
             decls: declaredNames(s),
             refs: loadTimeRefs(s, profile.eager === cat),
+            calls: calledNames(s, profile.eager === cat),
             bodyRefs: bodyRefs(s),
+            bodyCalls: bodyCalls(s),
             hoisted: ts.isFunctionDeclaration(s),
             typeOnly: ts.isInterfaceDeclaration(s) || ts.isTypeAliasDeclaration(s),
         };
@@ -608,8 +510,10 @@ function analyze(code: string, filename: string, profile: Profile = PRODUCTION_P
 
     // A call at load time runs the callee's body at load time too, hoisted or not:
     // `const ROOT = find()` reads everything `find` reads, and what that calls, and so on.
-    const runs = new Map<string, Set<string>>();
-    for (const it of items) for (const d of it.decls) if (it.bodyRefs.size > 0) runs.set(d, it.bodyRefs);
+    const runs = new Map<string, { reads: Set<string>; calls: Set<string> }>();
+    for (const it of items) {
+        for (const d of it.decls) if (it.bodyRefs.size > 0) runs.set(d, { reads: it.bodyRefs, calls: it.bodyCalls });
+    }
     for (const it of items) readThroughCalls(it, runs);
 
     // Every item is put in both maps here, so `edges` cannot miss.

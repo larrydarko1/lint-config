@@ -155,6 +155,21 @@ test('an export only a test imports lands in testOnlyExports', () => {
     assert.deepEqual(names(found[TEST_ONLY.key]), ['src/a.ts:4 requireOwner']);
 });
 
+test("larry.config.ts's default export is not test-only: larry check reads it by path", () => {
+    const knip = knipStub(
+        {},
+        {
+            exports: [
+                { file: 'larry.config.ts', name: 'default', line: 3 },
+                { file: 'larry.config.ts', name: 'BASELINE', line: 1 },
+                { file: 'src/larry.config.ts', name: 'default', line: 1 },
+            ],
+        },
+    );
+    const found = inspectDeadCode(knip);
+    assert.deepEqual(names(found[TEST_ONLY.key]), ['larry.config.ts:1 BASELINE', 'src/larry.config.ts:1 default']);
+});
+
 test('an export the first pass already named is not reported twice', () => {
     const hit = { file: 'src/a.ts', name: 'helper', line: 4 };
     const knip = knipStub({ exports: [hit] }, { exports: [{ ...hit }] });

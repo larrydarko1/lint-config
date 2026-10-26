@@ -1,9 +1,11 @@
 /**
- * Moves the gate scripts projects ran before `larry` existed into larry.config.ts. A
- * `scripts/checks/check-*.ts` that imports one gate and calls it once becomes that gate's
- * entry, with the call's argument as its options, and the package.json scripts, `ci:check`
- * and CI steps that ran it run `larry check` instead. A script that does anything more
- * stays where it is, with the reason, for a person to move.
+ * Moves the gate scripts projects ran before `larry` existed into larry.config.ts. A gate
+ * script is a `scripts/checks/check-*.ts`, or any file a package.json script runs that
+ * imports a gate, wherever the project keeps it. One that imports a gate and calls it once,
+ * with only `const`s its options use above the call, becomes that gate's entry: the call's
+ * argument as its options, and the `const`s above the config's default export. The
+ * package.json scripts, `ci:check` and CI steps that ran it run `larry check` instead. A
+ * script that does anything more stays where it is, with the reason, for a person to move.
  */
 import path from 'node:path';
 
@@ -13,43 +15,35 @@ import { CONFIG_FILES } from '../../config.ts';
 import { PRESETS, type PresetName } from '../../eslint/presets.ts';
 import { isRecord } from '../../gates/lib/json.ts';
 import { plural } from '../../gates/lib/report.ts';
-import { GATES, gatesFor, type GateName } from '../../gates/registry.ts';
+import { gatesFor } from '../../gates/registry.ts';
 import { SELF_NAME } from '../../toolchain.ts';
 import { prettify } from '../format.ts';
 import {
     applyEdits,
-    bindingsOf,
     importEdits,
     importsOf,
     parseConfig,
-    parseSource,
     propertyName,
+    topLevelNames,
     valueOf,
     type Binding,
     type Edit,
 } from './config-source.ts';
+import { GATE_MODULE, importsGate, parseGateScript, type GateScript } from './gate-script.ts';
 import type { Tree } from './tree.ts';
-
-type GateScript = {
-    file: string;
-    gate: GateName;
-    /** The call's argument as written, or null for a call with none. */
-    options: string | null;
-    /** The comments above the call, each on its own line, to go above the gate's entry. */
-    comments: string;
-    /** The script's imports its options use, with relative specifiers rebased on the root. */
-    bindings: Binding[];
-};
 
 type Manifest = Record<string, unknown>;
 
 const CHECKS_DIR = 'scripts/checks';
 const CI_WORKFLOW = '.github/workflows/ci.yml';
-const GATE_MODULE = `${SELF_NAME}/gates/`;
 const ESLINT_CONFIGS = ['eslint.config.js', 'eslint.config.mjs', 'eslint.config.ts'];
 
-/** A package.json script that only runs one file, under node or tsx. */
-const RUNS_FILE = /^\s*(?:npx\s+)?(?:node|tsx)(?:\s+--?[\w-]+(?:=\S+)?)*\s+(?:\.\/)?(\S+)\s*$/;
+/** A package.json script that only runs one file, under node or tsx: the file, and any arguments after it. */
+const RUNS_FILE =
+    /^\s*(?:npx\s+)?(?:node|tsx)(?:\s+--?[\w-]+(?:=\S+)?)*\s+(?:\.\/)?(\S+)(?:\s+([^&|;\s][^&|;]*?))?\s*$/;
+
+/** Each file a command runs under node or tsx, wherever it is in the command. */
+const RUNS_FILES = /\b(?:node|tsx)(?:\s+--?[\w-]+(?:=\S+)?)*\s+(?:\.\/)?([\w./-]+\.[cm]?[jt]s)\b/g;
 
 /** A CI step that runs one npm script, on its own line: `- run: npm run x` or `run: npm run x` under `- name:`. */
 const RUN_STEP = /^(\s*)(-\s+)?run:\s*npm run ([\w:@./-]+)\s*$/;
@@ -60,10 +54,7 @@ const RUN_STEP = /^(\s*)(-\s+)?run:\s*npm run ([\w:@./-]+)\s*$/;
  * @throws When there are gate scripts but nothing names the family, or larry.config.ts is not a shape it can add to.
  */
 export async function moveGateScripts(tree: Tree): Promise<string[]> {
-    const files = tree
-        .list(CHECKS_DIR)
-        .filter((name) => /^check-.+\.ts$/.test(name))
-        .map((name) => `${CHECKS_DIR}/${name}`);
+    const files = findGateScripts(tree);
     if (files.length === 0) return [];
 
     const existing = CONFIG_FILES.find((name) => tree.exists(name));
@@ -71,7 +62,7 @@ export async function moveGateScripts(tree: Tree): Promise<string[]> {
     const family = familyOf(tree, existing);
     if (family === undefined) {
         throw new Error(
-            `${CHECKS_DIR} holds gate scripts, but neither larry.config.ts nor eslint.config.js names the project's family. Add \`family\` to larry.config.ts (\`npx larry init <family>\` writes one) and run \`larry upgrade\` again.`,
+            `The project has gate scripts, but neither larry.config.ts nor eslint.config.js names the project's family. Add \`family\` to larry.config.ts (\`npx larry init <family>\` writes one) and run \`larry upgrade\` again.`,
         );
     }
     const configText = (existing === undefined ? undefined : tree.read(existing)) ?? skeleton(family);
@@ -86,6 +77,8 @@ export async function moveGateScripts(tree: Tree): Promise<string[]> {
     const scripts = isRecord(manifest['scripts']) ? manifest['scripts'] : {};
     const runs: readonly string[] = gatesFor(family);
     const taken = importsOf(source);
+    /** The names the config declares at its top level, and those the moved scripts' `const`s add. */
+    const declared = new Set(source.statements.flatMap(topLevelNames));
     const moved: GateScript[] = [];
     /** Each script that stays, with why, and the gate it imports when there is one. */
     const stays = new Map<string, { reason: string; gate: string | undefined }>();
@@ -94,13 +87,16 @@ export async function moveGateScripts(tree: Tree): Promise<string[]> {
         const text = tree.read(file) ?? '';
         const parsed = parseGateScript(file, text);
         const reason =
-            typeof parsed === 'string' ? parsed : whyItStays(parsed, { family, runs, gates, moved, scripts, taken });
+            typeof parsed === 'string'
+                ? parsed
+                : whyItStays(parsed, { family, runs, gates, moved, scripts, taken, declared });
         if (typeof parsed === 'string' || reason !== undefined) {
             const gate = new RegExp(`['"]${GATE_MODULE}([\\w/-]+)['"]`).exec(text)?.[1];
             stays.set(file, { reason: reason ?? '', gate });
             continue;
         }
         for (const binding of parsed.bindings) taken.set(binding.local, binding);
+        for (const name of parsed.declared) declared.add(name);
         moved.push(parsed);
     }
 
@@ -114,7 +110,16 @@ export async function moveGateScripts(tree: Tree): Promise<string[]> {
     const own = importsOf(source);
     const added = moved.flatMap(({ bindings }) => bindings).filter(({ local }) => !own.has(local));
     const entries: [gate: string, text: string][] = [];
-    const edits: Edit[] = [...importEdits(source, [...new Map(added.map((b) => [b.local, b])).values()])];
+    const declarations = moved.flatMap((script) => script.declarations);
+    const exported = source.statements.find(ts.isExportAssignment)?.getFullStart() ?? configText.length;
+    // Ahead of the import edits: at the same offset, a later edit's text lands before an earlier one's,
+    // and the imports belong above the constants.
+    const edits: Edit[] = [
+        ...(declarations.length > 0
+            ? [{ start: exported, end: exported, text: `\n\n${declarations.join('\n\n')}` }]
+            : []),
+        ...importEdits(source, [...new Map(added.map((b) => [b.local, b])).values()]),
+    ];
     for (const { gate, options, comments } of moved) {
         const skipped = gates.properties.find((property) => propertyName(property) === gate);
         if (skipped !== undefined && ts.isPropertyAssignment(skipped)) {
@@ -193,6 +198,23 @@ export async function moveGateScripts(tree: Tree): Promise<string[]> {
     return notes;
 }
 
+/**
+ * @param tree The project.
+ * @returns Its gate scripts by path from the root: each `check-*.ts` in scripts/checks, and
+ * each other file a package.json script runs that imports a gate.
+ */
+export function findGateScripts(tree: Tree): string[] {
+    const inChecks = tree
+        .list(CHECKS_DIR)
+        .filter((name) => /^check-.+\.ts$/.test(name))
+        .map((name) => `${CHECKS_DIR}/${name}`);
+    const run = Object.values(scriptsOf(tree))
+        .flatMap((command) => (typeof command === 'string' ? [...command.matchAll(RUNS_FILES)] : []))
+        .map(([, file = '']) => path.posix.normalize(file))
+        .filter((file) => !inChecks.includes(file) && importsGate(tree.read(file) ?? ''));
+    return [...new Set([...inChecks, ...run])].sort();
+}
+
 /** The family larry.config.ts names, or else the preset eslint.config.js passes to `larry()`. */
 function familyOf(tree: Tree, configFile: string | undefined): PresetName | undefined {
     const configText = configFile === undefined ? undefined : tree.read(configFile);
@@ -205,59 +227,6 @@ function familyOf(tree: Tree, configFile: string | undefined): PresetName | unde
     return named !== undefined && isFamily(named) ? named : undefined;
 }
 
-/** A gate script reduced to its gate, options and imports, or why it is more than that. */
-function parseGateScript(file: string, text: string): GateScript | string {
-    const source = parseSource(file, text);
-    const bindings: Binding[] = [];
-    const calls: [statement: ts.Statement, call: ts.CallExpression][] = [];
-    for (const statement of source.statements) {
-        if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
-            const specifier = statement.moduleSpecifier.text;
-            if (statement.importClause === undefined) return `it imports ${specifier} for what that runs`;
-            bindings.push(...bindingsOf(statement, rebase(file, specifier)));
-            continue;
-        }
-        const call = ts.isExpressionStatement(statement) ? callIn(statement.expression) : undefined;
-        if (call === undefined) {
-            const line = source.getLineAndCharacterOfPosition(statement.getStart()).line + 1;
-            return `line ${line} does more than import a gate and call it`;
-        }
-        calls.push([statement, call]);
-    }
-    const [statement, call] = calls[0] ?? [];
-    if (statement === undefined || call === undefined || calls.length > 1) {
-        return calls.length === 0 ? 'it calls no gate' : 'it calls more than one function';
-    }
-
-    const callee = call.expression.getText();
-    const binding = bindings.find(({ local }) => local === callee);
-    const gate = binding?.module.startsWith(GATE_MODULE) === true ? binding.module.slice(GATE_MODULE.length) : '';
-    if (binding === undefined || !isGate(gate) || !binding.imported.startsWith('check')) {
-        return `it calls \`${callee}\`, which is not a gate's check function`;
-    }
-    if (call.arguments.length > 1) return `it passes \`${callee}\` more than its options`;
-    const [argument] = call.arguments;
-    if (
-        argument !== undefined &&
-        uses(argument, (node) => ts.isMetaProperty(node) || isIdentifier(node, '__dirname'))
-    ) {
-        return 'its options use import.meta, which would mean larry.config.ts instead';
-    }
-    if (argument !== undefined && ts.isObjectLiteralExpression(argument) && valueOf(argument, 'root') !== undefined) {
-        return 'it passes `root`, and `larry check` runs every gate from the repository root';
-    }
-    const named = argument === undefined ? new Set<string>() : identifiersIn(argument);
-    return {
-        file,
-        gate,
-        options: argument?.getText() ?? null,
-        comments: (ts.getLeadingCommentRanges(text, statement.pos) ?? [])
-            .map(({ pos, end }) => `${text.slice(pos, end)}\n`)
-            .join(''),
-        bindings: bindings.filter(({ local }) => local !== callee && named.has(local)),
-    };
-}
-
 function whyItStays(
     script: GateScript,
     context: {
@@ -267,6 +236,7 @@ function whyItStays(
         moved: GateScript[];
         scripts: Record<string, unknown>;
         taken: Map<string, Binding>;
+        declared: Set<string>;
     },
 ): string | undefined {
     const { gate, file, bindings } = script;
@@ -281,14 +251,23 @@ function whyItStays(
     }
     const clash = bindings.find((binding) => {
         const other = context.taken.get(binding.local);
-        return other !== undefined && (other.module !== binding.module || other.imported !== binding.imported);
+        return (
+            context.declared.has(binding.local) ||
+            (other !== undefined && (other.module !== binding.module || other.imported !== binding.imported))
+        );
     });
     if (clash !== undefined) return `its import \`${clash.local}\` would clash with another of the same name`;
+    const twice = script.declared.find((name) => context.declared.has(name) || context.taken.has(name));
+    if (twice !== undefined) return `its \`${twice}\` would clash with another of the same name`;
     const shared = Object.entries(context.scripts).find(
         ([, command]) => typeof command === 'string' && command.includes(file) && runsFile(command) !== file,
     );
-    if (shared !== undefined) return `package.json's \`${shared[0]}\` runs it along with other commands`;
-    return undefined;
+    if (shared === undefined) return undefined;
+    const [name, command] = shared;
+    const args = typeof command === 'string' ? RUNS_FILE.exec(command) : null;
+    return args?.[1] === file && args[2] !== undefined
+        ? `package.json's \`${name}\` runs it with \`${args[2]}\`, which \`larry check\` does not pass on`
+        : `package.json's \`${name}\` runs it along with other commands`;
 }
 
 /**
@@ -311,11 +290,16 @@ function rechain(command: string, removed: string[], runLarry: string, runsLarry
         .join(' && ');
 }
 
-/** The workflow with each step that only runs a removed script taken out, and the first replaced by one running `larry check`. */
+/**
+ * The workflow with each step that only runs a removed script taken out, along with the
+ * blank line that set it apart, and the first replaced by one running `larry check`: named
+ * when the step it replaces was.
+ */
 function rewireWorkflow(workflow: string, removed: string[], runLarry: string, runsLarry: boolean): string {
     const lines = workflow.split('\n');
     const indent = (line: string): number => line.length - line.trimStart().length;
-    const spans: { start: number; end: number; dash: number }[] = [];
+    const blank = (at: number): boolean => (lines[at] ?? 'end').trim() === '';
+    const spans: { start: number; end: number; dash: number; run: number }[] = [];
 
     lines.forEach((line, at) => {
         const match = RUN_STEP.exec(line);
@@ -337,28 +321,42 @@ function rewireWorkflow(workflow: string, removed: string[], runLarry: string, r
         let end = start + 1;
         while (end < lines.length && ((lines[end] ?? '').trim() === '' || indent(lines[end] ?? '') > dash)) end++;
         while (end > start + 1 && (lines[end - 1] ?? '').trim() === '') end--;
-        spans.push({ start, end, dash });
+        spans.push({ start, end, dash, run: own });
     });
 
     // From the bottom up, so each span's lines are still where they were found.
     const first = spans[0]?.start;
-    for (const { start, end, dash } of spans.reverse()) {
-        const step = start === first && !runsLarry ? [`${' '.repeat(dash)}- run: ${runLarry}`] : [];
-        lines.splice(start, end - start, ...step);
+    for (const { start, end, dash, run } of spans.reverse()) {
+        if (start === first && !runsLarry) {
+            const named = /^\s*-\s+name:/.test(lines[start] ?? '');
+            const step = named
+                ? [`${' '.repeat(dash)}- name: larry check`, `${' '.repeat(run)}run: ${runLarry}`]
+                : [`${' '.repeat(dash)}- run: ${runLarry}`];
+            lines.splice(start, end - start, ...step);
+            continue;
+        }
+        let [from, to] = [start, end];
+        if (blank(from - 1)) while (blank(from - 1)) from--;
+        else while (to < lines.length && blank(to)) to++;
+        lines.splice(from, to - from);
     }
     return lines.join('\n');
 }
 
-/** The file a script runs when that is all it does, by path from the root. */
+/** The file a script runs when that is all it does, with no arguments, by path from the root. */
 function runsFile(command: unknown): string | undefined {
-    return typeof command === 'string' ? RUNS_FILE.exec(command)?.[1] : undefined;
+    const match = typeof command === 'string' ? RUNS_FILE.exec(command) : null;
+    return match?.[2] === undefined ? match?.[1] : undefined;
 }
 
-/** A relative specifier from `file`, as it reads from the root. */
-function rebase(file: string, specifier: string): string {
-    if (!specifier.startsWith('.')) return specifier;
-    const fromRoot = path.posix.normalize(path.posix.join(path.posix.dirname(file), specifier));
-    return fromRoot.startsWith('../') ? fromRoot : `./${fromRoot}`;
+/** package.json's scripts, or none when it is missing or not a JSON object. */
+function scriptsOf(tree: Tree): Record<string, unknown> {
+    try {
+        const { scripts } = readManifest(tree);
+        return isRecord(scripts) ? scripts : {};
+    } catch {
+        return {};
+    }
 }
 
 function readManifest(tree: Tree): Manifest {
@@ -377,32 +375,7 @@ const skeleton = (family: PresetName): string =>
         '',
     ].join('\n');
 
-/** Unwraps `await` and `void` to the call underneath. */
-function callIn(expression: ts.Expression): ts.CallExpression | undefined {
-    const inner =
-        ts.isAwaitExpression(expression) || ts.isVoidExpression(expression) ? expression.expression : expression;
-    return ts.isCallExpression(inner) && ts.isIdentifier(inner.expression) ? inner : undefined;
-}
-
-/** Whether `test` holds for `node` or any node inside it. */
-function uses(node: ts.Node, test: (node: ts.Node) => boolean): boolean {
-    return test(node) || (ts.forEachChild(node, (child) => uses(child, test) || undefined) ?? false);
-}
-
-/** The name of every identifier in `node`. */
-function identifiersIn(node: ts.Node, names = new Set<string>()): Set<string> {
-    if (ts.isIdentifier(node)) names.add(node.text);
-    ts.forEachChild(node, (child) => {
-        identifiersIn(child, names);
-    });
-    return names;
-}
-
-const isIdentifier = (node: ts.Node, name: string): boolean => ts.isIdentifier(node) && node.text === name;
-
 const isFamily = (name: string): name is PresetName => Object.hasOwn(PRESETS, name);
-
-const isGate = (name: string): name is GateName => Object.hasOwn(GATES, name);
 
 /** Matches `npm run <script>` and not a longer name it begins. */
 const npmRuns = (script: string): RegExp =>

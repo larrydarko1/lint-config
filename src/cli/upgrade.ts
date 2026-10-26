@@ -25,7 +25,7 @@ type UpgradeStep = {
 
 /** Oldest first: a later migration may rely on an earlier one's result. */
 const MIGRATIONS: Migration[] = [
-    { title: 'Gate scripts in scripts/checks → larry.config.ts', run: moveGateScripts },
+    { title: 'Gate scripts → larry.config.ts', run: moveGateScripts },
     { title: 'Renamed gate options in larry.config.ts', run: renameOptions },
 ];
 

@@ -148,6 +148,20 @@ export function applyEdits(text: string, edits: readonly Edit[]): string {
         );
 }
 
+/** The names a statement declares at a module's top level, imports aside. */
+export function topLevelNames(statement: ts.Statement): string[] {
+    if (ts.isVariableStatement(statement)) {
+        return statement.declarationList.declarations.flatMap(({ name }) => (ts.isIdentifier(name) ? [name.text] : []));
+    }
+    const named =
+        ts.isFunctionDeclaration(statement) ||
+        ts.isClassDeclaration(statement) ||
+        ts.isInterfaceDeclaration(statement) ||
+        ts.isTypeAliasDeclaration(statement) ||
+        ts.isEnumDeclaration(statement);
+    return named && statement.name !== undefined ? [statement.name.text] : [];
+}
+
 /** `name` as an object key: bare when it can be, quoted when not. */
 export const asKey = (name: string): string => (/^[A-Za-z_$][\w$]*$/.test(name) ? name : `'${name}'`);
 

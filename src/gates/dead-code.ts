@@ -13,6 +13,7 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
+import { CONFIG_FILES } from '../config.ts';
 import { packageBin } from './lib/bin.ts';
 import { findLocalOnlyTypes } from './lib/local-only-types.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
@@ -193,7 +194,7 @@ export function inspectDeadCode(
     const alreadyReported = new Set(Object.values(found).flat().map(identity));
     const testOnly = Object.values(knip(PROD_INCLUDE, publicApi.length > 0 ? LIBRARY_PROD_ARGS : PROD_ARGS))
         .flat()
-        .filter((hit) => !alreadyReported.has(identity(hit)));
+        .filter((hit) => !alreadyReported.has(identity(hit)) && !isLarryConfig(hit));
     found[TEST_ONLY.key] = testOnly;
 
     for (const hit of testOnly) alreadyReported.add(identity(hit));
@@ -312,6 +313,9 @@ export function checkDeadCode(options: DeadCodeOptions = {}): void {
         notMachineChecked,
     });
 }
+
+/** larry.config.ts's default export, which `larry check` reads by path, so no import uses it. */
+const isLarryConfig = ({ file, name }: DeadCodeHit): boolean => CONFIG_FILES.includes(file) && name === 'default';
 
 /** `file` alone when the whole file is unused; `file:line — name` otherwise. */
 const where = ({ file, name, line }: DeadCodeHit): string =>

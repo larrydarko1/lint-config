@@ -316,6 +316,77 @@ export const ROOT = find('.');
     assert.ok(!misplaced.some((m) => m.name === 'ROOT'));
 });
 
+test('a function only named at load time reads nothing then: the contract goes above the state its functions read', (t) => {
+    // `defineExpose({ open, close })` stores the two functions and calls neither, and they
+    // are hoisted, so nothing is in its dead zone. Reading `open`'s body here held the
+    // contract below `items`, against the table.
+    const { out, failed } = run(
+        project(t, {
+            'src/A.vue': `<template><div /></template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+
+defineExpose({ open, close });
+
+const items = ref<string[]>([]);
+
+function open(next: string[]): void {
+    items.value = next;
+}
+
+function close(): void {
+    items.value = [];
+}
+</script>
+`,
+        }),
+    );
+    assert.equal(failed, false, out);
+});
+
+test('a callback inside a function called at load time runs later, so what only it reads may come below', (t) => {
+    // `SCHEMA` calls `field()` at load, but `isLive` is read only by the callback `field`
+    // hands to `refine`, which runs when a value is checked. Following it held `SCHEMA`
+    // (state) below `isLive` (private-fns), against the table.
+    const { out, failed } = run(
+        project(t, {
+            'src/a.ts': `import { refine } from './refine.ts';
+
+export const SCHEMA = { key: field('local') };
+
+function field(fallback: string): string[] {
+    return refine(fallback, (value) => !isLive() || value !== fallback);
+}
+
+const isLive = (): boolean => process.env['MODE'] === 'live';
+`,
+            'src/refine.ts': `export function refine(value: string, test: (value: string) => boolean): string[] {
+    return test(value) ? [value] : [];
+}
+`,
+        }),
+    );
+    assert.equal(failed, false, out);
+});
+
+test('a function passed to a call at load time may be called back, so what it reads stays above', (t) => {
+    // `map` runs `label` at once: `NAMES` must stay below `PREFIX`, which `label` reads.
+    const root = project(t, {
+        'src/a.ts': `const PREFIX = 'n-';
+
+function label(n: number): string {
+    return PREFIX + String(n);
+}
+
+export const NAMES = [1, 2].map(label);
+`,
+    });
+    const { misplaced, order } = analyzeFile('src/a.ts', root);
+    assert.ok(order.indexOf(2) > order.indexOf(0), `order ${order}`);
+    assert.ok(!misplaced.some((m) => m.name === 'NAMES'));
+});
+
 test('a load-time cycle is reported as a cycle, not as a pile of misplaced statements', (t) => {
     const { err, failed } = run(
         project(t, {

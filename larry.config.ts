@@ -13,7 +13,7 @@ export default defineConfig({
                 'src/gates/api-standards.ts': 1617,
                 'src/gates/code-style.ts': 441,
                 'src/gates/db-drift.ts': 853,
-                'src/gates/declaration-order.ts': 611,
+                'src/gates/declaration-order.ts': 520,
                 'src/gates/docker.ts': 645,
                 'src/gates/electron-security.ts': 733,
                 'src/gates/error-handling/fullstack.ts': 566,

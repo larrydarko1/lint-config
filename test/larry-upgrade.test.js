@@ -55,11 +55,23 @@ const LEGACY = {
         "await checkContrast({ themes: THEMES, text: ['--text'], backgrounds: [path.join('src', 'bg')] });",
         '',
     ].join('\n'),
-    'scripts/checks/check-code-style.ts': gateScript('code-style', 'checkCodeStyle', 'checkCodeStyle();'),
+    'scripts/checks/check-code-style.ts': gateScript(
+        'code-style',
+        'checkCodeStyle',
+        [
+            '/** Named by the tools that look for them. */',
+            'const FRAMEWORK_NAMED = /(^|\\/)index\\.ts$/;',
+            '',
+            '// Over the cap when the ratchet was set.',
+            "const BASELINE: Record<string, number> = { 'src/big.ts': 420 };",
+            '',
+            "checkCodeStyle({ baseline: BASELINE, casing: [{ files: /\\.ts$/, style: 'kebab', exempt: FRAMEWORK_NAMED }] });",
+        ].join('\n'),
+    ),
     'scripts/checks/check-testing.ts': gateScript(
         'testing',
         'checkTesting',
-        "const layout = { unit: 'test' };\ncheckTesting({ config: 'vitest.config.ts', layout });",
+        "console.info('testing');\ncheckTesting({ config: 'vitest.config.ts', layout: { unit: 'test' } });",
     ),
     '.github/workflows/ci.yml': [
         'name: CI',
@@ -159,7 +171,15 @@ test('each gate script that only calls its gate moves into a new larry.config.ts
         /^import path from 'node:path';\n\nimport \{ defineConfig \} from '@larrydarko\/lint-config\/config';\nimport \{ THEMES \} from '\.\/src\/themes\.ts';$/m,
     );
     assert.match(config, /family: 'spa'/);
-    assert.match(config, /'code-style': \{\},/);
+    // The constants its options use, with their comments, between the imports and the export.
+    assert.match(
+        config,
+        /from '\.\/src\/themes\.ts';\n\n\/\*\* Named by the tools that look for them\. \*\/\nconst FRAMEWORK_NAMED = .*\n\n\/\/ Over the cap when the ratchet was set\.\nconst BASELINE: Record<string, number> = \{ 'src\/big\.ts': 420 \};\n\nexport default defineConfig\(/,
+    );
+    assert.match(
+        config,
+        /'code-style': \{ baseline: BASELINE, casing: \[\{ files: \/\\\.ts\$\/, style: 'kebab', exempt: FRAMEWORK_NAMED \}\] \},/,
+    );
     assert.match(
         config,
         /\/\/ Both themes, against every surface\.\n {8}'contrast': \{ themes: THEMES, text: \['--text'\], backgrounds: \[path\.join\('src', 'bg'\)\] \},/,
@@ -208,9 +228,10 @@ test('each gate script that only calls its gate moves into a new larry.config.ts
     });
     assert.equal(
         read(root, '.github/workflows/ci.yml'),
+        // The step it replaces was named, so it is too.
         LEGACY['.github/workflows/ci.yml'].replace(
-            /( {12})- name: Locales\n.*\n.*contrast:check\n.*style:check\n/,
-            '$1- run: npm run check\n',
+            /( {12})- name: Locales\n( {14})run: .*\n.*contrast:check\n.*style:check\n/,
+            '$1- name: larry check\n$2run: npm run check\n',
         ),
     );
 
@@ -317,6 +338,8 @@ test('a script stays, with the reason, when moving it would change what it does'
             type: 'module',
             scripts: {
                 'audit:check': 'node scripts/checks/check-audit.ts && echo done',
+                'dup:check': 'node scripts/checks/check-duplication.ts --all',
+                'pipeline:check': 'node ./scripts/checks/check-pipeline.ts  ',
                 'ci:check': 'npm run audit:check',
             },
         }),
@@ -338,6 +361,13 @@ test('a script stays, with the reason, when moving it would change what it does'
             'console.log(inspectRefactoring());',
         ),
         'scripts/checks/check-secrets.ts': `import './setup.ts';\n${gateScript('secrets', 'checkSecrets', 'checkSecrets();')}`,
+        'scripts/checks/check-tsconfigs.ts': gateScript(
+            'tsconfigs',
+            'checkTsconfigs',
+            "const UNUSED = 1;\nconst PROJECTS = ['tsconfig.app.json'];\ncheckTsconfigs({ browserProjects: PROJECTS });",
+        ),
+        'scripts/checks/check-duplication.ts': gateScript('duplication', 'checkDuplication', 'checkDuplication();'),
+        'scripts/checks/check-pipeline.ts': gateScript('pipeline', 'checkPipeline', 'checkPipeline();'),
     });
     const result = larry(root, 'upgrade');
     assert.equal(result.code, 0, result.err);
@@ -348,11 +378,117 @@ test('a script stays, with the reason, when moving it would change what it does'
         ['check-env', 'env-drift is not a gate spa projects run'],
         ['check-refactoring', 'line 3 does more than import a gate and call it'],
         ['check-secrets', 'it imports \\./setup\\.ts for what that runs'],
+        ['check-tsconfigs', 'line 3 declares `UNUSED`, which its options do not use'],
+        [
+            'check-duplication',
+            "package\\.json's `dup:check` runs it with `--all`, which `larry check` does not pass on",
+        ],
     ]) {
         assert.match(result.out, new RegExp(`^- scripts/checks/${file}\\.ts stays: ${reason}\\.`, 'm'));
     }
-    assert.match(result.out, /✓ larry upgrade: nothing changed\./);
-    assert.equal(fs.existsSync(path.join(root, 'larry.config.ts')), false);
+    // A run of the file alone moves, trailing spaces and `./` aside.
+    assert.match(result.out, /^- scripts\/checks\/check-pipeline\.ts$/m);
+    assert.equal(JSON.parse(read(root, 'package.json')).scripts['pipeline:check'], undefined);
+});
+
+test('gate scripts kept outside scripts/checks are found by the package.json scripts that run them', (t) => {
+    const root = project(t, {
+        'package.json': JSON.stringify({
+            name: 'app',
+            type: 'module',
+            scripts: {
+                'build': 'node scripts/build.ts',
+                'sums': 'node scripts/sums.ts',
+                'audit:check': 'node scripts/check/check-audit.ts',
+                'ci:check': 'npm run audit:check && npm run build',
+            },
+        }),
+        'scripts/checks/check-i18n.ts': null,
+        'scripts/checks/check-contrast.ts': null,
+        'scripts/checks/check-code-style.ts': null,
+        'scripts/checks/check-testing.ts': null,
+        'scripts/build.ts': "console.log('built');\n",
+        // A helper from gates/lib is not a gate, so this is not a gate script.
+        'scripts/sums.ts':
+            "import { REPO_ROOT } from '@larrydarko/lint-config/gates/lib/repo-root';\n\nconsole.log(REPO_ROOT);\n",
+        'scripts/check/check-audit.ts': gateScript('audit', 'checkAudit', 'checkAudit();'),
+        '.github/workflows/ci.yml': null,
+    });
+    const result = larry(root, 'upgrade');
+    assert.equal(result.code, 0, result.err);
+    assert.match(result.out, /^- scripts\/check\/check-audit\.ts$/m);
+    assert.doesNotMatch(result.out, /build\.ts|sums\.ts/);
+    assert.equal(fs.existsSync(path.join(root, 'scripts/check')), false);
+    assert.equal(read(root, 'scripts/build.ts'), "console.log('built');\n");
+    assert.deepEqual(JSON.parse(read(root, 'package.json')).scripts, {
+        'build': 'node scripts/build.ts',
+        'sums': 'node scripts/sums.ts',
+        'ci:check': 'npm run check && npm run build',
+        'check': 'larry check',
+    });
+    assert.match(read(root, 'larry.config.ts'), /'audit': \{\},/);
+});
+
+test('two scripts declaring the same constant: the second in path order stays, since one config cannot hold both', (t) => {
+    const root = project(t, {
+        'scripts/checks/check-i18n.ts': gateScript(
+            'i18n',
+            'checkI18n',
+            "const DIR = 'src/locales';\ncheckI18n({ localeDir: DIR });",
+        ),
+        'scripts/checks/check-contrast.ts': gateScript(
+            'contrast',
+            'checkContrast',
+            "const DIR = 'src';\ncheckContrast({ backgrounds: [DIR] });",
+        ),
+    });
+    const result = larry(root, 'upgrade');
+    assert.equal(result.code, 0, result.err);
+    assert.match(result.out, /^- scripts\/checks\/check-contrast\.ts$/m);
+    assert.match(
+        result.out,
+        /^- scripts\/checks\/check-i18n\.ts stays: its `DIR` would clash with another of the same name\./m,
+    );
+});
+
+test('a removed CI step takes the blank line that set it apart along', (t) => {
+    const workflow = [
+        'jobs:',
+        '    check:',
+        '        steps:',
+        '            - run: npm ci',
+        '',
+        '            - name: Locales',
+        '              run: npm run i18n:check',
+        '',
+        '            - name: Lint',
+        '              run: npm run lint',
+        '',
+        '            - name: Contrast',
+        '              run: npm run contrast:check',
+        '',
+        '            - name: Style',
+        '              run: npm run style:check',
+        '',
+    ].join('\n');
+    const root = project(t, { '.github/workflows/ci.yml': workflow });
+    assert.equal(larry(root, 'upgrade').code, 0);
+    assert.equal(
+        read(root, '.github/workflows/ci.yml'),
+        [
+            'jobs:',
+            '    check:',
+            '        steps:',
+            '            - run: npm ci',
+            '',
+            '            - name: larry check',
+            '              run: npm run check',
+            '',
+            '            - name: Lint',
+            '              run: npm run lint',
+            '',
+        ].join('\n'),
+    );
 });
 
 test('a carried import joins the import from the same module, and a new one goes in its group', () => {
