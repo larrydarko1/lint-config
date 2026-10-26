@@ -117,6 +117,19 @@ test('NEGATIVE: a missing config file is named, and a UI family needs a Stylelin
     assert.match(spa.out, /`npx larry init <family>` writes each one that is missing/);
 });
 
+test('NEGATIVE: no larry.config.ts but gate scripts from an older release points at larry upgrade', (t) => {
+    const result = doctor(
+        project(t, {
+            'larry.config.js': null,
+            'scripts/checks/check-audit.ts': "import { checkAudit } from 'x';\n\ncheckAudit();\n",
+        }),
+    );
+    assert.match(
+        result.out,
+        /^✗ no larry\.config\.ts or larry\.config\.js in .*\n {2}scripts\/checks holds 1 gate script from before `larry`: `npx larry upgrade` moves it into larry\.config\.ts\.$/m,
+    );
+});
+
 // ── The install ──────────────────────────────────────────────────────────────
 
 test('NEGATIVE: not a dependency, or not installed', (t) => {

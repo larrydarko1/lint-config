@@ -2,8 +2,9 @@
 /**
  * The `larry` command. `larry check` runs every gate the project's family runs, with the
  * options in larry.config.ts, and exits 1 if any fails; `larry check audit secrets` runs
- * just those. `larry init` sets a project up, and `larry doctor` says what is wrong with
- * its install. A usage or config mistake exits 2, so CI can tell it from a failing gate.
+ * just those. `larry init` sets a project up, `larry doctor` says what is wrong with its
+ * install, and `larry upgrade` rewrites what an older release set up. A usage or config
+ * mistake exits 2, so CI can tell it from a failing gate.
  */
 import path from 'node:path';
 
@@ -19,6 +20,7 @@ import type { Distribution } from './templates.ts';
 const USAGE = `Usage: larry check [gate…] [--fix] [--all]
        larry init <family> --distribution <open|closed>
        larry doctor
+       larry upgrade [--dry-run]
 
   larry check              Run every gate the family in larry.config.ts runs.
   larry check audit i18n   Run only the gates named.
@@ -32,6 +34,11 @@ const USAGE = `Usage: larry check [gate…] [--fix] [--all]
     --distribution   open if the app's source is published, closed if not (the licenses gate).
 
   larry doctor             Check Node, the install, the git hooks and the config files.
+
+  larry upgrade            Rewrite what an older release set up into what this one reads:
+                           gate scripts into larry.config.ts, renamed options to their new
+                           names. Read the diff afterwards.
+    --dry-run   List the changes without writing them.
 
   larry --version          Print this package's version.`;
 
@@ -150,11 +157,51 @@ async function doctor(args: string[]): Promise<number> {
     return problems === 0 ? 0 : 1;
 }
 
+async function upgradeProject(args: string[]): Promise<number> {
+    const unknown = args.find((arg) => arg !== '--dry-run');
+    if (unknown !== undefined) {
+        console.error(`larry: upgrade takes only --dry-run, not ${unknown}\n\n${USAGE}`);
+        return 2;
+    }
+    const write = !args.includes('--dry-run');
+    const root = repoRoot();
+    if (root === null) return 2;
+
+    let steps;
+    try {
+        const { upgrade } = await import('./upgrade.ts');
+        steps = await upgrade(root, write);
+    } catch (error) {
+        console.error(`✗ larry: ${message(error)}`);
+        return 2;
+    }
+    const symbol = { added: '+', changed: '~', removed: '-' } as const;
+    for (const { title, changed, notes } of steps) {
+        console.log(`\n── ${title}`);
+        for (const { file, how } of changed) console.log(`${symbol[how]} ${file}`);
+        for (const note of notes) console.log(`- ${note}`);
+    }
+    const files = new Set(steps.flatMap(({ changed }) => changed.map(({ file }) => file))).size;
+    if (files === 0) {
+        console.log(
+            steps.length === 0 ? '✓ larry upgrade: nothing to upgrade.' : '\n✓ larry upgrade: nothing changed.',
+        );
+    } else if (write) {
+        console.log(
+            `\n✓ larry upgrade: ${plural(files, 'file')} changed. Read the diff, then run \`npm run ci:check\`.`,
+        );
+    } else {
+        console.log(`\n✓ larry upgrade --dry-run: ${plural(files, 'file')} would change. Nothing was written.`);
+    }
+    return 0;
+}
+
 async function main(args: string[]): Promise<number> {
     const [command, ...rest] = args;
     if (command === 'check') return check(rest);
     if (command === 'init') return initProject(rest);
     if (command === 'doctor') return doctor(rest);
+    if (command === 'upgrade') return upgradeProject(rest);
     if (command === '--help' || command === '-h' || command === 'help') {
         console.log(USAGE);
         return 0;

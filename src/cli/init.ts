@@ -7,12 +7,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { format } from 'prettier';
-
 import { FULLSTACK_WORKSPACES, type PresetName } from '../eslint/presets.ts';
 import { isRecord, readJson, stringAt } from '../gates/lib/json.ts';
 import { CANONICAL_ORDER } from '../gates/package-json.ts';
-import { prettierConfig } from '../prettier.ts';
+import { FORMATTED, prettify } from './format.ts';
 import { UI_FAMILIES, scaffoldFiles, unconfiguredGates, type Distribution } from './templates.ts';
 
 type Manifest = Record<string, unknown>;
@@ -33,9 +31,6 @@ const NPM_PLACEHOLDER_TEST = 'no test specified';
 
 /** What runs every gate: the script init adds, or the CLI itself. `pipeline` holds the wiring to account. */
 const RUNS_CHECK = /\bnpm run check(?![\w:.-])|\blarry check\b/;
-
-/** The files Prettier formats; the hooks and ignore files are not code. */
-const FORMATTED = /\.(?:[cm]?js|ts|json|ya?ml)$/;
 
 /**
  * @param root The repository root.
@@ -160,7 +155,3 @@ function withField(manifest: Manifest, field: string, value: unknown): Manifest 
     entries.splice(before === -1 ? entries.length : before, 0, [field, value]);
     return Object.fromEntries(entries);
 }
-
-/** Formatted as the project's own `format:check` will read it. */
-const prettify = (file: string, content: string): Promise<string> =>
-    format(content, { ...prettierConfig, filepath: file });

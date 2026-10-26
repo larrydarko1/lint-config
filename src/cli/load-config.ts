@@ -11,6 +11,7 @@ import { CONFIG_FILES } from '../config.ts';
 import { PRESETS, type PresetName } from '../eslint/presets.ts';
 import { isRecord } from '../gates/lib/json.ts';
 import { GATES, gatesFor, type GateName } from '../gates/registry.ts';
+import { renamedOptionProblems } from './renames.ts';
 
 /** A config that loaded, reduced to what the runner needs. */
 export type LoadedConfig = {
@@ -76,6 +77,7 @@ function validateConfig(config: unknown, file: string): Omit<LoadedConfig, 'file
             problems.push(`"${name}" must be the gate's options, or { skip: 'why this project does not run it' }.`);
         } else if (!('skip' in value)) {
             options.set(name, value);
+            problems.push(...renamedOptionProblems(name, value));
         } else if (typeof value['skip'] !== 'string' || value['skip'].trim() === '') {
             problems.push(`"${name}" is skipped without a reason. Say why this project does not run it.`);
         } else if (Object.keys(value).length > 1) {

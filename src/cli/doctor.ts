@@ -71,8 +71,8 @@ export async function diagnose(root: string, running: string): Promise<Diagnosis
               ),
     );
 
-    const { family, diagnosis } = await diagnoseConfig(root);
-    found.push(diagnosis);
+    const { family, diagnoses } = await diagnoseConfig(root);
+    found.push(...diagnoses);
     if (manifest['name'] === SELF_NAME) {
         return [
             ...found,
@@ -101,18 +101,27 @@ export async function diagnose(root: string, running: string): Promise<Diagnosis
 }
 
 /** larry.config.ts, and the family it names: null when it is missing or does not load. */
-async function diagnoseConfig(root: string): Promise<{ family: PresetName | null; diagnosis: Diagnosis }> {
+async function diagnoseConfig(root: string): Promise<{ family: PresetName | null; diagnoses: Diagnosis[] }> {
     try {
         const config = await loadConfig(root);
         const skipped = config.skipped.size > 0 ? `, with ${plural(config.skipped.size, 'gate')} skipped` : '';
-        return { family: config.family, diagnosis: ok(`${config.file} loads: the ${config.family} family${skipped}`) };
+        return {
+            family: config.family,
+            diagnoses: [ok(`${config.file} loads: the ${config.family} family${skipped}`)],
+        };
     } catch (error) {
+        const checks = path.join(root, 'scripts/checks');
+        const scripts = fs.existsSync(checks) ? fs.readdirSync(checks).filter((f) => /^check-.+\.ts$/.test(f)) : [];
         return {
             family: null,
-            diagnosis: problem(
-                error instanceof Error ? error.message : String(error),
-                'With no config, `npx larry init <family>` writes one. One that does not load fails `larry check` too.',
-            ),
+            diagnoses: [
+                problem(
+                    error instanceof Error ? error.message : String(error),
+                    scripts.length > 0
+                        ? `scripts/checks holds ${plural(scripts.length, 'gate script')} from before \`larry\`: \`npx larry upgrade\` moves ${scripts.length === 1 ? 'it' : 'them'} into larry.config.ts.`
+                        : 'With no config, `npx larry init <family>` writes one. One that does not load fails `larry check` too.',
+                ),
+            ],
         };
     }
 }

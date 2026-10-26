@@ -22,6 +22,7 @@ projects is an option, and everything else is fixed.
 
 - [Install](#install)
 - [Set up a project](#set-up-a-project)
+- [Upgrade from an older release](#upgrade-from-an-older-release)
 - [Config files](#config-files)
 - [Git hooks](#git-hooks)
 - [ESLint](#eslint)
@@ -72,7 +73,8 @@ it on every run until it is set up. A library has none of those, an app with a U
 `larry doctor` checks what goes wrong before any gate can run, and changes nothing:
 
 - Node is at least the version this package needs, and `package.json` is an ES module.
-- `larry.config.ts` loads and validates.
+- `larry.config.ts` loads and validates. With none, and gate scripts in `scripts/checks`, it
+  points at `larry upgrade`. An option under a name a release changed is noted.
 - This package is a dependency and installed. A copy installed from a local path is noted, since
   it can't be committed. A `node_modules` entry that is a symlink to a folder is a problem: the
   tools it installs stay inside that folder, so the CLIs are missing.
@@ -83,6 +85,33 @@ it on every run until it is set up. A library has none of those, an app with a U
 - Each tool has its config file, under any name the tool reads.
 
 It exits 1 when anything is wrong, with what to do under each problem.
+
+## Upgrade from an older release
+
+```bash
+npm i -D @larrydarko/lint-config@beta
+npx larry upgrade --dry-run   # lists what it would change
+npx larry upgrade             # changes it; read the diff, then run `npm run ci:check`
+```
+
+`larry upgrade` rewrites what an older release set up into what this one reads. Each step looks
+for the old shape itself rather than going by version numbers, so it works however many releases
+a project skipped, and running it again changes nothing. Nothing is written unless every step
+runs.
+
+- **Gate scripts → `larry.config.ts`.** Before `larry`, a project ran each gate from its own
+  `scripts/checks/check-*.ts`. A script that imports one gate and calls its `check*` function once
+  becomes that gate's entry in `larry.config.ts`, with the call's argument as its options, comments
+  included, and the imports those options use. The package.json script that ran it is removed,
+  and `ci:check` and the CI workflow run `larry check` where they ran it. A script that does
+  anything more stays, and the upgrade says why: it declares something of its own, passes `root`,
+  uses `import.meta`, or is run along with other commands. When the upgrade writes a new
+  `larry.config.ts`, each gate no script ran is skipped with that as the reason, so the project is
+  checked the same way as before. Remove a skip to run that gate.
+- **Renamed options.** When a release renames a gate's option, `larry check` stops on the old name
+  and says so, and `larry upgrade` renames it in `larry.config.ts`, keeping its value and comments.
+  Upgrade knows every rename ever made, so it catches up a project that skipped releases. No option
+  has been renamed yet.
 
 ## Config files
 
@@ -488,7 +517,7 @@ again when it runs.
 A gate can also run from a script of its own, which is how projects ran them before `larry`
 existed. That still works, and `pipeline` accepts both: each `scripts/checks/check-*.ts` must be
 wired into `ci:check` and the CI workflow, and so must `larry check` when there is a
-`larry.config.ts`.
+`larry.config.ts`. `larry upgrade` moves such scripts into `larry.config.ts`.
 
 ```ts
 // scripts/checks/check-error-handling.ts
@@ -1061,6 +1090,13 @@ until `npx eslint . --prune-suppressions` drops it, so the file only shrinks. `c
 family's standards at their defaults. `npm test` compares them, so a change to a shared block that
 moves a rule in one family fails and names the rule and the files. When the change is meant,
 re-record the snapshots, read their diff, and commit them with it.
+
+**Renaming a gate option.** Rename it in the gate's options type and add the rename to
+`RENAMED_OPTIONS` in `src/cli/renames.ts`, with the release that makes it. There is no grace
+version: from that release `larry check` stops on the old name and points at `larry upgrade`, which
+makes the rename in `larry.config.ts`. Never remove an entry, since a project may skip releases. A
+change that a rename can't express needs a migration of its own in `src/cli/migrations/`, listed in
+`src/cli/upgrade.ts`.
 
 The source is TypeScript and the package ships compiled `dist/`. Node will not strip types from
 files under `node_modules`, so a `.ts` export would fail once installed. `check:package` runs with
