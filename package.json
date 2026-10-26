@@ -235,7 +235,7 @@
         }
     },
     "bin": {
-        "larry": "./dist/cli/larry.js"
+        "larry": "dist/cli/larry.js"
     },
     "scripts": {
         "build": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
