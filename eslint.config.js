@@ -11,8 +11,8 @@ export default larry({
         configFiles: [...PRESETS.library.configFiles, 'src/eslint/rules/**/*.ts'],
     },
     standards: libraryStandards({
-        // A gate's job is its report, which it prints for the script that ran it.
-        logging: { consoleAllowed: ['src/gates/**/*.ts'] },
+        // A gate's job is its report, which it prints for the script that ran it; the CLI's is its output.
+        logging: { consoleAllowed: ['src/gates/**/*.ts', 'src/cli/**/*.ts'] },
         // knip and npm run as children, and are given this process's environment.
         env: { processEnvAllowed: ['src/gates/dead-code.ts', 'src/gates/publish.ts'] },
         // The shareable configs: each tool loads one by its default export.

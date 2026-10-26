@@ -402,19 +402,63 @@ never opens, such as manifests, workflows, Dockerfiles and locale files. Each ga
 that reads the repository and reports every failure with a reason and a fix. It sets a non-zero
 exit code when anything fails, and a passing run lists what the gate does _not_ check.
 
-A project runs each gate from a short script:
+A project lists its family and each gate's options in one file at the repository root,
+`larry.config.ts`, and runs them all with `larry check`:
 
 ```ts
-// scripts/check/check-error-handling.ts
+// larry.config.ts
+import { defineConfig } from '@larrydarko/lint-config/config';
+
+export default defineConfig({
+    family: 'library',
+    gates: {
+        'code-style': { scan: ['src', 'test'] },
+        'duplication': { scan: ['src'], ceilings: { typescript: 2 } },
+        'licenses': { distribution: 'closed' },
+        'publish': { skip: 'Private until 1.0, so there is no tarball to check yet.' },
+    },
+});
+```
+
+```json
+"scripts": { "check": "larry check", "ci:check": "npm run typecheck && npm run lint && npm run check" }
+```
+
+`larry check` runs every gate in the table below that the family runs, in order, and prints each
+one's report under its name. A gate left out of `gates` runs with its defaults. One that the
+project does not run is skipped with `{ skip: '<reason>' }`, and the reason prints on every run.
+The run exits 1 if any gate fails, and the gates after a failing one still run. A mistake in the
+config, such as a misspelt gate, a gate the family does not run, or a skip with no reason, exits 2
+before any gate runs.
+
+```bash
+larry check                    # every gate the family runs
+larry check secrets licenses   # only these
+larry check --fix              # declaration-order also rewrites the import order it can fix
+larry check dead-code --all    # knip's whole report, every category, instead of the gate
+```
+
+`defineConfig` types each gate's options from the gate itself, so the editor lists them, a gate
+the family does not run is an error, and a gate with a required option cannot be left out. Which
+gates those are depends on the family: a library's are the three above, and an app's add the ones
+that need its folders or its theme, such as `testing`, `i18n` and `contrast`. The editor names
+each missing one. Node strips the types from `larry.config.ts` when it loads it,
+so the file must use only syntax that can be erased: no `enum` and no `namespace`. A
+`larry.config.js` works too, without the type checks, and `larry check` validates either one
+again when it runs.
+
+A gate can also run from a script of its own, which is how projects ran them before `larry`
+existed. That still works, and `pipeline` accepts both: each `scripts/checks/check-*.ts` must be
+wired into `ci:check` and the CI workflow, and so must `larry check` when there is a
+`larry.config.ts`.
+
+```ts
+// scripts/checks/check-error-handling.ts
 import { checkElectronErrorHandling } from '@larrydarko/lint-config/gates/error-handling/electron';
 
 checkElectronErrorHandling({
     cleanupRequired: [['fsService', 'holds a file watcher that must close on quit']],
 });
-```
-
-```json
-"scripts": { "error:check": "node scripts/check/check-error-handling.ts" }
 ```
 
 Every option is typed and documented in the gate's declarations, so your editor lists them. Every
@@ -960,6 +1004,7 @@ rest in the project's own `node_modules`. A registry install puts them there.
 npm run build          # src/*.ts → dist/, with declarations
 npm run typecheck
 npm test
+npm run check          # every library gate, from larry.config.ts, by the CLI's own source
 npm run check:package  # packs the tarball, installs it, then imports and type-checks every export
 npm run presets:record # re-records test/presets/ after a rule change you meant
 npm run ci:check       # everything CI runs: the above, ESLint, Prettier and every library gate
@@ -967,8 +1012,8 @@ npm run ci:check       # everything CI runs: the above, ESLint, Prettier and eve
 
 This package is a library, and it checks itself the way the library family checks one:
 `eslint.config.js` and `knip.config.js` import `larry()`, `libraryStandards()` and `knip()` from
-`./src`, and each gate runs from a script in `scripts/checks/`, wired into `ci:check` and
-`.github/workflows/ci.yml`. ESLint findings that predate this are recorded in
+`./src`, and `larry.config.ts` holds every gate's options, run by `npm run check` (the `larry` CLI
+from `src/`), which is wired into `ci:check` and `.github/workflows/ci.yml`. ESLint findings that predate this are recorded in
 `eslint-suppressions.json`. A new finding fails, and so does a suppressed one once it's fixed,
 until `npx eslint . --prune-suppressions` drops it, so the file only shrinks. `code-style`'s
 `baseline` works the same way for the files over the line softcap.

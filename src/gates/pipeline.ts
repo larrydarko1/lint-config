@@ -19,7 +19,8 @@
  *  14. No untrusted `${{ }}` input spliced into a `run:` block; pass it through `env:`.
  *  15. curl-installed binaries pinned and checksummed.
  *  16. Every `npm run` a workflow invokes exists, in the workspace it names.
- *  17. Every gate script is wired to a package.json script, `ci:check` and ci.yml.
+ *  17. Every gate script is wired to a package.json script, `ci:check` and ci.yml; with a
+ *      larry.config.ts, `larry check` is, and covers every gate the config's family runs.
  *  18. The CI Node version satisfies engines.node.
  *  19. Every workflow_run name resolves (GitHub matches `name:`, not the filename).
  *
@@ -30,6 +31,7 @@ import path from 'node:path';
 
 import YAML from 'yaml';
 
+import { inspectGateWiring } from './lib/gate-wiring.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './lib/report.ts';
 
@@ -82,6 +84,8 @@ type PipelineInspection = {
         actions: number;
         imagePushes: number;
         gateScripts: number;
+        /** Whether a larry.config.ts holds the gates, so `larry check` runs them. */
+        larry: boolean;
         /** Workflows the gate skipped, by path. */
         parked: string[];
     };
@@ -113,7 +117,6 @@ const UNTRUSTED = [
 const RELEASE_HOSTS = /https?:\/\/(?:github\.com\/[^\s"']+\/releases\/download|[^\s"']*\.sigs\.k8s\.io\/dl)\//;
 const USES_LINE = /^[^\S\n]*(?:-[^\S\n]+)?uses:[^\S\n]*(\S+)[^\S\n]*(#.*)?$/gm;
 const NPM_RUN = /\bnpm\s+(?:-w\s+(\S+)\s+)?run\s+([\w:@./-]+)/g;
-
 export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection {
     const { root = REPO_ROOT, checksDir = 'scripts/checks', ciWorkflow = `${WORKFLOW_DIR}/ci.yml` } = input;
 
@@ -645,71 +648,17 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
         }
     }
 
-    // ── 17. Every gate script is wired in, all three levels ─────────────────
-    const checksDirPath = path.join(root, checksDir);
-    const gateScripts = fs.existsSync(checksDirPath)
-        ? fs
-              .readdirSync(checksDirPath)
-              .filter((f) => f.startsWith('check-') && f.endsWith('.ts'))
-              .sort()
-              .map((f) => `${checksDir}/${f}`)
-        : [];
-
-    if (gateScripts.length === 0) {
-        fail(checksDir, 'contains no check-*.ts scripts', 'This section would pass vacuously. Did the directory move?');
-    }
-
-    const ciCheck = rootPkg.scripts?.['ci:check'] ?? '';
-    if (ciCheck === '') {
-        fail(
-            'package.json',
-            'has no `ci:check` script',
-            'It is the one command that runs every gate locally. Without it each gate has to be remembered individually, which is the same as not having them.',
-        );
-    }
-
+    // ── 17. Every gate is wired in, all three levels ────────────────────────
     const ciDoc = workflows.find((w) => w.rel === ciWorkflow);
-    if (ciDoc === undefined) {
-        fail(ciWorkflow, 'missing', 'Nothing runs the gates on push, so all of them are advisory.');
-    }
     const ciRuns =
-        ciDoc !== undefined
-            ? jobsOf(ciDoc.doc)
-                  .flatMap(([, job]) =>
-                      stepsOf(job)
-                          .map((s) => s.run)
-                          .filter((r) => typeof r === 'string'),
-                  )
-                  .join('\n')
-            : '';
-
-    for (const gate of gateScripts) {
-        const entry = Object.entries(rootPkg.scripts ?? {}).find(([, cmd]) => String(cmd).includes(gate));
-        if (entry === undefined) {
-            fail(
-                gate,
-                'is not invoked by any package.json script',
-                'Nothing can run it, so the standard it encodes is enforced by nobody. Add a `<domain>:check` script for it.',
-            );
-            continue;
-        }
-        const [scriptName] = entry;
-        const escaped = scriptName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        if (!new RegExp(`\\bnpm run ${escaped}\\b`).test(ciCheck)) {
-            fail(
-                'package.json',
-                `\`ci:check\` does not run \`${scriptName}\` (${gate})`,
-                'The gate exists and is skipped locally. Chain it into ci:check so one command still means "everything".',
-            );
-        }
-        if (ciDoc !== undefined && !new RegExp(`\\bnpm run ${escaped}\\b`).test(ciRuns)) {
-            fail(
-                ciWorkflow,
-                `has no step running \`${scriptName}\` (${gate})`,
-                'The gate exists and is skipped on push, so a violation reaches main and is only caught by whoever happens to run ci:check locally.',
-            );
-        }
-    }
+        ciDoc === undefined
+            ? null
+            : jobsOf(ciDoc.doc)
+                  .flatMap(([, job]) => stepsOf(job).map((s) => s.run))
+                  .filter((r) => typeof r === 'string')
+                  .join('\n');
+    const wiring = inspectGateWiring({ root, checksDir, ciWorkflow, scripts: rootPkg.scripts ?? {}, ciRuns });
+    problems.push(...wiring.problems);
 
     // ── 18. The CI node version satisfies engines.node ──────────────────────
     const enginesNode = rootPkg.engines?.node;
@@ -779,7 +728,8 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
             pinned: [...workflows, ...actions].reduce((n, w) => n + [...w.src.matchAll(USES_LINE)].length, 0),
             actions: actions.length,
             imagePushes,
-            gateScripts: gateScripts.length,
+            gateScripts: wiring.gateScripts,
+            larry: wiring.larry,
             parked,
         },
     };
@@ -797,14 +747,21 @@ export function checkPipeline(options: PipelineOptions = {}): void {
             ? ` ${plural(counts.parked.length, 'parked workflow')} skipped: ${counts.parked.join(', ')}.`
             : '';
 
+    const wired = [
+        counts.larry ? '`larry check`' : '',
+        counts.gateScripts > 0 ? `all ${plural(counts.gateScripts, 'gate script')}` : '',
+    ]
+        .filter((part) => part !== '')
+        .join(' and ');
+
     report.done({
         summary:
             `Pipeline OK — ${plural(counts.workflows, 'workflow')}, ${plural(counts.jobs, 'job')}, all timed out and ` +
             `concurrency-grouped with least-privilege permissions, ${plural(counts.pinned, 'action')} SHA-pinned across ` +
             `workflows and ${plural(counts.actions, 'composite action')}, runners pinned (matrix included), every ` +
             `workflow_run job gated on success and pinned to head_sha with every checkout job gated on a push ` +
-            `event, no untrusted input spliced into a shell,${images} and all ` +
-            `${plural(counts.gateScripts, 'gate script')} wired into ci:check and ci.yml.${skipped}`,
+            `event, no untrusted input spliced into a shell,${images} and ` +
+            `${wired} wired into ci:check and ci.yml.${skipped}`,
         notMachineChecked:
             'whether branch protection actually requires the CI check, whether `environment: production` has ' +
             'required reviewers configured, whether a secret in GitHub Secrets is still valid, or whether the ' +

@@ -17,6 +17,10 @@
             "types": "./dist/commitlint.d.ts",
             "default": "./dist/commitlint.js"
         },
+        "./config": {
+            "types": "./dist/config.d.ts",
+            "default": "./dist/config.js"
+        },
         "./eslint": {
             "types": "./dist/eslint/index.d.ts",
             "default": "./dist/eslint/index.js"
@@ -230,6 +234,9 @@
             "default": "./dist/stylelint.js"
         }
     },
+    "bin": {
+        "larry": "./dist/cli/larry.js"
+    },
     "scripts": {
         "build": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
         "typecheck": "tsc -p tsconfig.json",
@@ -240,19 +247,9 @@
         "test": "node --test test/*.test.js",
         "snapshot": "node scripts/eslint-snapshot.js",
         "presets:record": "node test/presets/record.js",
-        "check:package": "node scripts/checks/check-publish.ts",
-        "secrets:check": "node scripts/checks/check-secrets.ts",
-        "licenses:check": "node scripts/checks/check-licenses.ts",
-        "audit:check": "node scripts/checks/check-audit.ts",
-        "style:check": "node scripts/checks/check-code-style.ts",
-        "deadcode:check": "node scripts/checks/check-dead-code.ts",
-        "order:check": "node scripts/checks/check-declaration-order.ts",
-        "dup:check": "node scripts/checks/check-duplication.ts",
-        "manifest:check": "node scripts/checks/check-package-json.ts",
-        "pipeline:check": "node scripts/checks/check-pipeline.ts",
-        "refactor:check": "node scripts/checks/check-refactoring.ts",
-        "tsconfig:check": "node scripts/checks/check-tsconfigs.ts",
-        "ci:check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run audit:check && npm run secrets:check && npm run licenses:check && npm run style:check && npm run deadcode:check && npm run order:check && npm run dup:check && npm run manifest:check && npm run pipeline:check && npm run refactor:check && npm run tsconfig:check && npm run check:package"
+        "check": "node src/cli/larry.ts check",
+        "check:package": "node src/cli/larry.ts check publish",
+        "ci:check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run check"
     },
     "dependencies": {
         "@commitlint/cli": "21.2.4",

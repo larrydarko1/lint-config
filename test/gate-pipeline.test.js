@@ -506,6 +506,67 @@ test('17. a missing ci.yml, an empty checks dir and a missing ci:check are each 
     );
 });
 
+/** A project whose gates are in larry.config.ts, run by `larry check` through `scripts`. */
+const larryProject = (t, scripts, ciRun = 'npm run check') =>
+    project(t, {
+        'larry.config.ts': 'export default {};\n',
+        'scripts/checks/check-lint.ts': null,
+        'package.json': JSON.stringify({ ...PKG, scripts }, null, 4),
+        '.github/workflows/ci.yml': CI_YML.replace('npm run lint:check', ciRun),
+    });
+
+test('17. with larry.config.ts, `larry check` in ci:check and ci.yml covers every gate', (t) => {
+    const viaScript = run(larryProject(t, { 'check': 'larry check', 'ci:check': 'npm run check' }));
+    assert.equal(viaScript.failed, false, viaScript.err);
+    assert.match(viaScript.out, /`larry check` wired into ci:check and ci\.yml/);
+
+    // Directly in both, with a flag, and from the CLI's own source in this package.
+    const direct = run(larryProject(t, { 'ci:check': 'npm test && larry check --all' }, 'npx larry check'));
+    assert.equal(direct.failed, false, direct.err);
+    const fromSource = run(larryProject(t, { 'check': 'node src/cli/larry.ts check', 'ci:check': 'npm run check' }));
+    assert.equal(fromSource.failed, false, fromSource.err);
+});
+
+test('17. NEGATIVE: with larry.config.ts, a missing or partial `larry check` is reported at each level', (t) => {
+    const notChained = run(larryProject(t, { 'check': 'larry check', 'ci:check': 'npm test' }));
+    assert.match(notChained.err, /`ci:check` does not run `larry check`/);
+
+    const notInCi = run(larryProject(t, { 'check': 'larry check', 'ci:check': 'npm run check' }, 'npm test'));
+    assert.match(notInCi.err, /has no step running `larry check`/);
+
+    // Naming a gate runs only that one, so it does not cover the rest.
+    const partial = run(larryProject(t, { 'check': 'larry check audit', 'ci:check': 'npm run check' }));
+    assert.match(partial.err, /`ci:check` does not run `larry check`/);
+});
+
+test('17. NEGATIVE: `npm run check` is not `npm run check:package`', (t) => {
+    const result = run(
+        larryProject(
+            t,
+            { 'check': 'larry check', 'check:package': 'echo', 'ci:check': 'npm run check:package' },
+            'npm run check:package',
+        ),
+    );
+    assert.match(result.err, /`ci:check` does not run `larry check`/);
+    assert.match(result.err, /has no step running `larry check`/);
+});
+
+test('17. gate scripts beside a larry.config.ts are still held to all three levels', (t) => {
+    const result = run(
+        project(t, {
+            'larry.config.ts': 'export default {};\n',
+            'package.json': JSON.stringify(
+                { ...PKG, scripts: { ...PKG.scripts, 'check': 'larry check', 'ci:check': 'npm run check' } },
+                null,
+                4,
+            ),
+            '.github/workflows/ci.yml': CI_YML.replace('npm run lint:check', 'npm run check'),
+        }),
+    );
+    assert.match(result.err, /`ci:check` does not run `lint:check`/);
+    assert.doesNotMatch(result.err, /larry check`/);
+});
+
 // ── 18: the engines.node rule the full-stack copy did not have ──────────────
 
 test('18. a CI Node major above or below engines.node is reported, both directions', (t) => {

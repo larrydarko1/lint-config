@@ -223,7 +223,7 @@ export function deadCodeProblems(
         const listed = [...hits].sort((a, b) => a.file.localeCompare(b.file)).map((hit) => `      • ${where(hit)}`);
         problems.push({
             what: `${label}: ${hits.length} exceeds the budget of ${budget}.\n${listed.join('\n')}`,
-            why: `${fix}\n      Budgets live in ${checksDir}/check-dead-code.ts and only ever go down. If an export is public by design, tag it \`/** @public */\` rather than raising one.`,
+            why: `${fix}\n      Budgets are this gate's \`budgets\` option, in larry.config.ts or ${checksDir}/check-dead-code.ts, and only ever go down. If an export is public by design, tag it \`/** @public */\` rather than raising one.`,
         });
     }
 
@@ -238,7 +238,7 @@ export function deadCodeProblems(
         } else if (budget > 0 && (found[category] ?? []).length === 0) {
             problems.push({
                 what: `${entry.label}: back at 0, but still budgeted ${budget}.`,
-                why: `Remove the \`${category}\` budget from ${checksDir}/check-dead-code.ts so the ratchet cannot quietly slip back. A budget left behind is a licence to regrow to the old count.`,
+                why: `Remove the \`${category}\` budget from larry.config.ts or ${checksDir}/check-dead-code.ts so the ratchet cannot quietly slip back. A budget left behind is a licence to regrow to the old count.`,
             });
         }
     }
