@@ -595,7 +595,7 @@
       "count": 1
     },
     "max-depth": {
-      "count": 3
+      "count": 1
     }
   },
   "src/gates/pipeline.ts": {

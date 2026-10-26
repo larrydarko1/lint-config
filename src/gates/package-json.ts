@@ -12,9 +12,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { PROJECT_CLIS, SELF_NAME, providedPackages } from '../toolchain.ts';
+import { SELF_NAME, providedPackages } from '../toolchain.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, type GateFailure } from './lib/report.ts';
+import { inspectToolchainInstall } from './lib/toolchain-install.ts';
 
 export type PackageJsonOptions = {
     /** Defaults to the repo root resolved from the process cwd. */
@@ -311,44 +312,7 @@ export function inspectPackageJson({
         (deps) => deps !== undefined && Object.hasOwn(deps, SELF_NAME),
     );
 
-    if (dependsOnSelf) {
-        for (const { file, pkg } of manifests) {
-            for (const field of ['dependencies', 'devDependencies'] as const) {
-                for (const name of Object.keys(pkg[field] ?? {})) {
-                    if (Object.hasOwn(provided, name)) {
-                        fail(
-                            file,
-                            `${field}.${name} is installed by ${SELF_NAME}`,
-                            'Remove it. The project copy is the one scripts, git hooks and the editor would run, and version bumps belong in one place.',
-                        );
-                    }
-                }
-            }
-        }
-
-        // A symlinked `file:` install keeps its dependencies inside it, so nothing hoists.
-        for (const name of Object.keys(PROJECT_CLIS)) {
-            const pinned = provided[name];
-            if (pinned === undefined) continue;
-            const manifest = path.join('node_modules', name, 'package.json');
-            if (!fs.existsSync(path.join(root, manifest))) {
-                fail(
-                    manifest,
-                    `\`${name}\` is not installed at the top of node_modules`,
-                    `Scripts, git hooks and editors look for it there. If ${SELF_NAME} is a \`file:\` dependency, set \`install-links=true\` in .npmrc so npm installs it as a copy rather than a symlink, then reinstall.`,
-                );
-                continue;
-            }
-            const { version } = read(manifest);
-            if (version !== pinned) {
-                fail(
-                    manifest,
-                    `\`${name}\` resolves to ${String(version)}, but ${SELF_NAME} pins ${pinned}`,
-                    `Another package put its own copy at the top of node_modules, so that is the one scripts, hooks and editors run. \`npm explain ${name}\` names it.`,
-                );
-            }
-        }
-    }
+    if (dependsOnSelf) problems.push(...inspectToolchainInstall(root, manifests, provided));
 
     return { problems, manifests: manifests.map((m) => m.file) };
 }

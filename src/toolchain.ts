@@ -4,10 +4,17 @@ import fs from 'node:fs';
 /** `src/` and `dist/` are both one level below the manifest. */
 const SELF = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
     name: string;
+    version: string;
     dependencies: Record<string, string>;
+    engines: { node: string };
 };
 
 export const SELF_NAME = SELF.name;
+
+export const SELF_VERSION = SELF.version;
+
+/** The oldest Node this package runs on: the major in its `engines.node`. */
+export const NODE_FLOOR = Number(/\d+/.exec(SELF.engines.node)?.[0]);
 
 /** Dependencies a project may still list because its own code uses them; everything else is lint-only. */
 const ALSO_THE_PROJECTS = new Set(['typescript', 'yaml', '@vue/compiler-sfc']);

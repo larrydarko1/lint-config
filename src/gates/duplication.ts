@@ -372,13 +372,15 @@ export function checkDuplication(options: DuplicationOptions): void {
             return stats === undefined ? [] : [`${format} ${stats.percentageTokens.toFixed(2)}%/${ceilingOf(entry)}%`];
         })
         .join(', ');
+    // A fresh project may have no file in a ceilinged format yet, and jscpd then reports none.
+    const measured = percentages === '' ? 'nothing to measure yet' : percentages;
 
     const largest = full.duplicates.reduce((n, d) => Math.max(n, d.tokens), 0);
     const cap = maxCloneTokens === undefined ? '' : ` (cap ${maxCloneTokens})`;
 
     report.done({
         summary:
-            `Duplication OK — ${percentages}; ${plural(full.statistics.total.clones, 'clone')} across ` +
+            `Duplication OK — ${measured}; ${plural(full.statistics.total.clones, 'clone')} across ` +
             `${plural(scan.length, 'scan root')}, largest ${largest} tokens${cap}${
                 scan.length > 1
                     ? `; no cross-root copies and no name among ${plural(types, 'exported type')} declared twice`

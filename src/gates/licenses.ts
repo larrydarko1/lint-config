@@ -14,6 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { isRecord } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './lib/report.ts';
 
@@ -396,6 +397,3 @@ function whyItFails(verdict: Verdict, distribution: Distribution): string {
             return 'Read the package’s LICENSE file. A licence id the gate does not know goes in `allowLicenses` with a reason; a package with no usable id gets a waiver that says what its LICENSE file grants.';
     }
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === 'object' && value !== null && !Array.isArray(value);

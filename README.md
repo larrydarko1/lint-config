@@ -21,6 +21,7 @@ projects is an option, and everything else is fixed.
 ## Contents
 
 - [Install](#install)
+- [Set up a project](#set-up-a-project)
 - [Config files](#config-files)
 - [Git hooks](#git-hooks)
 - [ESLint](#eslint)
@@ -46,9 +47,46 @@ Install only this package. ESLint, Prettier, Stylelint, commitlint, lint-staged,
 jscpd and every plugin come with it. See [The toolchain](#the-toolchain) for why you should not
 list them yourself.
 
+## Set up a project
+
+```bash
+npx larry init spa --distribution closed   # the family, and whether the app's source is published
+npm install                                # `prepare` installs the git hooks
+npx larry doctor                           # checks the install
+```
+
+`larry init` writes what the sections below describe: each tool's config file, the git hooks,
+`larry.config.ts`, a CI workflow that `pipeline` accepts, `.jscpd.json`, `.prettierignore` and a
+`.gitignore`. It adds the `prepare`, `lint`, `format:check`, `check` and `ci:check` scripts, and
+`engines.node`. `ci:check` and the workflow also run `typecheck` and `test` when the project has
+those scripts. A file or script that already exists is left as it is, so running init again only
+fills in what is missing, and it is safe in a project that is partly set up. It never sets
+`"type": "module"`, because that changes how every `.js` file loads; it says so instead.
+
+`--distribution` is the `licenses` gate's one required option (see [CI gates](#ci-gates)).
+`larry.config.ts` starts with `code-style`, `duplication` and `licenses` filled in from the folders
+that exist. A gate whose required options name the project's own files, such as `i18n`'s locale
+folder or `testing`'s layout, is skipped with what it needs as the reason, so `larry check` prints
+it on every run until it is set up. A library has none of those, an app with a UI has five, and a full-stack app has eleven.
+
+`larry doctor` checks what goes wrong before any gate can run, and changes nothing:
+
+- Node is at least the version this package needs, and `package.json` is an ES module.
+- `larry.config.ts` loads and validates.
+- This package is a dependency and installed. A copy installed from a local path is noted, since
+  it can't be committed. A `node_modules` entry that is a symlink to a folder is a problem: the
+  tools it installs stay inside that folder, so the CLIs are missing.
+- `.npmrc` has no `install-links=true` left over from testing a local copy.
+- Every CLI is at the top of `node_modules`, at the version pinned here, and the project lists
+  none of the tools itself.
+- `prepare` runs husky, both hooks exist, and git runs them.
+- Each tool has its config file, under any name the tool reads.
+
+It exits 1 when anything is wrong, with what to do under each problem.
+
 ## Config files
 
-Each tool gets one small file that contains only what differs in this project:
+`larry init` writes these. Each tool gets one small file that contains only what differs in this project:
 
 ```js
 // prettier.config.js
@@ -403,7 +441,7 @@ that reads the repository and reports every failure with a reason and a fix. It 
 exit code when anything fails, and a passing run lists what the gate does _not_ check.
 
 A project lists its family and each gate's options in one file at the repository root,
-`larry.config.ts`, and runs them all with `larry check`:
+`larry.config.ts`, which `larry init` writes, and runs them all with `larry check`:
 
 ```ts
 // larry.config.ts
@@ -996,7 +1034,8 @@ means:
 
 The plugins are resolved from inside this package, so they can sit anywhere in `node_modules`.
 The CLIs can't: scripts, git hooks and editors look for `eslint`, `prettier`, `stylelint` and the
-rest in the project's own `node_modules`. A registry install puts them there.
+rest in the project's own `node_modules`. A registry install puts them there. `larry doctor`
+checks the same things as the `package-json` gate, together with the rest of the install.
 
 ## Working on this package
 
@@ -1045,7 +1084,8 @@ npm uninstall @larrydarko/lint-config && npm i -D file:../lint-config
 
 This is for trying a change, not for committing. A `file:` dependency ties the project's lockfile
 to your folder layout, so CI and fresh clones cannot install it. Switch back to the published
-version, and remove `install-links` from `.npmrc`, before you commit:
+version, and remove `install-links` from `.npmrc`, before you commit. `npx larry doctor` in the
+project notes the local copy, and fails on a symlinked one or a leftover `install-links`:
 
 ```bash
 npm i -D @larrydarko/lint-config@beta

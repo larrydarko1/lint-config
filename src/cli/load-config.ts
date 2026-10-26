@@ -9,6 +9,7 @@ import { pathToFileURL } from 'node:url';
 
 import { CONFIG_FILES } from '../config.ts';
 import { PRESETS, type PresetName } from '../eslint/presets.ts';
+import { isRecord } from '../gates/lib/json.ts';
 import { GATES, gatesFor, type GateName } from '../gates/registry.ts';
 
 /** A config that loaded, reduced to what the runner needs. */
@@ -25,7 +26,7 @@ export type LoadedConfig = {
 /**
  * @param root The repository root, where the config sits.
  * @returns The config, validated.
- * @throws When there is no config, or it does not validate. The message lists every problem.
+ * @throws When there is no config, or it does not load or validate. The message lists every problem.
  */
 export async function loadConfig(root: string): Promise<LoadedConfig> {
     const file = CONFIG_FILES.find((name) => fs.existsSync(path.join(root, name)));
@@ -34,7 +35,14 @@ export async function loadConfig(root: string): Promise<LoadedConfig> {
             `no ${CONFIG_FILES.join(' or ')} in ${root}. Create one that default-exports defineConfig({ family, gates }) from @larrydarko/lint-config/config.`,
         );
     }
-    const mod: unknown = await import(pathToFileURL(path.join(root, file)).href);
+    let mod: unknown;
+    try {
+        mod = await import(pathToFileURL(path.join(root, file)).href);
+    } catch (error) {
+        throw new Error(`${file} does not load: ${error instanceof Error ? error.message : String(error)}`, {
+            cause: error,
+        });
+    }
     return { file, ...validateConfig(isRecord(mod) ? mod['default'] : undefined, file) };
 }
 
@@ -80,9 +88,6 @@ function validateConfig(config: unknown, file: string): Omit<LoadedConfig, 'file
     if (problems.length > 0) throw new Error(`${file}:\n${problems.map((p) => `  • ${p}`).join('\n')}`);
     return { family, options, skipped };
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const isFamily = (value: unknown): value is PresetName => typeof value === 'string' && Object.hasOwn(PRESETS, value);
 
