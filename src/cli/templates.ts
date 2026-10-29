@@ -3,11 +3,14 @@
  * shared config with what only this project knows left to its options, and every gate
  * whose options name the project's own files skipped with what it needs.
  */
-import type { PresetName } from '../eslint/presets.ts';
+import type { BasePaths, PresetName } from '../eslint/presets.ts';
 import { gatesFor } from '../gates/registry.ts';
 import { SELF_NAME } from '../toolchain.ts';
 
 export type Distribution = 'open' | 'closed';
+
+/** Where a base project's source runs: the one thing about it no file says. */
+export type Runtime = 'node' | 'browser' | 'both';
 
 type Scaffold = {
     family: PresetName;
@@ -18,6 +21,8 @@ type Scaffold = {
     sources: string[];
     /** The `npm run` scripts `ci:check` and CI run, in order. */
     ciScripts: string[];
+    /** The base family only: the paths its eslint.config.js names, since it assumes none. */
+    basePaths?: BasePaths;
 };
 
 /** Families with a Vue app, so they have styles to lint and templates to compare. */
@@ -62,6 +67,7 @@ export function scaffoldFiles(scaffold: Scaffold): Record<string, string> {
             ...(family === 'fullstack'
                 ? ['    // Workspaces other than frontend, api, worker and packages/shared are named in `workspaces`.']
                 : []),
+            ...(scaffold.basePaths === undefined ? [] : pathsOption(scaffold.basePaths)),
             `    standards: ${family}Standards(),`,
             '});',
         ),
@@ -113,7 +119,6 @@ export function unconfiguredGates(family: PresetName): [string, string][] {
 
 function larryConfig(scaffold: Scaffold): string {
     const { family, distribution, scan, sources } = scaffold;
-    const list = (items: string[]): string => `[${items.map((item) => `'${item}'`).join(', ')}]`;
     const ceilings = UI_FAMILIES.includes(family) ? '{ typescript: 2, vue: 2 }' : '{ typescript: 2 }';
     const configured: [string, string][] = [
         ['code-style', `{ scan: ${list(scan)} }`],
@@ -159,6 +164,17 @@ function knipConfig(family: PresetName): string {
     );
 }
 
+function pathsOption(paths: BasePaths): string[] {
+    return [
+        '    // The base family assumes no layout: these are the folders init found. An area with none is [].',
+        '    paths: {',
+        ...Object.entries(paths)
+            .filter(([area, globs]) => area !== 'nodeAndBrowser' || globs.length > 0)
+            .map(([area, globs]) => `        ${area}: ${list(globs)},`),
+        '    },',
+    ];
+}
+
 function ciWorkflow(ciScripts: string[]): string {
     return lines(
         'name: CI',
@@ -191,3 +207,6 @@ function ciWorkflow(ciScripts: string[]): string {
 }
 
 const lines = (...text: string[]): string => `${text.join('\n')}\n`;
+
+/** A string array as a literal in the file written. */
+const list = (items: string[]): string => `[${items.map((item) => `'${item}'`).join(', ')}]`;

@@ -8,7 +8,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { CONFIG_FILES } from '../config.ts';
-import { PRESETS, type PresetName } from '../eslint/presets.ts';
+import { FAMILIES, isFamily, type PresetName } from '../eslint/presets.ts';
 import { isRecord } from '../gates/lib/json.ts';
 import { GATES, gatesFor, type GateName } from '../gates/registry.ts';
 import { renamedOptionProblems } from './renames.ts';
@@ -59,7 +59,7 @@ function validateConfig(config: unknown, file: string): Omit<LoadedConfig, 'file
     }
     const { family, gates = {} } = config;
     if (!isFamily(family)) {
-        throw new Error(`${file}: family is ${JSON.stringify(family)}, not one of ${Object.keys(PRESETS).join(', ')}.`);
+        throw new Error(`${file}: family is ${JSON.stringify(family)}, not one of ${FAMILIES.join(', ')}.`);
     }
     if (!isRecord(gates)) throw new Error(`${file}: gates must be an object keyed by gate name.`);
 
@@ -90,7 +90,5 @@ function validateConfig(config: unknown, file: string): Omit<LoadedConfig, 'file
     if (problems.length > 0) throw new Error(`${file}:\n${problems.map((p) => `  • ${p}`).join('\n')}`);
     return { family, options, skipped };
 }
-
-const isFamily = (value: unknown): value is PresetName => typeof value === 'string' && Object.hasOwn(PRESETS, value);
 
 const isGate = (name: string): name is GateName => Object.hasOwn(GATES, name);

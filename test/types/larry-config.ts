@@ -67,6 +67,18 @@ defineConfig({
     },
 });
 
+// The base family runs only the gates every family runs.
+defineConfig({ family: 'base', gates: REQUIRED });
+
+defineConfig({
+    family: 'base',
+    gates: {
+        ...REQUIRED,
+        // @ts-expect-error -- the base family assumes no test runner, so it does not run testing.
+        testing: { skip: 'invented for the type test' },
+    },
+});
+
 // @ts-expect-error -- not a family.
 defineConfig({ family: 'cli', gates: {} });
 

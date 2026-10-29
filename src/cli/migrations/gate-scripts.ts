@@ -12,7 +12,7 @@ import path from 'node:path';
 import ts from 'typescript';
 
 import { CONFIG_FILES } from '../../config.ts';
-import { PRESETS, type PresetName } from '../../eslint/presets.ts';
+import { isFamily, type PresetName } from '../../eslint/presets.ts';
 import { isRecord } from '../../gates/lib/json.ts';
 import { plural } from '../../gates/lib/report.ts';
 import { gatesFor } from '../../gates/registry.ts';
@@ -374,8 +374,6 @@ const skeleton = (family: PresetName): string =>
         `export default defineConfig({ family: '${family}', gates: {} });`,
         '',
     ].join('\n');
-
-const isFamily = (name: string): name is PresetName => Object.hasOwn(PRESETS, name);
 
 /** Matches `npm run <script>` and not a longer name it begins. */
 const npmRuns = (script: string): RegExp =>

@@ -8,17 +8,17 @@
  */
 import path from 'node:path';
 
-import { PRESETS, type PresetName } from '../eslint/presets.ts';
+import { FAMILIES, isFamily } from '../eslint/presets.ts';
 import { findRepoRoot } from '../gates/lib/repo-root.ts';
 import { plural } from '../gates/lib/report.ts';
 import { gatesFor } from '../gates/registry.ts';
 import { SELF_VERSION } from '../toolchain.ts';
 import { runGates, summarise } from './check.ts';
 import { loadConfig } from './load-config.ts';
-import type { Distribution } from './templates.ts';
+import type { Distribution, Runtime } from './templates.ts';
 
 const USAGE = `Usage: larry check [gate…] [--fix] [--all]
-       larry init <family> --distribution <open|closed>
+       larry init <family> --distribution <open|closed> [--runtime <node|browser|both>]
        larry doctor
        larry upgrade [--dry-run]
 
@@ -30,8 +30,10 @@ const USAGE = `Usage: larry check [gate…] [--fix] [--all]
   larry init spa --distribution closed
                            Write the config files, git hooks, CI workflow, larry.config.ts
                            and package.json scripts a project is missing. Nothing that
-                           exists is changed. The family is one of ${Object.keys(PRESETS).join(', ')}.
+                           exists is changed. The family is one of ${FAMILIES.join(', ')}.
     --distribution   open if the app's source is published, closed if not (the licenses gate).
+    --runtime        base only, and required there: where the source runs. The base family
+                     assumes no layout, so its eslint.config.js names the folders init finds.
 
   larry doctor             Check Node, the install, the git hooks and the config files.
 
@@ -45,12 +47,22 @@ const USAGE = `Usage: larry check [gate…] [--fix] [--all]
 /** The flags a gate reads from the command line itself. */
 const GATE_FLAGS = new Set(['--fix', '--all']);
 
+const INIT_FLAGS = ['--distribution', '--runtime'];
+
 /** The package folder this CLI runs from: \`src/cli\` and \`dist/cli\` are both two levels down. */
 const RUNNING = path.resolve(import.meta.dirname, '../..');
 
-const isFamily = (name: string): name is PresetName => Object.hasOwn(PRESETS, name);
-
 const isDistribution = (value: string): value is Distribution => value === 'open' || value === 'closed';
+
+const isRuntime = (value: string): value is Runtime => value === 'node' || value === 'browser' || value === 'both';
+
+/** A flag's value, given as `--name value` or `--name=value`. Undefined when the flag is not there. */
+const flagValue = (flags: string[], name: string): string | undefined => {
+    const at = flags.findIndex((flag) => flag === name || flag.startsWith(`${name}=`));
+    if (at === -1) return undefined;
+    const flag = flags[at] ?? '';
+    return flag === name ? flags[at + 1] : flag.slice(name.length + 1);
+};
 
 const message = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
@@ -101,15 +113,33 @@ async function initProject(args: string[]): Promise<number> {
     const [family, ...flags] = args;
     if (family === undefined || !isFamily(family)) {
         console.error(
-            `larry: ${family === undefined ? 'init needs a family' : `"${family}" is not a family`}. It is one of ${Object.keys(PRESETS).join(', ')}.\n\n${USAGE}`,
+            `larry: ${family === undefined ? 'init needs a family' : `"${family}" is not a family`}. It is one of ${FAMILIES.join(', ')}.\n\n${USAGE}`,
         );
         return 2;
     }
-    // `--distribution closed` and `--distribution=closed` both.
-    const distribution = /^--distribution=(.*)$/.exec(flags.join('='))?.[1] ?? '';
+    const unknownFlag = flags.find((flag) => flag.startsWith('-') && !INIT_FLAGS.includes(flag.split('=')[0] ?? ''));
+    if (unknownFlag !== undefined) {
+        console.error(`larry: unknown option ${unknownFlag}\n\n${USAGE}`);
+        return 2;
+    }
+    const distribution = flagValue(flags, '--distribution') ?? '';
     if (!isDistribution(distribution)) {
         console.error(
             `larry: init needs --distribution open or --distribution closed: whether this app's own source is published. The licenses gate allows copyleft dependencies only in an open one.\n\n${USAGE}`,
+        );
+        return 2;
+    }
+    const runtimeFlag = flagValue(flags, '--runtime');
+    const runtime = runtimeFlag !== undefined && isRuntime(runtimeFlag) ? runtimeFlag : null;
+    if (family !== 'base' && runtimeFlag !== undefined) {
+        console.error(
+            `larry: --runtime is for the base family; the ${family} family knows where its code runs.\n\n${USAGE}`,
+        );
+        return 2;
+    }
+    if (family === 'base' && runtime === null) {
+        console.error(
+            `larry: the base family needs --runtime node, --runtime browser or --runtime both: where its source runs, which no file says.\n\n${USAGE}`,
         );
         return 2;
     }
@@ -120,7 +150,7 @@ async function initProject(args: string[]): Promise<number> {
     try {
         // Loaded only for its command, so `larry check` does not pay for Prettier.
         const { init } = await import('./init.ts');
-        result = await init(root, family, distribution);
+        result = await init(root, { family, distribution, runtime });
     } catch (error) {
         console.error(`✗ larry: ${message(error)}`);
         return 2;

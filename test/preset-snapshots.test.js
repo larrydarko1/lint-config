@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { PRESETS as FAMILIES } from '../src/eslint/presets.ts';
+import { FAMILIES } from '../src/eslint/presets.ts';
 import { PRESETS, resolvePreset } from './presets/resolve.js';
 
 const recorded = (preset) =>
@@ -40,5 +40,5 @@ for (const preset of Object.keys(PRESETS)) {
 }
 
 test('every preset has a snapshot, so a new family cannot ship without one', () => {
-    assert.deepEqual(Object.keys(PRESETS).sort(), Object.keys(FAMILIES).sort());
+    assert.deepEqual(Object.keys(PRESETS).sort(), [...FAMILIES].sort());
 });

@@ -14,25 +14,25 @@ import globals from 'globals';
 import ts from 'typescript-eslint';
 
 import { buildStandards, type AnyFamilyStandards } from './family.ts';
-import { assertLayoutExists, assertWorkspacesCovered } from './layout-guard.ts';
+import { assertLayoutExists, assertPathsExist, assertWorkspacesCovered } from './layout-guard.ts';
 import {
+    BASE_REQUIRED,
     fullstackLayout,
     resolveLayout,
     resolvePaths,
+    type BasePaths,
     type FullstackWorkspaces,
+    type LaidOutPreset,
     type LayoutOverrides,
-    type PresetName,
     type PresetPaths,
 } from './presets.ts';
 import { larryPlugin } from './rules/larry-plugin.ts';
 import { NAMING_CONVENTION } from './rules/naming.ts';
 
-export { PRESETS, FULLSTACK_WORKSPACES, fullstackLayout, resolveLayout, resolvePaths } from './presets.ts';
+export { FAMILIES, PRESETS, FULLSTACK_WORKSPACES, fullstackLayout, resolveLayout, resolvePaths } from './presets.ts';
 export { NAMING_CONVENTION } from './rules/naming.ts';
 
-export type LarryOptions = {
-    /** Which family's folder layout to assume. */
-    preset: PresetName;
+export type LarryOptions = PresetOptions & {
     /** The project root: pass `import.meta.dirname`. Required, for `tsconfigRootDir`. */
     rootDir: string;
     /**
@@ -47,9 +47,7 @@ export type LarryOptions = {
      * role the standards read, or one named here, must exist. See presets.ts for the roles.
      */
     layout?: LayoutOverrides;
-    /** Override any path set from the preset's roles, for the base config only. See presets.ts. */
-    paths?: Partial<PresetPaths>;
-    /** Load the Vue plugin and parse `.vue` files. Defaults to true, and to false for the `api` and `library` presets, which have no components. */
+    /** Load the Vue plugin and parse `.vue` files. Defaults to true, and to false for the `api`, `base` and `library` presets, which assume no components. */
     vue?: boolean;
     /** Enforce import specifiers: no extension on TS/JS, but `.vue` and `.json` keep theirs. Defaults to false.*/
     importExtensions?: boolean | ImportExtensionsOptions;
@@ -59,11 +57,26 @@ export type LarryOptions = {
     testRules?: Linter.RulesRecord;
     /** Extra rules for all source files, merged last. */
     rules?: Linter.RulesRecord;
-    /** The family's standards (security, logging, …): `apiStandards()`, `electronStandards()`, `fullstackStandards()`, `libraryStandards()`, `spaStandards()` or `tauriStandards()`. Plain blocks are spliced in as they are. */
+    /** The family's standards (security, logging, …): `apiStandards()`, `baseStandards()`, `electronStandards()`, `fullstackStandards()`, `libraryStandards()`, `spaStandards()` or `tauriStandards()`. Plain blocks are spliced in as they are. */
     standards?: Linter.Config[] | AnyFamilyStandards;
     /** The project's own blocks — the per-area `no-restricted-syntax`/`no-restricted-imports` wiring. Appended last, before Prettier. */
     overrides?: Linter.Config[];
 };
+
+/** A family with a layout assumes its paths; the base family has none, so the project names them. */
+type PresetOptions =
+    | {
+          /** Which family's folder layout to assume. */
+          preset: LaidOutPreset;
+          /** Override any path set from the preset's roles, in the shared config only: the standards keep the roles' paths. See presets.ts. */
+          paths?: Partial<PresetPaths>;
+      }
+    | {
+          /** For code no other family describes: the shared config, with no layout assumed. */
+          preset: 'base';
+          /** Where everything is. Each of `source`, `tests`, `browser` and `node` is required, and must exist. */
+          paths: BasePaths;
+      };
 
 type ImportExtensionsOptions = {
     /** Folders Node executes directly (`['scripts/**\/*.ts']`), where the specifier must name the real `.ts` file. */
@@ -102,7 +115,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
         workspaces = {},
         layout = {},
         paths: pathOverrides = {},
-        vue: useVue = preset !== 'api' && preset !== 'library',
+        vue: useVue = preset !== 'api' && preset !== 'base' && preset !== 'library',
         importExtensions = false,
         testProject = null,
         testRules = {},
@@ -117,6 +130,10 @@ export function larry(options: LarryOptions): Linter.Config[] {
         throw new Error(
             "larry({ layout }) is for the single-package presets; the full-stack preset's roles are `workspaces`.",
         );
+    if (preset === 'base' && Object.keys(layout).length > 0)
+        throw new Error(
+            "larry({ layout }) moves a family's roles; the base preset has none, so name its globs in `paths`.",
+        );
     if (typeof standards === 'function' && standards.family !== preset)
         throw new Error(`${standards.family}Standards() needs preset: '${standards.family}', not '${preset}'.`);
 
@@ -124,13 +141,15 @@ export function larry(options: LarryOptions): Linter.Config[] {
     const paths = resolvePaths(preset, pathOverrides, { ...workspaces, ...layout });
 
     if (preset === 'fullstack') assertWorkspacesCovered(rootDir, fullstackLayout(workspaces).workspaces);
+    else if (preset === 'base') assertPathsExist(rootDir, paths, BASE_REQUIRED);
     else
         assertLayoutExists(rootDir, preset, resolveLayout(preset, layout), {
             read: typeof standards === 'function' ? standards.roles : [],
             named: Object.keys(layout),
         });
 
-    const standardBlocks = typeof standards === 'function' ? buildStandards(standards, workspaces, layout) : standards;
+    const standardBlocks =
+        typeof standards === 'function' ? buildStandards(standards, { workspaces, layout, paths }) : standards;
 
     // Type-aware presets only reach files a tsconfig covers — locale JSON and config files are not.
     const typedOnly = (blocks: Linter.Config[]): Linter.Config[] =>
@@ -158,14 +177,18 @@ export function larry(options: LarryOptions): Linter.Config[] {
             : []),
 
         // ── Which globals exist where ────────────────────────────────────────
-        // ESLint refuses an empty `files`, and an API has no browser code.
+        // ESLint refuses an empty `files`: an API has no browser code, and a base project may have no Node code.
         ...(paths.browser.length
             ? [{ files: paths.browser, languageOptions: { globals: globals.browser } } satisfies Linter.Config]
             : []),
-        {
-            files: paths.node,
-            languageOptions: { globals: globals.node, sourceType: 'module' },
-        },
+        ...(paths.node.length > 0
+            ? [
+                  {
+                      files: paths.node,
+                      languageOptions: { globals: globals.node, sourceType: 'module' },
+                  } satisfies Linter.Config,
+              ]
+            : []),
         ...(paths.nodeAndBrowser.length
             ? [
                   {

@@ -7,13 +7,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FULLSTACK_WORKSPACES, type PresetName } from '../eslint/presets.ts';
+import { FULLSTACK_WORKSPACES, type BasePaths, type PresetName } from '../eslint/presets.ts';
 import { isRecord, readJson, stringAt } from '../gates/lib/json.ts';
 import { CANONICAL_ORDER } from '../gates/package-json.ts';
 import { FORMATTED, prettify } from './format.ts';
-import { UI_FAMILIES, scaffoldFiles, unconfiguredGates, type Distribution } from './templates.ts';
+import { UI_FAMILIES, scaffoldFiles, unconfiguredGates, type Distribution, type Runtime } from './templates.ts';
 
 type Manifest = Record<string, unknown>;
+
+type InitOptions = {
+    family: PresetName;
+    /** Whether the app's own source is published, for the licenses gate. */
+    distribution: Distribution;
+    /** Where a base project's source runs. Null for every other family, which knows. */
+    runtime: Runtime | null;
+};
 
 type InitResult = {
     /** Files written, by path from the root. */
@@ -34,11 +42,10 @@ const RUNS_CHECK = /\bnpm run check(?![\w:.-])|\blarry check\b/;
 
 /**
  * @param root The repository root.
- * @param family The project's family.
- * @param distribution Whether the app's own source is published, for the licenses gate.
  * @returns What was written, kept and added, and what is left to do.
  */
-export async function init(root: string, family: PresetName, distribution: Distribution): Promise<InitResult> {
+export async function init(root: string, options: InitOptions): Promise<InitResult> {
+    const { family, distribution, runtime } = options;
     const manifestPath = path.join(root, 'package.json');
     if (!fs.existsSync(manifestPath)) throw new Error(`there is no package.json in ${root}. Run \`npm init\` first.`);
     const manifest = readJson(manifestPath);
@@ -53,10 +60,20 @@ export async function init(root: string, family: PresetName, distribution: Distr
         ...(test === undefined || test.includes(NPM_PLACEHOLDER_TEST) ? [] : ['test']),
         'check',
     ];
+    if (family === 'base' && runtime === null)
+        throw new Error('the base family needs a runtime: where its source runs.');
     const { scan, sources } = sourceFolders(root, family, manifest);
+    const files = scaffoldFiles({
+        family,
+        distribution,
+        scan,
+        sources,
+        ciScripts,
+        ...(family === 'base' && runtime !== null ? { basePaths: basePaths(root, sources, runtime) } : {}),
+    });
 
     const result: InitResult = { written: [], kept: [], added: [], next: [] };
-    for (const [file, content] of Object.entries(scaffoldFiles({ family, distribution, scan, sources, ciScripts }))) {
+    for (const [file, content] of Object.entries(files)) {
         const target = path.join(root, file);
         if (fs.existsSync(target)) {
             result.kept.push(file);
@@ -113,6 +130,26 @@ function sourceFolders(root: string, family: PresetName, manifest: Manifest): { 
     return { scan: [...sources, ...['test', 'tests', 'scripts'].filter(exists)], sources };
 }
 
+/**
+ * What a base project's eslint.config.js names, since the family assumes nothing: the
+ * source folders found, the test folders or else test files anywhere, and the scripts,
+ * which run in Node whatever the source does.
+ */
+function basePaths(root: string, sources: string[], runtime: Runtime): BasePaths {
+    const exists = (dir: string): boolean => fs.existsSync(path.join(root, dir));
+    const app = sources.map((dir) => `${dir}/**/*.ts`);
+    const scripts = exists('scripts') ? ['scripts/**/*.ts'] : [];
+    const testDirs = ['test', 'tests'].filter(exists);
+    const tests = testDirs.length > 0 ? testDirs.map((dir) => `${dir}/**/*.ts`) : ['**/*.{test,spec}.ts'];
+    return {
+        source: [...app, ...scripts],
+        tests,
+        browser: runtime === 'browser' ? app : [],
+        node: runtime === 'node' ? [...app, ...scripts, ...tests] : [...scripts, ...tests],
+        nodeAndBrowser: runtime === 'both' ? app : [],
+    };
+}
+
 function nextSteps(root: string, family: PresetName, manifest: Manifest, result: InitResult): string[] {
     const next: string[] = [];
     if (manifest['type'] !== 'module') {
@@ -132,6 +169,11 @@ function nextSteps(root: string, family: PresetName, manifest: Manifest, result:
     if (result.written.includes('larry.config.ts') && skipped.length > 0) {
         next.push(
             `larry.config.ts skips ${skipped.length} gates that need paths only this project knows: ${skipped.map(([name]) => name).join(', ')}. Give each its options and remove its skip.`,
+        );
+    }
+    if (family === 'base' && result.written.includes('eslint.config.js')) {
+        next.push(
+            'eslint.config.js names the folders init found, since the base family assumes none. Add the rest of the code to `paths`: a folder named there that does not exist fails the config.',
         );
     }
     if (UI_FAMILIES.includes(family) && result.written.includes('.stylelintrc.mjs')) {

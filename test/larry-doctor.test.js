@@ -117,6 +117,39 @@ test('NEGATIVE: a missing config file is named, and a UI family needs a Stylelin
     assert.match(spa.out, /`npx larry init <family>` writes each one that is missing/);
 });
 
+test('a base project hears when package.json looks like a kind another family is for', (t) => {
+    const base = { 'larry.config.js': "export default { family: 'base', gates: {} };\n" };
+
+    const plain = doctor(project(t, base));
+    assert.equal(plain.code, 0, plain.out);
+    assert.match(plain.out, /^✓ nothing in package\.json says another family fits better than base$/m);
+
+    const electron = doctor(
+        project(t, { ...base, 'package.json': manifest({ dependencies: { vue: '^3.5.0', electron: '^40.0.0' } }) }),
+    );
+    assert.equal(electron.code, 0, 'a note fails nothing');
+    assert.match(
+        electron.out,
+        /^– larry\.config\.ts names the base family, but package\.json depends on electron, as electron projects do$/m,
+    );
+    assert.match(
+        electron.out,
+        /set `family: 'electron'` in larry\.config\.ts and `preset: 'electron'` in eslint\.config\.js/,
+    );
+
+    const published = doctor(project(t, { ...base, 'package.json': manifest({ exports: './dist/index.js' }) }));
+    assert.match(published.out, /package\.json publishes `exports`, as library projects do$/m);
+    const internal = doctor(
+        project(t, { ...base, 'package.json': manifest({ private: true, exports: './dist/index.js' }) }),
+    );
+    assert.doesNotMatch(internal.out, /as library projects do/);
+});
+
+test('only a base project is asked whether another family fits', (t) => {
+    const result = doctor(project(t, { 'package.json': manifest({ dependencies: { express: '^5.0.0' } }) }));
+    assert.doesNotMatch(result.out, /another family|as api projects do/);
+});
+
 test('NEGATIVE: no larry.config.ts but gate scripts from an older release points at larry upgrade', (t) => {
     const result = doctor(
         project(t, {

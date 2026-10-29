@@ -29,6 +29,10 @@
             "types": "./dist/eslint/api/index.d.ts",
             "default": "./dist/eslint/api/index.js"
         },
+        "./eslint/base": {
+            "types": "./dist/eslint/base/index.d.ts",
+            "default": "./dist/eslint/base/index.js"
+        },
         "./eslint/electron": {
             "types": "./dist/eslint/electron/index.d.ts",
             "default": "./dist/eslint/electron/index.js"

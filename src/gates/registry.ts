@@ -30,7 +30,7 @@ export type FamilyGate<TFamily extends PresetName> = {
     [TName in GateName]: TFamily extends (typeof GATES)[TName]['families'][number] ? TName : never;
 }[GateName];
 
-const ALL = ['api', 'electron', 'fullstack', 'library', 'spa', 'tauri'] as const;
+const ALL = ['api', 'base', 'electron', 'fullstack', 'library', 'spa', 'tauri'] as const;
 /** The families whose suites run on Vitest. A library's run on `node --test`, which ESLint checks instead. */
 const VITEST = ['api', 'electron', 'fullstack', 'spa', 'tauri'] as const;
 /** The families with a frontend in the repository: an `index.html`, styles and locale files. */

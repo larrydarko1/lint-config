@@ -9,6 +9,7 @@
 import { ESLint } from 'eslint';
 
 import { apiStandards } from '../../src/eslint/api/index.ts';
+import { baseStandards } from '../../src/eslint/base/index.ts';
 import { electronStandards } from '../../src/eslint/electron/index.ts';
 import { fullstackStandards } from '../../src/eslint/fullstack/index.ts';
 import { larry } from '../../src/eslint/index.ts';
@@ -19,7 +20,10 @@ import { tauriStandards } from '../../src/eslint/tauri/index.ts';
 /** Not a real project: nothing is read from it, and every path below is relative to it. */
 const ROOT = '/tmp/lint-config-preset-snapshots';
 
-/** Each preset's standards at their defaults, and one file for each area its rules address. */
+/**
+ * Each preset's standards at their defaults, and one file for each area its rules address.
+ * The base preset has no defaults, so it is given an invented layout of its own.
+ */
 export const PRESETS = {
     api: {
         standards: apiStandards,
@@ -36,6 +40,16 @@ export const PRESETS = {
             'db/migrations/001-init.js',
             'eslint.config.js',
         ],
+    },
+    base: {
+        standards: baseStandards,
+        paths: {
+            source: ['app/**/*.ts'],
+            tests: ['spec/**/*.ts'],
+            browser: [],
+            node: ['app/**/*.ts', 'spec/**/*.ts', 'tools/**/*.ts'],
+        },
+        files: ['app/index.ts', 'app/server/routes.ts', 'spec/index.spec.ts', 'tools/release.ts', 'eslint.config.js'],
     },
     electron: {
         standards: electronStandards,
@@ -113,10 +127,10 @@ const normalise = (entry) => {
  * left out, so `off` and absent, which do the same, read the same.
  */
 export async function resolvePreset(preset) {
-    const { standards, files } = PRESETS[preset];
+    const { standards, paths, files } = PRESETS[preset];
     const eslint = new ESLint({
         overrideConfigFile: true,
-        baseConfig: larry({ preset, rootDir: ROOT, standards: standards() }),
+        baseConfig: larry({ preset, rootDir: ROOT, standards: standards(), ...(paths ? { paths } : {}) }),
         cwd: ROOT,
     });
     /** rule → serialised entry → files, in PRESETS order. */

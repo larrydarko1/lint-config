@@ -4,13 +4,27 @@
  * and the family's standards are built from it. A project whose code lives elsewhere
  * moves a role with `larry({ layout })`, or `larry({ workspaces })` in the full-stack
  * family, and every rule for that role follows. `paths` then adjusts one area of the
- * base config on its own.
+ * shared config on its own.
+ *
+ * The base family is the exception: it is for a kind of project no other family
+ * describes, so it has no layout to assume, and the project names its paths itself.
  */
+import { fullstackLayout, type FullstackLayout, type FullstackWorkspaces } from './fullstack-layout.ts';
 
-export type PresetName = 'api' | 'electron' | 'fullstack' | 'library' | 'spa' | 'tauri';
+export {
+    FULLSTACK_WORKSPACES,
+    fullstackLayout,
+    type FullstackLayout,
+    type FullstackWorkspaces,
+} from './fullstack-layout.ts';
+
+export type PresetName = (typeof FAMILIES)[number];
 
 /** The families in one package, whose roles are folders rather than workspaces. */
-export type SinglePackagePreset = Exclude<PresetName, 'fullstack'>;
+export type SinglePackagePreset = Exclude<PresetName, 'base' | 'fullstack'>;
+
+/** The families with a layout of their own, so every path has a default. */
+export type LaidOutPreset = Exclude<PresetName, 'base'>;
 
 /** Glob lists, one per area the shared rules address. */
 export type PresetPaths = {
@@ -25,6 +39,13 @@ export type PresetPaths = {
     ignores: string[];
     configFiles: string[];
 };
+
+/**
+ * What a base project names, since nothing about its layout can be assumed: its source,
+ * its tests, and which of them run in a browser and which in Node. Either runtime may
+ * be empty. The rest have defaults, and `typedSource` is the source and the tests.
+ */
+export type BasePaths = Pick<PresetPaths, 'source' | 'tests' | 'browser' | 'node'> & Partial<PresetPaths>;
 
 /**
  * Each role is a path from the repository root. A role left out defaults from the one
@@ -103,42 +124,16 @@ export type LayoutOverrides = Partial<
 >;
 
 /**
- * A full-stack monorepo's workspaces, by the role each plays. Every full-stack rule is
- * written against a role, not a folder name, so a new workspace is one entry here and
- * every rule for its role reaches it. Each is a directory holding a `src/`.
- */
-export type FullstackWorkspaces = {
-    /** The Vue app. */
-    frontend: string;
-    /** The HTTP service: routes, middleware, the websocket gateway. */
-    api: string;
-    /** Node processes outside the request cycle — a queue consumer, a feed ingestor, a scheduled role. */
-    services: string[];
-    /** Framework-neutral packages the other workspaces import. */
-    shared: string[];
-};
-
-/** Each role's source as globs — what the full-stack rules are given. */
-export type FullstackLayout = {
-    workspaces: FullstackWorkspaces;
-    /** The frontend's TypeScript and components. */
-    frontend: string[];
-    /** The frontend's components alone. */
-    vue: string[];
-    api: string[];
-    services: string[];
-    /** The api and every service: the Node side. */
-    backend: string[];
-    shared: string[];
-    /** Every workspace's shipped code. */
-    source: string[];
-};
-
-/**
  * What a project passes to move a family's roles: workspaces in the full-stack family,
  * folders in the rest. No name is in both.
  */
 export type RoleOverrides = Partial<FullstackWorkspaces> & LayoutOverrides;
+
+/** Every family, `larry init`'s and larry.config.ts's as much as the ESLint preset's. */
+export const FAMILIES = ['api', 'base', 'electron', 'fullstack', 'library', 'spa', 'tauri'] as const;
+
+/** What a base project must name in `larry({ paths })`. */
+export const BASE_REQUIRED = ['source', 'tests', 'browser', 'node'] as const satisfies (keyof BasePaths)[];
 
 const LAYOUTS: { [TPreset in SinglePackagePreset]: (given: LayoutOverrides) => FamilyLayouts[TPreset] } = {
     electron: (given): ElectronLayout => {
@@ -293,14 +288,6 @@ const PATHS: { [TPreset in SinglePackagePreset]: (layout: FamilyLayouts[TPreset]
     }),
 };
 
-/** The four the family started with. A project overrides any role with `larry({ workspaces })`. */
-export const FULLSTACK_WORKSPACES: FullstackWorkspaces = {
-    frontend: 'frontend',
-    api: 'api',
-    services: ['worker'],
-    shared: ['packages/shared'],
-};
-
 /**
  * The family's roles with the project's moves applied. A role the family does not have
  * throws, so a misspelt or misplaced one cannot leave the default in place unnoticed.
@@ -322,35 +309,21 @@ export const resolveLayout = <TPreset extends SinglePackagePreset>(
     return resolve(given);
 };
 
-export const fullstackLayout = (workspaces: Partial<FullstackWorkspaces> = {}): FullstackLayout => {
-    const resolved = { ...FULLSTACK_WORKSPACES, ...workspaces };
-    const api = [nodeSource(resolved.api)];
-    const services = resolved.services.map(nodeSource);
-    const shared = resolved.shared.map(nodeSource);
-    const frontend = [`${resolved.frontend}/src/**/*.{ts,vue}`];
-    return {
-        workspaces: resolved,
-        frontend,
-        vue: [`${resolved.frontend}/src/**/*.vue`],
-        api,
-        services,
-        backend: [...api, ...services],
-        shared,
-        source: [...frontend, ...api, ...services, ...shared],
-    };
-};
+export const isFamily = (value: unknown): value is PresetName => FAMILIES.some((family) => family === value);
 
 /**
  * The preset's paths, built from its roles — the full-stack family's workspaces, or another
- * family's layout — with the project's overrides applied.
+ * family's layout — with the project's overrides applied. The base family has no roles, so
+ * its paths are the overrides, which must name each of BASE_REQUIRED.
  */
 export const resolvePaths = (
     preset: PresetName,
     overrides: Partial<PresetPaths> = {},
     roles: RoleOverrides = {},
 ): PresetPaths => {
-    if (!Object.hasOwn(PRESETS, preset))
-        throw new Error(`Unknown preset '${preset}'. Expected one of: ${Object.keys(PRESETS).join(', ')}.`);
+    if (!isFamily(preset))
+        throw new Error(`Unknown preset '${String(preset)}'. Expected one of: ${FAMILIES.join(', ')}.`);
+    if (preset === 'base') return basePaths(overrides, roles);
     const base = preset === 'fullstack' ? fullstackPaths(fullstackLayout(roles)) : singlePackagePaths(preset, roles);
     return { ...base, ...overrides };
 };
@@ -366,7 +339,30 @@ const singlePackagePaths = (preset: SinglePackagePreset, given: LayoutOverrides)
 const pathsFor = <TPreset extends SinglePackagePreset>(preset: TPreset, layout: FamilyLayouts[TPreset]): PresetPaths =>
     PATHS[preset](layout);
 
-const nodeSource = (dir: string): string => `${dir}/src/**/*.ts`;
+const basePaths = (given: Partial<PresetPaths>, roles: RoleOverrides): PresetPaths => {
+    if (Object.keys(roles).length > 0)
+        throw new Error('The base preset has no roles to move: name its globs in larry({ paths }).');
+    const missing = BASE_REQUIRED.filter((area) => given[area] === undefined);
+    if (missing.length > 0) {
+        throw new Error(
+            `The base preset has no layout of its own, so larry({ paths }) must name ${BASE_REQUIRED.join(', ')}. Missing: ${missing.join(', ')}. An area with no files takes [].`,
+        );
+    }
+    const { source = [], tests = [] } = given;
+    return {
+        source,
+        typedSource: [...source, ...tests],
+        tests,
+        namingIgnores: [],
+        browser: [],
+        node: [],
+        nodeAndBrowser: [],
+        vue: [],
+        ignores: ['**/dist/', '**/node_modules/', '**/.venv/', 'coverage/'],
+        configFiles: ['eslint/**/*.js', 'eslint.config.js'],
+        ...given,
+    };
+};
 
 const fullstackPaths = (layout: FullstackLayout): PresetPaths => ({
     source: [...layout.source, 'e2e/**/*.ts', 'scripts/**/*.ts'],
@@ -384,8 +380,8 @@ const fullstackPaths = (layout: FullstackLayout): PresetPaths => ({
     configFiles: ['eslint/**/*.js', 'eslint.config.js'],
 });
 
-/** Each preset's paths with its roles at their defaults. */
-export const PRESETS: Record<PresetName, PresetPaths> = {
+/** Each preset's paths with its roles at their defaults. The base preset has none. */
+export const PRESETS: Record<LaidOutPreset, PresetPaths> = {
     api: PATHS.api(LAYOUTS.api({})),
     electron: PATHS.electron(LAYOUTS.electron({})),
     fullstack: fullstackPaths(fullstackLayout()),

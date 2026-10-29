@@ -2,7 +2,7 @@
  * `larry({ workspaces })`: the full-stack rules follow a workspace's role, not its folder
  * name, and the roles are held to package.json. What is worth testing is that a workspace
  * added to a role gets every rule the role has — the gap this closed was a fifth backend
- * that got the base rules and none of the service ones — and that forgetting to add it
+ * that got the shared rules and none of the service ones — and that forgetting to add it
  * fails loudly instead of linting less.
  */
 import { test } from 'node:test';

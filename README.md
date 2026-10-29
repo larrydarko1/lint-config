@@ -3,7 +3,8 @@
 Formatting, linting, commit rules and CI quality gates for my projects, kept in one package so a
 rule is changed once and every project picks it up on its next update.
 
-It is opinionated and built for six kinds of project:
+It is opinionated and built for six kinds of project, with a seventh family for code that is none
+of them:
 
 - **fullstack**: a Vue frontend and an Express API as npm workspaces, with a worker, a database
   and a websocket gateway.
@@ -12,6 +13,8 @@ It is opinionated and built for six kinds of project:
 - **library**: a TypeScript package published to npm, tested with `node --test`. This package is one.
 - **spa**: a Vue app built by Vite, in one package, with no server of its own.
 - **tauri**: a Vue app in a Tauri webview, with a Rust side.
+- **base**: anything else. It assumes no layout, and holds only the rules and gates that fit any
+  TypeScript project.
 
 You are welcome to use it, but expect the defaults to be mine. Every setting that varies between
 projects is an option, and everything else is fixed.
@@ -56,6 +59,9 @@ npm install                                # `prepare` installs the git hooks
 npx larry doctor                           # checks the install
 ```
 
+The base family also needs `--runtime node`, `browser` or `both`, since nothing in the repository
+says where its source runs: `npx larry init base --distribution open --runtime node`.
+
 `larry init` writes what the sections below describe: each tool's config file, the git hooks,
 `larry.config.ts`, a CI workflow that `pipeline` accepts, `.jscpd.json`, `.prettierignore` and a
 `.gitignore`. It adds the `prepare`, `lint`, `format:check`, `check` and `ci:check` scripts, and
@@ -68,7 +74,9 @@ fills in what is missing, and it is safe in a project that is partly set up. It 
 `larry.config.ts` starts with `code-style`, `duplication` and `licenses` filled in from the folders
 that exist. A gate whose required options name the project's own files, such as `i18n`'s locale
 folder or `testing`'s layout, is skipped with what it needs as the reason, so `larry check` prints
-it on every run until it is set up. A library has none of those, an app with a UI has five, and a full-stack app has eleven.
+it on every run until it is set up. A library or a base project has none of those, an app with a UI has five, and a full-stack app has eleven.
+The base family has no folders to assume, so `eslint.config.js` names the ones init found, and
+init says to add the rest.
 
 `larry doctor` checks what goes wrong before any gate can run, and changes nothing:
 
@@ -84,6 +92,8 @@ it on every run until it is set up. A library has none of those, an app with a U
   none of the tools itself.
 - `prepare` runs husky, both hooks exist, and git runs them.
 - Each tool has its config file, under any name the tool reads.
+- On the base family, whether `package.json` looks like a kind of project another family is for.
+  That is a note, which fails nothing.
 
 It exits 1 when anything is wrong, with what to do under each problem.
 
@@ -187,7 +197,7 @@ import { larry } from '@larrydarko/lint-config/eslint';
 import { electronStandards } from '@larrydarko/lint-config/eslint/electron';
 
 export default larry({
-    preset: 'electron', // or 'api', 'fullstack', 'library', 'spa' or 'tauri'
+    preset: 'electron', // or 'api', 'base', 'fullstack', 'library', 'spa' or 'tauri'
     rootDir: import.meta.dirname,
     standards: electronStandards(),
     overrides: [/* this project's own blocks */],
@@ -204,8 +214,8 @@ export default larry({
 
 `preset` chooses a family's folder layout, and `layout` (or `workspaces`, in the full-stack
 family) moves any of its roles (see below).
-`paths` overrides one area of the base config on its own. The family
-modules (`/eslint/api`, `/eslint/electron`, `/eslint/fullstack`, `/eslint/library`, `/eslint/spa` and `/eslint/tauri`) export the standards blocks.
+`paths` overrides one area of the shared config on its own. The family
+modules (`/eslint/api`, `/eslint/base`, `/eslint/electron`, `/eslint/fullstack`, `/eslint/library`, `/eslint/spa` and `/eslint/tauri`) export the standards blocks.
 They also export the selectors, banned-import lists and rule plugins those blocks are built from,
 so the project's own per-folder blocks can reuse them in `overrides`.
 
@@ -350,6 +360,46 @@ export default larry({
 });
 ```
 
+**The base family is for code no family describes.** Each family assumes a kind of project: its
+layout, where it runs, its logger, its test runner. A project of a known kind laid out differently
+moves its roles with `layout` (see below). A project of a kind none of the families is for, such as
+a VS Code extension or a coding exercise, takes the base family, which assumes nothing, and says
+where its code is:
+
+```js
+// eslint.config.js
+import { larry } from '@larrydarko/lint-config/eslint';
+import { baseStandards } from '@larrydarko/lint-config/eslint/base';
+
+export default larry({
+    preset: 'base',
+    rootDir: import.meta.dirname,
+    paths: {
+        source: ['src/**/*.ts', 'scripts/**/*.ts'],
+        tests: ['test/**/*.ts'],
+        browser: [],
+        node: ['src/**/*.ts', 'scripts/**/*.ts', 'test/**/*.ts'],
+    },
+    standards: baseStandards(),
+});
+```
+
+`source`, `tests`, `browser` and `node` are required, with `[]` for an area that has no files. The
+rest have defaults: `typedSource` is the source and the tests, and `ignores` covers `dist/`,
+`node_modules/`, `coverage/` and Python virtualenvs. `larry()` holds each glob to the folder it
+starts in, or the file it names, so a misspelt folder fails the config instead of linting nothing.
+A glob that starts with a wildcard, such as `**/*.test.ts`, could match anywhere and is not
+checked. `vue` defaults to `false`, and `layout` and `workspaces` are refused, since the family has
+no roles to move.
+
+`baseStandards()` applies only the shared standards that hold for any TypeScript: the crypto and
+`eval` bans, explicit module boundaries, no default exports, and the refactoring limits. It says
+nothing about logging, `process.env`, a test runner or an architecture, because those are what
+differ between kinds of project. The project adds its own in `overrides`, and `/eslint/base`
+re-exports the family-neutral selectors and the function-contracts plugin for that. Its options are
+`defaultExportAllowed`, `security.vHtmlAllowed` and `refactoring.markerFiles`. The family runs the
+gates every family runs and no others (see [CI gates](#ci-gates)).
+
 **No `any`, no unchecked casts, tests included.** `no-explicit-any`, the `no-unsafe-*` family and
 `no-unsafe-type-assertion` are errors in every typed file. A cast that narrows (`as never`, `as unknown as T`,
 `event.target as HTMLInputElement`) labels a value with a type nothing checked; in a test, that is how a fake
@@ -408,10 +458,10 @@ export default larry({
 `larry()` builds the preset's paths and the standards from the same `workspaces`, and holds them
 to `package.json`. A workspace with a `src/` and no role fails the config, and so does a role
 naming a folder with no `src/`. So adding a workspace without giving it a role is an error, not a
-workspace that silently gets only the base rules. `fullstackLayout(workspaces)` returns each
+workspace that silently gets only the shared rules. `fullstackLayout(workspaces)` returns each
 role's globs for the project's own blocks in `overrides`.
 
-**A family's folders are roles.** Every other family is written against roles too, in one package: the Electron main process, the
+**A family's folders are roles.** Every other family but base is written against roles too, in one package: the Electron main process, the
 Tauri bridge, the API's config module. Each role has a default, and a role left out defaults from
 the one it sits in, so moving `src` moves everything under it that is not named on its own. A
 project laid out differently names its roles once, and the preset's paths and the family's
@@ -453,20 +503,20 @@ their messages.
 default taken from inside this package would point at the package, and every type-aware rule would
 quietly find no tsconfig.
 
-| Option             | Default      | What it is for                                                           |
-| ------------------ | ------------ | ------------------------------------------------------------------------ |
-| `preset`           | —            | `'api'`, `'electron'`, `'fullstack'`, `'library'`, `'spa'` or `'tauri'`  |
-| `rootDir`          | —            | the project root; **required**                                           |
-| `workspaces`       | the four     | full-stack only: which workspace plays which role                        |
-| `layout`           | the family's | every other family: where each role lives                                |
-| `paths`            | the preset's | override `source`, `tests`, `browser`, `node`, `ignores`, …              |
-| `vue`              | `true`       | load the Vue plugin and parse `.vue` files; `false` for `api`, `library` |
-| `importExtensions` | `false`      | enforce import specifiers; `{ nodeRun }` for folders Node runs directly  |
-| `testProject`      | none         | a dedicated tsconfig for tests, such as `./tsconfig.test.json`           |
-| `testRules`        | `{}`         | extra relaxations for tests                                              |
-| `rules`            | `{}`         | extra rules on typed source                                              |
-| `standards`        | `[]`         | the family's standards blocks                                            |
-| `overrides`        | `[]`         | the project's own blocks, appended last before Prettier                  |
+| Option             | Default      | What it is for                                                                        |
+| ------------------ | ------------ | ------------------------------------------------------------------------------------- |
+| `preset`           | —            | `'api'`, `'base'`, `'electron'`, `'fullstack'`, `'library'`, `'spa'` or `'tauri'`     |
+| `rootDir`          | —            | the project root; **required**                                                        |
+| `workspaces`       | the four     | full-stack only: which workspace plays which role                                     |
+| `layout`           | the family's | every family but full-stack and base: where each role lives                           |
+| `paths`            | the preset's | override `source`, `tests`, `browser`, `node`, `ignores`, …; for `base`, **required** |
+| `vue`              | `true`       | load the Vue plugin and parse `.vue` files; `false` for `api`, `base`, `library`      |
+| `importExtensions` | `false`      | enforce import specifiers; `{ nodeRun }` for folders Node runs directly               |
+| `testProject`      | none         | a dedicated tsconfig for tests, such as `./tsconfig.test.json`                        |
+| `testRules`        | `{}`         | extra relaxations for tests                                                           |
+| `rules`            | `{}`         | extra rules on typed source                                                           |
+| `standards`        | `[]`         | the family's standards blocks                                                         |
+| `overrides`        | `[]`         | the project's own blocks, appended last before Prettier                               |
 
 Order matters. In flat config the last matching block wins, and a block with no `files` matches
 everything. That is why the catch-all block comes first and the test relaxations come after the
@@ -554,7 +604,7 @@ larry check dead-code --all    # knip's whole report, every category, instead of
 
 `defineConfig` types each gate's options from the gate itself, so the editor lists them, a gate
 the family does not run is an error, and a gate with a required option cannot be left out. Which
-gates those are depends on the family: a library's are the three above, and an app's add the ones
+gates those are depends on the family: a library's and a base project's are the three above, and an app's add the ones
 that need its folders or its theme, such as `testing`, `i18n` and `contrast`. The editor names
 each missing one. Node strips the types from `larry.config.ts` when it loads it,
 so the file must use only syntax that can be erased: no `enum` and no `namespace`. A
@@ -580,39 +630,39 @@ gate also exports an `inspect*` function that returns the failures instead of pr
 use in tests. Most gates run with no options. Options exist for things only the project knows:
 its source roots, its services, and exceptions it has approved, each with a stated reason.
 
-| Gate                       | Family          | Checks                                                                             |
-| -------------------------- | --------------- | ---------------------------------------------------------------------------------- |
-| `audit`                    | all             | `npm audit`, with a reviewed allowlist that expires                                |
-| `code-style`               | all             | file names, file length, SFC block order, stale size baselines; Rust headers       |
-| `contrast`                 | all with a UI   | every text token clears AA on every background, in every theme; no dimmed text     |
-| `dead-code`                | all             | unused code and dependencies, undeclared imports, import cycles (knip)             |
-| `declaration-order`        | all             | the order of imports, types, constants and functions; Rust items and `use`s        |
-| `duplication`              | all             | copy-paste ceilings and a clone-size cap (jscpd); no icon drawn twice              |
-| `html-standards`           | all with a UI   | `index.html`: shell, CSP, entry module, remote resources, reduced motion           |
-| `i18n`                     | all with a UI   | two-letter locale files; plurals, placeholders and arrays agree; options           |
-| `licenses`                 | all             | every production dependency's licence suits an `open` or `closed` app              |
-| `package-json`             | all             | manifest fields, version ranges, and the toolchain rule below                      |
-| `pipeline`                 | all             | every gate runs in CI; timeouts, permissions, SHA-pinned actions, …                |
-| `refactoring`              | all             | no deferral markers left in code                                                   |
-| `scss-standards`           | all with a UI   | the entry, Vite injection, theme parity, self-hosted fonts                         |
-| `secrets`                  | all             | no keys, tokens, env files or keystores in anything git would commit               |
-| `testing`                  | all but library | suite layout, `.only`/`.skip`, coverage ratchet, E2E server-error wiring           |
-| `tsconfigs`                | all             | compiler flags stay at the standard                                                |
-| `electron-security`        | electron        | `webPreferences`, navigation, permissions, `v-html`, TLS overrides                 |
-| `error-handling/electron`  | electron        | IPC handlers contain failures, process backstops, cleanup on quit                  |
-| `ipc-standards`            | electron        | channels, docs and preload agree; the renderer uses every bridge member            |
-| `tauri-security`           | tauri           | CSP, security flags, the capability list, one capability per window, grants        |
-| `tauri-commands`           | tauri           | commands, `build.rs`, grants, `invoke`s, events and error codes agree              |
-| `error-handling/tauri`     | tauri           | failing commands log once, a panic hook, Rust and webview swallows have reasons    |
-| `publish`                  | library         | the packed tarball installs: no TS source, every entry point loads and type-checks |
-| `api-standards`            | api, fullstack  | route map, middleware order, rate limits, response schemas, the contract           |
-| `db-drift`                 | api, fullstack  | collection registry, indexes, migrations, drain order, ops scripts                 |
-| `docker`                   | api, fullstack  | image rules that need no Docker daemon, including no secrets in layers             |
-| `env-drift`                | api, fullstack  | the env schema and `.env.example` files agree; secrets have no default             |
-| `error-handling/fullstack` | api, fullstack  | the status policy, error codes and their translations                              |
-| `metrics`                  | api, fullstack  | scrape config, probes, metric cardinality                                          |
-| `security-drift`           | api, fullstack  | security controls whose failure is silent                                          |
-| `ws-standards`             | api, fullstack  | one socket server, one client, and the handshake order                             |
+| Gate                       | Family                   | Checks                                                                             |
+| -------------------------- | ------------------------ | ---------------------------------------------------------------------------------- |
+| `audit`                    | all                      | `npm audit`, with a reviewed allowlist that expires                                |
+| `code-style`               | all                      | file names, file length, SFC block order, stale size baselines; Rust headers       |
+| `contrast`                 | all with a UI            | every text token clears AA on every background, in every theme; no dimmed text     |
+| `dead-code`                | all                      | unused code and dependencies, undeclared imports, import cycles (knip)             |
+| `declaration-order`        | all                      | the order of imports, types, constants and functions; Rust items and `use`s        |
+| `duplication`              | all                      | copy-paste ceilings and a clone-size cap (jscpd); no icon drawn twice              |
+| `html-standards`           | all with a UI            | `index.html`: shell, CSP, entry module, remote resources, reduced motion           |
+| `i18n`                     | all with a UI            | two-letter locale files; plurals, placeholders and arrays agree; options           |
+| `licenses`                 | all                      | every production dependency's licence suits an `open` or `closed` app              |
+| `package-json`             | all                      | manifest fields, version ranges, and the toolchain rule below                      |
+| `pipeline`                 | all                      | every gate runs in CI; timeouts, permissions, SHA-pinned actions, …                |
+| `refactoring`              | all                      | no deferral markers left in code                                                   |
+| `scss-standards`           | all with a UI            | the entry, Vite injection, theme parity, self-hosted fonts                         |
+| `secrets`                  | all                      | no keys, tokens, env files or keystores in anything git would commit               |
+| `testing`                  | all but base and library | suite layout, `.only`/`.skip`, coverage ratchet, E2E server-error wiring           |
+| `tsconfigs`                | all                      | compiler flags stay at the standard                                                |
+| `electron-security`        | electron                 | `webPreferences`, navigation, permissions, `v-html`, TLS overrides                 |
+| `error-handling/electron`  | electron                 | IPC handlers contain failures, process backstops, cleanup on quit                  |
+| `ipc-standards`            | electron                 | channels, docs and preload agree; the renderer uses every bridge member            |
+| `tauri-security`           | tauri                    | CSP, security flags, the capability list, one capability per window, grants        |
+| `tauri-commands`           | tauri                    | commands, `build.rs`, grants, `invoke`s, events and error codes agree              |
+| `error-handling/tauri`     | tauri                    | failing commands log once, a panic hook, Rust and webview swallows have reasons    |
+| `publish`                  | library                  | the packed tarball installs: no TS source, every entry point loads and type-checks |
+| `api-standards`            | api, fullstack           | route map, middleware order, rate limits, response schemas, the contract           |
+| `db-drift`                 | api, fullstack           | collection registry, indexes, migrations, drain order, ops scripts                 |
+| `docker`                   | api, fullstack           | image rules that need no Docker daemon, including no secrets in layers             |
+| `env-drift`                | api, fullstack           | the env schema and `.env.example` files agree; secrets have no default             |
+| `error-handling/fullstack` | api, fullstack           | the status policy, error codes and their translations                              |
+| `metrics`                  | api, fullstack           | scrape config, probes, metric cardinality                                          |
+| `security-drift`           | api, fullstack           | security controls whose failure is silent                                          |
+| `ws-standards`             | api, fullstack           | one socket server, one client, and the handshake order                             |
 
 `contrast` takes the same `themes` object as `scss-standards`, so both read the palettes from one
 description. It measures `text` tokens against `backgrounds` tokens in every palette, and with
