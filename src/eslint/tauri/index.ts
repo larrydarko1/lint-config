@@ -6,10 +6,11 @@
  * Clippy's and the gates'. The selectors a project composes into its own
  * `no-restricted-syntax` blocks are re-exported individually below.
  */
-import { PRESETS } from '../presets.ts';
+import { familyStandards, type FamilyStandards } from '../family.ts';
+import type { TauriLayout } from '../presets.ts';
 import { envStandards } from '../rules/env.ts';
 import { htmlStandards, type HtmlOptions } from '../rules/html.ts';
-import { i18nStandards, type I18nOptions } from '../rules/i18n.ts';
+import { i18nStandards, readsLocalesRole, type I18nOptions } from '../rules/i18n.ts';
 import { refactoringStandards, type RefactoringOptions } from '../rules/refactoring.ts';
 import { securityStandards, type SecurityOptions } from '../rules/security.ts';
 import { testingStandards } from '../rules/testing.ts';
@@ -37,39 +38,44 @@ export type TauriStandardsOptions = {
     /** See rules/i18n.ts. Pass `false` for a single-language app. */
     i18n?: I18nOptions | false;
 };
-/** The webview's own code: what ships. */
-const SOURCE = ['src/**/*.{ts,vue}'];
-/** The only code that imports `@tauri-apps/*`. */
-const BRIDGE = ['src/bridge/**/*.ts'];
-
-/** The components, and everything that runs in the webview. */
-const { vue, browser: webview, tests: TESTS } = PRESETS.tauri;
-
-export function tauriStandards(options: TauriStandardsOptions = {}) {
+export function tauriStandards(options: TauriStandardsOptions = {}): FamilyStandards<'tauri'> {
     const { security, html, refactoring, i18n } = options;
+    const roles: (keyof TauriLayout)[] = ['src', 'bridge'];
 
-    return [
-        ...securityStandards({ code: SOURCE, vue }, security),
-        { files: webview, ignores: BRIDGE, rules: { 'larry/no-tauri-outside-bridge': 'error' } },
-        // A rejection from Rust or a plugin is English that can name a path on the user's disk.
-        { files: BRIDGE, rules: { 'larry/no-caught-message-leak': 'error' } },
-        ...loggingStandards(SOURCE, TESTS),
-        ...typescriptStandards({ source: SOURCE, code: [...SOURCE, ...TESTS], defaultExportAllowed: [] }),
-        ...envStandards([...TESTS, 'scripts/**/*.ts', '*.config.{js,ts}']),
-        ...(i18n === false
-            ? []
-            : i18nStandards({ vue, frontend: webview, localeFiles: 'src/i18n/locales/*.json', usageSrc: 'src' }, i18n)),
-        ...vueStandards({ vue, frontend: webview }),
-        ...htmlStandards({ vue, globalStylesheet: [] }, html),
-        ...refactoringStandards(
-            {
-                code: [...SOURCE, ...TESTS],
-                source: SOURCE,
-                tests: TESTS,
-                markerFiles: ['eslint.config.js', 'scripts/**/*.ts'],
-            },
-            refactoring,
-        ),
-        ...testingStandards([...TESTS, '**/*.test.ts', '**/*.spec.ts']),
-    ];
+    return familyStandards('tauri', readsLocalesRole(i18n) ? [...roles, 'locales'] : roles, (layout) => {
+        /** The webview's own code: what ships, and everything that runs in the webview. */
+        const source = [`${layout.src}/**/*.{ts,vue}`];
+        const vue = [`${layout.src}/**/*.vue`];
+        /** The only code that imports `@tauri-apps/*`. */
+        const bridge = [`${layout.bridge}/**/*.ts`];
+        const tests = [`${layout.tests}/**/*.ts`, 'vitest.setup.ts'];
+
+        return [
+            ...securityStandards({ code: source, vue }, security),
+            { files: source, ignores: bridge, rules: { 'larry/no-tauri-outside-bridge': 'error' } },
+            // A rejection from Rust or a plugin is English that can name a path on the user's disk.
+            { files: bridge, rules: { 'larry/no-caught-message-leak': 'error' } },
+            ...loggingStandards(source, tests),
+            ...typescriptStandards({ source, code: [...source, ...tests], defaultExportAllowed: [] }),
+            ...envStandards([...tests, 'scripts/**/*.ts', '*.config.{js,ts}']),
+            ...(i18n === false
+                ? []
+                : i18nStandards(
+                      { vue, frontend: source, localeFiles: `${layout.locales}/*.json`, usageSrc: layout.src },
+                      i18n,
+                  )),
+            ...vueStandards({ vue, frontend: source }),
+            ...htmlStandards({ vue, globalStylesheet: [] }, html),
+            ...refactoringStandards(
+                {
+                    code: [...source, ...tests],
+                    source,
+                    tests,
+                    markerFiles: ['eslint.config.js', 'scripts/**/*.ts'],
+                },
+                refactoring,
+            ),
+            ...testingStandards([...tests, '**/*.test.ts', '**/*.spec.ts']),
+        ];
+    });
 }

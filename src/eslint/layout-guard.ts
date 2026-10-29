@@ -1,13 +1,40 @@
 /**
- * Holds `larry({ workspaces })` to the repository it lints. The roles are written by
- * hand, so without this a workspace added to package.json would get the base rules and
- * none of its role's — no `no-console`, no ODM ban, no security rules — and nothing
- * would say so. Mosaic's ingestor went a whole migration like that.
+ * Holds a family's roles to the repository it lints. The rules for a role reach only
+ * the files under its path, so a role pointing at nothing lints nothing, and nothing
+ * would say so: a workspace added to package.json without a role gets the base rules
+ * and none of its role's, and a project laid out unlike its family's defaults gets
+ * none of the family's. Mosaic's ingestor went a whole migration like that.
+ *
+ * A folder with no package.json beside it is not a project, so there is nothing to
+ * hold the roles to and both guards stay out of the way.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import type { FullstackWorkspaces } from './presets.ts';
+import type { FullstackWorkspaces, SinglePackagePreset } from './presets.ts';
+
+/**
+ * Throws when a role the family's standards read, or one the project named in
+ * `larry({ layout })`, has no file or folder at its path.
+ */
+export const assertLayoutExists = (
+    rootDir: string,
+    preset: SinglePackagePreset,
+    layout: Record<string, string>,
+    roles: { read: string[]; named: string[] },
+): void => {
+    if (!existsSync(path.join(rootDir, 'package.json'))) return;
+
+    const problems = [...new Set([...roles.named, ...roles.read])]
+        .filter((role) => !existsSync(path.join(rootDir, layout[role] ?? '')))
+        .map((role) =>
+            roles.named.includes(role)
+                ? `larry({ layout }) puts '${role}' at '${layout[role]}', which does not exist.`
+                : `The ${preset} preset looks for '${role}' at '${layout[role]}', which does not exist, so its rules would lint nothing. Point it at the real one with larry({ layout: { ${role}: '…' } }).`,
+        );
+
+    if (problems.length > 0) throw new Error(`Layout out of date:\n  - ${problems.join('\n  - ')}`);
+};
 
 /**
  * Throws when a workspace with a `src/` has no role, or a role names a folder with no `src/`.

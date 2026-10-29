@@ -13,19 +13,21 @@ import vuePlugin from 'eslint-plugin-vue';
 import globals from 'globals';
 import ts from 'typescript-eslint';
 
+import { buildStandards, type AnyFamilyStandards } from './family.ts';
+import { assertLayoutExists, assertWorkspacesCovered } from './layout-guard.ts';
 import {
     fullstackLayout,
+    resolveLayout,
     resolvePaths,
-    type FullstackLayout,
     type FullstackWorkspaces,
+    type LayoutOverrides,
     type PresetName,
     type PresetPaths,
 } from './presets.ts';
 import { larryPlugin } from './rules/larry-plugin.ts';
 import { NAMING_CONVENTION } from './rules/naming.ts';
-import { assertWorkspacesCovered } from './workspace-guard.ts';
 
-export { PRESETS, FULLSTACK_WORKSPACES, fullstackLayout, resolvePaths } from './presets.ts';
+export { PRESETS, FULLSTACK_WORKSPACES, fullstackLayout, resolveLayout, resolvePaths } from './presets.ts';
 export { NAMING_CONVENTION } from './rules/naming.ts';
 
 export type LarryOptions = {
@@ -39,7 +41,13 @@ export type LarryOptions = {
      * to package.json's `workspaces` — one with a `src/` and no role fails the config.
      */
     workspaces?: Partial<FullstackWorkspaces>;
-    /** Override any path set from the preset. See presets.ts. */
+    /**
+     * Every family but full-stack: where each of its roles lives, merged over the family's
+     * layout. The preset's paths and the family's standards are both built from it, and a
+     * role the standards read, or one named here, must exist. See presets.ts for the roles.
+     */
+    layout?: LayoutOverrides;
+    /** Override any path set from the preset's roles, for the base config only. See presets.ts. */
     paths?: Partial<PresetPaths>;
     /** Load the Vue plugin and parse `.vue` files. Defaults to true, and to false for the `api` and `library` presets, which have no components. */
     vue?: boolean;
@@ -51,8 +59,8 @@ export type LarryOptions = {
     testRules?: Linter.RulesRecord;
     /** Extra rules for all source files, merged last. */
     rules?: Linter.RulesRecord;
-    /** Standards blocks (security, logging, …) to splice in: `apiStandards()`, `electronStandards()`, `fullstackStandards()`, `libraryStandards()`, `spaStandards()` or `tauriStandards()`. */
-    standards?: Linter.Config[] | ((layout: FullstackLayout) => Linter.Config[]);
+    /** The family's standards (security, logging, …): `apiStandards()`, `electronStandards()`, `fullstackStandards()`, `libraryStandards()`, `spaStandards()` or `tauriStandards()`. Plain blocks are spliced in as they are. */
+    standards?: Linter.Config[] | AnyFamilyStandards;
     /** The project's own blocks — the per-area `no-restricted-syntax`/`no-restricted-imports` wiring. Appended last, before Prettier. */
     overrides?: Linter.Config[];
 };
@@ -92,6 +100,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
         preset,
         rootDir,
         workspaces = {},
+        layout = {},
         paths: pathOverrides = {},
         vue: useVue = preset !== 'api' && preset !== 'library',
         importExtensions = false,
@@ -104,14 +113,24 @@ export function larry(options: LarryOptions): Linter.Config[] {
 
     if (preset !== 'fullstack' && Object.keys(workspaces).length)
         throw new Error(`larry({ workspaces }) is for the full-stack preset; '${preset}' has no workspaces.`);
-    if (preset !== 'fullstack' && typeof standards === 'function')
-        throw new Error(`fullstackStandards() needs preset: 'fullstack', not '${preset}'.`);
+    if (preset === 'fullstack' && Object.keys(layout).length > 0)
+        throw new Error(
+            "larry({ layout }) is for the single-package presets; the full-stack preset's roles are `workspaces`.",
+        );
+    if (typeof standards === 'function' && standards.family !== preset)
+        throw new Error(`${standards.family}Standards() needs preset: '${standards.family}', not '${preset}'.`);
 
-    const layout = fullstackLayout(workspaces);
-    if (preset === 'fullstack') assertWorkspacesCovered(rootDir, layout.workspaces);
+    // First, so an unknown preset or role is reported before the guard reads the disk for it.
+    const paths = resolvePaths(preset, pathOverrides, { ...workspaces, ...layout });
 
-    const paths = resolvePaths(preset, pathOverrides, workspaces);
-    const standardBlocks = typeof standards === 'function' ? standards(layout) : standards;
+    if (preset === 'fullstack') assertWorkspacesCovered(rootDir, fullstackLayout(workspaces).workspaces);
+    else
+        assertLayoutExists(rootDir, preset, resolveLayout(preset, layout), {
+            read: typeof standards === 'function' ? standards.roles : [],
+            named: Object.keys(layout),
+        });
+
+    const standardBlocks = typeof standards === 'function' ? buildStandards(standards, workspaces, layout) : standards;
 
     // Type-aware presets only reach files a tsconfig covers — locale JSON and config files are not.
     const typedOnly = (blocks: Linter.Config[]): Linter.Config[] =>

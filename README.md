@@ -202,7 +202,9 @@ export default larry({
 - naming, return types and test relaxations
 - Prettier compatibility, applied last
 
-`preset` chooses a family's folder layout, and `paths` overrides any part of it. The family
+`preset` chooses a family's folder layout, and `layout` (or `workspaces`, in the full-stack
+family) moves any of its roles (see below).
+`paths` overrides one area of the base config on its own. The family
 modules (`/eslint/api`, `/eslint/electron`, `/eslint/fullstack`, `/eslint/library`, `/eslint/spa` and `/eslint/tauri`) export the standards blocks.
 They also export the selectors, banned-import lists and rule plugins those blocks are built from,
 so the project's own per-folder blocks can reuse them in `overrides`.
@@ -409,6 +411,44 @@ naming a folder with no `src/`. So adding a workspace without giving it a role i
 workspace that silently gets only the base rules. `fullstackLayout(workspaces)` returns each
 role's globs for the project's own blocks in `overrides`.
 
+**A family's folders are roles.** Every other family is written against roles too, in one package: the Electron main process, the
+Tauri bridge, the API's config module. Each role has a default, and a role left out defaults from
+the one it sits in, so moving `src` moves everything under it that is not named on its own. A
+project laid out differently names its roles once, and the preset's paths and the family's
+standards both follow:
+
+```js
+export default larry({
+    preset: 'electron',
+    rootDir: import.meta.dirname,
+    // main, preload and renderer follow to app/main, app/preload and app/renderer.
+    layout: { src: 'app', tests: 'spec' },
+    standards: electronStandards(),
+});
+```
+
+| Family     | Roles, with their defaults                                                                                                                                                                                                                                                                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `electron` | `src` (`src`), `main` (`<src>/main`), `preload` (`<src>/preload`), `renderer` (`<src>/renderer`), `tests` (`tests`), `locales` (`assets/locales`)                                                                                                                                                                                                      |
+| `spa`      | `src` (`src`), `locales` (`<src>/i18n/locales`)                                                                                                                                                                                                                                                                                                        |
+| `tauri`    | `src` (`src`), `bridge` (`<src>/bridge`), `tests` (`tests`), `locales` (`<src>/i18n/locales`)                                                                                                                                                                                                                                                          |
+| `api`      | `src` (`src`), `routes` (`<src>/routes`), `gateway` (`<src>/gateway`), `lib` (`<src>/lib`), `config` (`<lib>/config.ts`), `dbModule` (`<lib>/db.ts`), `errorHandler` (`<src>/middleware/error-handler.ts`), `appError` (`<lib>/app-error.ts`), `indexManifest` (`<src>/db/indexes.ts`), `documentTypes` (`<src>/db/collections.ts`), `database` (`db`) |
+| `library`  | `src` (`src`), `tests` (`test`)                                                                                                                                                                                                                                                                                                                        |
+
+`larry()` holds the roles to the repository, as it does the full-stack workspaces. A role the
+standards read must exist, and so must any role the project names; otherwise the config fails and
+says which `layout` key to set, instead of the family's rules quietly matching no file. The
+standards read only what they use: `locales` only while i18n is on and `i18n.localeFiles` does not
+name the files itself, the API's `dbModule` only with `mongo` and its `gateway` only with `ws`.
+Without the family's standards, only the roles the project names are checked. A role the family does
+not have, such as `main` in an SPA, is an error too. `resolveLayout(preset, layout)` returns the
+resolved roles, for the project's own blocks in `overrides`.
+
+What stays where it is: `scripts/`, `e2e/`, the root tool configs and the ignored build folders are
+conventions the roles do not cover, and `paths` adjusts them. The selectors and banned-import lists
+the family modules export, which the project wires into its own blocks, name the default folders in
+their messages.
+
 **`rootDir` is required.** It becomes `tsconfigRootDir` and must be the project's directory. A
 default taken from inside this package would point at the package, and every type-aware rule would
 quietly find no tsconfig.
@@ -418,6 +458,7 @@ quietly find no tsconfig.
 | `preset`           | —            | `'api'`, `'electron'`, `'fullstack'`, `'library'`, `'spa'` or `'tauri'`  |
 | `rootDir`          | —            | the project root; **required**                                           |
 | `workspaces`       | the four     | full-stack only: which workspace plays which role                        |
+| `layout`           | the family's | every other family: where each role lives                                |
 | `paths`            | the preset's | override `source`, `tests`, `browser`, `node`, `ignores`, …              |
 | `vue`              | `true`       | load the Vue plugin and parse `.vue` files; `false` for `api`, `library` |
 | `importExtensions` | `false`      | enforce import specifiers; `{ nodeRun }` for folders Node runs directly  |

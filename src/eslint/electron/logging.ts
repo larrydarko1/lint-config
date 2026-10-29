@@ -1,11 +1,6 @@
-const LOG_METHODS = '/^(trace|debug|info|warn|error|verbose|silly)$/';
+import type { Linter } from 'eslint';
 
-export const loggingStandards = [
-    {
-        files: ['src/**/*.{ts,vue}'],
-        rules: { 'no-console': 'error' },
-    },
-];
+const LOG_METHODS = '/^(trace|debug|info|warn|error|verbose|silly)$/';
 
 export const loggerCallSelectors = [
     {
@@ -17,5 +12,12 @@ export const loggerCallSelectors = [
         selector: `CallExpression[callee.property.name=${LOG_METHODS}] Property[key.name='err'] > MemberExpression[property.name='message']`,
         message:
             'Log the whole error, not `err.message` — the stack and the error’s own fields (an fs error’s `code`, a node-llama-cpp error’s cause) are the part that tells you what happened.',
+    },
+];
+
+export const loggingStandards = (source: string[]): Linter.Config[] => [
+    {
+        files: source,
+        rules: { 'no-console': 'error' },
     },
 ];

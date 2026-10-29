@@ -9,21 +9,10 @@
   },
   "src/eslint/api/index.ts": {
     "@typescript-eslint/explicit-function-return-type": {
-      "count": 2
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
       "count": 1
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 2
-    }
-  },
-  "src/eslint/electron/index.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
     }
   },
   "src/eslint/fullstack/api.ts": {
@@ -50,14 +39,6 @@
       "count": 1
     }
   },
-  "src/eslint/fullstack/index.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-type-assertion": {
-      "count": 1
-    }
-  },
   "src/eslint/fullstack/logging.ts": {
     "@typescript-eslint/explicit-function-return-type": {
       "count": 1
@@ -80,21 +61,15 @@
       "count": 8
     }
   },
-  "src/eslint/library/index.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
+  "src/eslint/layout-guard.ts": {
+    "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 1
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
     }
   },
-  "src/eslint/presets.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
+  "src/eslint/library/index.ts": {
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
     }
@@ -230,21 +205,7 @@
     }
   },
   "src/eslint/spa/index.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    },
     "@typescript-eslint/strict-boolean-expressions": {
-      "count": 1
-    }
-  },
-  "src/eslint/tauri/index.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
       "count": 1
     }
   },
@@ -253,14 +214,6 @@
       "count": 1
     },
     "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    }
-  },
-  "src/eslint/workspace-guard.ts": {
-    "@typescript-eslint/no-unsafe-type-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
     }
   },

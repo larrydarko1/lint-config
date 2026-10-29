@@ -1,3 +1,5 @@
+import type { Linter } from 'eslint';
+
 export const errorHandlingSelectors = [
     {
         selector:
@@ -12,9 +14,9 @@ export const errorHandlingSelectors = [
  * IPC reply carrying `err.message` is English the window cannot translate, and it can
  * name paths on the user's disk.
  */
-export const errorHandlingStandards = [
+export const errorHandlingStandards = (mainAndPreload: string[]): Linter.Config[] => [
     {
-        files: ['src/main/**/*.ts', 'src/preload/**/*.ts'],
+        files: mainAndPreload,
         rules: { 'larry/no-caught-message-leak': 'error' },
     },
 ];

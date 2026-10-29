@@ -25,6 +25,10 @@ export type I18nOptions = {
     customLocales?: string[];
 };
 
+/** Whether the family's `locales` role is read: not with i18n off, nor when `localeFiles` names the files itself. */
+export const readsLocalesRole = (options: I18nOptions | false | undefined): boolean =>
+    options !== false && options?.localeFiles === undefined;
+
 /**
  * @param layout.vue The components.
  * @param layout.frontend Everything that runs in the Vue app, components and scripts both.

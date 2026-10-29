@@ -7,9 +7,7 @@
  * selectors a project composes into its own `no-restricted-syntax` blocks are
  * re-exported individually below.
  */
-import type { Linter } from 'eslint';
-
-import type { FullstackLayout } from '../presets.ts';
+import { familyStandards, type FamilyStandards } from '../family.ts';
 import { envStandards } from '../rules/env.ts';
 import { htmlStandards, type HtmlOptions } from '../rules/html.ts';
 import { i18nStandards, type I18nOptions } from '../rules/i18n.ts';
@@ -57,7 +55,7 @@ export type FullstackStandardsOptions = {
 };
 
 /** What `fullstackStandards()` returns: `larry()` calls it with the project's resolved workspaces. */
-export type FullstackStandards = (layout: FullstackLayout) => Linter.Config[];
+export type FullstackStandards = FamilyStandards<'fullstack'>;
 
 /** Tests live inside each workspace's `src/`, beside the code they test. */
 const TESTS = ['**/__tests__/**', '**/*.test.ts', '**/*.spec.ts'];
@@ -65,7 +63,7 @@ const TESTS = ['**/__tests__/**', '**/*.test.ts', '**/*.spec.ts'];
 export function fullstackStandards(options: FullstackStandardsOptions = {}): FullstackStandards {
     const { security, logging, html, refactoring, i18n } = options;
 
-    return (layout) => {
+    return familyStandards('fullstack', [], (layout) => {
         const { vue, frontend, source, workspaces } = layout;
         const sharedCode = workspaces.shared.map((dir) => `${dir}/**/*.ts`);
 
@@ -112,6 +110,6 @@ export function fullstackStandards(options: FullstackStandardsOptions = {}): Ful
                 refactoring,
             ),
             ...testingStandards(['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}', 'e2e/**/*.spec.ts']),
-        ] as Linter.Config[];
-    };
+        ];
+    });
 }

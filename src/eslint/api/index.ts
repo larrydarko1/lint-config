@@ -11,6 +11,7 @@
  * that area's whole list again in its own block. The selectors are re-exported
  * individually below for that.
  */
+import { familyStandards, type FamilyStandards } from '../family.ts';
 import {
     apiBannedImports,
     apiRoutesOnlySelectors,
@@ -22,7 +23,7 @@ import { dbBannedImports, mongoSelectors, scriptEnvSelectors } from '../fullstac
 import { errorHandlingSelectors } from '../fullstack/error-handling.ts';
 import { loggerCallSelectors, noDirectErrorResponse } from '../fullstack/logging.ts';
 import { wsEventNameSelectors, wsGatewayBannedImports, wsGatewaySelectors } from '../fullstack/ws.ts';
-import { PRESETS } from '../presets.ts';
+import { PRESETS, resolveLayout, type ApiLayout } from '../presets.ts';
 import { noFileURLToPath, noSingleLetterDeclaration } from '../rules/code-style.ts';
 import { configModuleSelectors, envStandards } from '../rules/env.ts';
 import { refactoringStandards, type RefactoringOptions } from '../rules/refactoring.ts';
@@ -69,120 +70,139 @@ export type ApiStandardsOptions = {
      */
     ws?: boolean;
 };
-/** The service's own code: what ships. */
-const SOURCE = ['src/**/*.ts'];
 const E2E = ['e2e/**/*.ts'];
 /** Tests sit beside the code, so every area below leaves them out. */
 const NOT_TESTS = ['**/__tests__/**', '**/*.test.ts', '**/*.spec.ts'];
-
-const CONFIG = 'src/lib/config.ts';
-const DB = 'src/lib/db.ts';
-const ERROR_HANDLER = 'src/middleware/error-handler.ts';
-const ROUTES = ['src/routes/**/*.ts'];
-const GATEWAY = ['src/gateway/**/*.ts'];
-const LIB = ['src/lib/**/*.ts'];
+const NAMED_SHAPES = 'and export it from the module that returns it, so every caller compiles against one definition';
+const DEFAULT_LAYOUT = resolveLayout('api');
 
 const { tests: TESTS } = PRESETS.api;
 
-/** The full-stack messages, pointed at this layout's files. */
+/** The full-stack messages, pointed at the default layout's files. `apiStandards()` points them at the project's. */
 export const apiSourceSelectors = httpServiceSelectors({
-    appError: 'src/lib/app-error.ts',
-    namedShapes: 'and export it from the module that returns it, so every caller compiles against one definition',
+    appError: DEFAULT_LAYOUT.appError,
+    namedShapes: NAMED_SHAPES,
 });
-const mongo = mongoSelectors({ indexManifest: 'src/db/indexes.ts', documentTypes: 'src/db/collections.ts' });
+const defaultMongo = mongoSelectors(DEFAULT_LAYOUT);
 /** Application code: the index manifest owns indexes, lib/db.ts owns the client. Named as in the full-stack family. */
-export const dbApiWorkerSelectors = mongo.application;
+export const dbApiWorkerSelectors = defaultMongo.application;
 /** src/lib/db.ts, which applies the manifest and holds the client. */
-export const dbDbTsSelectors = mongo.dbModule;
+export const dbDbTsSelectors = defaultMongo.dbModule;
 
-export function apiStandards(options: ApiStandardsOptions = {}) {
+export function apiStandards(options: ApiStandardsOptions = {}): FamilyStandards<'api'> {
     const { logging = {}, refactoring, mongo: useMongo = true, redis = true, ws = true } = options;
     const { consoleAllowed = [] } = logging;
-
-    const db = useMongo ? dbApiWorkerSelectors : [];
-    /** Every area of the service shares these; each block below adds or swaps its own. */
-    const common = [
-        ...apiSourceSelectors,
-        ...loggerCallSelectors,
-        ...errorHandlingSelectors,
-        ...tsSourceSelectors,
-        noSingleLetterDeclaration,
+    const roles: (keyof ApiLayout)[] = [
+        'src',
+        'routes',
+        'config',
+        'errorHandler',
+        ...(useMongo ? (['dbModule'] as const) : []),
+        ...(ws ? (['gateway'] as const) : []),
     ];
-    const bannedImports = [
-        ...bannedCryptoModules,
-        ...(useMongo ? dbBannedImports : []),
-        ...(redis ? apiBannedImports : proxyWorkBannedImports),
-    ];
-    const syntax = (files: string[], selectors: object[], ignores: string[] = NOT_TESTS) => ({
-        files,
-        ...(ignores.length ? { ignores } : {}),
-        rules: { 'no-restricted-syntax': ['error', ...selectors] },
-    });
 
-    return [
-        ...securityStandards({ code: SOURCE, vue: [] }),
-        { files: SOURCE, ignores: TESTS, rules: { 'no-console': 'error' } },
-        ...(consoleAllowed.length ? [{ files: consoleAllowed, rules: { 'no-console': 'off' } }] : []),
-        // A caught error's message reaches a log, never a response.
-        { files: SOURCE, ignores: TESTS, rules: { 'larry/no-caught-message-leak': 'error' } },
-        ...typescriptStandards({ source: SOURCE, code: [...SOURCE, ...E2E], defaultExportAllowed: [] }),
-        ...envStandards([CONFIG, 'src/config/env.ts', ...TESTS, 'scripts/**/*.ts', 'db/**/*.js', '*.config.{js,ts}']),
-        ...refactoringStandards(
-            { code: [...SOURCE, ...E2E], source: SOURCE, tests: TESTS, markerFiles: ['eslint.config.js'] },
-            refactoring,
-        ),
-        ...testingStandards(['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}', 'e2e/**/*.spec.ts']),
+    return familyStandards('api', roles, (layout) => {
+        /** The service's own code: what ships. */
+        const source = [`${layout.src}/**/*.ts`];
+        const routes = [`${layout.routes}/**/*.ts`];
+        const gateway = [`${layout.gateway}/**/*.ts`];
+        const mongo = mongoSelectors(layout);
 
-        // ── Restricted syntax, broadest area first ───────────────────────────
-        syntax(SOURCE, [...common, noDirectErrorResponse, ...db]),
-        syntax(ROUTES, [...common, ...apiRoutesOnlySelectors, noDirectErrorResponse, ...db]),
-        // The handler is where an error becomes a response, so it answers directly.
-        syntax([ERROR_HANDLER], [...common, ...db], []),
-        ...(useMongo ? [syntax([DB], [...common, noDirectErrorResponse, ...dbDbTsSelectors], [])] : []),
-        ...(ws
-            ? [
-                  syntax(GATEWAY, [
-                      ...wsGatewaySelectors,
-                      ...wsEventNameSelectors,
-                      ...common,
-                      noDirectErrorResponse,
-                      ...db,
-                  ]),
-              ]
-            : []),
-        syntax([CONFIG], [...configModuleSelectors, ...tsSourceSelectors, noSingleLetterDeclaration], []),
-        syntax(E2E, [...tsSourceSelectors, noSingleLetterDeclaration, noFileURLToPath], []),
-        syntax(['scripts/**/*.ts'], scriptEnvSelectors, []),
-        ...(useMongo
-            ? [
-                  {
-                      files: ['db/migrations/**/*.js'],
-                      rules: {
-                          'no-restricted-syntax': ['error', ...mongo.migration],
-                          'no-restricted-imports': ['error', { paths: dbBannedImports }],
+        const db = useMongo ? mongo.application : [];
+        /** Every area of the service shares these; each block below adds or swaps its own. */
+        const common = [
+            ...httpServiceSelectors({ appError: layout.appError, namedShapes: NAMED_SHAPES }),
+            ...loggerCallSelectors,
+            ...errorHandlingSelectors,
+            ...tsSourceSelectors,
+            noSingleLetterDeclaration,
+        ];
+        const bannedImports = [
+            ...bannedCryptoModules,
+            ...(useMongo ? dbBannedImports : []),
+            ...(redis ? apiBannedImports : proxyWorkBannedImports),
+        ];
+        const syntax = (files: string[], selectors: object[], ignores: string[] = NOT_TESTS) => ({
+            files,
+            ...(ignores.length ? { ignores } : {}),
+            rules: { 'no-restricted-syntax': ['error', ...selectors] },
+        });
+
+        return [
+            ...securityStandards({ code: source, vue: [] }),
+            { files: source, ignores: TESTS, rules: { 'no-console': 'error' } },
+            ...(consoleAllowed.length ? [{ files: consoleAllowed, rules: { 'no-console': 'off' } }] : []),
+            // A caught error's message reaches a log, never a response.
+            { files: source, ignores: TESTS, rules: { 'larry/no-caught-message-leak': 'error' } },
+            ...typescriptStandards({ source, code: [...source, ...E2E], defaultExportAllowed: [] }),
+            ...envStandards([
+                layout.config,
+                `${layout.src}/config/env.ts`,
+                ...TESTS,
+                'scripts/**/*.ts',
+                `${layout.database}/**/*.js`,
+                '*.config.{js,ts}',
+            ]),
+            ...refactoringStandards(
+                { code: [...source, ...E2E], source, tests: TESTS, markerFiles: ['eslint.config.js'] },
+                refactoring,
+            ),
+            ...testingStandards(['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}', 'e2e/**/*.spec.ts']),
+
+            // ── Restricted syntax, broadest area first ───────────────────────
+            syntax(source, [...common, noDirectErrorResponse, ...db]),
+            syntax(routes, [...common, ...apiRoutesOnlySelectors, noDirectErrorResponse, ...db]),
+            // The handler is where an error becomes a response, so it answers directly.
+            syntax([layout.errorHandler], [...common, ...db], []),
+            ...(useMongo ? [syntax([layout.dbModule], [...common, noDirectErrorResponse, ...mongo.dbModule], [])] : []),
+            ...(ws
+                ? [
+                      syntax(gateway, [
+                          ...wsGatewaySelectors,
+                          ...wsEventNameSelectors,
+                          ...common,
+                          noDirectErrorResponse,
+                          ...db,
+                      ]),
+                  ]
+                : []),
+            syntax([layout.config], [...configModuleSelectors, ...tsSourceSelectors, noSingleLetterDeclaration], []),
+            syntax(E2E, [...tsSourceSelectors, noSingleLetterDeclaration, noFileURLToPath], []),
+            syntax(['scripts/**/*.ts'], scriptEnvSelectors, []),
+            ...(useMongo
+                ? [
+                      {
+                          files: [`${layout.database}/migrations/**/*.js`],
+                          rules: {
+                              'no-restricted-syntax': ['error', ...mongo.migration],
+                              'no-restricted-imports': ['error', { paths: dbBannedImports }],
+                          },
                       },
-                  },
-              ]
-            : []),
+                  ]
+                : []),
 
-        // ── Restricted imports ───────────────────────────────────────────────
-        { files: SOURCE, rules: { 'no-restricted-imports': ['error', { paths: bannedImports }] } },
-        {
-            files: LIB,
-            ignores: NOT_TESTS,
-            rules: {
-                'no-restricted-imports': ['error', { paths: bannedImports, patterns: libBannedImportPatterns }],
+            // ── Restricted imports ───────────────────────────────────────────
+            { files: source, rules: { 'no-restricted-imports': ['error', { paths: bannedImports }] } },
+            {
+                files: [`${layout.lib}/**/*.ts`],
+                ignores: NOT_TESTS,
+                rules: {
+                    'no-restricted-imports': ['error', { paths: bannedImports, patterns: libBannedImportPatterns }],
+                },
             },
-        },
-        ...(ws
-            ? [
-                  {
-                      files: GATEWAY,
-                      rules: {
-                          'no-restricted-imports': ['error', { paths: [...bannedImports, ...wsGatewayBannedImports] }],
+            ...(ws
+                ? [
+                      {
+                          files: gateway,
+                          rules: {
+                              'no-restricted-imports': [
+                                  'error',
+                                  { paths: [...bannedImports, ...wsGatewayBannedImports] },
+                              ],
+                          },
                       },
-                  },
-              ]
-            : []),
-    ];
+                  ]
+                : []),
+        ];
+    });
 }
