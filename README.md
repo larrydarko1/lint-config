@@ -19,7 +19,7 @@ of them:
 You are welcome to use it, but expect the defaults to be mine. Every setting that varies between
 projects is an option, and everything else is fixed.
 
-> **Status:** pre-1.0. Releases go out under the `beta` dist-tag, and any minor version may break.
+> **Status:** pre-1.0, so any minor version may break.
 
 ## Contents
 
@@ -44,7 +44,7 @@ projects is an option, and everything else is fixed.
 Requires Node 24 or later and an ESM project (`"type": "module"`).
 
 ```bash
-npm i -D @larrydarko/lint-config@beta
+npm i -D @larrydarko/lint-config
 ```
 
 Install only this package. ESLint, Prettier, Stylelint, commitlint, lint-staged, husky, knip,
@@ -100,7 +100,7 @@ It exits 1 when anything is wrong, with what to do under each problem.
 ## Upgrade from an older release
 
 ```bash
-npm i -D @larrydarko/lint-config@beta
+npm i -D @larrydarko/lint-config
 npx larry upgrade --dry-run   # lists what it would change
 npx larry upgrade             # changes it; read the diff, then run `npm run ci:check`
 ```
@@ -1221,7 +1221,7 @@ version, and remove `install-links` from `.npmrc`, before you commit. `npx larry
 project notes the local copy, and fails on a symlinked one or a leftover `install-links`:
 
 ```bash
-npm i -D @larrydarko/lint-config@beta
+npm i -D @larrydarko/lint-config
 ```
 
 ## License
