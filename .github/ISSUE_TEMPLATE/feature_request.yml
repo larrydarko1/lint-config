@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest a rule, a gate or an option
+labels: ['enhancement']
+body:
+    - type: markdown
+      attributes:
+          value: |
+              The defaults are opinionated and fixed on purpose, so a request to change one is unlikely to land.
+              If a setting genuinely varies between projects, asking for it to become an option has a better chance.
+
+    - type: textarea
+      id: problem
+      attributes:
+          label: What are you trying to do
+          description: The problem, not the solution. What you are doing today and where it breaks down.
+      validations:
+          required: true
+
+    - type: textarea
+      id: proposal
+      attributes:
+          label: What you have in mind
+          description: Roughly how it would work. A sketch is fine; an exact spec is not expected.
+      validations:
+          required: true
+
+    - type: textarea
+      id: alternatives
+      attributes:
+          label: What you tried instead
+          description: Existing options, workarounds, other packages. If a workaround is good enough, that is worth knowing too.
+      validations:
+          required: false
