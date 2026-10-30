@@ -2,6 +2,10 @@
     "name": "@larrydarko/lint-config",
     "version": "0.1.0-beta.10",
     "description": "Shared formatting, commit and style configuration for my projects.",
+    "homepage": "https://github.com/larrydarko1/lint-config#readme",
+    "bugs": {
+        "url": "https://github.com/larrydarko1/lint-config/issues"
+    },
     "license": "MIT",
     "author": "Lorenzo Mazzola",
     "type": "module",
@@ -240,6 +244,10 @@
     },
     "bin": {
         "larry": "dist/cli/larry.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/larrydarko1/lint-config.git"
     },
     "scripts": {
         "build": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
