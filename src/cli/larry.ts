@@ -2,9 +2,10 @@
 /**
  * The `larry` command. `larry check` runs every gate the project's family runs, with the
  * options in larry.config.ts, and exits 1 if any fails; `larry check audit secrets` runs
- * just those. `larry init` sets a project up, `larry doctor` says what is wrong with its
- * install, and `larry upgrade` rewrites what an older release set up. A usage or config
- * mistake exits 2, so CI can tell it from a failing gate.
+ * just those. `larry init` sets a project up, asking at a terminal for what its flags
+ * leave out, `larry doctor` says what is wrong with its install, and `larry upgrade`
+ * rewrites what an older release set up. A usage or config mistake exits 2, so CI can tell
+ * it from a failing gate, and stopping init at a question exits 130.
  */
 import path from 'node:path';
 
@@ -14,6 +15,7 @@ import { plural } from '../gates/lib/report.ts';
 import { gatesFor } from '../gates/registry.ts';
 import { SELF_VERSION } from '../toolchain.ts';
 import { runGates, summarise } from './check.ts';
+import type { InitOptions } from './init.ts';
 import { loadConfig } from './load-config.ts';
 import type { Distribution, Runtime } from './templates.ts';
 
@@ -31,6 +33,8 @@ const USAGE = `Usage: larry check [gate…] [--fix] [--all]
                            Write the config files, git hooks, CI workflow, larry.config.ts
                            and package.json scripts a project is missing. Nothing that
                            exists is changed. The family is one of ${FAMILIES.join(', ')}.
+                           At a terminal, \`larry init\` asks for whatever is left out; in CI
+                           or a pipe, it is a usage error.
     --distribution   open if the app's source is published, closed if not (the licenses gate).
     --runtime        base only, and required there: where the source runs. The base family
                      assumes no layout, so its eslint.config.js names the folders init finds.
@@ -49,6 +53,12 @@ const GATE_FLAGS = new Set(['--fix', '--all']);
 
 const INIT_FLAGS = ['--distribution', '--runtime'];
 
+const NEEDS_DISTRIBUTION =
+    "init needs --distribution open or --distribution closed: whether this app's own source is published. The licenses gate allows copyleft dependencies only in an open one.";
+
+const NEEDS_RUNTIME =
+    'the base family needs --runtime node, --runtime browser or --runtime both: where its source runs, which no file says.';
+
 /** The package folder this CLI runs from: \`src/cli\` and \`dist/cli\` are both two levels down. */
 const RUNNING = path.resolve(import.meta.dirname, '../..');
 
@@ -63,6 +73,13 @@ const flagValue = (flags: string[], name: string): string | undefined => {
     const flag = flags[at] ?? '';
     return flag === name ? flags[at + 1] : flag.slice(name.length + 1);
 };
+
+/**
+ * Whether a person is at the terminal to answer init's questions. A pipe or CI is not,
+ * so there a missing option stays a usage error rather than a prompt nobody answers.
+ */
+const interactive = (): boolean =>
+    process.stdin.isTTY && process.stdout.isTTY && ['', '0', 'false'].includes(process.env['CI'] ?? '');
 
 const message = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
@@ -110,47 +127,52 @@ async function check(args: string[]): Promise<number> {
 }
 
 async function initProject(args: string[]): Promise<number> {
-    const [family, ...flags] = args;
-    if (family === undefined || !isFamily(family)) {
-        console.error(
-            `larry: ${family === undefined ? 'init needs a family' : `"${family}" is not a family`}. It is one of ${FAMILIES.join(', ')}.\n\n${USAGE}`,
-        );
+    const [first] = args;
+    const named = first === undefined || first.startsWith('-') ? undefined : first;
+    const flags = named === undefined ? args : args.slice(1);
+    const usage = (problem: string): number => {
+        console.error(`larry: ${problem}\n\n${USAGE}`);
         return 2;
+    };
+
+    if (named !== undefined && !isFamily(named)) {
+        return usage(`"${named}" is not a family. It is one of ${FAMILIES.join(', ')}.`);
     }
     const unknownFlag = flags.find((flag) => flag.startsWith('-') && !INIT_FLAGS.includes(flag.split('=')[0] ?? ''));
-    if (unknownFlag !== undefined) {
-        console.error(`larry: unknown option ${unknownFlag}\n\n${USAGE}`);
-        return 2;
-    }
-    const distribution = flagValue(flags, '--distribution') ?? '';
-    if (!isDistribution(distribution)) {
-        console.error(
-            `larry: init needs --distribution open or --distribution closed: whether this app's own source is published. The licenses gate allows copyleft dependencies only in an open one.\n\n${USAGE}`,
+    if (unknownFlag !== undefined) return usage(`unknown option ${unknownFlag}`);
+    const distribution = flagValue(flags, '--distribution');
+    if (distribution !== undefined && !isDistribution(distribution)) return usage(NEEDS_DISTRIBUTION);
+    const runtime = flagValue(flags, '--runtime');
+    if (runtime !== undefined && named !== 'base') {
+        return usage(
+            named === undefined
+                ? `--runtime is for the base family: name it, as in \`larry init base --runtime ${runtime}\`.`
+                : `--runtime is for the base family; the ${named} family knows where its code runs.`,
         );
-        return 2;
     }
-    const runtimeFlag = flagValue(flags, '--runtime');
-    const runtime = runtimeFlag !== undefined && isRuntime(runtimeFlag) ? runtimeFlag : null;
-    if (family !== 'base' && runtimeFlag !== undefined) {
-        console.error(
-            `larry: --runtime is for the base family; the ${family} family knows where its code runs.\n\n${USAGE}`,
-        );
-        return 2;
+    if (runtime !== undefined && !isRuntime(runtime)) return usage(NEEDS_RUNTIME);
+
+    if (interactive()) {
+        const root = repoRoot();
+        if (root === null) return 2;
+        const { initInteractively } = await import('./init-prompts.ts');
+        return initInteractively(root, { family: named, distribution, runtime });
     }
-    if (family === 'base' && runtime === null) {
-        console.error(
-            `larry: the base family needs --runtime node, --runtime browser or --runtime both: where its source runs, which no file says.\n\n${USAGE}`,
-        );
-        return 2;
-    }
+    if (named === undefined) return usage(`init needs a family. It is one of ${FAMILIES.join(', ')}.`);
+    if (distribution === undefined) return usage(NEEDS_DISTRIBUTION);
+    if (named === 'base' && runtime === undefined) return usage(NEEDS_RUNTIME);
     const root = repoRoot();
     if (root === null) return 2;
+    return initPlainly(root, { family: named, distribution, runtime: runtime ?? null });
+}
 
+/** `larry init` with every option given and no terminal to ask at: what it wrote, one line each. */
+async function initPlainly(root: string, options: InitOptions): Promise<number> {
     let result;
     try {
         // Loaded only for its command, so `larry check` does not pay for Prettier.
         const { init } = await import('./init.ts');
-        result = await init(root, { family, distribution, runtime });
+        result = await init(root, options);
     } catch (error) {
         console.error(`✗ larry: ${message(error)}`);
         return 2;
@@ -158,7 +180,7 @@ async function initProject(args: string[]): Promise<number> {
     for (const file of result.written) console.log(`+ ${file}`);
     for (const field of result.added) console.log(`+ package.json ${field}`);
     for (const file of result.kept) console.log(`= ${file} (exists, left as it is)`);
-    console.log(`\n✓ larry init: ${family}, ${plural(result.written.length, 'file')} written.\n\nNext:`);
+    console.log(`\n✓ larry init: ${options.family}, ${plural(result.written.length, 'file')} written.\n\nNext:`);
     for (const step of result.next) console.log(`- ${step}`);
     return 0;
 }

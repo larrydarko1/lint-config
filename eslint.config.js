@@ -13,8 +13,9 @@ export default larry({
     standards: libraryStandards({
         // A gate's job is its report, which it prints for the script that ran it; the CLI's is its output.
         logging: { consoleAllowed: ['src/gates/**/*.ts', 'src/cli/**/*.ts'] },
-        // knip and npm run as children, and are given this process's environment.
-        env: { processEnvAllowed: ['src/gates/dead-code.ts', 'src/gates/publish.ts'] },
+        // knip and npm run as children, and are given this process's environment. The CLI reads
+        // `CI`, so that `larry init` asks nothing when a pipeline runs it.
+        env: { processEnvAllowed: ['src/gates/dead-code.ts', 'src/gates/publish.ts', 'src/cli/larry.ts'] },
         // The shareable configs: each tool loads one by its default export.
         defaultExportAllowed: ['src/commitlint.ts', 'src/lint-staged.ts', 'src/prettier.ts', 'src/stylelint.ts'],
         // The rule and the gate that ban deferral markers, and their tests, quote them.

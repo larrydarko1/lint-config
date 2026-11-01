@@ -17,7 +17,7 @@ export const SELF_VERSION = SELF.version;
 export const NODE_FLOOR = Number(/\d+/.exec(SELF.engines.node)?.[0]);
 
 /** Dependencies a project may still list because its own code uses them; everything else is lint-only. */
-const ALSO_THE_PROJECTS = new Set(['typescript', 'yaml', '@vue/compiler-sfc']);
+const ALSO_THE_PROJECTS = new Set(['typescript', 'yaml', '@vue/compiler-sfc', '@clack/prompts']);
 
 /**
  * Package → binary for the CLIs a project runs by name (scripts, hooks, editor).

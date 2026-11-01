@@ -62,6 +62,12 @@ npx larry doctor                           # checks the install
 The base family also needs `--runtime node`, `browser` or `both`, since nothing in the repository
 says where its source runs: `npx larry init base --distribution open --runtime node`.
 
+At a terminal, `npx larry init` on its own asks for each of these: the family (starting on the one
+package.json points at, such as spa for a project that depends on Vue), the distribution and, for
+base, the runtime. A flag that is given is not asked again. When it finishes it prints the command
+that skips the questions. In CI or a pipe nothing is asked: a missing option is a usage error, as
+it is above. Stopping at a question writes nothing and exits 130.
+
 `larry init` writes what the sections below describe: each tool's config file, the git hooks,
 `larry.config.ts`, a CI workflow that `pipeline` accepts, `.jscpd.json`, `.prettierignore` and a
 `.gitignore`. It adds the `prepare`, `lint`, `format:check`, `check` and `ci:check` scripts, and
