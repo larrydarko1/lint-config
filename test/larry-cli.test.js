@@ -1,7 +1,8 @@
 /**
  * The `larry` CLI, run as a child process in invented repositories, the way a project's
  * script runs it. The gates here are secrets and licences: both read only the temp repo,
- * so a whole run stays fast and offline. Every other gate is skipped with a reason.
+ * so a whole run stays fast and offline. Every other gate is skipped with a reason. A run
+ * at a terminal is driven through `runGates`, with streams that stand in for one.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,12 +10,17 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { Writable } from 'node:stream';
 import { pathToFileURL } from 'node:url';
 
+import { runGates, summarise } from '../src/cli/check.ts';
+import { loadConfig } from '../src/cli/load-config.ts';
 import { gatesFor } from '../src/gates/registry.ts';
 
 const LARRY = path.resolve(import.meta.dirname, '../src/cli/larry.ts');
 const CONFIG_MODULE = pathToFileURL(path.resolve(import.meta.dirname, '../src/config.ts')).href;
+// eslint-disable-next-line no-control-regex -- the escape codes a terminal draws with are what is stripped.
+const ESCAPES = /\u001b\[[\d;?]*[A-Za-z]/g;
 const LOCKFILE = JSON.stringify({ lockfileVersion: 3, packages: { '': { name: 'app' } } });
 
 /** A git repo holding `files`, with an empty lockfile unless `files` brings one. */
@@ -158,6 +164,53 @@ test('NEGATIVE: a gate that throws is a failure, reported with its stack, and th
     assert.match(result.err, /✗ licenses stopped with an error before it could report:\nTypeError: /);
     assert.match(result.out, /── secrets\n✓ No secrets/);
     assert.match(result.out, /failed: licenses\./);
+});
+
+/** A stream that stands in for a terminal, keeping everything written to it in `text`. */
+const terminalStream = () => {
+    const stream = new Writable({
+        write(chunk, _encoding, done) {
+            stream.text += String(chunk);
+            done();
+        },
+    });
+    return Object.assign(stream, { isTTY: true, text: '' });
+};
+
+/** What stays on the screen once `written` is drawn: each line as its last `\r` left it, without colour. */
+const screen = (written) =>
+    written
+        .replace(ESCAPES, '')
+        .split('\n')
+        .map((line) => line.slice(line.lastIndexOf('\r') + 1))
+        .join('\n');
+
+test('at a terminal each gate turns a spinner that clears itself, leaving what a pipe gets', async (t) => {
+    const root = repo(t, { ...configFile(LIBRARY), '.env': 'A=1\n' });
+    const plain = larry(root, 'check', 'secrets', 'licenses', 'audit');
+
+    // Each gate's process finds the repository from the working directory, as larry's does.
+    const cwd = process.cwd();
+    process.chdir(root);
+    t.after(() => process.chdir(cwd));
+    const stdout = terminalStream();
+    const stderr = terminalStream();
+    const run = await runGates(await loadConfig(root), ['audit', 'licenses', 'secrets'], {
+        root,
+        flags: [],
+        stdout,
+        stderr,
+    });
+
+    assert.deepEqual(run, { passed: ['licenses'], failed: ['secrets'], skipped: ['audit'] });
+    const drawn = stdout.text.replace(ESCAPES, '');
+    assert.match(drawn, /\r◒ licenses 2 of 3 \d+\.\ds/);
+    assert.match(drawn, /\r◒ secrets 3 of 3 \d+\.\ds/);
+    assert.doesNotMatch(drawn, /audit 1 of 3/, 'a skipped gate has nothing to wait for');
+    const { text } = stdout;
+    assert.ok(text.lastIndexOf('\u001b[?25h') > text.lastIndexOf('\u001b[?25l'), 'the cursor comes back');
+    assert.equal(`${screen(stdout.text)}\n${summarise(run).replace(ESCAPES, '')}\n`, plain.out);
+    assert.equal(stderr.text, plain.err);
 });
 
 test('naming a gate the family does not run is a usage error; naming a skipped one says so', (t) => {

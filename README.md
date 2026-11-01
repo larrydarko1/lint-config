@@ -605,6 +605,11 @@ The run exits 1 if any gate fails, and the gates after a failing one still run. 
 config, such as a misspelt gate, a gate the family does not run, or a skip with no reason, exits 2
 before any gate runs.
 
+At a terminal, a spinner shows the gate that is running, how far through the run it is and how
+long it has taken. Each gate runs in a process of its own there, so the spinner keeps turning
+while the gate works, and the gate's report prints under its name when it ends. In a pipe or CI
+there is no spinner, and the text left on the screen is the same either way.
+
 ```bash
 larry check                    # every gate the family runs
 larry check secrets licenses   # only these
