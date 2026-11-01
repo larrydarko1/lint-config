@@ -15,7 +15,7 @@ import { UI_FAMILIES, scaffoldFiles, unconfiguredGates, type Distribution, type 
 
 type Manifest = Record<string, unknown>;
 
-type InitOptions = {
+export type InitOptions = {
     family: PresetName;
     /** Whether the app's own source is published, for the licenses gate. */
     distribution: Distribution;
@@ -47,9 +47,7 @@ const RUNS_CHECK = /\bnpm run check(?![\w:.-])|\blarry check\b/;
 export async function init(root: string, options: InitOptions): Promise<InitResult> {
     const { family, distribution, runtime } = options;
     const manifestPath = path.join(root, 'package.json');
-    if (!fs.existsSync(manifestPath)) throw new Error(`there is no package.json in ${root}. Run \`npm init\` first.`);
-    const manifest = readJson(manifestPath);
-    if (!isRecord(manifest)) throw new Error(`${manifestPath} does not hold a JSON object.`);
+    const manifest = readManifest(root);
     const scripts = isRecord(manifest['scripts']) ? manifest['scripts'] : {};
     const test = stringAt(scripts, 'test');
 
@@ -110,6 +108,20 @@ export async function init(root: string, options: InitOptions): Promise<InitResu
 
     result.next.push(...nextSteps(root, family, manifest, result));
     return result;
+}
+
+/**
+ * The project's package.json, which init cannot work without. At a terminal it is read
+ * before the first question, so a project with none is told before it answers any.
+ *
+ * @param root The repository root.
+ */
+export function readManifest(root: string): Manifest {
+    const manifestPath = path.join(root, 'package.json');
+    if (!fs.existsSync(manifestPath)) throw new Error(`there is no package.json in ${root}. Run \`npm init\` first.`);
+    const manifest = readJson(manifestPath);
+    if (!isRecord(manifest)) throw new Error(`${manifestPath} does not hold a JSON object.`);
+    return manifest;
 }
 
 /** code-style reads the source and test folders, duplication only the source ones. Those that exist, or the conventional one. */

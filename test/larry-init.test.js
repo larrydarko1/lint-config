@@ -59,11 +59,19 @@ const loadable = (root) => {
 
 test('init without a family, with an unknown one, or without a distribution is a usage error that writes nothing', (t) => {
     const root = repo(t);
-    for (const args of [[], ['cli', '--distribution', 'open'], ['spa'], ['spa', '--distribution', 'proprietary']]) {
+    const usageErrors = [
+        [],
+        ['--distribution', 'open'],
+        ['cli', '--distribution', 'open'],
+        ['spa'],
+        ['spa', '--distribution', 'proprietary'],
+    ];
+    for (const args of usageErrors) {
         const result = larry(root, 'init', ...args);
         assert.equal(result.code, 2, args.join(' '));
     }
     assert.match(larry(root, 'init').err, /init needs a family\. It is one of api, /);
+    assert.match(larry(root, 'init', '--distribution', 'open').err, /init needs a family\. It is one of api, /);
     assert.match(larry(root, 'init', 'cli').err, /"cli" is not a family/);
     assert.match(larry(root, 'init', 'spa').err, /init needs --distribution open or --distribution closed/);
     assert.deepEqual(fs.readdirSync(root).sort(), ['.git', 'package.json']);
@@ -79,6 +87,9 @@ test('the base family needs --runtime, no other family takes it, and an unknown 
     const spa = larry(root, 'init', 'spa', '--distribution', 'open', '--runtime', 'node');
     assert.equal(spa.code, 2);
     assert.match(spa.err, /--runtime is for the base family; the spa family knows where its code runs/);
+    const unnamed = larry(root, 'init', '--distribution', 'open', '--runtime', 'node');
+    assert.equal(unnamed.code, 2);
+    assert.match(unnamed.err, /--runtime is for the base family: name it, as in `larry init base --runtime node`/);
 
     const unknown = larry(root, 'init', 'spa', '--distribution', 'open', '--force');
     assert.equal(unknown.code, 2);
