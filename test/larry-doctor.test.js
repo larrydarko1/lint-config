@@ -191,7 +191,7 @@ test('NEGATIVE: not a dependency, or not installed', (t) => {
     const undeclared = doctor(project(t, { 'package.json': manifest({ devDependencies: {} }) }));
     assert.match(
         undeclared.out,
-        new RegExp(`^✗ ${SELF_NAME} is not a dependency\\n {2}Run \`npm i -D ${SELF_NAME}@beta\`\\.$`, 'm'),
+        new RegExp(`^✗ ${SELF_NAME} is not a dependency\\n {2}Run \`npm i -D ${SELF_NAME}\`\\.$`, 'm'),
     );
 
     const uninstalled = doctor(project(t, { [`node_modules/${SELF_NAME}/package.json`]: null }));
