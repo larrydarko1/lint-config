@@ -103,6 +103,10 @@ init says to add the rest.
 
 It exits 1 when anything is wrong, with what to do under each problem.
 
+At a terminal, `larry doctor` and `larry upgrade` colour their marks and the commands they name:
+green for what passed or was added, red for a problem or a removed file, yellow for a note. The
+text is the same without the colour, which a pipe, `NO_COLOR` or `FORCE_COLOR=0` leaves out.
+
 ## Upgrade from an older release
 
 ```bash

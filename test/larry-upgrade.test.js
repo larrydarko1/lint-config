@@ -10,6 +10,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { styleText } from 'node:util';
 import { pathToFileURL } from 'node:url';
 
 import { loadConfig } from '../src/cli/load-config.ts';
@@ -20,6 +21,12 @@ import { renamedOptionProblems } from '../src/cli/renames.ts';
 
 const REPO = path.resolve(import.meta.dirname, '..');
 const LARRY = path.join(REPO, 'src/cli/larry.ts');
+
+// eslint-disable-next-line no-control-regex -- the escape codes a terminal colours with are what is stripped.
+const ESCAPES = /\u001b\[\d+m/g;
+
+/** `text` as a terminal that shows colour gets it. */
+const paint = (format, text) => styleText(format, text, { validateStream: false });
 
 const gateScript = (gate, fn, call) => `import { ${fn} } from '@larrydarko/lint-config/gates/${gate}';\n\n${call}\n`;
 
@@ -104,8 +111,18 @@ const project = (t, files = {}) => {
     return root;
 };
 
-const larry = (cwd, ...args) => {
-    const { status, stdout, stderr } = spawnSync(process.execPath, [LARRY, ...args], { cwd, encoding: 'utf8' });
+/** Runs larry plain, as a pipe sees it: at a terminal, node --test sets FORCE_COLOR for the files it runs. */
+const larry = (cwd, ...args) => run(cwd, args, {});
+
+/** Runs larry as a terminal that shows colour sees it. */
+const coloured = (cwd, ...args) => run(cwd, args, { FORCE_COLOR: '1' });
+
+const run = (cwd, args, env) => {
+    const { status, stdout, stderr } = spawnSync(process.execPath, [LARRY, ...args], {
+        cwd,
+        encoding: 'utf8',
+        env: { ...process.env, FORCE_COLOR: undefined, ...env },
+    });
     return { code: status, out: stdout, err: stderr };
 };
 
@@ -268,6 +285,39 @@ test('--dry-run lists the changes and writes nothing', (t) => {
     assert.match(result.out, /^\+ larry\.config\.ts$/m);
     assert.match(result.out, /✓ larry upgrade --dry-run: 6 files would change\. Nothing was written\./);
     assert.deepEqual(snapshot(root), before);
+});
+
+test('at a terminal each kind of change has its colour, and the text is what a pipe gets', (t) => {
+    const root = project(t);
+    const plain = larry(root, 'upgrade', '--dry-run');
+    const result = coloured(root, 'upgrade', '--dry-run');
+    assert.equal(result.code, 0, result.err);
+    assert.equal(result.out.replace(ESCAPES, ''), plain.out, 'colour is all that differs');
+    const lines = result.out.split('\n');
+    for (const line of [
+        `${paint('dim', '──')} ${paint('bold', 'Gate scripts → larry.config.ts')}`,
+        `${paint('green', '+')} larry.config.ts`,
+        `${paint('blue', '~')} package.json`,
+        `${paint('red', '-')} scripts/checks/check-i18n.ts`,
+        `${paint('green', '✓')} ${paint('bold', 'larry upgrade --dry-run: 6 files would change. Nothing was written.')}`,
+    ]) {
+        assert.ok(lines.includes(line), `${line}\n${result.out}`);
+    }
+    const note = `${paint('yellow', '-')} scripts/checks/check-testing.ts stays: `;
+    assert.ok(
+        lines.some((line) => line.startsWith(note)),
+        'a note',
+    );
+
+    const unnamed = project(t, { 'eslint.config.js': 'export default [];\n' });
+    const failing = coloured(unnamed, 'upgrade');
+    assert.equal(failing.code, 2);
+    assert.ok(failing.err.startsWith(`${paint('red', '✗')} larry: The project has gate scripts, `), failing.err);
+    assert.ok(
+        failing.err.includes(`(${paint('cyan', '`npx larry init <family>`')} writes one)`),
+        'stderr colours its commands',
+    );
+    assert.equal(failing.err.replace(ESCAPES, ''), larry(unnamed, 'upgrade').err);
 });
 
 test('into an existing larry.config.ts: a skipped gate takes the options, a new one is added, a configured one stays', (t) => {

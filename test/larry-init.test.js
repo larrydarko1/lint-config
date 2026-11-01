@@ -36,7 +36,12 @@ const repo = (t, files = {}) => {
 };
 
 const larry = (cwd, ...args) => {
-    const { status, stdout, stderr } = spawnSync(process.execPath, [LARRY, ...args], { cwd, encoding: 'utf8' });
+    // Plain, as a pipe sees it: at a terminal, node --test sets FORCE_COLOR for the files it runs.
+    const { status, stdout, stderr } = spawnSync(process.execPath, [LARRY, ...args], {
+        cwd,
+        encoding: 'utf8',
+        env: { ...process.env, FORCE_COLOR: undefined },
+    });
     return { code: status, out: stdout, err: stderr };
 };
 
