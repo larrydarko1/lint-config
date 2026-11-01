@@ -15,6 +15,7 @@ import { isRecord, readJson, stringAt } from '../gates/lib/json.ts';
 import { plural } from '../gates/lib/report.ts';
 import { inspectToolchainInstall } from '../gates/lib/toolchain-install.ts';
 import { NODE_FLOOR, PROJECT_CLIS, SELF_NAME, SELF_VERSION } from '../toolchain.ts';
+import { familyFit } from './family-fit.ts';
 import { loadConfig } from './load-config.ts';
 import { findGateScripts } from './migrations/gate-scripts.ts';
 import { createTree } from './migrations/tree.ts';
@@ -41,17 +42,6 @@ const TOOL_CONFIGS: [tool: string, name: RegExp, uiOnly: boolean][] = [
 ];
 
 const HOOKS = ['.husky/pre-commit', '.husky/commit-msg'];
-
-/**
- * A dependency only one kind of project has, and the family for it. In this order, since
- * an Electron or Tauri app depends on Vue too.
- */
-const FAMILY_DEPENDENCIES: [family: PresetName, dependency: string][] = [
-    ['electron', 'electron'],
-    ['tauri', '@tauri-apps/api'],
-    ['spa', 'vue'],
-    ['api', 'express'],
-];
 
 /**
  * @param root The repository root.
@@ -148,19 +138,9 @@ async function diagnoseConfig(root: string): Promise<{ family: PresetName | null
 
 /** Whether a base project's package.json says it is a kind another family has rules for. */
 function diagnoseFamilyFit(manifest: Manifest): Diagnosis {
-    const dependencies = [manifest['dependencies'], manifest['devDependencies']].flatMap((field) =>
-        isRecord(field) ? Object.keys(field) : [],
-    );
-    const published = manifest['private'] !== true && manifest['exports'] !== undefined;
-    const signs: [family: PresetName, sign: string][] = [
-        ...FAMILY_DEPENDENCIES.filter(([, dependency]) => dependencies.includes(dependency)).map(
-            ([family, dependency]): [PresetName, string] => [family, `depends on ${dependency}`],
-        ),
-        ...(published ? [['library', 'publishes `exports`'] as [PresetName, string]] : []),
-    ];
-    const [first] = signs;
-    if (first === undefined) return ok('nothing in package.json says another family fits better than base');
-    const [fit, sign] = first;
+    const found = familyFit(manifest);
+    if (found === undefined) return ok('nothing in package.json says another family fits better than base');
+    const [fit, sign] = found;
     return note(
         `larry.config.ts names the base family, but package.json ${sign}, as ${fit} projects do`,
         `If this is one, the ${fit} family has rules and gates for it: set \`family: '${fit}'\` in larry.config.ts and \`preset: '${fit}'\` in eslint.config.js. The base family is for code no family describes.`,
