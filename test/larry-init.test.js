@@ -156,7 +156,8 @@ test('a fresh spa gets every config file, the hooks, CI and the scripts, and say
         'check': 'larry check',
         'ci:check': 'npm run lint && npm run format:check && npm run check',
     });
-    assert.deepEqual(manifest.engines, { node: '>=24' });
+    assert.deepEqual(manifest.engines, { node: '>=26' });
+    assert.match(read(root, '.github/workflows/ci.yml'), /node-version: 26\n/);
     assert.deepEqual(
         Object.keys(manifest),
         ['name', 'version', 'type', 'scripts', 'engines'],
@@ -247,6 +248,25 @@ test('the scripts CI runs include typecheck and test when the project has them',
     assert.match(config, /'dead-code': \{ publicApi: packageEntries\(\) \}/);
     assert.doesNotMatch(config, /skip/, 'a library needs nothing only it can name');
     assert.ok(!fs.existsSync(path.join(root, '.stylelintrc.mjs')), 'a library has no styles');
+});
+
+test('CI installs the floor of engines.node: the one declared, else the family default', (t) => {
+    const nodeOf = (root) => /node-version: (\d+)/.exec(read(root, '.github/workflows/ci.yml'))?.[1];
+    const enginesOf = (root) => JSON.parse(read(root, 'package.json')).engines;
+
+    const declared = repo(t, {
+        'package.json': JSON.stringify({ name: 'app', type: 'module', engines: { node: '>=25' } }),
+    });
+    assert.equal(larry(declared, 'init', 'spa', '--distribution', 'closed').code, 0);
+    assert.equal(nodeOf(declared), '25');
+    assert.deepEqual(enginesOf(declared), { node: '>=25' }, 'a declared range is kept');
+
+    for (const family of ['electron', 'library']) {
+        const root = repo(t);
+        assert.equal(larry(root, 'init', family, '--distribution', 'open').code, 0, family);
+        assert.equal(nodeOf(root), '24', family);
+        assert.deepEqual(enginesOf(root), { node: '>=24' }, family);
+    }
 });
 
 test('a full-stack project scans its workspaces', (t) => {
