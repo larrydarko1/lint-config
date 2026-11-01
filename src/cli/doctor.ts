@@ -149,7 +149,7 @@ function diagnoseFamilyFit(manifest: Manifest): Diagnosis {
 
 function diagnoseInstall(root: string, running: string, manifest: Manifest): Diagnosis[] {
     const spec = stringAt(manifest['devDependencies'], SELF_NAME) ?? stringAt(manifest['dependencies'], SELF_NAME);
-    if (spec === undefined) return [problem(`${SELF_NAME} is not a dependency`, `Run \`npm i -D ${SELF_NAME}@beta\`.`)];
+    if (spec === undefined) return [problem(`${SELF_NAME} is not a dependency`, `Run \`npm i -D ${SELF_NAME}\`.`)];
 
     const fromFolder = spec.startsWith('file:');
     const found = [

@@ -5,9 +5,12 @@
  * just those. `larry init` sets a project up, asking at a terminal for what its flags
  * leave out, `larry doctor` says what is wrong with its install, and `larry upgrade`
  * rewrites what an older release set up. A usage or config mistake exits 2, so CI can tell
- * it from a failing gate, and stopping init at a question exits 130.
+ * it from a failing gate, and stopping init at a question exits 130. Its output is coloured
+ * at a terminal only: `styleText` leaves it plain for a pipe, `NO_COLOR` or `FORCE_COLOR=0`,
+ * so the text a script reads is the same either way.
  */
 import path from 'node:path';
+import { styleText } from 'node:util';
 
 import { FAMILIES, isFamily } from '../eslint/presets.ts';
 import { findRepoRoot } from '../gates/lib/repo-root.ts';
@@ -83,12 +86,26 @@ const interactive = (): boolean =>
 
 const message = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
+/**
+ * The commands in a line, the `backticked` spans, in the colour init gives the command it ends with.
+ *
+ * @param stream Where the line goes, which decides whether it is coloured.
+ */
+const commands = (line: string, stream: NodeJS.WriteStream = process.stdout): string =>
+    line.replaceAll(/`[^`]+`/g, (span) => styleText('cyan', span, { stream }));
+
+/** Says on stderr why larry stopped. */
+const fail = (problem: string): void => {
+    const { stderr } = process;
+    console.error(`${styleText('red', '✗', { stream: stderr })} larry: ${commands(problem, stderr)}`);
+};
+
 /** The repository root from the working directory, or null after saying why there is none. */
 const repoRoot = (): string | null => {
     try {
         return findRepoRoot(process.cwd());
     } catch (error) {
-        console.error(`✗ larry: ${message(error)}`);
+        fail(message(error));
         return null;
     }
 };
@@ -106,7 +123,7 @@ async function check(args: string[]): Promise<number> {
     try {
         config = await loadConfig(root);
     } catch (error) {
-        console.error(`✗ larry: ${message(error)}`);
+        fail(message(error));
         return 2;
     }
 
@@ -114,8 +131,8 @@ async function check(args: string[]): Promise<number> {
     const named = args.filter((arg) => !arg.startsWith('-'));
     const notRun = named.filter((name) => !(runs as readonly string[]).includes(name));
     if (notRun.length > 0) {
-        console.error(
-            `✗ larry: ${notRun.map((n) => `"${n}"`).join(', ')} ${notRun.length === 1 ? 'is not a gate' : 'are not gates'} ${config.family} projects run. They run: ${runs.join(', ')}.`,
+        fail(
+            `${notRun.map((n) => `"${n}"`).join(', ')} ${notRun.length === 1 ? 'is not a gate' : 'are not gates'} ${config.family} projects run. They run: ${runs.join(', ')}.`,
         );
         return 2;
     }
@@ -174,7 +191,7 @@ async function initPlainly(root: string, options: InitOptions): Promise<number> 
         const { init } = await import('./init.ts');
         result = await init(root, options);
     } catch (error) {
-        console.error(`✗ larry: ${message(error)}`);
+        fail(message(error));
         return 2;
     }
     for (const file of result.written) console.log(`+ ${file}`);
@@ -195,16 +212,16 @@ async function doctor(args: string[]): Promise<number> {
 
     const { diagnose } = await import('./doctor.ts');
     const found = await diagnose(root, RUNNING);
-    const symbol = { ok: '✓', problem: '✗', note: '–' } as const;
+    const symbol = { ok: styleText('green', '✓'), problem: styleText('red', '✗'), note: styleText('yellow', '–') };
     for (const { status, what, fix } of found) {
-        console.log(`${symbol[status]} ${what}`);
-        if (fix !== undefined) console.log(`  ${fix}`);
+        console.log(`${symbol[status]} ${commands(what)}`);
+        if (fix !== undefined) console.log(`  ${commands(fix)}`);
     }
     const problems = found.filter(({ status }) => status === 'problem').length;
     console.log(
         problems === 0
-            ? `\n✓ larry doctor: nothing wrong in ${root}.`
-            : `\n✗ larry doctor: ${plural(problems, 'problem')} in ${root}.`,
+            ? `\n${symbol.ok} ${styleText('bold', `larry doctor: nothing wrong in ${root}.`)}`
+            : `\n${symbol.problem} ${styleText('bold', `larry doctor: ${plural(problems, 'problem')} in ${root}.`)}`,
     );
     return problems === 0 ? 0 : 1;
 }
@@ -224,26 +241,29 @@ async function upgradeProject(args: string[]): Promise<number> {
         const { upgrade } = await import('./upgrade.ts');
         steps = await upgrade(root, write);
     } catch (error) {
-        console.error(`✗ larry: ${message(error)}`);
+        fail(message(error));
         return 2;
     }
-    const symbol = { added: '+', changed: '~', removed: '-' } as const;
+    // A removed file and a note both start with "-"; the colour tells them apart.
+    const symbol = { added: styleText('green', '+'), changed: styleText('blue', '~'), removed: styleText('red', '-') };
     for (const { title, changed, notes } of steps) {
-        console.log(`\n── ${title}`);
+        console.log(`\n${styleText('dim', '──')} ${styleText('bold', title)}`);
         for (const { file, how } of changed) console.log(`${symbol[how]} ${file}`);
-        for (const note of notes) console.log(`- ${note}`);
+        for (const note of notes) console.log(`${styleText('yellow', '-')} ${commands(note)}`);
     }
     const files = new Set(steps.flatMap(({ changed }) => changed.map(({ file }) => file))).size;
+    // A blank line parts the summary from the steps above it, when there are any.
+    const done = (summary: string): void => {
+        console.log(
+            `${steps.length === 0 ? '' : '\n'}${styleText('green', '✓')} ${styleText('bold', commands(summary))}`,
+        );
+    };
     if (files === 0) {
-        console.log(
-            steps.length === 0 ? '✓ larry upgrade: nothing to upgrade.' : '\n✓ larry upgrade: nothing changed.',
-        );
+        done(steps.length === 0 ? 'larry upgrade: nothing to upgrade.' : 'larry upgrade: nothing changed.');
     } else if (write) {
-        console.log(
-            `\n✓ larry upgrade: ${plural(files, 'file')} changed. Read the diff, then run \`npm run ci:check\`.`,
-        );
+        done(`larry upgrade: ${plural(files, 'file')} changed. Read the diff, then run \`npm run ci:check\`.`);
     } else {
-        console.log(`\n✓ larry upgrade --dry-run: ${plural(files, 'file')} would change. Nothing was written.`);
+        done(`larry upgrade --dry-run: ${plural(files, 'file')} would change. Nothing was written.`);
     }
     return 0;
 }

@@ -9,10 +9,17 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { styleText } from 'node:util';
 
 import { SELF_NAME, SELF_VERSION, providedPackages } from '../src/toolchain.ts';
 
 const LARRY = path.resolve(import.meta.dirname, '../src/cli/larry.ts');
+// eslint-disable-next-line no-control-regex -- the escape codes a terminal colours with are what is stripped.
+const ESCAPES = /\u001b\[\d+m/g;
+
+/** `text` as a terminal that shows colour gets it. */
+const paint = (format, text) => styleText(format, text, { validateStream: false });
+
 const CLIS = ['eslint', 'prettier', 'stylelint', '@commitlint/cli', 'lint-staged', 'husky'];
 
 /** Every file a healthy library project has. A value of null leaves that file out. */
@@ -54,8 +61,13 @@ const project = (t, files = {}) => {
     return root;
 };
 
-const doctor = (cwd) => {
-    const { status, stdout, stderr } = spawnSync(process.execPath, [LARRY, 'doctor'], { cwd, encoding: 'utf8' });
+/** Runs doctor plain, as a pipe sees it, unless `env` says otherwise: at a terminal, node --test sets FORCE_COLOR for the files it runs. */
+const doctor = (cwd, env = {}) => {
+    const { status, stdout, stderr } = spawnSync(process.execPath, [LARRY, 'doctor'], {
+        cwd,
+        encoding: 'utf8',
+        env: { ...process.env, FORCE_COLOR: undefined, ...env },
+    });
     return { code: status, out: stdout, err: stderr };
 };
 
@@ -191,7 +203,7 @@ test('NEGATIVE: not a dependency, or not installed', (t) => {
     const undeclared = doctor(project(t, { 'package.json': manifest({ devDependencies: {} }) }));
     assert.match(
         undeclared.out,
-        new RegExp(`^✗ ${SELF_NAME} is not a dependency\\n {2}Run \`npm i -D ${SELF_NAME}@beta\`\\.$`, 'm'),
+        new RegExp(`^✗ ${SELF_NAME} is not a dependency\\n {2}Run \`npm i -D ${SELF_NAME}\`\\.$`, 'm'),
     );
 
     const uninstalled = doctor(project(t, { [`node_modules/${SELF_NAME}/package.json`]: null }));
@@ -283,6 +295,28 @@ test('NEGATIVE: hooks git does not run, a missing hook, and a prepare that does 
     assert.match(result.out, /^✗ \.husky\/commit-msg is missing$/m);
     assert.match(result.out, /^✗ git does not run the hooks in \.husky\n {2}Run `npm install`/m);
     assert.doesNotMatch(result.out, /the git hooks are installed/);
+});
+
+test('at a terminal the symbols, commands and summary are coloured, and the text is what a pipe gets', (t) => {
+    const root = project(t, {
+        'larry.config.js': "export default { family: 'base', gates: {} };\n",
+        'package.json': manifest({ dependencies: { vue: '^3.5.0', electron: '^40.0.0' }, devDependencies: {} }),
+    });
+    const plain = doctor(root);
+    const coloured = doctor(root, { FORCE_COLOR: '1' });
+    assert.equal(coloured.code, 1, coloured.out);
+    assert.equal(coloured.out.replace(ESCAPES, ''), plain.out, 'colour is all that differs');
+    const lines = coloured.out.split('\n');
+    assert.ok(
+        lines.some((line) => line.startsWith(`${paint('green', '✓')} Node `)),
+        coloured.out,
+    );
+    assert.ok(lines.includes(`${paint('red', '✗')} ${SELF_NAME} is not a dependency`), coloured.out);
+    assert.ok(lines.includes(`  Run ${paint('cyan', `\`npm i -D ${SELF_NAME}\``)}.`), 'its command in cyan');
+    const note = lines.find((line) => line.startsWith(`${paint('yellow', '–')} larry.config.ts names the base family`));
+    assert.ok(note, coloured.out);
+    const summary = plain.out.trimEnd().split('\n').at(-1) ?? '';
+    assert.equal(lines.at(-2), `${paint('red', '✗')} ${paint('bold', summary.slice('✗ '.length))}`);
 });
 
 test('this package itself is a note, and its install is not checked', () => {
