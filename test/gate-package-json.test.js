@@ -220,6 +220,13 @@ test('`packageManager` sorts immediately before `engines`, per sort-package-json
     assert.match(whats(result), /field order diverges at `engines` \(expected `packageManager`\)/);
 });
 
+test('`allowScripts` is known and sorts with the dependency policy, after `resolutions`', (t) => {
+    const at = CANONICAL_ORDER.indexOf('resolutions');
+    assert.equal(CANONICAL_ORDER[at + 1], 'allowScripts');
+    const result = run(t, { 'package.json': manifest({ ...GOOD, allowScripts: { esbuild: false } }) });
+    assert.equal(result.problems.length, 0, whats(result));
+});
+
 test('a field the order list does not know fails', (t) => {
     const result = run(t, { 'package.json': manifest({ ...GOOD, wibble: 1 }) });
     assert.match(whats(result), /does not know where to sort: wibble/);

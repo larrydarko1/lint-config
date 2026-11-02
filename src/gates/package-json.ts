@@ -102,6 +102,8 @@ export const CANONICAL_ORDER: string[] = [
     'bundleDependencies',
     'overrides',
     'resolutions',
+    // npm's install-script allow-list: dependency policy, read with the overrides above it.
+    'allowScripts',
     // sort-package-json's order for these two.
     'packageManager',
     'engines',

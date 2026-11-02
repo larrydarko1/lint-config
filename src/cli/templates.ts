@@ -21,6 +21,8 @@ type Scaffold = {
     sources: string[];
     /** The `npm run` scripts `ci:check` and CI run, in order. */
     ciScripts: string[];
+    /** The Node major CI installs: the floor of the project's engines.node. */
+    nodeMajor: number;
     /** The base family only: the paths its eslint.config.js names, since it assumes none. */
     basePaths?: BasePaths;
 };
@@ -50,6 +52,14 @@ const NEEDS: Partial<Record<string, string>> = {
 /** actions/checkout and actions/setup-node, pinned to a commit as `pipeline` requires. */
 const CHECKOUT = 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1';
 const SETUP_NODE = 'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0';
+
+/**
+ * The Node major a project with no engines.node is written for: the newest LTS, except two
+ * that cannot choose it. A library supports the oldest maintained LTS, so its consumers
+ * need not move first; an electron app runs on the Node Electron bundles (24, as of
+ * Electron 45). Raise each with the release that moves it.
+ */
+export const nodeMajorFor = (family: PresetName): number => (family === 'library' || family === 'electron' ? 24 : 26);
 
 /** Every file init writes, keyed by its path from the repository root. */
 export function scaffoldFiles(scaffold: Scaffold): Record<string, string> {
@@ -105,7 +115,7 @@ export function scaffoldFiles(scaffold: Scaffold): Record<string, string> {
         '.gitignore': lines('node_modules', 'dist', '.env'),
         '.husky/pre-commit': lines('npx --no -- lint-staged'),
         '.husky/commit-msg': lines('npx --no -- commitlint --edit "$1"'),
-        '.github/workflows/ci.yml': ciWorkflow(scaffold.ciScripts),
+        '.github/workflows/ci.yml': ciWorkflow(scaffold.ciScripts, scaffold.nodeMajor),
     };
 }
 
@@ -175,7 +185,7 @@ function pathsOption(paths: BasePaths): string[] {
     ];
 }
 
-function ciWorkflow(ciScripts: string[]): string {
+function ciWorkflow(ciScripts: string[], nodeMajor: number): string {
     return lines(
         'name: CI',
         '',
@@ -199,7 +209,7 @@ function ciWorkflow(ciScripts: string[]): string {
         `            - uses: ${CHECKOUT}`,
         `            - uses: ${SETUP_NODE}`,
         '              with:',
-        '                  node-version: 24',
+        `                  node-version: ${nodeMajor}`,
         '                  cache: npm',
         '            - run: npm ci',
         ...ciScripts.map((script) => `            - run: npm run ${script}`),

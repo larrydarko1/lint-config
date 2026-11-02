@@ -11,7 +11,14 @@ import { FULLSTACK_WORKSPACES, type BasePaths, type PresetName } from '../eslint
 import { isRecord, readJson, stringAt } from '../gates/lib/json.ts';
 import { CANONICAL_ORDER } from '../gates/package-json.ts';
 import { FORMATTED, prettify } from './format.ts';
-import { UI_FAMILIES, scaffoldFiles, unconfiguredGates, type Distribution, type Runtime } from './templates.ts';
+import {
+    UI_FAMILIES,
+    nodeMajorFor,
+    scaffoldFiles,
+    unconfiguredGates,
+    type Distribution,
+    type Runtime,
+} from './templates.ts';
 
 type Manifest = Record<string, unknown>;
 
@@ -61,12 +68,17 @@ export async function init(root: string, options: InitOptions): Promise<InitResu
     if (family === 'base' && runtime === null)
         throw new Error('the base family needs a runtime: where its source runs.');
     const { scan, sources } = sourceFolders(root, family, manifest);
+    const engines = isRecord(manifest['engines']) ? manifest['engines'] : {};
+    // CI installs the floor engines.node declares, which `pipeline` holds it to.
+    const declaredMajor = /(\d+)/.exec(stringAt(engines, 'node') ?? '')?.[1];
+    const nodeMajor = declaredMajor === undefined ? nodeMajorFor(family) : Number(declaredMajor);
     const files = scaffoldFiles({
         family,
         distribution,
         scan,
         sources,
         ciScripts,
+        nodeMajor,
         ...(family === 'base' && runtime !== null ? { basePaths: basePaths(root, sources, runtime) } : {}),
     });
 
@@ -97,9 +109,8 @@ export async function init(root: string, options: InitOptions): Promise<InitResu
         updated = withField(updated, 'scripts', { ...scripts, ...Object.fromEntries(newScripts) });
         result.added.push(...newScripts.map(([name]) => `scripts.${name}`));
     }
-    const engines = isRecord(manifest['engines']) ? manifest['engines'] : {};
     if (engines['node'] === undefined) {
-        updated = withField(updated, 'engines', { ...engines, node: '>=24' });
+        updated = withField(updated, 'engines', { ...engines, node: `>=${nodeMajor}` });
         result.added.push('engines.node');
     }
     if (updated !== manifest) {
