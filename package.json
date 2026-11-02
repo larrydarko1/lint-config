@@ -1,6 +1,6 @@
 {
     "name": "@larrydarko/lint-config",
-    "version": "0.1.0-beta.10",
+    "version": "0.1.0",
     "description": "Opinionated lint, format, commit and CI-gate setup for my TypeScript projects, with a CLI. Presets for full-stack MEVN, Electron and Tauri desktop apps, Vue SPAs, Express APIs, npm libraries, and a base for anything else.",
     "homepage": "https://github.com/larrydarko1/lint-config#readme",
     "bugs": {
