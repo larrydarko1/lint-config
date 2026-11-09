@@ -289,6 +289,71 @@ test('a file no header rule matches is unchecked', (t) => {
     assert.deepEqual(run(root, { casing: CAMEL, headers }).problems, []);
 });
 
+// ── 5. Headers: business logic says what it owns ────────────────────────────
+const OWNS = [{ files: /^src\/services\/.*\.ts$/, require: 'owns' }];
+const ownsRun = (t, body) => whats(run(tree(t, { 'src/services/history.ts': body }), { headers: OWNS }));
+const OWNED =
+    '/**\n * Watch history: which media each user has watched.\n *\n * Owns: recording views, deletion.\n * Does NOT own: view counts (services/engagement.ts).\n */\nexport const a = 1;\n';
+
+test('a service header with both ownership lines passes', (t) => {
+    assert.deepEqual(ownsRun(t, OWNED), []);
+});
+
+test('a label may share a line with the block’s opening or closing marker', (t) => {
+    assert.deepEqual(ownsRun(t, '/** Owns: views.\n * Does NOT own: counts. */\nexport const a = 1;\n'), []);
+});
+
+test('a service header without `Does NOT own:` fails', (t) => {
+    assert.deepEqual(ownsRun(t, '/**\n * Owns: recording views.\n */\nexport const a = 1;\n'), [
+        'src/services/history.ts: JSDoc header has no `Does NOT own:` line with text after it',
+    ]);
+});
+
+test('a service header with neither label names both', (t) => {
+    assert.deepEqual(ownsRun(t, '/** Watch history. */\nexport const a = 1;\n'), [
+        'src/services/history.ts: JSDoc header has no `Owns:` or `Does NOT own:` line with text after it',
+    ]);
+});
+
+test('a label with nothing after it does not count', (t) => {
+    assert.deepEqual(ownsRun(t, '/**\n * Owns:\n * Does NOT own: counts.\n */\nexport const a = 1;\n'), [
+        'src/services/history.ts: JSDoc header has no `Owns:` line with text after it',
+    ]);
+});
+
+test('a label in the middle of a sentence does not count', (t) => {
+    assert.deepEqual(
+        ownsRun(t, '/**\n * This module Owns: views.\n * Does NOT own: counts.\n */\nexport const a = 1;\n'),
+        ['src/services/history.ts: JSDoc header has no `Owns:` line with text after it'],
+    );
+});
+
+test('the labels are spelled exactly', (t) => {
+    assert.deepEqual(ownsRun(t, '/**\n * Owns: views.\n * Does not own: counts.\n */\nexport const a = 1;\n'), [
+        'src/services/history.ts: JSDoc header has no `Does NOT own:` line with text after it',
+    ]);
+});
+
+test('labels in a later JSDoc block do not satisfy the file header', (t) => {
+    const body =
+        '/** Watch history. */\nimport x from "y";\n\n/**\n * Owns: views.\n * Does NOT own: counts.\n */\nexport const a = x;\n';
+    assert.deepEqual(ownsRun(t, body), [
+        'src/services/history.ts: JSDoc header has no `Owns:` or `Does NOT own:` line with text after it',
+    ]);
+});
+
+test('labels in a line comment are no JSDoc header', (t) => {
+    assert.deepEqual(ownsRun(t, '// Owns: views.\n// Does NOT own: counts.\nexport const a = 1;\n'), [
+        'src/services/history.ts: no JSDoc file header',
+    ]);
+});
+
+test('an earlier rule still wins over an `owns` rule', (t) => {
+    const root = tree(t, { 'src/services/history.ts': '// history\nexport const a = 1;\n' });
+    const ordered = [{ files: /history\.ts$/, require: 'comment' }, ...OWNS];
+    assert.deepEqual(run(root, { headers: ordered }).problems, []);
+});
+
 // ── 6/7. SFC blocks ─────────────────────────────────────────────────────────
 test('template before script fails', (t) => {
     const root = tree(t, {
@@ -578,6 +643,15 @@ test('a jsdoc rule that matches a Rust file says to write it as rustdoc', (t) =>
         { headers: [{ files: /^src\//, require: 'jsdoc' }] },
     );
     assert.deepEqual(whats(result), ['src/a.rs: is matched by a `jsdoc` header rule']);
+});
+
+test('an owns rule that matches a Rust file says so', (t) => {
+    const result = rustRun(
+        t,
+        { 'src/lib.rs': '//! The app.\n', 'src/a.rs': '//! A.\n' },
+        { headers: [{ files: /^src\//, require: 'owns' }] },
+    );
+    assert.deepEqual(whats(result), ['src/a.rs: is matched by an `owns` header rule']);
 });
 
 test('a first paragraph of two sentences is reported, `//!` and `///` alike', (t) => {

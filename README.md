@@ -643,7 +643,7 @@ its source roots, its services, and exceptions it has approved, each with a stat
 | Gate                       | Family                   | Checks                                                                             |
 | -------------------------- | ------------------------ | ---------------------------------------------------------------------------------- |
 | `audit`                    | all                      | `npm audit`, with a reviewed allowlist that expires                                |
-| `code-style`               | all                      | file names, file length, SFC block order, stale size baselines; Rust headers       |
+| `code-style`               | all                      | file names and length, headers, SFC block order, stale baselines; Rust headers     |
 | `contrast`                 | all with a UI            | every text token clears AA on every background, in every theme; no dimmed text     |
 | `dead-code`                | all                      | unused code and dependencies, undeclared imports, import cycles (knip)             |
 | `declaration-order`        | all                      | the order of imports, types, constants and functions; Rust items and `use`s        |
@@ -750,6 +750,22 @@ runs the sources, and a `file:` install is a symlink, so neither of them sees a 
 once published: a `.ts` file Node refuses to strip under `node_modules`, a file `exports` names that
 `files` left out, a `bin` with no `#!` line, or a declaration that can't resolve. With `skipLibCheck`
 on, as a project runs, that last one quietly becomes `any`.
+
+**Headers.** Each of `code-style`'s `headers` rules matches files by their repo-relative path and says
+what their opening comment must be: `jsdoc` (a `/** */` block), `comment` (any comment), `none` (no
+header, for SFCs), `rustdoc` (a `//!` block), or `owns`. The first rule that matches a file wins, so
+list narrower rules first. Point `owns` at business logic, such as a `services/` folder. The file's
+first `/** */` block then needs an `Owns:` line and a `Does NOT own:` line, each spelled exactly that
+way at the start of a line and followed by text on the same line:
+
+```ts
+/**
+ * Watch history: which media each user has watched.
+ *
+ * Owns: recording views, paginated retrieval, deletion.
+ * Does NOT own: view counting (services/engagement.ts).
+ */
+```
 
 **Rust.** `code-style` and `declaration-order` read `.rs` files too, never under `target/`. Name the
 crate's sources in `scan` or `sourceRoots` (`src-tauri/src`, and `src-tauri/build.rs`: a file is read
