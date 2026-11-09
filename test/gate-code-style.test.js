@@ -645,13 +645,59 @@ test('a jsdoc rule that matches a Rust file says to write it as rustdoc', (t) =>
     assert.deepEqual(whats(result), ['src/a.rs: is matched by a `jsdoc` header rule']);
 });
 
-test('an owns rule that matches a Rust file says so', (t) => {
-    const result = rustRun(
-        t,
-        { 'src/lib.rs': '//! The app.\n', 'src/a.rs': '//! A.\n' },
-        { headers: [{ files: /^src\//, require: 'owns' }] },
+const RUST_OWNS = { headers: [{ files: /^src\/services\//, require: 'owns' }] };
+const rustOwnsRun = (t, body) =>
+    whats(rustRun(t, { 'src/lib.rs': '//! The app.\n', 'src/services/history.rs': body }, RUST_OWNS));
+const RUST_OWNED = '//! Watch history.\n//!\n//! Owns: recording views.\n//! Does NOT own: counts.\n\npub fn a() {}\n';
+
+test('an owns rule passes a `//!` header with both labels after its summary', (t) => {
+    assert.deepEqual(rustOwnsRun(t, RUST_OWNED), []);
+});
+
+test('an owns rule reads a `/*! */` header too', (t) => {
+    assert.deepEqual(
+        rustOwnsRun(t, '/*!\n * Watch history.\n *\n * Owns: views.\n * Does NOT own: counts.\n */\n'),
+        [],
     );
-    assert.deepEqual(whats(result), ['src/a.rs: is matched by an `owns` header rule']);
+});
+
+test('a `/*! */` header without the labels names both', (t) => {
+    assert.deepEqual(rustOwnsRun(t, '/*! Watch history. */\n\npub fn a() {}\n'), [
+        'src/services/history.rs: `//!` header has no `Owns:` or `Does NOT own:` line with text after it',
+    ]);
+});
+
+test('blank lines before a `//!` header are allowed, as `rustdoc` allows them', (t) => {
+    assert.deepEqual(rustOwnsRun(t, `\n\n${RUST_OWNED}`), []);
+});
+
+test('a `//!` header that is the whole file is read to its end', (t) => {
+    assert.deepEqual(rustOwnsRun(t, '//! Watch history.\n//!\n//! Owns: views.\n//! Does NOT own: counts.'), []);
+});
+
+test('a `//!` header without `Does NOT own:` names it', (t) => {
+    assert.deepEqual(rustOwnsRun(t, '//! Watch history.\n//!\n//! Owns: views.\n\npub fn a() {}\n'), [
+        'src/services/history.rs: `//!` header has no `Does NOT own:` line with text after it',
+    ]);
+});
+
+test('labels on an item’s `///` doc do not count for the file', (t) => {
+    const body =
+        '//! Watch history.\n\n/// Records a view.\n///\n/// Owns: views.\n/// Does NOT own: counts.\npub fn a() {}\n';
+    assert.deepEqual(rustOwnsRun(t, body), [
+        'src/services/history.rs: `//!` header has no `Owns:` or `Does NOT own:` line with text after it',
+    ]);
+});
+
+test('a `//` comment does not stand in for a `//!` header under an owns rule', (t) => {
+    assert.deepEqual(rustOwnsRun(t, '// Owns: views.\n// Does NOT own: counts.\npub fn a() {}\n'), [
+        'src/services/history.rs: no `//!` file header',
+    ]);
+});
+
+test('lib.rs stays a plain rustdoc header when an owns rule matches it', (t) => {
+    const result = rustRun(t, { 'src/lib.rs': '//! The app.\n' }, { headers: [{ files: /^src\//, require: 'owns' }] });
+    assert.deepEqual(whats(result), []);
 });
 
 test('a first paragraph of two sentences is reported, `//!` and `///` alike', (t) => {

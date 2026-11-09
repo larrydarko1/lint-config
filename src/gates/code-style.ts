@@ -3,8 +3,8 @@
  * exporting its own name, the line softcap, public before private, headers (with
  * `Owns:`/`Does NOT own:` for business logic), SFC block order and attributes, comment
  * format per block, no JSDoc type tags, and no relative imports where an alias resolves.
- * In Rust: `//!` headers, one-sentence doc summaries, no section labels, no `get_`
- * getters, and acronyms written as words.
+ * In Rust: `//!` headers (`Owns:`/`Does NOT own:` included), one-sentence doc summaries,
+ * no section labels, no `get_` getters, and acronyms written as words.
  * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  * - Conventions are per-project data (`casing`, `headers`, `lineCap`, `baseline`,
  * `aliasedRoots`); an unmatched file is deliberately unconstrained.

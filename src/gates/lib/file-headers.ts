@@ -5,8 +5,8 @@
 
 /**
  * `jsdoc` a `/** ... *\/` block, `owns` one carrying `Owns:` and `Does NOT own:` lines,
- * `rustdoc` a `//!` header, `comment` any leading comment, `none` a BAN on one. A Rust
- * file's `none` bans a `//!` header.
+ * `rustdoc` a `//!` header, `comment` any leading comment, `none` a BAN on one. In a Rust
+ * file, `owns` reads the `//!` header and `none` bans one.
  */
 type HeaderRequirement = 'jsdoc' | 'owns' | 'rustdoc' | 'comment' | 'none';
 
@@ -25,6 +25,7 @@ type HeaderCheck = {
 /** The labels a business-logic header carries, spelled exactly, each at the start of a line. */
 const OWNERSHIP_LABELS = ['Owns:', 'Does NOT own:'];
 const OPENING_JSDOC = /^\s*\/\*\*([\s\S]*?)\*\//;
+const OPENING_RUST_BLOCK = /^\s*\/\*!([\s\S]*?)\*\//;
 
 export const HEADER_RULE: Record<HeaderRequirement, HeaderCheck> = {
     jsdoc: {
@@ -65,8 +66,8 @@ export const RUST_HEADER_RULE: Record<HeaderRequirement, HeaderCheck> = {
         why: 'Rust has no JSDoc. Its file header is `//!` — write the rule as `rustdoc`.',
     },
     owns: {
-        problem: (): string => 'is matched by an `owns` header rule',
-        why: '`owns` reads a JSDoc block, and Rust has none. Its file header is `//!` — write the rule as `rustdoc`, or narrow its `files` to `.ts`.',
+        problem: rustOwnershipProblem,
+        why: 'This is business logic, and its header draws its edge: `Owns:` what it is responsible for, `Does NOT own:` the neighbouring concern a reader would look for here, and the module that has it. Both labels open a line of the file’s opening `//!` header, spelled exactly so, with text after them on the same line. Put them after the one-sentence summary and a blank `//!`, so they are the body. A narrow sub-module names its siblings under `Does NOT own:`.',
     },
 };
 
@@ -74,11 +75,32 @@ export const RUST_HEADER_RULE: Record<HeaderRequirement, HeaderCheck> = {
 function ownershipProblem(source: string): string | null {
     const block = OPENING_JSDOC.exec(source)?.[1];
     if (block === undefined) return 'no JSDoc file header';
+    return missingLabels('JSDoc header', blockLines(block));
+}
 
-    const lines = block.split('\n').map((line) => line.trim().replace(/^\*\s*/, ''));
+/** The opening run of `//!` lines, or an opening `/*! *\/` block, the two forms `rustdoc` accepts. */
+function rustOwnershipProblem(source: string): string | null {
+    const block = OPENING_RUST_BLOCK.exec(source)?.[1];
+    if (block !== undefined) return missingLabels('`//!` header', blockLines(block));
+
+    const lines = source.trimStart().split('\n');
+    const end = lines.findIndex((line) => !line.trimStart().startsWith('//!'));
+    const header = lines.slice(0, end === -1 ? lines.length : end);
+    if (header.length === 0) return 'no `//!` file header';
+    return missingLabels(
+        '`//!` header',
+        header.map((line) => line.trimStart().slice('//!'.length).trim()),
+    );
+}
+
+function blockLines(block: string): string[] {
+    return block.split('\n').map((line) => line.trim().replace(/^\*\s*/, ''));
+}
+
+function missingLabels(header: string, lines: string[]): string | null {
     const missing = OWNERSHIP_LABELS.filter(
         (label) => !lines.some((line) => line.startsWith(label) && line.slice(label.length).trim() !== ''),
     );
     if (missing.length === 0) return null;
-    return `JSDoc header has no ${missing.map((label) => `\`${label}\``).join(' or ')} line with text after it`;
+    return `${header} has no ${missing.map((label) => `\`${label}\``).join(' or ')} line with text after it`;
 }

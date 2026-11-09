@@ -767,13 +767,24 @@ way at the start of a line and followed by text on the same line:
  */
 ```
 
+On a `.rs` file, `owns` reads the opening `//!` lines (or a `/*! */` block) the same way. Put the
+labels after the summary and a blank `//!`, because the summary is held to one sentence:
+
+```rust
+//! Watch history: which media each user has watched.
+//!
+//! Owns: recording views, paginated retrieval, deletion.
+//! Does NOT own: view counting (engagement.rs).
+```
+
 **Rust.** `code-style` and `declaration-order` read `.rs` files too, never under `target/`. Name the
 crate's sources in `scan` or `sourceRoots` (`src-tauri/src`, and `src-tauri/build.rs`: a file is read
 as itself). `declaration-order` checks the item order of `prompts/0_standards/rust.instructions.md`
 (a type followed by its `impl`s, the tests last) and the `use` groups: std, external crates, this
 crate through `crate::`. `--fix` leaves Rust to rustfmt. `code-style` requires `//!` on `lib.rs`, and
-elsewhere where a `headers` rule says `rustdoc`; it also checks that a doc comment's first paragraph
-is one sentence, and that there are no section labels, `get_` getters or acronyms in capitals.
+elsewhere where a `headers` rule says `rustdoc` or `owns`; it also checks that a doc comment's first
+paragraph is one sentence, and that there are no section labels, `get_` getters or acronyms in
+capitals.
 
 `dead-code` takes the same list as `publicApi` in a library: `checkDeadCode({ publicApi: packageEntries() })`.
 A published package's exports are used outside the repository, so with it the gate reports neither
