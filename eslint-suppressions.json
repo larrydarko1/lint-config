@@ -247,7 +247,7 @@
   },
   "src/gates/code-style.ts": {
     "@typescript-eslint/explicit-function-return-type": {
-      "count": 14
+      "count": 7
     },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 6

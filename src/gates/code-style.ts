@@ -17,6 +17,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { HEADER_RULE, RUST_HEADER_RULE, type HeaderRule } from './lib/file-headers.ts';
 import { walkFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './lib/report.ts';
@@ -54,16 +55,6 @@ type CasingRule = {
     exempt?: RegExp;
 };
 
-type HeaderRule = {
-    /** Tested against the repo-relative path. First matching rule wins. */
-    files: RegExp;
-    /**
-     * `jsdoc` a `/** ... *\/` block, `rustdoc` a `//!` header, `comment` any leading
-     * comment, `none` a BAN on one. A Rust file's `none` bans a `//!` header.
-     */
-    require: 'jsdoc' | 'rustdoc' | 'comment' | 'none';
-};
-
 type CodeStyleInput = Omit<CodeStyleOptions, 'root'> & { root: string };
 
 type CodeStyleInspection = {
@@ -80,50 +71,6 @@ const CASE_STYLE = {
     kebab: { test: (stem: string) => /^[a-z0-9]+(-[a-z0-9]+)*$/.test(stem), label: 'kebab-case' },
     camel: { test: (stem: string) => /^[a-z][A-Za-z0-9]*$/.test(stem), label: 'camelCase' },
     pascal: { test: (stem: string) => /^[A-Z][A-Za-z0-9]*$/.test(stem), label: 'PascalCase' },
-};
-
-/** What a header rule can demand. `none` is a BAN, and bans are what nothing else catches. */
-const HEADER_RULE = {
-    jsdoc: {
-        ok: (source: string) => /^\s*\/\*\*/.test(source),
-        what: 'no JSDoc file header',
-        why: 'This module owns an external concern — a filesystem, a model handle, a config file, a domain — and which one, plus what it guarantees callers, is not derivable from its exports.',
-    },
-    comment: {
-        ok: (source: string) => /^\s*(\/\*|\/\/)/.test(source),
-        what: 'no file header',
-        why: 'A module here states what it owns in at least one line — a JSDoc block for a domain owner, a single `//` line for a narrow sub-module. That is the thing its signature cannot say.',
-    },
-    rustdoc: {
-        ok: () => false,
-        what: 'is matched by a `rustdoc` header rule',
-        why: '`//!` is a Rust header. A TypeScript file’s is a JSDoc block — write the rule as `jsdoc`, or narrow its `files` to `.rs`.',
-    },
-    none: {
-        ok: (source: string) => !/^\s*(<!--|\/\*)/.test(source),
-        what: 'has a file-level header comment',
-        why: 'An SFC takes no file header — `defineProps`/`defineEmits` are the contract, and a prose header above them is the one part nothing checks, so it is the part that goes stale. Put the "why" next to the code it explains.',
-    },
-};
-
-/** The same demands, read the way Rust writes a header. */
-const RUST_HEADER_RULE = {
-    rustdoc: {
-        ok: (source: string) => /^\s*(\/\/!|\/\*!)/.test(source),
-        what: 'no `//!` file header',
-        why: 'This module owns a concern its name does not spell out, and `//!` is where Rust says which: rustdoc renders it as the module page, and the editor shows it on hover.',
-    },
-    comment: HEADER_RULE.comment,
-    none: {
-        ok: (source: string) => !/^\s*(\/\/!|\/\*!)/.test(source),
-        what: 'has a `//!` file header',
-        why: 'Files here take no header. The name and the items are the whole story, and a header nothing checks is the part that goes stale.',
-    },
-    jsdoc: {
-        ok: () => false,
-        what: 'is matched by a `jsdoc` header rule',
-        why: 'Rust has no JSDoc. Its file header is `//!` — write the rule as `rustdoc`.',
-    },
 };
 
 const MARKUP_COMMENT = /<!--([\s\S]*?)-->/g;
@@ -269,8 +216,9 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
     for (const rel of [...ts, ...vue]) {
         const rule = headers.find((h) => h.files.test(rel));
         if (rule === undefined) continue;
-        const { ok, what, why } = HEADER_RULE[rule.require];
-        if (!ok(read(rel))) fail(rel, what, why);
+        const { problem, why } = HEADER_RULE[rule.require];
+        const what = problem(read(rel));
+        if (what !== null) fail(rel, what, why);
     }
 
     // ── 6/7. SFC block order and block attributes ───────────────────────────
@@ -399,8 +347,9 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
     for (const rel of rust) {
         const rule = path.basename(rel) === 'lib.rs' ? 'rustdoc' : headers.find((h) => h.files.test(rel))?.require;
         if (rule === undefined) continue;
-        const { ok, what, why } = RUST_HEADER_RULE[rule];
-        if (!ok(read(rel))) {
+        const { problem, why } = RUST_HEADER_RULE[rule];
+        const what = problem(read(rel));
+        if (what !== null) {
             fail(
                 rel,
                 what,
