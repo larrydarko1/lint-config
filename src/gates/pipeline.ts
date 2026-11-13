@@ -23,6 +23,7 @@
  *      larry.config.ts, `larry check` is, and covers every gate the config's family runs.
  *  18. The CI Node version satisfies engines.node.
  *  19. Every workflow_run name resolves (GitHub matches `name:`, not the filename).
+ *  20. A workflow that publishes a release is one queue: never cancelled, not grouped by commit.
  *
  * Each rule fires only on the step shape it is about, so there are no switches.
  */
@@ -31,6 +32,7 @@ import path from 'node:path';
 
 import YAML from 'yaml';
 
+import { inspectConcurrency } from './lib/concurrency.ts';
 import { inspectGateWiring } from './lib/gate-wiring.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './lib/report.ts';
@@ -59,7 +61,7 @@ type WorkflowDoc = {
     /** YAML 1.1 reads a bare `on:` key as the boolean `true`. */
     true?: unknown;
     jobs?: Record<string, Job>;
-    concurrency?: string | { 'cancel-in-progress'?: unknown } | null;
+    concurrency?: unknown;
     permissions?: Permissions;
     /** A composite action's steps. */
     runs?: Job;
@@ -83,6 +85,8 @@ type PipelineInspection = {
         pinned: number;
         actions: number;
         imagePushes: number;
+        /** Workflows that publish a GitHub release. */
+        releases: number;
         gateScripts: number;
         /** Whether a larry.config.ts holds the gates, so `larry check` runs them. */
         larry: boolean;
@@ -225,25 +229,15 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
         }
     }
 
-    // ── 2. concurrency with an explicit cancel-in-progress ──────────────────
-    for (const { rel, doc } of workflows) {
-        const group = doc.concurrency;
-        if (group === undefined) {
-            fail(
-                rel,
-                'declares no `concurrency`',
-                'Three pushes in a minute queue three complete runs, and the last answer to arrive is for the oldest commit. Group by ref (or by branch, for workflow_run) so a newer run supersedes a stale one.',
-            );
-            continue;
-        }
-        if (group === null || typeof group !== 'object' || group['cancel-in-progress'] === undefined) {
-            fail(
-                rel,
-                '`concurrency` does not set `cancel-in-progress`',
-                'Omitting the key defaults it to false — runs serialise instead of superseding. Set it explicitly either way: true for checks and builds, false for anything destructive like a registry prune, where cancelling half-way leaves the mess it was cleaning.',
-            );
-        }
-    }
+    // ── 2 and 20. concurrency, and a release as one queue ───────────────────
+    const concurrency = inspectConcurrency(
+        workflows.map(({ rel, doc }) => ({
+            rel,
+            concurrency: doc.concurrency,
+            steps: jobsOf(doc).flatMap(([, job]) => stepsOf(job)),
+        })),
+    );
+    problems.push(...concurrency.problems);
 
     // ── 3. Least-privilege permissions, declared ────────────────────────────
     for (const { rel, doc } of workflows) {
@@ -728,6 +722,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
             pinned: [...workflows, ...actions].reduce((n, w) => n + [...w.src.matchAll(USES_LINE)].length, 0),
             actions: actions.length,
             imagePushes,
+            releases: concurrency.releases,
             gateScripts: wiring.gateScripts,
             larry: wiring.larry,
             parked,
@@ -742,6 +737,7 @@ export function checkPipeline(options: PipelineOptions = {}): void {
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
     const images = counts.imagePushes > 0 ? ' every pushed image tagged by commit with a cache scope of its own,' : '';
+    const queued = counts.releases > 0 ? ' every release workflow one queue that never cancels,' : '';
     const skipped =
         counts.parked.length > 0
             ? ` ${plural(counts.parked.length, 'parked workflow')} skipped: ${counts.parked.join(', ')}.`
@@ -760,7 +756,7 @@ export function checkPipeline(options: PipelineOptions = {}): void {
             `concurrency-grouped with least-privilege permissions, ${plural(counts.pinned, 'action')} SHA-pinned across ` +
             `workflows and ${plural(counts.actions, 'composite action')}, runners pinned (matrix included), every ` +
             `workflow_run job gated on success and pinned to head_sha with every checkout job gated on a push ` +
-            `event, no untrusted input spliced into a shell,${images} and ` +
+            `event, no untrusted input spliced into a shell,${images}${queued} and ` +
             `${wired} wired into ci:check and ci.yml.${skipped}`,
         notMachineChecked:
             'whether branch protection actually requires the CI check, whether `environment: production` has ' +

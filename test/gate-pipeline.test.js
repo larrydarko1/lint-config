@@ -631,3 +631,81 @@ test('a bare `on:` key, which YAML 1.1 reads as the boolean true, still resolves
     assert.equal(failed, true);
     assert.match(err, /does not gate on `workflow_run\.conclusion == 'success'`/);
 });
+
+// ── 20: a release is one queue ───────────────────────────────────────────────
+
+const RELEASE = `name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: release-\${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - run: gh release create "$GITHUB_REF_NAME" --draft
+`;
+
+/** The passing release workflow with one piece rewritten. */
+const release = (t, from, to) => {
+    assert.ok(RELEASE.includes(from), `fixture does not contain: ${from}`);
+    return project(t, { '.github/workflows/release.yml': RELEASE.replace(from, to) });
+};
+
+test('20. a release workflow that queues and groups by tag passes, and the summary says so', (t) => {
+    const { out, err, failed } = run(project(t, { '.github/workflows/release.yml': RELEASE }));
+    assert.equal(failed, false, err);
+    assert.match(out, /every release workflow one queue that never cancels/);
+});
+
+test('20. a release workflow that cancels in-progress runs is reported', (t) => {
+    const { err, failed } = run(release(t, 'cancel-in-progress: false', 'cancel-in-progress: true'));
+    assert.equal(failed, true);
+    assert.match(err, /publishes a release but cancels in-progress runs/);
+});
+
+test('20. a release workflow grouped by commit is reported, for push and for workflow_run', (t) => {
+    for (const sha of ['github.sha', 'github.event.workflow_run.head_sha']) {
+        const { err, failed } = run(release(t, 'release-${{ github.ref }}', `release-\${{ ${sha} }}`));
+        assert.equal(failed, true, sha);
+        assert.match(err, /publishes a release but groups concurrency by commit/);
+    }
+});
+
+test('20. the release action and `gh release upload` count as publishing', (t) => {
+    const step = '      - run: gh release create "$GITHUB_REF_NAME" --draft\n';
+    for (const publish of [
+        `      - uses: softprops/action-gh-release@${SHA} # v2\n`,
+        '      - run: gh release upload "$GITHUB_REF_NAME" app.zip --clobber\n',
+    ]) {
+        const body = RELEASE.replace(step, publish).replace('cancel-in-progress: false', 'cancel-in-progress: true');
+        const { err, failed } = run(project(t, { '.github/workflows/release.yml': body }));
+        assert.equal(failed, true, publish);
+        assert.match(err, /publishes a release but cancels in-progress runs/);
+    }
+});
+
+test('20. a workflow that publishes nothing may cancel, whatever its group', (t) => {
+    const { err, failed } = run(patched(t, 'group: ci-${{ github.ref }}', 'group: ci-${{ github.sha }}'));
+    assert.equal(failed, false, err);
+});
+
+test('20. a release workflow with the one-line `concurrency:` form is reported once, by rule 2', (t) => {
+    const { err, failed } = run(
+        release(
+            t,
+            'concurrency:\n  group: release-${{ github.ref }}\n  cancel-in-progress: false\n',
+            'concurrency: release\n',
+        ),
+    );
+    assert.equal(failed, true);
+    assert.match(err, /`concurrency` does not set `cancel-in-progress`/);
+    assert.doesNotMatch(err, /publishes a release/);
+});
