@@ -7,7 +7,8 @@
  * rewrites what an older release set up. A usage or config mistake exits 2, so CI can tell
  * it from a failing gate, and stopping init at a question exits 130. Its output is coloured
  * at a terminal only: `styleText` leaves it plain for a pipe, `NO_COLOR` or `FORCE_COLOR=0`,
- * so the text a script reads is the same either way.
+ * so the text a script reads is the same either way. There check also turns a spinner for
+ * the gate that is running, which clears itself.
  */
 import path from 'node:path';
 import { styleText } from 'node:util';
@@ -77,12 +78,20 @@ const flagValue = (flags: string[], name: string): string | undefined => {
     return flag === name ? flags[at + 1] : flag.slice(name.length + 1);
 };
 
+const inCI = (): boolean => !['', '0', 'false'].includes(process.env['CI'] ?? '');
+
 /**
  * Whether a person is at the terminal to answer init's questions. A pipe or CI is not,
  * so there a missing option stays a usage error rather than a prompt nobody answers.
  */
-const interactive = (): boolean =>
-    process.stdin.isTTY && process.stdout.isTTY && ['', '0', 'false'].includes(process.env['CI'] ?? '');
+const interactive = (): boolean => process.stdin.isTTY && process.stdout.isTTY && !inCI();
+
+/**
+ * Whether check can draw its spinner: both streams at a terminal that moves the cursor. CI
+ * is left out, since a log keeps every frame a spinner draws.
+ */
+const animated = (): boolean =>
+    process.stdout.isTTY && process.stderr.isTTY && process.env['TERM'] !== 'dumb' && !inCI();
 
 const message = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
@@ -138,7 +147,10 @@ async function check(args: string[]): Promise<number> {
     }
 
     // Named gates run in the registry's order, as a whole run would.
-    const run = await runGates(config, named.length > 0 ? runs.filter((name) => named.includes(name)) : runs);
+    const names = named.length > 0 ? runs.filter((name) => named.includes(name)) : runs;
+    const { stdout, stderr } = process;
+    const flags = args.filter((arg) => arg.startsWith('-'));
+    const run = await runGates(config, names, animated() ? { root, flags, stdout, stderr } : undefined);
     console.log(`\n${summarise(run)}`);
     return run.failed.length > 0 ? 1 : 0;
 }

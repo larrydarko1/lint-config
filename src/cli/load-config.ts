@@ -47,6 +47,9 @@ export async function loadConfig(root: string): Promise<LoadedConfig> {
     return { file, ...validateConfig(isRecord(mod) ? mod['default'] : undefined, file) };
 }
 
+/** Whether `name` is a gate in the registry. */
+export const isGate = (name: string): name is GateName => Object.hasOwn(GATES, name);
+
 /**
  * @param config What the config file default-exports.
  * @param file The file's name, for the messages.
@@ -90,5 +93,3 @@ function validateConfig(config: unknown, file: string): Omit<LoadedConfig, 'file
     if (problems.length > 0) throw new Error(`${file}:\n${problems.map((p) => `  • ${p}`).join('\n')}`);
     return { family, options, skipped };
 }
-
-const isGate = (name: string): name is GateName => Object.hasOwn(GATES, name);
