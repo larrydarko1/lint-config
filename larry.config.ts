@@ -19,7 +19,7 @@ export default defineConfig({
                 'src/gates/ipc-standards.ts': 487,
                 'src/gates/lib/rust.ts': 424,
                 'src/gates/metrics.ts': 761,
-                'src/gates/pipeline.ts': 710,
+                'src/gates/pipeline.ts': 706,
                 'src/gates/scss-standards.ts': 731,
                 'src/gates/security-drift.ts': 952,
                 'src/gates/tauri-commands.ts': 503,
