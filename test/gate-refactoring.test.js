@@ -230,40 +230,32 @@ test('SFC template blocks are counted separately in the summary', (t) => {
     assert.match(result.out, /1 unlinted file or 1 SFC <template> block/);
 });
 
-// ── 2. The destination ───────────────────────────────────────────────────────
+// ── No tracker file in the repo ──────────────────────────────────────────────
 
-test('the tracker itself is never flagged for containing the word', (t) => {
-    const result = run(t, { 'todo.md': '- [ ] TODO: finish the worker\n' });
-    assert.equal(result.failed, false);
-    assert.match(result.out, /todo\.md holds 1 item/);
-});
-
-test('an empty tracker fails — deferred work is being dropped, not deferred', (t) => {
-    const result = run(t, { 'todo.md': '\n\n' });
+test('a committed todo.md fails once, as a file, not once per marker in it', (t) => {
+    const result = run(t, { 'todo.md': '- [ ] TODO: finish the worker\n- [ ] FIXME the cache\n' });
     assert.equal(result.failed, true);
-    assert.match(result.err, /is empty/);
+    assert.match(result.err, /todo\.md/);
+    assert.match(result.err, /deferred-work list committed to the repo/);
+    assert.doesNotMatch(result.err, /marker —/);
 });
 
-test('a missing tracker is not a failure, because it is often gitignored', (t) => {
-    const result = run(t, { 'README.md': '# Fixture\n' });
+test('a todo.md fails in any casing and at any depth', (t) => {
+    const result = run(t, { 'docs/TODO.md': '- finish the worker\n' });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /docs\/TODO\.md/);
+});
+
+test('a new todo.md fails before its first commit', (t) => {
+    const result = run(t, { 'README.md': '# Fixture\n' }, {}, { 'todo.md': '- finish the worker\n' });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /todo\.md/);
+});
+
+test('a gitignored todo.md is local, so it passes', (t) => {
+    const result = run(t, { '.gitignore': 'todo.md\n' }, {}, { 'todo.md': '- [ ] TODO: finish the worker\n' });
     assert.equal(result.failed, false);
-    assert.match(result.out, /todo\.md is not in this checkout/);
-});
-
-test('requireCheckboxes fails a bare bullet, and is off by default', (t) => {
-    const files = { 'todo.md': '- [ ] done properly\n- a bare bullet\n' };
-    assert.equal(run(t, files).failed, false);
-
-    const strict = run(t, files, { requireCheckboxes: true });
-    assert.equal(strict.failed, true);
-    assert.match(strict.err, /todo\.md:2/);
-    assert.match(strict.err, /bullet without a checkbox/);
-});
-
-test('a differently named tracker is honoured everywhere at once', (t) => {
-    const result = run(t, { 'BACKLOG.md': '- [ ] TODO: finish the worker\n' }, { tracker: 'BACKLOG.md' });
-    assert.equal(result.failed, false);
-    assert.match(result.out, /BACKLOG\.md holds 1 item/);
+    assert.match(result.out, /no todo\.md in the repo/);
 });
 
 // ── Files that are not text ──────────────────────────────────────────────────

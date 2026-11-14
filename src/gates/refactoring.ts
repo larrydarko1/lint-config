@@ -5,6 +5,7 @@
  * `linted`, ESLint has the `<script>` half and this gate reads the `<template>` half.
  * The match is case-sensitive on purpose: `todo` is an ordinary Spanish and Portuguese
  * word in locale files. Lowercase markers in code are ESLint's job.
+ * Deferred work lives outside the repo, so a committed `todo.md` fails too.
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -21,26 +22,22 @@ export type RefactoringOptions = {
      * only its `<template>` is read. Defaults to `['.ts', '.tsx', '.vue', '.js', '.mjs', '.cjs']`.
      */
     linted?: string[];
-    /** Extra basenames never read, on top of `package-lock.json` and the tracker. */
+    /** Extra basenames never read, on top of `package-lock.json`. */
     skip?: string[];
     /** Paths never read. Replaces the default build-output list. */
     ignore?: RegExp;
-    /** The file deferred work belongs in. Defaults to `todo.md`. */
-    tracker?: string;
-    /** Require every tracker bullet to carry a `[ ]` checkbox. */
-    requireCheckboxes?: boolean;
 };
 
 type RefactoringInspection = {
     problems: GateFailure[];
-    /** `trackerItems` is null when the tracker is not in this checkout. */
-    counts: { scanned: number; templates: number; trackerItems: number | null };
+    counts: { scanned: number; templates: number };
 };
 
 /** Kept in step by hand with the ESLint `terms` list, which is matched case-insensitively. */
 const MARKERS = /\b(TODO|FIXME|FIX ME|HACK|XXX|TBD|WIP)\b/;
 
-const DEFAULT_TRACKER = 'todo.md';
+/** Any casing: `TODO.md` goes stale exactly like `todo.md`. */
+const TRACKER = /^todo\.md$/i;
 
 /** Extensions ESLint parses in a default setup, so this gate leaves them alone. */
 const DEFAULT_LINTED = ['.ts', '.tsx', '.vue', '.js', '.mjs', '.cjs'];
@@ -55,14 +52,7 @@ const BINARY = /\.(png|jpe?g|gif|webp|svg|ico|icns|psd|woff2?|ttf|eot|mp4|webm|m
 const MAX_BYTES = 512 * 1024;
 
 export function inspectRefactoring(input: RefactoringOptions = {}): RefactoringInspection {
-    const {
-        root = REPO_ROOT,
-        linted = DEFAULT_LINTED,
-        skip = [],
-        ignore = DEFAULT_IGNORE,
-        tracker = DEFAULT_TRACKER,
-        requireCheckboxes = false,
-    } = input;
+    const { root = REPO_ROOT, linted = DEFAULT_LINTED, skip = [], ignore = DEFAULT_IGNORE } = input;
 
     const problems: GateFailure[] = [];
     const fail = (file: string, what: string, why: string) => {
@@ -70,7 +60,7 @@ export function inspectRefactoring(input: RefactoringOptions = {}): RefactoringI
     };
 
     const lintedExtensions = new Set(linted);
-    const skipNames = new Set(['package-lock.json', tracker, ...skip]);
+    const skipNames = new Set(['package-lock.json', ...skip]);
 
     /** Tracked and untracked-but-not-ignored, so a new file is checked before its first commit. */
     const repoFiles = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
@@ -80,11 +70,21 @@ export function inspectRefactoring(input: RefactoringOptions = {}): RefactoringI
         .split('\n')
         .filter(Boolean);
 
-    // ── 1. Deferral markers where ESLint cannot see them ────────────────────────
     let scanned = 0;
     let templates = 0;
 
     for (const rel of repoFiles) {
+        // ── 1. No tracker file in the repo ──────────────────────────────────────
+        if (TRACKER.test(path.basename(rel)) && !ignore.test(rel)) {
+            fail(
+                rel,
+                'a deferred-work list committed to the repo',
+                'A list kept next to the code goes stale the first time an item is fixed without editing it, and nothing tells the reader which lines are still true. Move the items to your planner (or a GitHub issue on a team) and delete the file. A gitignored copy is local and not checked.',
+            );
+            continue;
+        }
+
+        // ── 2. Deferral markers where ESLint cannot see them ────────────────────
         const ext = path.extname(rel);
         if (lintedExtensions.has(ext) && ext !== '.vue') continue;
         if (skipNames.has(path.basename(rel)) || ignore.test(rel) || BINARY.test(rel)) continue;
@@ -114,45 +114,15 @@ export function inspectRefactoring(input: RefactoringOptions = {}): RefactoringI
             fail(
                 `${rel}:${offset + i + 1}`,
                 `\`${hit[1]}\` marker — ${line.trim().slice(0, 80)}`,
-                `Deferred work does not live in the code. Move it to ${tracker} at the repo root (or a tracked issue) and delete the marker. If the line describes something that is TRUE now rather than something outstanding, say it as a statement — the marker is what turns an observation into a promise nobody is tracking.`,
+                'Deferred work does not live in the repo. Move it to your planner (or a GitHub issue on a team) and delete the marker. If the line describes something that is TRUE now rather than something outstanding, say it as a statement — the marker is what turns an observation into a promise nobody is tracking.',
             );
         });
     }
 
-    // ── 2. The destination ──────────────────────────────────────────────────────
-    const trackerPath = path.join(root, tracker);
-    const hasTracker = fs.existsSync(trackerPath);
-    let items = 0;
-
-    if (hasTracker) {
-        const lines = fs.readFileSync(trackerPath, 'utf8').split('\n');
-
-        if (lines.every((line) => line.trim() === '')) {
-            fail(
-                tracker,
-                'is empty',
-                'It is the destination the marker ban points at. An empty tracker in a repo that forbids deferral markers means deferred work is being dropped, not deferred.',
-            );
-        }
-
-        lines.forEach((line, i) => {
-            if (!/^\s*[-*]\s/.test(line)) return;
-            items += 1;
-            if (requireCheckboxes && !/^\s*[-*]\s\[.\]\s/.test(line)) {
-                fail(
-                    `${tracker}:${i + 1}`,
-                    `bullet without a checkbox — ${line.trim().slice(0, 60)}`,
-                    'Write it as `- [ ] …` so the item has a state. A bare bullet cannot be marked done, which is how a tracker turns into a pile.',
-                );
-            }
-        });
-    }
-
-    return { problems, counts: { scanned, templates, trackerItems: hasTracker ? items : null } };
+    return { problems, counts: { scanned, templates } };
 }
 
 export function checkRefactoring(options: RefactoringOptions = {}): void {
-    const { tracker = DEFAULT_TRACKER, requireCheckboxes = false } = options;
     const report = createGateReport({ name: 'Refactoring' });
     const { problems, counts } = inspectRefactoring(options);
 
@@ -165,13 +135,8 @@ export function checkRefactoring(options: RefactoringOptions = {}): void {
         .filter(Boolean)
         .join(' or ');
 
-    const destination =
-        counts.trackerItems === null
-            ? `${tracker} is not in this checkout, so the destination check was skipped`
-            : `${tracker} holds ${plural(counts.trackerItems, 'item')}${requireCheckboxes ? ', all with a checkbox' : ''}`;
-
     report.done({
-        summary: `Refactoring OK — ${covered}; ${destination}.`,
+        summary: `Refactoring OK — ${covered}; no todo.md in the repo.`,
         notMachineChecked:
             'whether a change was in scope, whether a drive-by belonged in its own commit, whether a file was split by concern or by line count, and whether something deferred should have been fixed on the spot.',
     });
