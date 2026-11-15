@@ -7,6 +7,7 @@
  */
 import { familyStandards, type FamilyStandards } from '../family.ts';
 import { PRESETS } from '../presets.ts';
+import { testCodeSelectors } from '../rules/code-style.ts';
 import { envStandards } from '../rules/env.ts';
 import { htmlStandards, type HtmlOptions } from '../rules/html.ts';
 import { i18nStandards, readsLocalesRole, type I18nOptions } from '../rules/i18n.ts';
@@ -72,6 +73,7 @@ export function spaStandards(options: SpaStandardsOptions = {}): FamilyStandards
             ),
             ...testingStandards(['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}', 'e2e/**/*.spec.ts']),
             ...frontendAreas(layout.src),
+            { files: E2E, rules: { 'no-restricted-syntax': ['error', ...testCodeSelectors] } },
             ...(consoleAllowed.length > 0 ? [{ files: consoleAllowed, rules: { 'no-console': 'off' } }] : []),
         ];
     });

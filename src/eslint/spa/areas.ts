@@ -6,7 +6,7 @@
  * `no-restricted-syntax` and `no-restricted-imports` are last-match-wins, so each area
  * names the whole list it wants.
  */
-import { noFileURLToPath, noSingleLetterDeclaration } from '../rules/code-style.ts';
+import { noFileURLToPath, noSingleLetterDeclaration, testCodeSelectors } from '../rules/code-style.ts';
 import { noImportMetaEnv } from '../rules/env.ts';
 import { layeredImports, utilsBannedImportPatterns } from '../rules/layering.ts';
 import { bannedCryptoModules } from '../rules/security.ts';
@@ -71,7 +71,7 @@ export const frontendAreas = (src: string, client?: ApiClientRules): object[] =>
             files: [`${src}/**/__tests__/**/*.{ts,vue}`, `${src}/**/*.test.ts`, `${src}/**/*.spec.ts`],
             rules: {
                 'no-restricted-imports': ['error', { paths: bannedCryptoModules, patterns: noStoreLibraryPatterns }],
-                'no-restricted-syntax': ['error', noFileURLToPath],
+                'no-restricted-syntax': ['error', ...testCodeSelectors],
                 'vue/require-typed-ref': 'off',
                 'vue/no-ref-object-reactivity-loss': 'off',
             },

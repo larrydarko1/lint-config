@@ -3,7 +3,7 @@
  * api workspace's layout as the API family's areas read it, the services beside the api,
  * the shared packages, and the frontend's side of the wire contract.
  */
-import { backendBannedImports, NOT_TESTS, syntaxBlock } from '../api/areas.ts';
+import { backendBannedImports, NOT_TESTS, syntaxBlock, testsBlock } from '../api/areas.ts';
 import { resolveLayout, type ApiLayout, type FullstackLayout } from '../presets.ts';
 import { noFileURLToPath, noSingleLetterDeclaration } from '../rules/code-style.ts';
 import { configModuleSelectors } from '../rules/env.ts';
@@ -63,6 +63,7 @@ export const serviceAreas = (
         syntaxBlock(source, [...common, ...mongo.application, ...tail]),
         syntaxBlock([`${lib}/db.ts`], [...common, ...mongo.serviceEntry, ...tail], []),
         syntaxBlock([`${lib}/config.ts`], [...configModuleSelectors, ...tail], []),
+        testsBlock(`${dir}/src`),
         { files: source, rules: { 'no-restricted-imports': ['error', { paths: bannedImports }] } },
         {
             files: [`${lib}/**/*.ts`],
@@ -77,6 +78,7 @@ export const sharedAreas = (dir: string): object[] => {
     const source = [`${dir}/src/**/*.ts`];
     return [
         syntaxBlock(source, [...tsSourceSelectors, noSingleLetterDeclaration, noFileURLToPath]),
+        testsBlock(`${dir}/src`),
         { files: source, rules: layeredImports(bannedCryptoModules, [], sharedPackageBannedImports.patterns) },
     ];
 };

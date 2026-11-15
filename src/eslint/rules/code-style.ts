@@ -1,3 +1,5 @@
+import { tsSourceSelectors } from './typescript.ts';
+
 export const noSingleLetterDeclaration = {
     selector: 'VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]',
     message:
@@ -9,3 +11,6 @@ export const noFileURLToPath = {
     message:
         'Use `import.meta.dirname` directly with `path.resolve()` instead of the `fileURLToPath` pattern. Modern ES modules support `import.meta.dirname` natively (Node.js 20.11.0+), which is simpler and more readable than converting `import.meta.url` through fileURLToPath.',
 };
+
+/** A suite is read like the code it tests, so it keeps the same names and inline exports. */
+export const testCodeSelectors = [...tsSourceSelectors, noSingleLetterDeclaration, noFileURLToPath];

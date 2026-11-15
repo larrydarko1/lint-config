@@ -666,6 +666,12 @@
                 {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
                 {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."}
             ] },
+        { "files": ["api/src/__tests__/users.test.ts","packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": [
+                "error",
+                {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
+                {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."},
+                {"selector":"CallExpression[callee.name=\"fileURLToPath\"]","message":"Use `import.meta.dirname` directly with `path.resolve()` instead of the `fileURLToPath` pattern. Modern ES modules support `import.meta.dirname` natively (Node.js 20.11.0+), which is simpler and more readable than converting `import.meta.url` through fileURLToPath."}
+            ] },
         { "files": ["worker/src/index.ts"], "entry": [
                 "error",
                 {"selector":"CallExpression[callee.name='fetch']:not(:has(ObjectExpression > Property[key.name='signal']))","message":"Pass a timeout to every outbound fetch: `fetch(url, { signal: AbortSignal.timeout(5000) })`. Node applies no default, so a stalled upstream pins the request slot until the process restarts."},
@@ -680,12 +686,6 @@
                 {"selector":"CallExpression[callee.property.name='collection'][arguments.0.type='Literal']:not([typeArguments])","message":"Give every collection its document type: `db.collection<MediaDoc>('Media')`, with the Doc types from packages/shared/src/db/collections.ts. Untyped, every read is `any`-shaped and a write with a misspelt or wrong-typed field compiles fine — which is how the worker never used MediaDoc."},
                 {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
                 {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."}
-            ] },
-        { "files": ["packages/shared/src/index.ts","e2e/login.spec.ts"], "entry": [
-                "error",
-                {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
-                {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."},
-                {"selector":"CallExpression[callee.name=\"fileURLToPath\"]","message":"Use `import.meta.dirname` directly with `path.resolve()` instead of the `fileURLToPath` pattern. Modern ES modules support `import.meta.dirname` natively (Node.js 20.11.0+), which is simpler and more readable than converting `import.meta.url` through fileURLToPath."}
             ] },
         { "files": ["db/migrations/001-init.js"], "entry": [
                 "error",

@@ -113,3 +113,29 @@ test('the full-stack selectors a project composes are the ones the family resolv
     for (const entry of fullstack.dbWorkerIndexSelectors)
         assert.ok(workerDb.some((found) => found.message === entry.message));
 });
+
+test('a suite keeps the naming and export selectors of the code it tests, in every family', async () => {
+    const expected = [
+        'VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]',
+        'ExportNamedDeclaration[source=null][declaration=null]',
+    ];
+    const suites = [
+        [spaConfig, ['src/__tests__/App.test.ts', 'src/components/__tests__/NavBar.test.ts', 'e2e/login.spec.ts']],
+        [apiConfig, ['src/__tests__/app.test.ts', 'src/services/media.test.ts', 'e2e/login.spec.ts']],
+        [
+            fullstackConfig(),
+            [
+                'frontend/src/views/__tests__/Home.test.ts',
+                'api/src/routes/__tests__/users.test.ts',
+                'worker/src/jobs/transcode.test.ts',
+                'packages/shared/src/__tests__/errors.test.ts',
+                'e2e/login.spec.ts',
+            ],
+        ],
+    ];
+    for (const [config, files] of suites)
+        for (const file of files) {
+            const { selectors } = await bansOf(config, file);
+            for (const selector of expected) assert.ok(selectors.includes(selector), `${file}: ${selector}`);
+        }
+});

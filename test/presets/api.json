@@ -651,7 +651,7 @@
                 {"selector":"NewExpression[callee.name='MongoClient']","message":"One MongoDB connection per process. Use getDb() from lib/db.ts — the singleton is created once by connectDb() at startup."},
                 {"selector":"CallExpression[callee.property.name='collection'][arguments.0.type='Literal']:not([typeArguments])","message":"Give every collection its document type: `db.collection<MediaDoc>('Media')`, with the Doc types from src/db/collections.ts. Untyped, every read is `any`-shaped and a write with a misspelt or wrong-typed field compiles fine — which is how the worker never used MediaDoc."}
             ] },
-        { "files": ["e2e/login.spec.ts"], "entry": [
+        { "files": ["src/routes/__tests__/users.test.ts","e2e/login.spec.ts"], "entry": [
                 "error",
                 {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
                 {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."},

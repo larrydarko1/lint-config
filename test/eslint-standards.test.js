@@ -201,7 +201,7 @@ test('the SPA wires its own areas: crypto, import.meta.env and the test relaxati
     assert.equal(await severityOf(spaConfig(), suite, 'vue/require-typed-ref'), 0);
     assert.deepEqual(
         (await entryOf(spaConfig(), suite, 'no-restricted-syntax')).slice(1).map((entry) => entry.selector),
-        [spa.noFileURLToPath.selector],
+        [...spa.tsSourceSelectors, spa.noSingleLetterDeclaration, spa.noFileURLToPath].map((entry) => entry.selector),
     );
 });
 

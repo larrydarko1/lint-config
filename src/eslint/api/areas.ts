@@ -17,7 +17,7 @@ import { errorHandlingSelectors } from '../fullstack/error-handling.ts';
 import { loggerCallSelectors, noDirectErrorResponse } from '../fullstack/logging.ts';
 import { wsEventNameSelectors, wsGatewayBannedImports, wsGatewaySelectors } from '../fullstack/ws.ts';
 import type { ApiLayout } from '../presets.ts';
-import { noFileURLToPath, noSingleLetterDeclaration } from '../rules/code-style.ts';
+import { noSingleLetterDeclaration, testCodeSelectors } from '../rules/code-style.ts';
 import { configModuleSelectors } from '../rules/env.ts';
 import { layeredImports, libBannedImportPatterns, type ImportPath } from '../rules/layering.ts';
 import { bannedCryptoModules } from '../rules/security.ts';
@@ -41,6 +41,10 @@ export const syntaxBlock = (files: string[], selectors: object[], ignores: strin
     ...(ignores.length > 0 ? { ignores } : {}),
     rules: { 'no-restricted-syntax': ['error', ...selectors] },
 });
+
+/** The suites beside a source folder's code, which every area above them leaves out. */
+export const testsBlock = (src: string): object =>
+    syntaxBlock([`${src}/**/__tests__/**/*.ts`, `${src}/**/*.test.ts`, `${src}/**/*.spec.ts`], testCodeSelectors, []);
 
 /** The modules a backend's own code may not import, by which of its dependencies it has. */
 export const backendBannedImports = ({ mongo, redis }: { mongo: boolean; redis: boolean }): ImportPath[] => [
@@ -89,6 +93,7 @@ export const apiAreas = (layout: ApiLayout, options: ApiAreaOptions): object[] =
               ]
             : []),
         syntaxBlock([layout.config], [...configModuleSelectors, ...tsSourceSelectors, noSingleLetterDeclaration], []),
+        testsBlock(layout.src),
 
         { files: source, rules: { 'no-restricted-imports': ['error', { paths: bannedImports }] } },
         {
@@ -119,7 +124,7 @@ export const nodeRepoAreas = (
     layout: Pick<ApiLayout, 'database' | 'indexManifest' | 'documentTypes'>,
     options: { mongo: boolean },
 ): object[] => [
-    syntaxBlock(E2E, [...tsSourceSelectors, noSingleLetterDeclaration, noFileURLToPath], []),
+    syntaxBlock(E2E, testCodeSelectors, []),
     syntaxBlock(['scripts/**/*.ts'], scriptEnvSelectors, []),
     ...(options.mongo
         ? [
