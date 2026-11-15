@@ -1,6 +1,4 @@
-import type { FullstackLayout } from '../presets.ts';
-
-/** What the messages point the reader at. The API family keeps both in its own `src/db/`. */
+/** What the messages point the reader at: each family's own files. */
 type DbMessagePaths = {
     /** The index manifest ensureIndexes() applies. */
     indexManifest: string;
@@ -10,11 +8,6 @@ type DbMessagePaths = {
 
 const DOWN_MESSAGE =
     'Migrations are forward-only: no down(). A reversal that loses data is not a rollback (the bootstrap down() dropped all 28 collections). To undo a migration, write a new forward migration. See db/migrations/README.md.';
-
-const FULLSTACK_MESSAGE_PATHS: DbMessagePaths = {
-    indexManifest: 'packages/shared/src/db/indexes.ts',
-    documentTypes: "the shared package's db/collections",
-};
 
 const noDropIndexInApi = {
     selector: "CallExpression[callee.property.name='dropIndex']",
@@ -65,9 +58,6 @@ const noMigrationDown = [
     { selector: "Property[key.name='down']", message: DOWN_MESSAGE },
 ];
 
-/** The same list in the shape `no-restricted-imports` takes. */
-const noOdm = { paths: dbBannedImports };
-
 /** Ops scripts: no guessed default for a variable that picks what they touch. */
 export const scriptEnvSelectors = [noEnvFallbackInScripts];
 
@@ -84,57 +74,9 @@ export const mongoSelectors = ({ indexManifest, documentTypes }: DbMessagePaths)
     ],
     /** lib/db.ts, which applies the manifest and holds the client. */
     dbModule: [noDropIndexInApi, noUntypedCollection(documentTypes)],
-    /** A service's index.ts, which holds that process's client. */
+    /** A service's lib/db.ts, which holds that process's client but applies no indexes. */
     serviceEntry: [noCreateIndexInApi(indexManifest), noDropIndexInApi, noUntypedCollection(documentTypes)],
 });
-
-/**
- * @param layout The full-stack workspaces. The api's `src/lib/db.ts` and each service's
- *   `src/index.ts` are the modules allowed to construct a client.
- */
-export const dbStandards = (layout: FullstackLayout) => {
-    const apiDb = `${layout.workspaces.api}/src/lib/db.ts`;
-    const serviceEntries = layout.workspaces.services.map((dir) => `${dir}/src/index.ts`);
-
-    return [
-        {
-            files: ['db/migrations/**/*.js'],
-            rules: {
-                'no-restricted-syntax': ['error', ...fullstackMongo.migration],
-                'no-restricted-imports': ['error', noOdm],
-            },
-        },
-        {
-            files: layout.backend,
-            ignores: ['**/__tests__/**', apiDb, ...serviceEntries],
-            rules: {
-                'no-restricted-syntax': ['error', ...dbApiWorkerSelectors],
-                'no-restricted-imports': ['error', noOdm],
-            },
-        },
-        {
-            files: [apiDb],
-            rules: {
-                'no-restricted-syntax': ['error', ...dbDbTsSelectors],
-                'no-restricted-imports': ['error', noOdm],
-            },
-        },
-        {
-            files: serviceEntries,
-            rules: {
-                'no-restricted-syntax': ['error', ...dbWorkerIndexSelectors],
-                'no-restricted-imports': ['error', noOdm],
-            },
-        },
-        {
-            files: ['scripts/**/*.ts'],
-            ignores: ['scripts/download-models.ts'],
-            rules: {
-                'no-restricted-syntax': ['error', ...scriptEnvSelectors],
-            },
-        },
-    ];
-};
 
 const noCreateIndexInMigration = (indexManifest: string) => ({
     selector: "CallExpression[callee.property.name='createIndex']",
@@ -150,13 +92,3 @@ const noUntypedCollection = (documentTypes: string) => ({
     selector: "CallExpression[callee.property.name='collection'][arguments.0.type='Literal']:not([typeArguments])",
     message: `Give every collection its document type: \`db.collection<MediaDoc>('Media')\`, with the Doc types from ${documentTypes}. Untyped, every read is \`any\`-shaped and a write with a misspelt or wrong-typed field compiles fine — which is how the worker never used MediaDoc.`,
 });
-
-const fullstackMongo = mongoSelectors(FULLSTACK_MESSAGE_PATHS);
-
-export const dbApiWorkerSelectors = fullstackMongo.application;
-
-/** The api's lib/db.ts — the manifest applier + singleton (createIndex/new MongoClient are its job). */
-export const dbDbTsSelectors = fullstackMongo.dbModule;
-
-/** A service's index.ts — that process's singleton (new MongoClient is its job). */
-export const dbWorkerIndexSelectors = fullstackMongo.serviceEntry;

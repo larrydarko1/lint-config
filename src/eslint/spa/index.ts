@@ -1,8 +1,8 @@
 /**
  * The SPA family: one Vue app built by Vite, in one package, with no server of its own.
  * Its rules are the shared ones in ../rules and the app's areas in ./areas.ts, given
- * this layout's folders, and none of the rules for an API, a database or a socket
- * gateway, because there is none. The selectors a project composes into
+ * this layout's folders; the full-stack family gives the same areas its frontend, with
+ * the rules for a client of its own API on top. The selectors a project composes into
  * its own `no-restricted-syntax` blocks are re-exported individually below.
  */
 import { familyStandards, type FamilyStandards } from '../family.ts';

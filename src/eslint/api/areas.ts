@@ -32,9 +32,22 @@ type ApiAreaOptions = {
 };
 
 /** Tests sit beside the code, so every area below leaves them out. */
-const NOT_TESTS = ['**/__tests__/**', '**/*.test.ts', '**/*.spec.ts'];
+export const NOT_TESTS = ['**/__tests__/**', '**/*.test.ts', '**/*.spec.ts'];
 
 const E2E = ['e2e/**/*.ts'];
+
+export const syntaxBlock = (files: string[], selectors: object[], ignores: string[] = NOT_TESTS): object => ({
+    files,
+    ...(ignores.length > 0 ? { ignores } : {}),
+    rules: { 'no-restricted-syntax': ['error', ...selectors] },
+});
+
+/** The modules a backend's own code may not import, by which of its dependencies it has. */
+export const backendBannedImports = ({ mongo, redis }: { mongo: boolean; redis: boolean }): ImportPath[] => [
+    ...bannedCryptoModules,
+    ...(mongo ? dbBannedImports : []),
+    ...(redis ? apiBannedImports : proxyWorkBannedImports),
+];
 
 export const apiAreas = (layout: ApiLayout, options: ApiAreaOptions): object[] => {
     const { mongo: useMongo, redis, ws, namedShapes } = options;
@@ -119,17 +132,4 @@ export const nodeRepoAreas = (
               },
           ]
         : []),
-];
-
-const syntaxBlock = (files: string[], selectors: object[], ignores: string[] = NOT_TESTS): object => ({
-    files,
-    ...(ignores.length > 0 ? { ignores } : {}),
-    rules: { 'no-restricted-syntax': ['error', ...selectors] },
-});
-
-/** The modules a backend's own code may not import, by which of its dependencies it has. */
-const backendBannedImports = ({ mongo, redis }: { mongo: boolean; redis: boolean }): ImportPath[] => [
-    ...bannedCryptoModules,
-    ...(mongo ? dbBannedImports : []),
-    ...(redis ? apiBannedImports : proxyWorkBannedImports),
 ];

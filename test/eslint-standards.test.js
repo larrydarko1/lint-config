@@ -359,6 +359,10 @@ const importProblems = async (config, file, code) => {
 const LAYERING_CASES = [
     [apiConfig, 'src/lib/cache.ts', '@/services/users'],
     [spaConfig, 'src/utils/format.ts', '@/lib/http'],
+    [fullstackConfig, 'api/src/lib/cache.ts', '@/services/users'],
+    [fullstackConfig, 'worker/src/lib/queue.ts', '@/services/jobs'],
+    [fullstackConfig, 'frontend/src/utils/format.ts', '@/lib/http'],
+    [fullstackConfig, 'packages/shared/src/db/collections.ts', 'mongodb'],
 ];
 
 test('a layering ban lets `import type` through, and a module ban does not', async () => {

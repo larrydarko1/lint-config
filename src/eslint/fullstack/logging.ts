@@ -1,5 +1,3 @@
-import type { FullstackLayout } from '../presets.ts';
-
 export const noDirectErrorResponse = {
     selector: "CallExpression[callee.object.name='res'][callee.property.name='status'] > Literal[value>=400]",
     message:
@@ -23,30 +21,3 @@ export const loggerCallSelectors = [
             "Log the whole error as { err } — pino's serialiser keeps the stack AND the error's own fields (an S3 error's code, an ioredis error's command). { err: err.message } throws all of that away.",
     },
 ];
-
-/**
- * @param layout The full-stack workspaces; `console` is banned on the Node side and in the frontend.
- * @param [options.consoleAllowed=[]] Files where `console` is the point — the app shell
- *   reporting a boot failure it cannot yet log any other way.
- */
-export const loggingStandards = (layout: FullstackLayout, options: { consoleAllowed?: string[] } = {}) => {
-    const { consoleAllowed = [] } = options;
-
-    return [
-        {
-            files: layout.backend,
-            ignores: ['**/__tests__/**'],
-            rules: {
-                'no-console': 'error',
-            },
-        },
-        {
-            files: layout.frontend,
-            ignores: ['**/__tests__/**'],
-            rules: {
-                'no-console': 'error',
-            },
-        },
-        ...(consoleAllowed.length ? [{ files: consoleAllowed, rules: { 'no-console': 'off' } }] : []),
-    ];
-};
