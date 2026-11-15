@@ -363,6 +363,7 @@ const LAYERING_CASES = [
     [fullstackConfig, 'worker/src/lib/queue.ts', '@/services/jobs'],
     [fullstackConfig, 'frontend/src/utils/format.ts', '@/lib/http'],
     [fullstackConfig, 'packages/shared/src/db/collections.ts', 'mongodb'],
+    [fullstackConfig, 'packages/shared/src/types.ts', 'vue'],
 ];
 
 test('a layering ban lets `import type` through, and a module ban does not', async () => {

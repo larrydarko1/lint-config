@@ -297,8 +297,8 @@ family's areas, plus the client's side of the API contract: no typed or rendered
 The api gets the API family's areas, with the index manifest and the document types in the first
 shared package (`packages/shared/src/db/indexes.ts` and `collections.ts`). Each service gets the
 backend rules without the HTTP ones, and builds its one database client in its own
-`src/lib/db.ts`, as the api does. Each shared package is framework-neutral: no Vue, no server
-framework, no driver. Like the API family, it needs no `overrides` to be complete.
+`src/lib/db.ts`, as the api does. Each shared package is framework-neutral: it loads no Vue, no
+server framework and no driver. Like the API family, it needs no `overrides` to be complete.
 
 **A layering ban is about what runs.** The bans on which layer may import which (a shared package
 on a driver, `utils/` on `lib/`, `lib/` on `services/`) use `@typescript-eslint/no-restricted-imports`

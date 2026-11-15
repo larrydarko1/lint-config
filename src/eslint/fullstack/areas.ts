@@ -73,7 +73,7 @@ export const serviceAreas = (
     ];
 };
 
-/** A framework-neutral package every workspace imports: no Vue, no server framework, no driver. */
+/** A framework-neutral package every workspace imports: it loads no Vue, no server framework, no driver. */
 export const sharedAreas = (dir: string): object[] => {
     const source = [`${dir}/src/**/*.ts`];
     return [
