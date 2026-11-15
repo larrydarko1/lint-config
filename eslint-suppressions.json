@@ -8,11 +8,8 @@
     }
   },
   "src/eslint/api/index.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
     "@typescript-eslint/strict-boolean-expressions": {
-      "count": 2
+      "count": 1
     }
   },
   "src/eslint/fullstack/api.ts": {

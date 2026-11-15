@@ -1,35 +1,24 @@
 /**
  * The API family: one Express service in one package, with its clients in other
- * repositories. Its rules are the full-stack api's: the shared ones in ../rules and the
- * api, database, logging and socket selectors in ../fullstack, given this layout's
- * folders, with no frontend or shared-package rules because there are none. MongoDB,
- * Redis and a socket gateway are assumed, and each can be switched off for an API
- * without it.
+ * repositories. Its rules are the shared ones in ../rules and the service's areas in
+ * ./areas.ts, given this layout's folders; the full-stack family gives the same areas
+ * its api workspace. MongoDB, Redis and a socket gateway are assumed, and each can be
+ * switched off for an API without it.
  *
- * `no-restricted-syntax` and `no-restricted-imports` are last-match-wins, so each area
- * below names the whole list it wants. A project that adds a selector to an area names
- * that area's whole list again in its own block. The selectors are re-exported
- * individually below for that.
+ * `no-restricted-syntax` and `no-restricted-imports` are last-match-wins, so a project
+ * that adds a selector to an area names that area's whole list again in its own block.
+ * The selectors are re-exported individually below for that.
  */
 import { familyStandards, type FamilyStandards } from '../family.ts';
-import {
-    apiBannedImports,
-    apiRoutesOnlySelectors,
-    httpServiceSelectors,
-    proxyWorkBannedImports,
-} from '../fullstack/api.ts';
-import { dbBannedImports, mongoSelectors, scriptEnvSelectors } from '../fullstack/db.ts';
-import { errorHandlingSelectors } from '../fullstack/error-handling.ts';
-import { loggerCallSelectors, noDirectErrorResponse } from '../fullstack/logging.ts';
-import { wsEventNameSelectors, wsGatewayBannedImports, wsGatewaySelectors } from '../fullstack/ws.ts';
+import { httpServiceSelectors } from '../fullstack/api.ts';
+import { mongoSelectors } from '../fullstack/db.ts';
 import { PRESETS, resolveLayout, type ApiLayout } from '../presets.ts';
-import { noFileURLToPath, noSingleLetterDeclaration } from '../rules/code-style.ts';
-import { configModuleSelectors, envStandards } from '../rules/env.ts';
-import { layeredImports, libBannedImportPatterns } from '../rules/layering.ts';
+import { envStandards } from '../rules/env.ts';
 import { refactoringStandards, type RefactoringOptions } from '../rules/refactoring.ts';
-import { bannedCryptoModules, securityStandards } from '../rules/security.ts';
+import { securityStandards } from '../rules/security.ts';
 import { testingStandards } from '../rules/testing.ts';
-import { tsSourceSelectors, typescriptStandards } from '../rules/typescript.ts';
+import { typescriptStandards } from '../rules/typescript.ts';
+import { apiAreas, nodeRepoAreas } from './areas.ts';
 
 export { bannedCryptoModules } from '../rules/security.ts';
 export { configModuleSelectors } from '../rules/env.ts';
@@ -71,8 +60,6 @@ export type ApiStandardsOptions = {
     ws?: boolean;
 };
 const E2E = ['e2e/**/*.ts'];
-/** Tests sit beside the code, so every area below leaves them out. */
-const NOT_TESTS = ['**/__tests__/**', '**/*.test.ts', '**/*.spec.ts'];
 const NAMED_SHAPES = 'and export it from the module that returns it, so every caller compiles against one definition';
 const DEFAULT_LAYOUT = resolveLayout('api');
 
@@ -90,50 +77,23 @@ export const dbApiWorkerSelectors = defaultMongo.application;
 export const dbDbTsSelectors = defaultMongo.dbModule;
 
 export function apiStandards(options: ApiStandardsOptions = {}): FamilyStandards<'api'> {
-    const { logging = {}, refactoring, mongo: useMongo = true, redis = true, ws = true } = options;
+    const { logging = {}, refactoring, mongo = true, redis = true, ws = true } = options;
     const { consoleAllowed = [] } = logging;
     const roles: (keyof ApiLayout)[] = [
         'src',
         'routes',
         'config',
         'errorHandler',
-        ...(useMongo ? (['dbModule'] as const) : []),
+        ...(mongo ? (['dbModule'] as const) : []),
         ...(ws ? (['gateway'] as const) : []),
     ];
 
     return familyStandards('api', roles, (layout) => {
         /** The service's own code: what ships. */
         const source = [`${layout.src}/**/*.ts`];
-        const routes = [`${layout.routes}/**/*.ts`];
-        const gateway = [`${layout.gateway}/**/*.ts`];
-        const mongo = mongoSelectors(layout);
-
-        const db = useMongo ? mongo.application : [];
-        /** Every area of the service shares these; each block below adds or swaps its own. */
-        const common = [
-            ...httpServiceSelectors({ appError: layout.appError, namedShapes: NAMED_SHAPES }),
-            ...loggerCallSelectors,
-            ...errorHandlingSelectors,
-            ...tsSourceSelectors,
-            noSingleLetterDeclaration,
-        ];
-        const bannedImports = [
-            ...bannedCryptoModules,
-            ...(useMongo ? dbBannedImports : []),
-            ...(redis ? apiBannedImports : proxyWorkBannedImports),
-        ];
-        const syntax = (files: string[], selectors: object[], ignores: string[] = NOT_TESTS) => ({
-            files,
-            ...(ignores.length ? { ignores } : {}),
-            rules: { 'no-restricted-syntax': ['error', ...selectors] },
-        });
 
         return [
             ...securityStandards({ code: source, vue: [] }),
-            { files: source, ignores: TESTS, rules: { 'no-console': 'error' } },
-            ...(consoleAllowed.length ? [{ files: consoleAllowed, rules: { 'no-console': 'off' } }] : []),
-            // A caught error's message reaches a log, never a response.
-            { files: source, ignores: TESTS, rules: { 'larry/no-caught-message-leak': 'error' } },
             ...typescriptStandards({ source, code: [...source, ...E2E], defaultExportAllowed: [] }),
             ...envStandards([
                 layout.config,
@@ -148,59 +108,9 @@ export function apiStandards(options: ApiStandardsOptions = {}): FamilyStandards
                 refactoring,
             ),
             ...testingStandards(['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}', 'e2e/**/*.spec.ts']),
-
-            // ── Restricted syntax, broadest area first ───────────────────────
-            syntax(source, [...common, noDirectErrorResponse, ...db]),
-            syntax(routes, [...common, ...apiRoutesOnlySelectors, noDirectErrorResponse, ...db]),
-            // The handler is where an error becomes a response, so it answers directly.
-            syntax([layout.errorHandler], [...common, ...db], []),
-            ...(useMongo ? [syntax([layout.dbModule], [...common, noDirectErrorResponse, ...mongo.dbModule], [])] : []),
-            ...(ws
-                ? [
-                      syntax(gateway, [
-                          ...wsGatewaySelectors,
-                          ...wsEventNameSelectors,
-                          ...common,
-                          noDirectErrorResponse,
-                          ...db,
-                      ]),
-                  ]
-                : []),
-            syntax([layout.config], [...configModuleSelectors, ...tsSourceSelectors, noSingleLetterDeclaration], []),
-            syntax(E2E, [...tsSourceSelectors, noSingleLetterDeclaration, noFileURLToPath], []),
-            syntax(['scripts/**/*.ts'], scriptEnvSelectors, []),
-            ...(useMongo
-                ? [
-                      {
-                          files: [`${layout.database}/migrations/**/*.js`],
-                          rules: {
-                              'no-restricted-syntax': ['error', ...mongo.migration],
-                              'no-restricted-imports': ['error', { paths: dbBannedImports }],
-                          },
-                      },
-                  ]
-                : []),
-
-            // ── Restricted imports ───────────────────────────────────────────
-            { files: source, rules: { 'no-restricted-imports': ['error', { paths: bannedImports }] } },
-            {
-                files: [`${layout.lib}/**/*.ts`],
-                ignores: NOT_TESTS,
-                rules: layeredImports(bannedImports, [], libBannedImportPatterns),
-            },
-            ...(ws
-                ? [
-                      {
-                          files: gateway,
-                          rules: {
-                              'no-restricted-imports': [
-                                  'error',
-                                  { paths: [...bannedImports, ...wsGatewayBannedImports] },
-                              ],
-                          },
-                      },
-                  ]
-                : []),
+            ...apiAreas(layout, { mongo, redis, ws, namedShapes: NAMED_SHAPES }),
+            ...nodeRepoAreas(layout, { mongo }),
+            ...(consoleAllowed.length ? [{ files: consoleAllowed, rules: { 'no-console': 'off' } }] : []),
         ];
     });
 }

@@ -8,7 +8,7 @@
  * Module bans (crypto, a store library) and the relative-path ban stay absolute: a `../`
  * path breaks on a move whether or not the symbol survives to runtime.
  */
-type ImportPath = { name: string; message: string };
+export type ImportPath = { name: string; message: string };
 type ImportPattern = ({ group: string[] } | { regex: string }) & { message: string };
 
 export const utilsBannedImportPatterns = [
