@@ -10,27 +10,27 @@
  * The selectors are re-exported individually below for that.
  */
 import { familyStandards, type FamilyStandards } from '../family.ts';
-import { httpServiceSelectors } from '../fullstack/api.ts';
-import { mongoSelectors } from '../fullstack/db.ts';
 import { PRESETS, resolveLayout, type ApiLayout } from '../presets.ts';
 import { envStandards } from '../rules/env.ts';
 import { refactoringStandards, type RefactoringOptions } from '../rules/refactoring.ts';
 import { securityStandards } from '../rules/security.ts';
 import { testingStandards } from '../rules/testing.ts';
 import { typescriptStandards } from '../rules/typescript.ts';
+import { httpServiceSelectors } from './api.ts';
 import { apiAreas, nodeRepoAreas } from './areas.ts';
+import { mongoSelectors } from './db.ts';
 
 export { bannedCryptoModules } from '../rules/security.ts';
 export { configModuleSelectors } from '../rules/env.ts';
 export { noSingleLetterDeclaration, noFileURLToPath } from '../rules/code-style.ts';
 export { tsSourceSelectors } from '../rules/typescript.ts';
 export { functionContractsPlugin } from '../rules/function-contracts.ts';
-export { apiRoutesOnlySelectors, apiBannedImports } from '../fullstack/api.ts';
-export { dbBannedImports } from '../fullstack/db.ts';
-export { loggerCallSelectors, noDirectErrorResponse } from '../fullstack/logging.ts';
-export { errorHandlingSelectors } from '../fullstack/error-handling.ts';
+export { apiRoutesOnlySelectors, apiBannedImports } from './api.ts';
+export { dbBannedImports } from './db.ts';
+export { loggerCallSelectors, noDirectErrorResponse } from './logging.ts';
+export { errorHandlingSelectors } from './error-handling.ts';
 export { libBannedImportPatterns } from '../rules/layering.ts';
-export { wsGatewaySelectors, wsEventNameSelectors, wsGatewayBannedImports } from '../fullstack/ws.ts';
+export { wsGatewaySelectors, wsEventNameSelectors, wsGatewayBannedImports } from './ws.ts';
 
 export type ApiStandardsOptions = {
     /**

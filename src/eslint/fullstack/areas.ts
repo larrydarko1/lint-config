@@ -3,7 +3,12 @@
  * api workspace's layout as the API family's areas read it, the services beside the api,
  * the shared packages, and the frontend's side of the wire contract.
  */
+import { frontendSelectors, outboundCallSelectors } from '../api/api.ts';
 import { backendBannedImports, NOT_TESTS, syntaxBlock, testsBlock } from '../api/areas.ts';
+import { mongoSelectors } from '../api/db.ts';
+import { errorHandlingSelectors } from '../api/error-handling.ts';
+import { loggerCallSelectors } from '../api/logging.ts';
+import { wsEventNameSelectors, wsSocketClientBannedImports } from '../api/ws.ts';
 import { resolveLayout, type ApiLayout, type FullstackLayout } from '../presets.ts';
 import { noFileURLToPath, noSingleLetterDeclaration } from '../rules/code-style.ts';
 import { configModuleSelectors } from '../rules/env.ts';
@@ -11,12 +16,7 @@ import { layeredImports, libBannedImportPatterns } from '../rules/layering.ts';
 import { bannedCryptoModules } from '../rules/security.ts';
 import { tsSourceSelectors } from '../rules/typescript.ts';
 import type { ApiClientRules } from '../spa/areas.ts';
-import { frontendSelectors, outboundCallSelectors } from './api.ts';
 import { sharedPackageBannedImports } from './boundaries.ts';
-import { mongoSelectors } from './db.ts';
-import { errorHandlingSelectors } from './error-handling.ts';
-import { loggerCallSelectors } from './logging.ts';
-import { wsEventNameSelectors, wsSocketClientBannedImports } from './ws.ts';
 
 /**
  * The api workspace as the API family lays out a service, with the index manifest and

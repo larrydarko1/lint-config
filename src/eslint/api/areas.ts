@@ -6,22 +6,17 @@
  * `no-restricted-syntax` and `no-restricted-imports` are last-match-wins, so each area
  * names the whole list it wants.
  */
-import {
-    apiBannedImports,
-    apiRoutesOnlySelectors,
-    httpServiceSelectors,
-    proxyWorkBannedImports,
-} from '../fullstack/api.ts';
-import { dbBannedImports, mongoSelectors, scriptEnvSelectors } from '../fullstack/db.ts';
-import { errorHandlingSelectors } from '../fullstack/error-handling.ts';
-import { loggerCallSelectors, noDirectErrorResponse } from '../fullstack/logging.ts';
-import { wsEventNameSelectors, wsGatewayBannedImports, wsGatewaySelectors } from '../fullstack/ws.ts';
 import type { ApiLayout } from '../presets.ts';
 import { noSingleLetterDeclaration, testCodeSelectors } from '../rules/code-style.ts';
 import { configModuleSelectors } from '../rules/env.ts';
 import { layeredImports, libBannedImportPatterns, type ImportPath } from '../rules/layering.ts';
 import { bannedCryptoModules } from '../rules/security.ts';
 import { tsSourceSelectors } from '../rules/typescript.ts';
+import { apiBannedImports, apiRoutesOnlySelectors, httpServiceSelectors, proxyWorkBannedImports } from './api.ts';
+import { dbBannedImports, mongoSelectors, scriptEnvSelectors } from './db.ts';
+import { errorHandlingSelectors } from './error-handling.ts';
+import { loggerCallSelectors, noDirectErrorResponse } from './logging.ts';
+import { wsEventNameSelectors, wsGatewayBannedImports, wsGatewaySelectors } from './ws.ts';
 
 type ApiAreaOptions = {
     mongo: boolean;

@@ -7,7 +7,9 @@
  * repository-wide rules come once, from ../rules. The selectors a project composes into
  * its own `no-restricted-syntax` blocks are re-exported individually below.
  */
+import { httpServiceSelectors } from '../api/api.ts';
 import { apiAreas, nodeRepoAreas } from '../api/areas.ts';
+import { mongoSelectors } from '../api/db.ts';
 import { familyStandards, type FamilyStandards } from '../family.ts';
 import { fullstackLayout } from '../presets.ts';
 import { envStandards } from '../rules/env.ts';
@@ -19,9 +21,7 @@ import { testingStandards } from '../rules/testing.ts';
 import { typescriptStandards } from '../rules/typescript.ts';
 import { vueStandards } from '../rules/vue.ts';
 import { frontendAreas } from '../spa/areas.ts';
-import { httpServiceSelectors } from './api.ts';
 import { apiClientRules, apiWorkspaceLayout, serviceAreas, sharedAreas, sharedShapes } from './areas.ts';
-import { mongoSelectors } from './db.ts';
 
 export { bannedCryptoModules } from '../rules/security.ts';
 export { configModuleSelectors, noImportMetaEnv } from '../rules/env.ts';
@@ -29,13 +29,18 @@ export { noSingleLetterDeclaration, noFileURLToPath } from '../rules/code-style.
 export { tsSourceSelectors } from '../rules/typescript.ts';
 export { noStoreLibraryPatterns, noToastLibraryPatterns, aliasOnlyImportPatterns } from '../rules/vue.ts';
 export { functionContractsPlugin } from '../rules/function-contracts.ts';
-export { apiRoutesOnlySelectors, outboundCallSelectors, apiBannedImports, frontendSelectors } from './api.ts';
-export { dbBannedImports } from './db.ts';
-export { loggerCallSelectors, noDirectErrorResponse } from './logging.ts';
-export { errorHandlingSelectors } from './error-handling.ts';
+export { apiRoutesOnlySelectors, outboundCallSelectors, apiBannedImports, frontendSelectors } from '../api/api.ts';
+export { dbBannedImports } from '../api/db.ts';
+export { loggerCallSelectors, noDirectErrorResponse } from '../api/logging.ts';
+export { errorHandlingSelectors } from '../api/error-handling.ts';
 export { sharedPackageBannedImports } from './boundaries.ts';
 export { utilsBannedImportPatterns, libBannedImportPatterns } from '../rules/layering.ts';
-export { wsGatewaySelectors, wsEventNameSelectors, wsGatewayBannedImports, wsSocketClientBannedImports } from './ws.ts';
+export {
+    wsGatewaySelectors,
+    wsEventNameSelectors,
+    wsGatewayBannedImports,
+    wsSocketClientBannedImports,
+} from '../api/ws.ts';
 
 export type FullstackStandardsOptions = {
     /** See rules/security.ts — `vHtmlAllowed`. */
