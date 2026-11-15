@@ -29,7 +29,7 @@ import path from 'node:path';
 import YAML from 'yaml';
 
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 
 export type DockerOptions = {
     root?: string;
@@ -117,10 +117,7 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
         glibc = [],
     } = input;
 
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
     const exists = (rel: string) => fs.existsSync(path.join(root, rel));
 

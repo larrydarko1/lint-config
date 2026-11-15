@@ -17,7 +17,7 @@ import path from 'node:path';
 
 import { walkFiles } from '../lib/files.ts';
 import { REPO_ROOT } from '../lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from '../lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from '../lib/report.ts';
 import { closingBracket } from '../lib/rust.ts';
 import { stripComments } from '../lib/strip-comments.ts';
 import { countSwallows, findSwallowedErrors, isPlaceholderReason } from '../lib/swallowed-errors.ts';
@@ -56,10 +56,7 @@ const RUST_SWALLOWS: [pattern: RegExp, what: string][] = [
  */
 export function inspectTauriErrorHandling(input: TauriErrorHandlingOptions = {}): TauriErrorHandlingInspection {
     const { root = REPO_ROOT, tauriDir = 'src-tauri', webviewDir = 'src', bridgeDir = 'src/bridge' } = input;
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
 
     const srcDir = `${tauriDir}/src`;

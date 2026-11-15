@@ -13,7 +13,7 @@ import path from 'node:path';
 
 import { walkFiles } from '../lib/files.ts';
 import { REPO_ROOT } from '../lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from '../lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from '../lib/report.ts';
 import { stripComments } from '../lib/strip-comments.ts';
 import { countSwallows, findSwallowedErrors } from '../lib/swallowed-errors.ts';
 
@@ -63,10 +63,7 @@ export function inspectElectronErrorHandling(
         cleanupRequired = [],
     } = input;
 
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
 
     const mainFiles = walkFiles(root, mainDir, { match: /\.ts$/ });

@@ -22,12 +22,10 @@
  * - Spans are bracket-counted (source.ts). The rule 8 boundary check and the rule 11
  * sanitizers are recognised by name; their correctness is a unit test's question.
  */
-import fs from 'node:fs';
-import path from 'node:path';
 
-import { walkFiles } from './lib/files.ts';
+import { repoReader, walkFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import {
     callSites,
     declaredBody,
@@ -166,12 +164,9 @@ export function inspectElectronSecurity({
     vHtml = [],
     sanitizers = [],
 }: ElectronSecurityInput): ElectronSecurityInspection {
-    const problems: GateFailure[] = [];
-    const fail: (file: string, what: string, why: string) => void = (file, what, why) =>
-        problems.push({ file, what, why });
+    const { problems, fail } = collectFailures();
 
-    const exists = (dir: string) => fs.existsSync(path.join(root, dir));
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+    const { exists, read } = repoReader(root);
 
     if (!exists(mainDir)) {
         fail(mainDir, 'does not exist', 'This gate reads the main process from here. Point `mainDir` at it.');

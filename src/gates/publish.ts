@@ -22,7 +22,7 @@ import path from 'node:path';
 
 import { packageBin } from './lib/bin.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 
 export type PublishOptions = {
     /** The package's directory, holding its package.json. Defaults to the repo root. */
@@ -70,10 +70,7 @@ const CONSUMER_TSCONFIG = {
 
 export function inspectPublish(input: PublishOptions = {}): PublishInspection {
     const { root = REPO_ROOT } = input;
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
     const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as Manifest;
     if (pkg.name === undefined) throw new Error('package.json has no `name`, so there is nothing to install.');

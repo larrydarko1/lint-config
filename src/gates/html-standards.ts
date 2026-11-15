@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 
 export type HtmlStandardsOptions = {
     root?: string;
@@ -201,11 +201,8 @@ export function entryPath(src: string, indexHtml: string): string {
 export function inspectHtmlStandards(input: HtmlStandardsInput): HtmlStandardsInspection {
     const { root, indexHtml, baseScss, require: required = [], csp = false, placeholderOrigin } = input;
 
-    const problems: GateFailure[] = [];
+    const { problems, fail } = collectFailures();
     const warnings: string[] = [];
-    const fail = (file: string, what: string, why: string): void => {
-        problems.push({ file, what, why });
-    };
     const html = fs.readFileSync(path.join(root, indexHtml), 'utf8');
 
     // ── 1. The document shell ───────────────────────────────────────────────

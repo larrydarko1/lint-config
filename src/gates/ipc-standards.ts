@@ -24,7 +24,7 @@ import path from 'node:path';
 
 import { findUnusedBridgeMembers } from './lib/bridge-reachability.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import { callSites, declaredFunction, functionParts, splitTopLevel, type FunctionParts } from './lib/source.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
@@ -80,9 +80,7 @@ export function inspectIpcStandards({
     receiverTypes = ['IpcMain'],
     renderer = ['src/renderer'],
 }: IpcStandardsInput): IpcStandardsInspection {
-    const problems: GateFailure[] = [];
-    const fail: (file: string, what: string, why: string) => void = (file, what, why) =>
-        problems.push({ file, what, why });
+    const { problems, fail } = collectFailures();
     const exists = (rel: string) => fs.existsSync(path.join(root, rel));
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
     const empty = { problems, counts: { handlers: 0, events: 0, preloadChannels: 0, bridgeMembers: 0 } };

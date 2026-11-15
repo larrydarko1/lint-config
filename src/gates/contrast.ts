@@ -18,7 +18,7 @@ import path from 'node:path';
 
 import { walkFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import type { ThemeSource } from './scss-standards.ts';
 
 export type ContrastOptions = {
@@ -79,10 +79,7 @@ export function inspectContrast(input: ContrastInput): ContrastInspection {
         textAliases = text.map((key) => `$color-${key}`),
     } = input;
     const themeFile = themes.source === 'json-presets' ? themes.dir : themes.file;
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string): void => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
     // ── 1–2. Every pair, in every palette ───────────────────────────────────
     const palettes = readPaletteColours(root, themes);

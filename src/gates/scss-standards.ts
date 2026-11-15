@@ -20,8 +20,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { repoReader } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, type GateFailure } from './lib/report.ts';
 
 export type ScssStandardsOptions = {
     /** Defaults to the repo root resolved from the process cwd. */
@@ -150,13 +151,8 @@ export function inspectScssStandards({
     fontFaceFile,
     packageJson,
 }: ScssStandardsInput): ScssStandardsInspection {
-    const problems: GateFailure[] = [];
-    const fail = (file: string, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
-    const abs = (rel: string) => path.join(root, rel);
-    const exists = (rel: string) => fs.existsSync(abs(rel));
-    const read = (rel: string) => fs.readFileSync(abs(rel), 'utf8');
+    const { problems, fail } = collectFailures();
+    const { abs, exists, read } = repoReader(root);
 
     const entryPath = `${styles}/index.scss`;
     const injectedPath = `${styles}/_variables.scss`;

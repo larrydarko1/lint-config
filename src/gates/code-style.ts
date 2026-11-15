@@ -21,7 +21,7 @@ import path from 'node:path';
 import { HEADER_RULE, RUST_HEADER_RULE, type HeaderRule } from './lib/file-headers.ts';
 import { walkFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import { lexRust, rustDocBlocks, rustItems, summarySentences } from './lib/rust.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
@@ -113,10 +113,7 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
         styleExplanations = false,
     } = input;
 
-    const problems: GateFailure[] = [];
-    const fail = (file: string, what: string, why: string): void => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
 
     const all = walkFiles(root, scan, {

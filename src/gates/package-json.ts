@@ -14,7 +14,7 @@ import path from 'node:path';
 
 import { SELF_NAME, providedPackages } from '../toolchain.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, type GateFailure } from './lib/report.ts';
 import { inspectToolchainInstall } from './lib/toolchain-install.ts';
 
 export type PackageJsonOptions = {
@@ -138,10 +138,7 @@ export function inspectPackageJson({
     electronViteConfig = 'electron.vite.config.ts',
     provided = providedPackages(),
 }: PackageJsonInput): PackageJsonInspection {
-    const problems: GateFailure[] = [];
-    const fail = (file: string, what: string, why: string): void => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
     const read = (rel: string): Manifest => JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8'));
     const rootPkg = read('package.json');

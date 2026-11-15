@@ -22,8 +22,9 @@ import path from 'node:path';
 
 import YAML from 'yaml';
 
+import { repoReader } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
 export type MetricsOptions = Omit<MetricsInput, 'root'> & {
@@ -200,14 +201,9 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
         unboundedLabels = [],
     } = input;
 
-    const problems: GateFailure[] = [];
-    const fail = (file: string, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
-    const abs = (rel: string) => path.join(root, rel);
-    const exists = (rel: string) => fs.existsSync(abs(rel));
-    const read = (rel: string) => fs.readFileSync(abs(rel), 'utf8');
+    const { abs, exists, read } = repoReader(root);
     /** Source with comments blanked. Not for the kube-linter config, where comments are the rule. */
     const code = (rel: string) => stripComments(read(rel));
 

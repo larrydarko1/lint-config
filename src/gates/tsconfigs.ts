@@ -17,7 +17,7 @@ import path from 'node:path';
 
 import { walkFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, type GateFailure } from './lib/report.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
 export type TsconfigsOptions = {
@@ -150,10 +150,7 @@ export function inspectTsconfigs({
     browserSources = [],
     nonEmitting = [],
 }: TsconfigsInput): TsconfigsInspection {
-    const problems: GateFailure[] = [];
-    const fail = (file: string, what: string, why: string): void => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
     const ignored = new Set([...DEFAULT_IGNORED, ...ignore]);
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');

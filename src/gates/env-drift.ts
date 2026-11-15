@@ -17,7 +17,7 @@ import path from 'node:path';
 
 import { gitIgnores } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, type GateFailure } from './lib/report.ts';
 
 export type EnvDriftOptions = Omit<EnvDriftInput, 'root'> & {
     /** Defaults to the repository root. */
@@ -102,11 +102,8 @@ export function inspectEnvDrift(input: EnvDriftInput): EnvDriftInspection {
     } = input;
 
     const ignored = new Set(ignoredKeys);
-    const problems: GateFailure[] = [];
+    const { problems, fail } = collectFailures();
     const warnings: string[] = [];
-    const fail = (file: string, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
 
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
     const exists = (rel: string) => fs.existsSync(path.join(root, rel));

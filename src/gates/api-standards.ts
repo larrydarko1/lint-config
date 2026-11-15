@@ -38,12 +38,11 @@
  * Also: `optionalAuth` before the limited mounts (they key on `req.userId`), and no
  * `{ ok: true, data }` success envelope.
  */
-import fs from 'node:fs';
 import path from 'node:path';
 
-import { gitIgnores, walkFiles } from './lib/files.ts';
+import { gitIgnores, repoReader, walkFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import { braceBlock, callArgs, callSites, declaredBody, splitTopLevel } from './lib/source.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
@@ -293,13 +292,9 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
         jobs,
     } = input;
 
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
-    const exists = (rel: string) => fs.existsSync(path.join(root, rel));
+    const { read, exists } = repoReader(root);
     /** Comments blanked: a commented-out route must not answer for a live one. */
     const code = (rel: string) => stripComments(read(rel));
 

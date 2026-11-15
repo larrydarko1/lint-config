@@ -22,7 +22,7 @@ import path from 'node:path';
 
 import { walkFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import { braceBlock, callSites, declaredBody, propertyValue } from './lib/source.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
@@ -122,10 +122,7 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
     } = input;
     const { client, clientDirs } = input.frontend === false ? { client: null, clientDirs: [] } : input;
 
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
     const exists = (rel: string) => fs.existsSync(path.join(root, rel));

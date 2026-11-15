@@ -6,10 +6,10 @@
  * are blanked where a rule asks whether something is called. `v-html` is ESLint's.
  */
 import fs from 'node:fs';
-import path from 'node:path';
 
+import { repoReader } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import { braceBlock, callArgs, catchBodies, evalProduct, fnBody } from './lib/source.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
@@ -153,14 +153,9 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
         derivations = DERIVATIONS,
     } = input;
 
-    const problems: GateFailure[] = [];
-    const fail = (file: string, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
-    const abs = (rel: string) => path.join(root, rel);
-    const exists = (rel: string) => fs.existsSync(abs(rel));
-    const read = (rel: string) => fs.readFileSync(abs(rel), 'utf8');
+    const { abs, exists, read } = repoReader(root);
     /** Source with every comment blanked. */
     const code = (rel: string) => stripComments(read(rel));
 

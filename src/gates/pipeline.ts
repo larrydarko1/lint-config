@@ -35,7 +35,7 @@ import YAML from 'yaml';
 import { inspectConcurrency } from './lib/concurrency.ts';
 import { inspectGateWiring } from './lib/gate-wiring.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 
 /*
  * Parsed YAML is whatever the file says. Only the containers the gate walks through are
@@ -124,10 +124,7 @@ const NPM_RUN = /\bnpm\s+(?:-w\s+(\S+)\s+)?run\s+([\w:@./-]+)/g;
 export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection {
     const { root = REPO_ROOT, checksDir = 'scripts/checks', ciWorkflow = `${WORKFLOW_DIR}/ci.yml` } = input;
 
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
     const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
 
