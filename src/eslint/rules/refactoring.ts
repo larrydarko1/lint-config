@@ -1,3 +1,5 @@
+import type { Linter } from 'eslint';
+
 export type RefactoringOptions = {
     /**
      * Files that QUOTE the deferral markers — the config and the gate that enforce them —
@@ -15,7 +17,7 @@ export type RefactoringOptions = {
 export const refactoringStandards = (
     layout: { code: string[]; source: string[]; tests: string[]; markerFiles: string[] },
     options: RefactoringOptions = {},
-) => {
+): Linter.Config[] => {
     const { markerFiles = layout.markerFiles } = options;
 
     return [
@@ -43,6 +45,8 @@ export const refactoringStandards = (
                 ],
             },
         },
-        ...(markerFiles.length ? [{ files: markerFiles, rules: { 'no-warning-comments': 'off' } }] : []),
+        ...(markerFiles.length > 0
+            ? [{ files: markerFiles, rules: { 'no-warning-comments': 'off' } } satisfies Linter.Config]
+            : []),
     ];
 };

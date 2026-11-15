@@ -90,10 +90,10 @@ export function createServerErrorRecorder(options: ServerErrorRecorderOptions = 
     };
 
     return {
-        watch: (source) => {
+        watch: (source): void => {
             source.on('response', record);
         },
-        drain: async () => {
+        drain: async (): Promise<string[]> => {
             const found = errors.splice(0);
             if (found.length === 0) return [];
             const lines = await linesFor(found, logFile, requestIdKey, logWaitMs);
@@ -149,7 +149,7 @@ async function linesFor(
         }
         const complete = [...wanted].every((id) => byRequest.has(id));
         if (complete || Date.now() >= deadline) return byRequest;
-        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+        await new Promise((resolve): NodeJS.Timeout => setTimeout(resolve, POLL_MS));
     }
 }
 

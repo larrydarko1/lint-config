@@ -64,7 +64,7 @@ export function inspectElectronErrorHandling(
     } = input;
 
     const { problems, fail } = collectFailures();
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
 
     const mainFiles = walkFiles(root, mainDir, { match: /\.ts$/ });
 

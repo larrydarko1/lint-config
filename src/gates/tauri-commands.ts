@@ -75,10 +75,10 @@ export function inspectTauriCommands(input: TauriCommandsInput): TauriCommandsIn
     const errorCodes = input.errorCodes ?? { file: 'src/bridge/errors.ts', name: 'ERROR_CODES' };
 
     const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => problems.push({ file, what, why });
+    const fail = (file: string | null, what: string, why: string): number => problems.push({ file, what, why });
     const counts = { commands: 0, invokes: 0, events: 0, codes: 0 };
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
-    const exists = (rel: string) => fs.existsSync(path.join(root, rel));
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
+    const exists = (rel: string): boolean => fs.existsSync(path.join(root, rel));
 
     const srcDir = `${tauriDir}/src`;
     if (!exists(srcDir)) {
@@ -90,7 +90,7 @@ export function inspectTauriCommands(input: TauriCommandsInput): TauriCommandsIn
         return { problems, counts };
     }
     const rust = readRustFiles(root, srcDir);
-    const where = (file: RustFile, index: number) => `${file.rel}:${lineAt(file.source, index)}`;
+    const where = (file: RustFile, index: number): string => `${file.rel}:${lineAt(file.source, index)}`;
 
     // ── 2/3. The commands ────────────────────────────────────────────────────
     const commands = tauriCommands(rust);
@@ -134,7 +134,7 @@ export function inspectTauriCommands(input: TauriCommandsInput): TauriCommandsIn
     counts.commands = commands.length;
     const byName = new Map<string, TauriCommand[]>();
     for (const c of commands) byName.set(c.name, [...(byName.get(c.name) ?? []), c]);
-    const located = (c: TauriCommand) => `${c.file.rel}:${c.item.line}`;
+    const located = (c: TauriCommand): string => `${c.file.rel}:${c.item.line}`;
     for (const [name, defs] of byName) {
         const [first, ...others] = defs;
         if (first === undefined || others.length === 0) continue;
@@ -499,7 +499,7 @@ export function checkTauriCommands({ root = REPO_ROOT, ...rest }: TauriCommandsO
     });
 }
 
-const kebab = (name: string) => name.replace(/_/g, '-');
+const kebab = (name: string): string => name.replace(/_/g, '-');
 
 const lineAt = (text: string, index: number): number => text.slice(0, index).split('\n').length;
 

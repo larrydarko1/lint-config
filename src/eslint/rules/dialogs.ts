@@ -28,9 +28,9 @@ const noNativeDialog: TSESLint.RuleModule<Dialog> = {
             prompt: "`prompt()` freezes the whole window, and Electron does not implement it: it returns nothing. Ask with an inline input or the app's own dialog.",
         },
     },
-    create(context) {
+    create(context): TSESLint.RuleListener {
         return {
-            CallExpression(node) {
+            CallExpression(node): void {
                 const dialog = dialogCalled(context, node.callee);
                 if (dialog !== null) context.report({ node, messageId: dialog });
             },

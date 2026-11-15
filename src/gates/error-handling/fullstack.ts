@@ -125,13 +125,11 @@ export function inspectFullstackErrorHandling(
     } = input;
 
     const { problems, fail } = collectFailures();
-
     const { read, exists } = repoReader(root);
-    const code = (rel: string) => stripComments(read(rel));
-    const lineOf = (src: string, index: number) => src.slice(0, index).split('\n').length;
+    const code = (rel: string): string => stripComments(read(rel));
+    const lineOf = (src: string, index: number): number => src.slice(0, index).split('\n').length;
 
-    const notTests = (rel: string) => !rel.includes('__tests__');
-    const apiFiles = walkFiles(root, apiDir, { match: /\.ts$/, exclude: (r) => !notTests(r) });
+    const apiFiles = walkFiles(root, apiDir, { match: /\.ts$/, exclude: /__tests__/ });
     const statusTable = new Set(allowedStatus);
     const parseLevel = new Set(parseLevel400);
     const explicitSecurity = new Set(securityEventCodes);
@@ -139,7 +137,7 @@ export function inspectFullstackErrorHandling(
     const emitters = [...directCodeEmitters, handler];
 
     // True when a code must carry `securityEvent: true`.
-    const isSecurityEvent = (c: string) =>
+    const isSecurityEvent = (c: string): boolean =>
         !routine.has(c) && (explicitSecurity.has(c) || SECURITY_EVENT_PATTERNS.some((p) => p.test(c)));
 
     // Every code in the shared contract, in declaration order.
@@ -459,10 +457,10 @@ export function inspectFullstackErrorHandling(
 
     // ── 7. The non-HTTP services ─────────────────────────────────────────────
     let queueWorkers = 0;
-    const serviceFiles = walkFiles(root, serviceDirs, { match: /\.ts$/, exclude: (r) => !notTests(r) });
+    const serviceFiles = walkFiles(root, serviceDirs, { match: /\.ts$/, exclude: /__tests__/ });
     for (const rel of [
         ...serviceFiles,
-        ...walkFiles(root, appErrorBanDirs, { match: /\.ts$/, exclude: (r) => !notTests(r) }),
+        ...walkFiles(root, appErrorBanDirs, { match: /\.ts$/, exclude: /__tests__/ }),
     ]) {
         const src = code(rel);
         for (const m of src.matchAll(/(?:const|let)\s+(\w+)\s*=\s*new Worker\s*[<(]/g)) {
@@ -502,7 +500,7 @@ export function inspectFullstackErrorHandling(
                 "A SCREAMING_SNAKE code with no translation must fall back to errors.INTERNAL — a raw code must never reach the user's eyes.",
             );
         }
-        for (const rel of walkFiles(root, frontendDir, { match: /\.(ts|vue)$/, exclude: (r) => !notTests(r) })) {
+        for (const rel of walkFiles(root, frontendDir, { match: /\.(ts|vue)$/, exclude: /__tests__/ })) {
             if (/\bAppError\b/.test(code(rel))) {
                 fail(
                     rel,

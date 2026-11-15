@@ -126,7 +126,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
 
     const { problems, fail } = collectFailures();
 
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
 
     const workflowDirPath = path.join(root, WORKFLOW_DIR);
     const workflowFiles = fs.existsSync(workflowDirPath)

@@ -100,11 +100,11 @@ function vueScript(vuePath: string): string {
  */
 function vueAwareHost(options: ts.CompilerOptions): ts.CompilerHost {
     const host = ts.createCompilerHost(options);
-    const isVirtual = (f: string) => f.endsWith(VUE_SUFFIX);
+    const isVirtual = (f: string): boolean => f.endsWith(VUE_SUFFIX);
     const fileExists = host.fileExists.bind(host);
     const getSourceFile = host.getSourceFile.bind(host);
-    host.fileExists = (f) => (isVirtual(f) ? fs.existsSync(f.slice(0, -3)) : fileExists(f));
-    host.getSourceFile = (f, language, ...rest) =>
+    host.fileExists = (f): boolean => (isVirtual(f) ? fs.existsSync(f.slice(0, -3)) : fileExists(f));
+    host.getSourceFile = (f, language, ...rest): ts.SourceFile | undefined =>
         isVirtual(f)
             ? ts.createSourceFile(f, vueScript(f.slice(0, -3)), language, true, ts.ScriptKind.TS)
             : getSourceFile(f, language, ...rest);

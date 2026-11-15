@@ -229,7 +229,7 @@ export function rustItems(source: string, lexed: RustLex = lexRust(source)): Rus
     const items: RustItem[] = [];
     let i = 0;
 
-    const skipSpace = (from: number) => {
+    const skipSpace = (from: number): number => {
         let j = from;
         while (j < code.length && /\s|;/.test(code.charAt(j))) j++;
         return j;
@@ -328,7 +328,7 @@ export function rustDocBlocks(source: string, lexed: RustLex = lexRust(source)):
     const lines = source.split('\n');
     let offset = 0;
     let current = null as RustDocBlock | null;
-    const inString = (at: number) => lexed.strings.some((s) => at > s.start && at < s.end);
+    const inString = (at: number): boolean => lexed.strings.some((s) => at > s.start && at < s.end);
 
     for (const [index, text] of lines.entries()) {
         const trimmed = text.trimStart();

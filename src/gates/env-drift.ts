@@ -105,8 +105,8 @@ export function inspectEnvDrift(input: EnvDriftInput): EnvDriftInspection {
     const { problems, fail } = collectFailures();
     const warnings: string[] = [];
 
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
-    const exists = (rel: string) => fs.existsSync(path.join(root, rel));
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
+    const exists = (rel: string): boolean => fs.existsSync(path.join(root, rel));
 
     // A missing anchor stops the gate, so no rule passes on nothing.
     for (const rel of [sharedEnv, ...services.flatMap((s) => [s.config, s.example, s.entry])]) {

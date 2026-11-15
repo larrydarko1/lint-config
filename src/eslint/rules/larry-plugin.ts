@@ -81,7 +81,7 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
                 "`{{text}}` carries a caught error's message into {{sink}}. The message is for the log: it is English the client cannot translate, and it can carry internals (a hostname, a path, a query). Send a code instead — `err instanceof AppError ? err.code : 'SOMETHING_FAILED'` — and log the error, or throw `new AppError(status, code, message)` so the error handler sends the code and logs the message.",
         },
     },
-    create(context) {
+    create(context): TSESLint.RuleListener {
         const messageArgs = { ...DEFAULT_MESSAGE_ARGS, ...context.options[0]?.messageArgs };
         const seen = new Set<Variable>();
         const text = (node: Node): string => context.sourceCode.getText(node).replace(/\s+/g, ' ').slice(0, 60);
@@ -257,11 +257,11 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
         }
 
         return {
-            CatchClause(node) {
+            CatchClause(node): void {
                 fromParam(node.param, node);
             },
             // `promise.catch((err) => …)`
-            CallExpression(node) {
+            CallExpression(node): void {
                 if (node.callee.type !== 'MemberExpression' || node.callee.property.type !== 'Identifier') return;
                 if (node.callee.property.name !== 'catch') return;
                 const handler = node.arguments[0];

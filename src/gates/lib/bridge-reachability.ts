@@ -59,7 +59,7 @@ export function findUnusedBridgeMembers({
 }: BridgeReachabilityInput): BridgeReachability {
     const contractPath = path.join(root, contract);
     const rendererDirs = renderer.map((dir) => path.join(root, dir) + path.sep);
-    const isRendererFile = (file: string) =>
+    const isRendererFile = (file: string): boolean =>
         rendererDirs.some((dir) => file.startsWith(dir)) && !TEST_FILE.test(file) && !file.endsWith('.d.ts');
 
     /** Pooled across programs by dotted path: each program has its own nodes. */

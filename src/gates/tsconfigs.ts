@@ -153,7 +153,7 @@ export function inspectTsconfigs({
     const { problems, fail } = collectFailures();
 
     const ignored = new Set([...DEFAULT_IGNORED, ...ignore]);
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
 
     const configs = new Map(listConfigs('.').map((rel) => [rel, parse(rel)]));
     const baseConfig = configs.get(base);
@@ -305,7 +305,7 @@ export function inspectTsconfigs({
     // A dependency's `/// <reference types="node" />` brings Node in without a declaration.
     for (const rel of walkFiles(root, browserSources, {
         match: /\.(?:vue|[cm]?tsx?)$/,
-        exclude: (p) => IS_TEST.test(p) || TEST_FILE.test(p) || p.endsWith('.d.ts'),
+        exclude: (p): boolean => IS_TEST.test(p) || TEST_FILE.test(p) || p.endsWith('.d.ts'),
     })) {
         const source = stripComments(fs.readFileSync(path.join(root, rel), 'utf8'));
         for (const [, specifier = ''] of source.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)) {
@@ -477,7 +477,7 @@ export function inspectTsconfigs({
      * Single-line comment blocks, which is what a section divider is. A
      * multi-line block is prose about the setting under it and is left alone.
      */
-    function sectionsOf(raw: string) {
+    function sectionsOf(raw: string): { line: number; name: string }[] {
         return raw
             .split('\n')
             .map((line, i) => ({ line: i + 1, text: line.trim() }))
@@ -497,7 +497,7 @@ export function inspectTsconfigs({
      * (`-p`, `-b` plus references, or the default `tsconfig.json`). `pointed` is
      * the subset named without build mode, for rule 8.
      */
-    function reachableConfigs() {
+    function reachableConfigs(): { reached: Set<string>; pointed: Set<string> } {
         const reached = new Set<string>();
         const pointed = new Set<string>();
 

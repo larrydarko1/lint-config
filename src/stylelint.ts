@@ -241,6 +241,6 @@ export function stylelint(options: StylelintOptions = {}): Config {
  * the project's config, which would need the project to install them. `import.meta.resolve`
  * because stylelint-config-standard-scss is ESM-only.
  */
-const dep = (name: string) => fileURLToPath(import.meta.resolve(name));
+const dep = (name: string): string => fileURLToPath(import.meta.resolve(name));
 
 export default stylelint();

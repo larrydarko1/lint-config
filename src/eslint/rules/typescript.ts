@@ -1,3 +1,5 @@
+import type { Linter } from 'eslint';
+
 export const tsSourceSelectors = [
     {
         selector: 'ExportNamedDeclaration[source=null][declaration=null]',
@@ -11,7 +13,11 @@ export const tsSourceSelectors = [
  * @param layout.code Source and tests: explicit boundary types, no CommonJS globals.
  * @param layout.defaultExportAllowed Files a tool loads by their default export (a runner's config).
  */
-export const typescriptStandards = (layout: { source: string[]; code: string[]; defaultExportAllowed: string[] }) => [
+export const typescriptStandards = (layout: {
+    source: string[];
+    code: string[];
+    defaultExportAllowed: string[];
+}): Linter.Config[] => [
     {
         files: layout.source,
         // The `*.vue` module shim has to `export default` — the ban is for our own modules.

@@ -118,8 +118,8 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
     } = input;
 
     const { problems, fail } = collectFailures();
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
-    const exists = (rel: string) => fs.existsSync(path.join(root, rel));
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
+    const exists = (rel: string): boolean => fs.existsSync(path.join(root, rel));
 
     /** Every document in a YAML file, or null with the failure reported. The parser recovers rather than throws, so `errors` is read. */
     const yamlDocuments = (rel: string): unknown[] | null => {

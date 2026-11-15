@@ -53,7 +53,7 @@ const nameContract: TSESLint.RuleModule<
                 '`{{name}}` joins two jobs with "And". Split it into two functions — the name is telling you the seam.',
         },
     },
-    create(context) {
+    create(context): TSESLint.RuleListener {
         const stack: { node: FunctionNode; hasAwait: boolean }[] = [];
 
         function check(node: FunctionNode): void {
@@ -173,10 +173,10 @@ const nameContract: TSESLint.RuleModule<
         }
 
         return {
-            ':function'(node: FunctionNode) {
+            ':function'(node: FunctionNode): void {
                 stack.push({ node, hasAwait: false });
             },
-            'AwaitExpression'() {
+            'AwaitExpression'(): void {
                 const top = stack.at(-1);
                 if (top !== undefined) top.hasAwait = true;
             },
@@ -198,7 +198,7 @@ const oneFailureChannel: TSESLint.RuleModule<'bothNullAndUndefined'> = {
                 '`{{name}}` returns both `null` and `undefined`. Pick one: `null` means "looked, not there", `undefined` means "not set / not asked for" — never both for the same answer, or every caller writes a different check.',
         },
     },
-    create(context) {
+    create(context): TSESLint.RuleListener {
         function check(node: FunctionNode): void {
             if (node.returnType == null) return;
             const members = unionMembers(unwrapPromise(node.returnType.typeAnnotation));
@@ -232,7 +232,7 @@ const noUndefinedHole: TSESLint.RuleModule<'undefinedHole'> = {
                 '`{{name}}` has {{count}} optional parameters. To reach the last one a caller must pass `undefined` for the ones it skips, and the call site becomes a comma-counting exercise. Collapse them into one trailing options object.',
         },
     },
-    create(context) {
+    create(context): TSESLint.RuleListener {
         function check(node: FunctionNode): void {
             const optional = node.params.filter(
                 (param) => ('optional' in param && param.optional) || param.type === 'AssignmentPattern',
@@ -270,7 +270,7 @@ const noBooleanFlag: TSESLint.RuleModule<'booleanFlag'> = {
                 '`{{name}}` takes a boolean flag `{{param}}` alongside other arguments — `{{name}}(…, true)` says nothing at the call site. Write two named functions, or move it into an options object where it is named.',
         },
     },
-    create(context) {
+    create(context): TSESLint.RuleListener {
         function check(node: FunctionNode): void {
             if (node.params.length < 2) return;
             for (const param of node.params) {
@@ -313,14 +313,14 @@ const noDbAwaitInLoop: TSESLint.RuleModule<'dbInLoop'> = {
                 'Database call awaited inside a loop — that is one round-trip per item, and it grows with your data. Fetch them in one query (`$in`) and join in memory with a `Map`. If these genuinely must be sequential (ordered writes, backpressure), say so in a comment and disable this line explicitly.',
         },
     },
-    create(context) {
+    create(context): TSESLint.RuleListener {
         // Only loops that walk a list; `for (;;)` and `while` are paging and retries.
         const LOOPS = ['ForInStatement', 'ForOfStatement'];
         const DB_CALL = /\.collection\s*(<[^>]*>)?\s*\(/;
         const sourceCode = context.sourceCode;
 
         return {
-            AwaitExpression(node) {
+            AwaitExpression(node): void {
                 if (!DB_CALL.test(sourceCode.getText(node))) return;
                 // Walk out to the nearest function or loop — a loop *inside* a
                 // nested function is that function's problem, not this one's.

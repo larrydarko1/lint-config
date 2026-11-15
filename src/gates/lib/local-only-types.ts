@@ -28,8 +28,9 @@ type LocalOnlyType = { file: string; name: string; line: number };
  * @returns Exported types and interfaces that only their own file names, in path order.
  */
 export function findLocalOnlyTypes(root: string, projects: string[] = findProjects(root)): LocalOnlyType[] {
-    const key = (file: string, name: string) => `${file}#${name}`;
-    const inRepo = (file: string) => !path.relative(root, file).startsWith('..') && !file.includes('/node_modules/');
+    const key = (file: string, name: string): string => `${file}#${name}`;
+    const inRepo = (file: string): boolean =>
+        !path.relative(root, file).startsWith('..') && !file.includes('/node_modules/');
 
     /** Keyed by the declaration's own file and name, which is what a use resolves to. */
     const candidates = new Map<string, LocalOnlyType>();
@@ -43,7 +44,7 @@ export function findLocalOnlyTypes(root: string, projects: string[] = findProjec
             if (!inRepo(sourceFile.fileName)) continue;
             const file = realFile(sourceFile.fileName);
             const rel = path.relative(root, file).split(path.sep).join('/');
-            const lineOf = (node: ts.Node) =>
+            const lineOf = (node: ts.Node): number =>
                 sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
 
             // Candidates: `export type X`, `export interface X`, and `export { X }` of a local one.

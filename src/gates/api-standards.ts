@@ -293,14 +293,13 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
     } = input;
 
     const { problems, fail } = collectFailures();
-
     const { read, exists } = repoReader(root);
     /** Comments blanked: a commented-out route must not answer for a live one. */
-    const code = (rel: string) => stripComments(read(rel));
+    const code = (rel: string): string => stripComments(read(rel));
 
     const routeFiles = walkFiles(root, routesDir, {
         match: /\.ts$/,
-        exclude: (rel) => rel.includes('__tests__'),
+        exclude: /__tests__/,
     });
 
     // ── 1. Route documentation parity ───────────────────────────────────────
@@ -408,7 +407,7 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
 
     // ── 5. Middleware order ─────────────────────────────────────────────────
     /** Where a middleware is installed. `-1` when it is not. */
-    const installedAt = (token: string) => index.indexOf(token);
+    const installedAt = (token: string): number => index.indexOf(token);
 
     const helmetAt = installedAt('helmet(');
     const corsAt = installedAt('cors({');
@@ -694,7 +693,7 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
 
         const schemaFiles = walkFiles(root, schemasDir, {
             match: /\.ts$/,
-            exclude: (rel) => rel.includes('__tests__'),
+            exclude: /__tests__/,
         });
         for (const rel of schemaFiles) {
             const source = code(rel);
@@ -895,7 +894,7 @@ function inspectContract(contract: ContractOptions, ctx: ContractContext): void 
         );
         const frontendFiles = walkFiles(root, caller.dir, {
             match: /\.(?:ts|vue)$/,
-            exclude: (rel) => rel.includes('__tests__') || /\.(?:test|spec)\.ts$/.test(rel),
+            exclude: /__tests__|\.(?:test|spec)\.ts$/,
         });
         for (const rel of frontendFiles) {
             if (rel === apiClient) continue;
@@ -1148,7 +1147,6 @@ function providedKeys(source: string, call: 'provide' | 'inject'): Set<string> {
 function inspectContractCoverage(coverage: ContractCoverage, testChecks: string[], ctx: ContractContext): void {
     const { read, code, exists, fail } = ctx;
     const { module, suites } = coverage;
-    const suiteOf = (rel: string) => suites.find(({ config }) => rel.startsWith(`${path.dirname(config)}/`));
 
     // What each suite's recorders inject, so its setup can be checked to provide the same key.
     const injected = new Map<string, Set<string>>();
@@ -1173,7 +1171,7 @@ function inspectContractCoverage(coverage: ContractCoverage, testChecks: string[
             );
             continue;
         }
-        const suite = suiteOf(rel);
+        const suite = suites.find(({ config }) => rel.startsWith(`${path.dirname(config)}/`));
         if (suite === undefined) {
             fail(
                 rel,
@@ -1427,7 +1425,7 @@ function inspectFuzzConfig(
     const lines = raw.split('\n');
     const codeLines = source.split('\n');
     // A reason sits in the comment directly above, or at the end of the line itself.
-    const reasoned = (i: number) => lines[i - 1]?.trim().startsWith('#') === true || codeLines[i] !== lines[i];
+    const reasoned = (i: number): boolean => lines[i - 1]?.trim().startsWith('#') === true || codeLines[i] !== lines[i];
 
     let table = '';
     for (const [i, line] of codeLines.entries()) {
@@ -1580,7 +1578,7 @@ function inspectJobs(jobs: JobsOptions, ctx: ContractContext): void {
     const workspace = producer.split('/')[0] ?? '';
     const apiFiles = walkFiles(root, workspace, {
         match: /\.ts$/,
-        exclude: (rel) => rel.includes('__tests__') || /\.(?:test|spec)\.ts$/.test(rel) || rel.includes('node_modules'),
+        exclude: /__tests__|\.(?:test|spec)\.ts$|node_modules/,
     });
     for (const rel of apiFiles) {
         if (rel === producer) continue;
@@ -1628,7 +1626,7 @@ function inspectJobs(jobs: JobsOptions, ctx: ContractContext): void {
             continue;
         }
         const source = code(rel);
-        const line = (index: number) => `${rel}:${source.slice(0, index).split('\n').length}`;
+        const line = (index: number): string => `${rel}:${source.slice(0, index).split('\n').length}`;
         const sites = (['new Worker(', 'new Queue('] as const)
             .flatMap((token) => callSites(source, token).map((site) => ({ ...site, token })))
             .sort((a, b) => a.index - b.index);

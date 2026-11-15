@@ -145,10 +145,10 @@ export function createLeakRecorder(options: LeakRecorderOptions): LeakRecorder {
     };
 
     return {
-        watch: (source) => {
+        watch: (source): void => {
             source.on('response', record);
         },
-        drain: async () => {
+        drain: async (): Promise<string[]> => {
             await Promise.all(pending);
             const values =
                 db === undefined ? new Map<string, string>() : await sensitiveValues(db, sensitive, minValueLength);

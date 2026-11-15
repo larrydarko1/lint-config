@@ -1,4 +1,5 @@
 import vitest from '@vitest/eslint-plugin';
+import type { Linter } from 'eslint';
 
 /** The runner's names for a suite and a case. Each takes `.only`, `.skip` and `.todo`. */
 const NODE_TEST_FNS = 'test|it|describe|suite';
@@ -34,7 +35,7 @@ export const nodeAssertBannedImports = ['assert', 'node:assert'].map((name) => (
 }));
 
 /** @param files The family's test files. */
-export const testingStandards = (files: string[]) => [
+export const testingStandards = (files: string[]): Linter.Config[] => [
     {
         files,
         plugins: { vitest },
@@ -71,7 +72,7 @@ export const testingStandards = (files: string[]) => [
  *
  * @param files The family's test files.
  */
-export const nodeTestStandards = (files: string[]) => [
+export const nodeTestStandards = (files: string[]): Linter.Config[] => [
     {
         files,
         plugins: { vitest },

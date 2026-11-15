@@ -171,7 +171,7 @@ export function inspectScssStandards({
 
     // ── 4. Nothing reachable from the injected module emits ─────────────────
     const walked = new Set();
-    const walkInjected = (rel: string) => {
+    const walkInjected = (rel: string): void => {
         if (walked.has(rel)) return;
         walked.add(rel);
         const source = read(rel);
@@ -212,7 +212,7 @@ export function inspectScssStandards({
     };
 
     /** Resolve a Sass specifier to a repo-relative path, trying each partial spelling. */
-    const resolveSpecifier = (spec: string) => {
+    const resolveSpecifier = (spec: string): string | undefined => {
         const name = spec.replace(/^.*styles\//, '').replace(/^\.\//, '');
         const dir = path.dirname(name) === '.' ? '' : `${path.dirname(name)}/`;
         const base = path.basename(name);
@@ -441,7 +441,7 @@ export function inspectScssStandards({
 
     return { problems, styleFiles, palettes: [...palettes.keys()], tokenCount: reference?.size ?? 0 };
 
-    function walk(dir: string, test: (name: string) => boolean, out: string[] = []) {
+    function walk(dir: string, test: (name: string) => boolean, out: string[] = []): string[] {
         if (!exists(dir)) return out;
         for (const item of fs.readdirSync(abs(dir), { withFileTypes: true })) {
             const rel = `${dir}/${item.name}`;
@@ -502,12 +502,12 @@ function emittingHeads(source: string): string[] {
 }
 
 /** Source with its comments removed. */
-function stripComments(source: string) {
+function stripComments(source: string): string {
     return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
 /** How to name a palette in a message, in this project's own vocabulary. */
-function describe(themes: ThemeSource, name: string) {
+function describe(themes: ThemeSource, name: string): string {
     if (themes.source === 'json-presets') return `\`${name}.json\``;
     if (themes.source === 'css-blocks') {
         return themes.selector === 'data-theme' ? `\`[data-theme='${name}']\`` : `\`#app.${name}\``;
@@ -515,6 +515,6 @@ function describe(themes: ThemeSource, name: string) {
     return `\`$${name}\``;
 }
 
-function escapeRe(literal: string) {
+function escapeRe(literal: string): string {
     return literal.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }

@@ -124,9 +124,9 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
 
     const { problems, fail } = collectFailures();
 
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
-    const exists = (rel: string) => fs.existsSync(path.join(root, rel));
-    const code = (rel: string) => stripComments(read(rel));
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
+    const exists = (rel: string): boolean => fs.existsSync(path.join(root, rel));
+    const code = (rel: string): string => stripComments(read(rel));
 
     const source = read(gateway);
     const header = /^\/\*\*[\s\S]*?\*\//.exec(source)?.[0] ?? '';
@@ -135,11 +135,11 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
 
     const serverFiles = walkFiles(root, serverDirs, {
         match: /\.ts$/,
-        exclude: (rel) => rel.includes('__tests__'),
+        exclude: (rel): boolean => rel.includes('__tests__'),
     });
     const clientFiles = walkFiles(root, clientDirs, {
         match: /\.(ts|vue)$/,
-        exclude: (rel) => rel.includes('__tests__'),
+        exclude: (rel): boolean => rel.includes('__tests__'),
     });
 
     // ── 1. One Socket.IO server, on the existing HTTP listener ──────────────

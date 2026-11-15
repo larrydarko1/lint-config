@@ -78,7 +78,7 @@ export function inspectPublish(input: PublishOptions = {}): PublishInspection {
     const subpaths = exportedSubpaths(pkg);
     const patterns = subpaths.filter(([subpath]) => subpath.includes('*')).length;
     const entries = subpaths.filter(([subpath]) => !subpath.includes('*'));
-    const specifierOf = (subpath: string) => (subpath === '.' ? name : `${name}${subpath.slice(1)}`);
+    const specifierOf = (subpath: string): string => (subpath === '.' ? name : `${name}${subpath.slice(1)}`);
 
     const work = fs.mkdtempSync(path.join(os.tmpdir(), 'lint-config-publish-'));
     try {

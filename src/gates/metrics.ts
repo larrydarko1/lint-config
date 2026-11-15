@@ -205,7 +205,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
 
     const { abs, exists, read } = repoReader(root);
     /** Source with comments blanked. Not for the kube-linter config, where comments are the rule. */
-    const code = (rel: string) => stripComments(read(rel));
+    const code = (rel: string): string => stripComments(read(rel));
 
     const walk = (rel: string): string[] => {
         if (!exists(rel)) return [];
@@ -260,14 +260,14 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
         return { problems, counts: { monitors: 0, services: 0, workloads: 0, crdKinds: [] } };
     }
 
-    const byKind = (kind: string) => resources.filter((resource) => resource.kind === kind);
+    const byKind = (kind: string): Resource[] => resources.filter((resource) => resource.kind === kind);
     const services = byKind('Service');
     const monitors = byKind('ServiceMonitor');
     const deployments = byKind('Deployment');
     const policies = byKind('NetworkPolicy');
 
-    const podsOf = (deployment: Resource) => deployment.doc.spec?.template?.metadata?.labels ?? {};
-    const containersOf = (deployment: Resource) => deployment.doc.spec?.template?.spec?.containers ?? [];
+    const podsOf = (deployment: Resource): Labels => deployment.doc.spec?.template?.metadata?.labels ?? {};
+    const containersOf = (deployment: Resource): Container[] => deployment.doc.spec?.template?.spec?.containers ?? [];
 
     // ── 1-3. ServiceMonitor → Service → pods ────────────────────────────────
     const scraped: ScrapeTarget[] = [];

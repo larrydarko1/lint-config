@@ -143,10 +143,10 @@ export const CATEGORIES: string[] = [
 /** A test file's order. Separate from CATEGORIES, which would sort `vi.mock` last as a side effect. */
 export const TEST_CATEGORIES: string[] = ['imports', 'types', 'mocks', 'constants', 'helpers', 'hooks', 'tests'];
 
-const PRODUCTION_PROFILE: Profile = { categories: CATEGORIES, classify: (s) => classify(s) };
+const PRODUCTION_PROFILE: Profile = { categories: CATEGORIES, classify: (s): string => classify(s) };
 
 /** `eager`: the category whose function bodies run at import (`vi.mock` / `vi.hoisted` factories). */
-const TEST_PROFILE: Profile = { categories: TEST_CATEGORIES, classify: (s) => classifyTest(s), eager: 'mocks' };
+const TEST_PROFILE: Profile = { categories: TEST_CATEGORIES, classify: (s): string => classifyTest(s), eager: 'mocks' };
 
 const MACROS = new Set(['defineProps', 'defineEmits', 'defineModel', 'defineSlots', 'defineExpose', 'withDefaults']);
 
@@ -181,9 +181,9 @@ export function inspectDeclarationOrder(input: DeclarationOrderInput): Declarati
 
     const failures: DeclarationOrderFailure[] = [];
 
-    const excluded = (rel: string) => exclude.some((p) => rel === p || rel.startsWith(`${p.replace(/\/$/, '')}/`));
+    const excluded = (rel: string): boolean => exclude.some((p) => rel === p || rel.startsWith(p.replace(/\/?$/, '/')));
     // Cargo writes generated `.rs` files under `target/`, which nobody orders by hand.
-    const cargoOutput = (rel: string) => rel.endsWith('.rs') && /(^|\/)target\//.test(rel);
+    const cargoOutput = (rel: string): boolean => rel.endsWith('.rs') && /(^|\/)target\//.test(rel);
     const discovered = (sourceRoots === undefined ? repoFiles(root).sort() : walkFiles(root, sourceRoots)).filter(
         (rel) => /\.(ts|vue|rs)$/.test(rel) && !rel.endsWith('.d.ts') && !excluded(rel) && !cargoOutput(rel),
     );
@@ -484,7 +484,7 @@ function analyze(code: string, filename: string, profile: Profile = PRODUCTION_P
     const stmts = [...sf.statements];
     if (stmts.length < 2) return { misplaced: [], count: stmts.length };
 
-    const rank = (c: string) => profile.categories.indexOf(c);
+    const rank = (c: string): number => profile.categories.indexOf(c);
     const items: Item[] = stmts.map((s, i) => {
         const cat = profile.classify(s);
         return {

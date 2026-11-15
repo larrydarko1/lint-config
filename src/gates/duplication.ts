@@ -118,7 +118,7 @@ export function iconDrawing(source: string): string | null {
     const svg = /<svg\b([^>]*)>([\s\S]*)<\/svg>/.exec(source);
     if (svg === null) return null;
 
-    const attrs = (raw: string) =>
+    const attrs = (raw: string): string[] =>
         [...raw.matchAll(/([:@\w.-]+)(?:\s*=\s*"([^"]*)")?/g)].map(([, name = '', value]) =>
             value === undefined ? name : `${name}="${value}"`,
         );
@@ -160,7 +160,7 @@ export function exportedTypes(
 
     for (const scanRoot of scan) {
         const files = walkFiles(root, scanRoot, {
-            match: (rel) => /\.(ts|vue)$/.test(rel) && !/\.(test|spec)\.ts$|\.d\.ts$/.test(rel),
+            match: (rel): boolean => /\.(ts|vue)$/.test(rel) && !/\.(test|spec)\.ts$|\.d\.ts$/.test(rel),
             exclude: excluded,
         });
 
@@ -194,21 +194,20 @@ export function inspectDuplication(input: DuplicationInput): DuplicationInspecti
     } = input;
 
     const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => problems.push({ file, what, why });
+    const fail = (file: string | null, what: string, why: string): number => problems.push({ file, what, why });
 
-    const ceilingOf = (entry: number | Ceiling) =>
-        typeof entry === 'number' ? { limit: entry, note: undefined } : entry;
-    const rel = (file: string) => relative(root, file);
-    const loc = (f: CloneLocation) => `${rel(f.name)}:${f.start}-${f.end}`;
+    const ceilingOf = (entry: number | Ceiling): Ceiling => (typeof entry === 'number' ? { limit: entry } : entry);
+    const rel = (file: string): string => relative(root, file);
+    const loc = (f: CloneLocation): string => `${rel(f.name)}:${f.start}-${f.end}`;
 
     const clones = report.duplicates.slice().sort((a, b) => b.tokens - a.tokens);
 
     /** Record a clone under the file it starts in, so an editor can jump to it. */
-    const failClone = (clone: Clone, why: string) => {
+    const failClone = (clone: Clone, why: string): void => {
         fail(loc(clone.firstFile), `${plural(clone.tokens, 'token')} duplicated at ${loc(clone.secondFile)}`, why);
     };
 
-    const checkCeilings = (source: JscpdReport, where: string | null) => {
+    const checkCeilings = (source: JscpdReport, where: string | null): void => {
         for (const [format, entry] of Object.entries(ceilings)) {
             const stats = source.statistics.formats[format];
             if (stats === undefined) continue;
@@ -250,8 +249,8 @@ export function inspectDuplication(input: DuplicationInput): DuplicationInspecti
     }
 
     // -- 3. No block copied between scan roots, whatever the percentage ----------
-    const rootOf = (file: string) => scan.find((r) => rel(file).startsWith(`${r}/`));
-    const isPair = (c: Clone, [a, b]: [string, string]) => {
+    const rootOf = (file: string): string | undefined => scan.find((r) => rel(file).startsWith(`${r}/`));
+    const isPair = (c: Clone, [a, b]: [string, string]): boolean => {
         const files = [rel(c.firstFile.name), rel(c.secondFile.name)];
         return files.includes(a) && files.includes(b);
     };
@@ -364,7 +363,7 @@ export function checkDuplication(options: DuplicationOptions): void {
 
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
-    const ceilingOf = (entry: number | Ceiling) => (typeof entry === 'number' ? entry : entry.limit);
+    const ceilingOf = (entry: number | Ceiling): number => (typeof entry === 'number' ? entry : entry.limit);
 
     const percentages = Object.entries(ceilings)
         .flatMap(([format, entry]) => {

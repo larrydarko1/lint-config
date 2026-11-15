@@ -1,3 +1,5 @@
+import type { Linter } from 'eslint';
+
 export type SecurityOptions = {
     /**
      * Components allowed to use `v-html`: markup sanitised on the way in, or static copy
@@ -33,7 +35,10 @@ export const bannedCryptoModules = [
  * @param layout.code Everything the crypto and `eval` bans cover.
  * @param layout.vue The components `v-html` is banned in; none for a family with no frontend.
  */
-export const securityStandards = (layout: { code: string[]; vue: string[] }, options: SecurityOptions = {}) => {
+export const securityStandards = (
+    layout: { code: string[]; vue: string[] },
+    options: SecurityOptions = {},
+): Linter.Config[] => {
     const { vHtmlAllowed = [] } = options;
 
     return [
@@ -45,7 +50,11 @@ export const securityStandards = (layout: { code: string[]; vue: string[] }, opt
                 'no-implied-eval': 'error',
             },
         },
-        ...(layout.vue.length ? [{ files: layout.vue, rules: { 'vue/no-v-html': 'error' } }] : []),
-        ...(vHtmlAllowed.length ? [{ files: vHtmlAllowed, rules: { 'vue/no-v-html': 'off' } }] : []),
+        ...(layout.vue.length > 0
+            ? [{ files: layout.vue, rules: { 'vue/no-v-html': 'error' } } satisfies Linter.Config]
+            : []),
+        ...(vHtmlAllowed.length > 0
+            ? [{ files: vHtmlAllowed, rules: { 'vue/no-v-html': 'off' } } satisfies Linter.Config]
+            : []),
     ];
 };

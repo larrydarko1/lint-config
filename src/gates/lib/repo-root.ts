@@ -20,7 +20,7 @@ export function findRepoRoot(startDir: string = import.meta.dirname): string {
 }
 
 /** True when `dir` holds a package.json with a `workspaces` array — a monorepo root. */
-const isWorkspaceRoot = (dir: string) => {
+const isWorkspaceRoot = (dir: string): boolean => {
     const manifest = path.join(dir, 'package.json');
     if (!fs.existsSync(manifest)) return false;
     try {
@@ -31,7 +31,7 @@ const isWorkspaceRoot = (dir: string) => {
     }
 };
 
-const isGitRoot = (dir: string) => fs.existsSync(path.join(dir, '.git'));
+const isGitRoot = (dir: string): boolean => fs.existsSync(path.join(dir, '.git'));
 
 const walkUp = (startDir: string, marker: (dir: string) => boolean): string | null => {
     let dir = startDir;

@@ -69,9 +69,9 @@ type CodeStyleInspection = {
 
 /** The three filename conventions, as predicates on the stem. */
 const CASE_STYLE = {
-    kebab: { test: (stem: string) => /^[a-z0-9]+(-[a-z0-9]+)*$/.test(stem), label: 'kebab-case' },
-    camel: { test: (stem: string) => /^[a-z][A-Za-z0-9]*$/.test(stem), label: 'camelCase' },
-    pascal: { test: (stem: string) => /^[A-Z][A-Za-z0-9]*$/.test(stem), label: 'PascalCase' },
+    kebab: { test: (stem: string): boolean => /^[a-z0-9]+(-[a-z0-9]+)*$/.test(stem), label: 'kebab-case' },
+    camel: { test: (stem: string): boolean => /^[a-z][A-Za-z0-9]*$/.test(stem), label: 'camelCase' },
+    pascal: { test: (stem: string): boolean => /^[A-Z][A-Za-z0-9]*$/.test(stem), label: 'PascalCase' },
 };
 
 const MARKUP_COMMENT = /<!--([\s\S]*?)-->/g;
@@ -114,11 +114,11 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
     } = input;
 
     const { problems, fail } = collectFailures();
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
 
     const all = walkFiles(root, scan, {
         match: /\.(ts|tsx|vue|scss|rs)$/,
-        exclude: (rel) => isSpec(rel) || isCargoOutput(rel),
+        exclude: (rel): boolean => isSpec(rel) || isCargoOutput(rel),
     });
     const ts = all.filter((rel) => /\.tsx?$/.test(rel) && !isDeclaration(rel));
     const vue = all.filter((rel) => rel.endsWith('.vue'));
@@ -424,8 +424,8 @@ export function checkCodeStyle(options: CodeStyleOptions): void {
 }
 
 const isSpec = (rel: string): boolean => rel.includes('__tests__') || /\.(test|spec)\.(ts|tsx)$/.test(rel);
-const isDeclaration = (rel: string) => rel.endsWith('.d.ts');
-const isCargoOutput = (rel: string) => rel.endsWith('.rs') && /(^|\/)target\//.test(rel);
+const isDeclaration = (rel: string): boolean => rel.endsWith('.d.ts');
+const isCargoOutput = (rel: string): boolean => rel.endsWith('.rs') && /(^|\/)target\//.test(rel);
 
 /** 1-based line of a byte offset, so a per-occurrence finding can point at it. */
 const lineAt = (source: string, index: number): number => source.slice(0, index).split('\n').length;

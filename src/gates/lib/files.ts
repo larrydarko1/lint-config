@@ -47,11 +47,11 @@ export function walkFiles(root: string, dirs: string | string[], options: WalkOp
     const { match, exclude } = options;
     const out: string[] = [];
 
-    const keep = (rel: string) => {
+    const keep = (rel: string): void => {
         if (match !== undefined && !matches(match, rel)) return;
         if (exclude === undefined || !matches(exclude, rel)) out.push(rel);
     };
-    const visit = (rel: string) => {
+    const visit = (rel: string): void => {
         for (const entry of fs.readdirSync(path.join(root, rel), { withFileTypes: true })) {
             const child = `${rel}/${entry.name}`;
             if (entry.isDirectory()) visit(child);

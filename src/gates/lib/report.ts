@@ -69,12 +69,12 @@ export function createGateReport(options: GateReportOptions): GateReport {
         },
 
         /** How many violations have been recorded so far. */
-        get count() {
+        get count(): number {
             return failures.length;
         },
 
         /** The recorded violations, for a gate that needs to summarise them itself. */
-        get failures() {
+        get failures(): GateFailure[] {
             return [...failures];
         },
 

@@ -10,12 +10,12 @@ export default defineConfig({
             casing: [{ files: /\.(?:ts|js)$/, style: 'kebab' }],
             // Over the softcap when this package first checked itself. Lower a number, never raise it.
             baseline: {
-                'src/gates/api-standards.ts': 1612,
+                'src/gates/api-standards.ts': 1611,
                 'src/gates/db-drift.ts': 850,
                 'src/gates/declaration-order.ts': 520,
                 'src/gates/docker.ts': 642,
                 'src/gates/electron-security.ts': 728,
-                'src/gates/error-handling/fullstack.ts': 562,
+                'src/gates/error-handling/fullstack.ts': 561,
                 'src/gates/ipc-standards.ts': 485,
                 'src/gates/lib/rust.ts': 424,
                 'src/gates/metrics.ts': 757,

@@ -164,8 +164,8 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
     const { problems, fail } = collectFailures();
     const warnings: string[] = [];
 
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
-    const exists = (rel: string) => fs.existsSync(path.join(root, rel));
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
+    const exists = (rel: string): boolean => fs.existsSync(path.join(root, rel));
 
     // ── 0. Anchors ───────────────────────────────────────────────────────────
     // A moved file stops the gate, so no rule passes on nothing.
@@ -270,7 +270,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
     }
 
     // ── 5. Every collection has an example document ──────────────────────────
-    const exampleCollection = (file: string) => file.replace(/\.json$/, '').split('.')[0] ?? '';
+    const exampleCollection = (file: string): string => file.replace(/\.json$/, '').split('.')[0] ?? '';
     const exampleFiles = fs.readdirSync(path.join(root, examplesDir)).filter((file) => file.endsWith('.json'));
     {
         const present = new Set(exampleFiles.map((file) => file.replace(/\.json$/, '')));
@@ -504,7 +504,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
 
     // ── 10. A merged migration is immutable ──────────────────────────────────
     {
-        const hash = (file: string) =>
+        const hash = (file: string): string =>
             crypto
                 .createHash('sha256')
                 .update(read(path.join(migrationsDir, file)))
@@ -862,7 +862,7 @@ export async function checkDbDrift({ root = REPO_ROOT, ...rest }: DbDriftOptions
 }
 
 /** `Users` → `users`, `HashDatabase` → `hash-database`, `AssetInfo` → `asset-info`. */
-const kebab = (name: string) => name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+const kebab = (name: string): string => name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
 
 /** The top-level fields of `type Name = { … }`, brace-counted, ignoring anything nested. */
 function typeFields(

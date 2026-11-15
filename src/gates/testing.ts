@@ -161,7 +161,7 @@ export function replacedClient(
     client: { module: string; exports: string[] },
 ): { line: number; name: string }[] {
     const module = client.module.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
-    const lineOf = (index: number) => source.slice(0, index).split('\n').length;
+    const lineOf = (index: number): number => source.slice(0, index).split('\n').length;
     const found: { line: number; name: string }[] = [];
     const mocks = [...callSites(source, 'vi.mock('), ...callSites(source, 'vi.doMock(')];
     for (const site of mocks) {
@@ -225,8 +225,8 @@ export function inspectTesting(input: TestingInput): TestingInspection {
     } = input;
 
     const { problems, fail } = collectFailures();
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
-    const exists = (rel: string) => fs.existsSync(path.join(root, rel));
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
+    const exists = (rel: string): boolean => fs.existsSync(path.join(root, rel));
 
     const files = repoFiles(root);
     const unitTests = files.filter((rel) => rel.endsWith('.test.ts'));

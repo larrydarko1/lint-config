@@ -91,7 +91,7 @@ export function inspectI18n(options: I18nGateOptions): I18nGateResult {
 
     const localePath = path.resolve(root, localeDir);
     const configPath = path.resolve(root, configFile);
-    const fatal = (message: string) => ({ errors: [], locales: [], keyCount: 0, fatal: message });
+    const fatal = (message: string): I18nGateResult => ({ errors: [], locales: [], keyCount: 0, fatal: message });
 
     if (!fs.existsSync(localePath)) {
         return fatal(`Locale directory not found at ${localeDir} — update the gate's localeDir.`);

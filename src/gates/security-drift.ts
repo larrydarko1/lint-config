@@ -157,12 +157,12 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
 
     const { abs, exists, read } = repoReader(root);
     /** Source with every comment blanked. */
-    const code = (rel: string) => stripComments(read(rel));
+    const code = (rel: string): string => stripComments(read(rel));
 
     /** Every file under `dirs` that is shipped rather than tested. */
     const sources = (dirs: string[], match: RegExp): string[] => {
         const out: string[] = [];
-        const visit = (rel: string) => {
+        const visit = (rel: string): void => {
             if (!exists(rel)) return;
             for (const dirent of fs.readdirSync(abs(rel), { withFileTypes: true })) {
                 const child = `${rel}/${dirent.name}`;
@@ -361,7 +361,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
 
     // ── 7. Request-size cap ──────────────────────────────────────────────────
     const limit = /express\.json\(\s*\{[^}]*limit:\s*['"]([^'"]+)['"]/.exec(entrySource)?.[1];
-    const unit = (value: string) => (/mb$/i.test(value) ? 1024 * 1024 : /kb$/i.test(value) ? 1024 : 1);
+    const unit = (value: string): number => (/mb$/i.test(value) ? 1024 * 1024 : /kb$/i.test(value) ? 1024 : 1);
     const bytes = limit === undefined ? 0 : Number(limit.replace(/[a-z]+$/i, '')) * unit(limit);
 
     if (bytes <= 0 || bytes > 10 * 1024 * 1024) {

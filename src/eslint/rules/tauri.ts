@@ -25,27 +25,27 @@ const noTauriOutsideBridge: TSESLint.RuleModule<MessageId> = {
             global: '`{{name}}` is Tauri’s internal plumbing. Go through src/bridge/: an `invoke` wrapper for a command, `isTauri()` from `@tauri-apps/api/core` for detection — and keep `withGlobalTauri` off, which is what puts the whole API on `window.__TAURI__` for any script to call.',
         },
     },
-    create(context) {
+    create(context): TSESLint.RuleListener {
         const reportGlobal = (node: TSESTree.Node, name: string): void => {
             context.report({ node, messageId: 'global', data: { name } });
         };
         return {
-            'ImportDeclaration': (node) => checkSource(context, node.source),
-            'ImportExpression': (node) => checkSource(context, node.source),
-            'ExportNamedDeclaration': (node) => checkSource(context, node.source),
-            'ExportAllDeclaration': (node) => checkSource(context, node.source),
+            'ImportDeclaration': (node): void => checkSource(context, node.source),
+            'ImportExpression': (node): void => checkSource(context, node.source),
+            'ExportNamedDeclaration': (node): void => checkSource(context, node.source),
+            'ExportAllDeclaration': (node): void => checkSource(context, node.source),
             // `window.__TAURI__`, `globalThis['__TAURI_INTERNALS__']`
-            'MemberExpression'(node) {
+            'MemberExpression'(node): void {
                 const name = propertyName(node);
                 if (name?.startsWith(TAURI_GLOBAL) === true) reportGlobal(node, name);
             },
             // `'__TAURI__' in window`
-            'BinaryExpression'(node) {
+            'BinaryExpression'(node): void {
                 const name = node.operator === 'in' ? stringValue(node.left) : null;
                 if (name?.startsWith(TAURI_GLOBAL) === true) reportGlobal(node, name);
             },
             // A bare `__TAURI__.core.invoke(…)`: a global nothing in the module declares.
-            'Program:exit'(program) {
+            'Program:exit'(program): void {
                 for (const reference of context.sourceCode.getScope(program).through) {
                     const { identifier } = reference;
                     if (identifier.name.startsWith(TAURI_GLOBAL)) reportGlobal(identifier, identifier.name);

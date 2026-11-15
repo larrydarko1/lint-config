@@ -68,7 +68,7 @@ export function analyzeRust(source: string): { misplaced: RustMisplaced[]; count
         const sub = e.item.kind !== 'impl' ? 0 : e.item.trait === undefined ? 1 : 2;
         return { ...e, cat: owner?.cat ?? e.cat, owner: owner?.i ?? e.i, sub };
     });
-    const rank = (cat: string) => RUST_CATEGORIES.indexOf(cat);
+    const rank = (cat: string): number => RUST_CATEGORIES.indexOf(cat);
     const ideal = [...keyed].sort(
         (a, b) => rank(a.cat) - rank(b.cat) || a.owner - b.owner || a.sub - b.sub || a.i - b.i,
     );

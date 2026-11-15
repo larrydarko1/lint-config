@@ -165,7 +165,6 @@ export function inspectElectronSecurity({
     sanitizers = [],
 }: ElectronSecurityInput): ElectronSecurityInspection {
     const { problems, fail } = collectFailures();
-
     const { exists, read } = repoReader(root);
 
     if (!exists(mainDir)) {
@@ -178,13 +177,13 @@ export function inspectElectronSecurity({
     const mainFiles = walkFiles(root, mainDir, { match: /\.[cm]?ts$/, exclude });
     const preloadFiles = walkFiles(root, preloadDir, { match: /\.[cm]?ts$/, exclude });
     const rendererFiles = walkFiles(root, rendererDir, { match: /\.(?:[cm]?ts|vue)$/, exclude });
-    const strip = (rel: string) => stripComments(read(rel));
+    const strip = (rel: string): string => stripComments(read(rel));
     const main = mainFiles.map((rel) => [rel, strip(rel)] as [string, string]);
 
     /** Every `token(` call across the main process, with the file it is in. */
-    const sitesIn = (token: string) =>
+    const sitesIn = (token: string): (ReturnType<typeof callSites>[number] & { rel: string; code: string })[] =>
         main.flatMap(([rel, code]) => callSites(code, token).map((site) => ({ rel, code, ...site })));
-    const where = (s: { rel: string; code: string; index: number }) => `${s.rel}:${lineAt(s.code, s.index)}`;
+    const where = (s: { rel: string; code: string; index: number }): string => `${s.rel}:${lineAt(s.code, s.index)}`;
 
     // ── 1/2/3. webPreferences on every BrowserWindow ─────────────────────────
     const windows = sitesIn('new BrowserWindow(');
@@ -299,13 +298,13 @@ export function inspectElectronSecurity({
         [
             'setPermissionRequestHandler',
             'Handles a live permission request. Over file:// Electron denies everything by default and a dev server on http://localhost does not, so the two builds disagree until the policy is written down — and once one permission is granted, this handler is the entire policy.',
-            (fn: FunctionParts) =>
+            (fn: FunctionParts): boolean =>
                 fn.params[2] !== undefined && new RegExp(String.raw`\b${fn.params[2]}\(\s*false\s*\)`).test(fn.body),
         ],
         [
             'setPermissionCheckHandler',
             'Answers `navigator.permissions.query`. Without it a renderer can be told it holds a permission the request handler would refuse, and the two answers disagree.',
-            (fn: FunctionParts) => /\breturn\s+false\b/.test(fn.body) || fn.body.trim() === 'false',
+            (fn: FunctionParts): boolean => /\breturn\s+false\b/.test(fn.body) || fn.body.trim() === 'false',
         ],
     ] as const) {
         const sites = sitesIn(`${name}(`);
@@ -594,7 +593,7 @@ function ternaryBranches(expr: string): [string, string] | null {
     const rest = parts.slice(1).join('?');
     const branches = splitTopLevel(rest, ':');
     if (branches.length !== 2) return null;
-    const restore = (s: string) => s.replaceAll('\u0001\u0001', '??').replaceAll('\u0002.', '?.');
+    const restore = (s: string): string => s.replaceAll('\u0001\u0001', '??').replaceAll('\u0002.', '?.');
     return [restore(branches[0] ?? ''), restore(branches[1] ?? '')];
 }
 
@@ -684,9 +683,9 @@ function unwrap(expr: string): string {
     return e;
 }
 
-const isStringLiteral = (e: string) => /^(['"])(?:\\.|(?!\1).)*\1$/s.test(e);
-const isTemplate = (e: string) => e.startsWith('`') && templateEnd(e, 0) === e.length - 1;
-const isIdentifier = (e: string) => /^[A-Za-z_$][\w$]*$/.test(e);
+const isStringLiteral = (e: string): boolean => /^(['"])(?:\\.|(?!\1).)*\1$/s.test(e);
+const isTemplate = (e: string): boolean => e.startsWith('`') && templateEnd(e, 0) === e.length - 1;
+const isIdentifier = (e: string): boolean => /^[A-Za-z_$][\w$]*$/.test(e);
 
 /**
  * The first piece of `expr` that is not known-safe HTML, or `null`. Safe: a string

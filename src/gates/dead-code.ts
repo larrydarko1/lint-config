@@ -185,7 +185,7 @@ export function collectHits(report: KnipReport, include: string[]): Record<strin
  */
 export function inspectDeadCode(
     knip: (include: string[], extra?: string[]) => Record<string, DeadCodeHit[]>,
-    localOnlyTypes: () => DeadCodeHit[] = () => [],
+    localOnlyTypes: () => DeadCodeHit[] = (): DeadCodeHit[] => [],
     publicApi: string[] = [],
 ): Record<string, DeadCodeHit[]> {
     const found = knip(Object.keys(CATEGORIES));

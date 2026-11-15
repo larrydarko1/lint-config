@@ -81,8 +81,8 @@ export function inspectIpcStandards({
     renderer = ['src/renderer'],
 }: IpcStandardsInput): IpcStandardsInspection {
     const { problems, fail } = collectFailures();
-    const exists = (rel: string) => fs.existsSync(path.join(root, rel));
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+    const exists = (rel: string): boolean => fs.existsSync(path.join(root, rel));
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
     const empty = { problems, counts: { handlers: 0, events: 0, preloadChannels: 0, bridgeMembers: 0 } };
 
     for (const rel of [mainIndex, preload]) {

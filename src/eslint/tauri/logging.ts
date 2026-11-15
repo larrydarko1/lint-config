@@ -1,3 +1,5 @@
+import type { Linter } from 'eslint';
+
 const LOG_METHODS = '/^(trace|debug|info|warn|error)$/';
 
 export const loggerCallSelectors = [
@@ -13,7 +15,7 @@ export const loggerCallSelectors = [
     },
 ];
 
-export const loggingStandards = (source: string[], tests: string[]) => [
+export const loggingStandards = (source: string[], tests: string[]): Linter.Config[] => [
     // The webview's console is read by nobody once the app ships; the log file is.
     { files: source, ignores: tests, rules: { 'no-console': 'error' } },
 ];

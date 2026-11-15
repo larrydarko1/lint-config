@@ -1,28 +1,4 @@
 {
-  "src/commitlint.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 2
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    }
-  },
-  "src/eslint/api/api.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 3
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    }
-  },
-  "src/eslint/api/db.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 4
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    }
-  },
   "src/eslint/api/index.ts": {
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
@@ -52,18 +28,7 @@
       "count": 1
     }
   },
-  "src/eslint/rules/banned-packages.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    }
-  },
   "src/eslint/rules/dialogs.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 2
-    },
     "@typescript-eslint/no-unsafe-enum-comparison": {
       "count": 5
     },
@@ -71,53 +36,17 @@
       "count": 1
     }
   },
-  "src/eslint/rules/env.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    }
-  },
   "src/eslint/rules/function-contracts.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 8
-    },
     "@typescript-eslint/no-unsafe-enum-comparison": {
       "count": 30
     }
   },
-  "src/eslint/rules/html.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 1
-    }
-  },
-  "src/eslint/rules/i18n.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    }
-  },
   "src/eslint/rules/icons.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 4
-    },
     "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 1
     }
   },
   "src/eslint/rules/larry-plugin.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 3
-    },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 5
     },
@@ -128,72 +57,12 @@
       "count": 2
     }
   },
-  "src/eslint/rules/refactoring.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 1
-    }
-  },
-  "src/eslint/rules/security.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 2
-    }
-  },
   "src/eslint/rules/tauri.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 8
-    },
     "@typescript-eslint/no-unsafe-enum-comparison": {
       "count": 3
     }
   },
-  "src/eslint/rules/testing.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 2
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 2
-    }
-  },
-  "src/eslint/rules/typescript.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    }
-  },
-  "src/eslint/rules/vue.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    }
-  },
-  "src/eslint/tauri/logging.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    }
-  },
   "src/gates/api-standards.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 9
-    },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
     },
@@ -219,9 +88,6 @@
     }
   },
   "src/gates/code-style.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 7
-    },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 6
     },
@@ -241,9 +107,6 @@
     }
   },
   "src/gates/db-drift.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 5
-    },
     "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 11
     },
@@ -252,9 +115,6 @@
     }
   },
   "src/gates/dead-code.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
     },
@@ -265,15 +125,7 @@
       "count": 1
     }
   },
-  "src/gates/declaration-order.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 5
-    }
-  },
   "src/gates/docker.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 2
-    },
     "@typescript-eslint/no-unsafe-argument": {
       "count": 2
     },
@@ -297,9 +149,6 @@
     }
   },
   "src/gates/duplication.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 11
-    },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
     },
@@ -308,9 +157,6 @@
     }
   },
   "src/gates/electron-security.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 9
-    },
     "@typescript-eslint/no-unsafe-call": {
       "count": 1
     },
@@ -325,25 +171,16 @@
     }
   },
   "src/gates/env-drift.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 2
-    },
     "max-depth": {
       "count": 2
     }
   },
   "src/gates/error-handling/electron.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
     "max-depth": {
       "count": 3
     }
   },
   "src/gates/error-handling/fullstack.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 8
-    },
     "@typescript-eslint/no-unsafe-argument": {
       "count": 2
     },
@@ -361,9 +198,6 @@
     }
   },
   "src/gates/error-handling/tauri.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
     "max-depth": {
       "count": 1
     }
@@ -377,9 +211,6 @@
     }
   },
   "src/gates/i18n.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
     "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 1
     },
@@ -396,9 +227,6 @@
     }
   },
   "src/gates/ipc-standards.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 2
-    },
     "@typescript-eslint/no-unsafe-argument": {
       "count": 12
     },
@@ -427,9 +255,6 @@
     }
   },
   "src/gates/lib/bridge-reachability.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
     "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 1
     },
@@ -437,15 +262,7 @@
       "count": 1
     }
   },
-  "src/gates/lib/files.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 2
-    }
-  },
   "src/gates/lib/local-only-types.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 3
-    },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 2
     },
@@ -454,9 +271,6 @@
     }
   },
   "src/gates/lib/programs.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 3
-    },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 2
     },
@@ -465,22 +279,11 @@
     }
   },
   "src/gates/lib/repo-root.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 2
-    },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 1
     }
   },
-  "src/gates/lib/report.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 2
-    }
-  },
   "src/gates/lib/rust.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 2
-    },
     "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 1
     },
@@ -505,9 +308,6 @@
     }
   },
   "src/gates/metrics.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 4
-    },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
     },
@@ -530,9 +330,6 @@
     }
   },
   "src/gates/pipeline.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
     "@typescript-eslint/no-unsafe-argument": {
       "count": 6
     },
@@ -559,9 +356,6 @@
     }
   },
   "src/gates/publish.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
     "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 4
     },
@@ -575,17 +369,11 @@
     }
   },
   "src/gates/rust-order.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 3
     }
   },
   "src/gates/scss-standards.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 6
-    },
     "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 1
     },
@@ -594,9 +382,6 @@
     }
   },
   "src/gates/security-drift.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 3
-    },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 2
     },
@@ -608,17 +393,11 @@
     }
   },
   "src/gates/tauri-commands.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 6
-    },
     "max-depth": {
       "count": 6
     }
   },
   "src/gates/tauri-security.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 3
-    },
     "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 1
     },
@@ -627,9 +406,6 @@
     }
   },
   "src/gates/testing.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 3
-    },
     "@typescript-eslint/no-unsafe-argument": {
       "count": 1
     },
@@ -644,9 +420,6 @@
     }
   },
   "src/gates/tsconfigs.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 4
-    },
     "@typescript-eslint/no-unsafe-argument": {
       "count": 1
     },
@@ -661,17 +434,11 @@
     }
   },
   "src/gates/ws-standards.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 5
-    },
     "max-depth": {
       "count": 1
     }
   },
   "src/response-leaks.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 2
-    },
     "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 1
     },
@@ -679,15 +446,7 @@
       "count": 2
     }
   },
-  "src/server-errors.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 3
-    }
-  },
   "src/stylelint.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
     }

@@ -89,7 +89,7 @@ const OWN_PATH = /^\$(?:APP|APPCACHE|APPCONFIG|APPDATA|APPLOCALDATA|APPLOG|RESOU
 
 export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecurityInput): TauriSecurityInspection {
     const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => problems.push({ file, what, why });
+    const fail = (file: string | null, what: string, why: string): number => problems.push({ file, what, why });
     const counts = { windows: 0, capabilities: 0, permissions: 0 };
 
     const configRel = `${tauriDir}/tauri.conf.json`;
@@ -129,7 +129,7 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
             'With no policy the webview has none at all: an injected script runs and can reach every command the capability grants. Tauri adds its nonces and hashes only to a policy you write.',
         );
     }
-    const checkScripts = (rel: string, key: 'csp' | 'devCsp', csp: unknown) => {
+    const checkScripts = (rel: string, key: 'csp' | 'devCsp', csp: unknown): void => {
         if (csp === undefined || csp === null) return;
         const policy = directives(csp);
         const directive = policy.has('script-src') ? 'script-src' : 'default-src';
@@ -164,7 +164,7 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
     };
 
     // ── 2/3/4. Flags a platform file could undo ──────────────────────────────
-    const checkFlags = (rel: string, data: TauriConfig) => {
+    const checkFlags = (rel: string, data: TauriConfig): void => {
         const a = data.app ?? {};
         const sec = a.security ?? {};
         if (rel !== configRel && sec.csp === null)
