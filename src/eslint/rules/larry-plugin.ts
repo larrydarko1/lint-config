@@ -7,7 +7,7 @@
  * - `no-tauri-outside-bridge` — on a Tauri webview outside its bridge, see tauri.ts.
  */
 
-import type { TSESLint, TSESTree } from '@typescript-eslint/utils';
+import { AST_NODE_TYPES, type TSESLint, type TSESTree } from '@typescript-eslint/utils';
 
 import { dialogRules } from './dialogs.ts';
 import { iconRules } from './icons.ts';
@@ -106,32 +106,35 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
                 if (!ref.isRead()) continue;
                 const id = ref.identifier;
                 let outer: Node = id;
-                while (outer.parent?.type === 'TSAsExpression' || outer.parent?.type === 'TSNonNullExpression') {
+                while (
+                    outer.parent?.type === AST_NODE_TYPES.TSAsExpression ||
+                    outer.parent?.type === AST_NODE_TYPES.TSNonNullExpression
+                ) {
                     outer = outer.parent;
                 }
                 const parent = outer.parent;
                 if (parent === undefined) continue;
 
                 if (
-                    parent.type === 'MemberExpression' &&
+                    parent.type === AST_NODE_TYPES.MemberExpression &&
                     parent.object === outer &&
                     !parent.computed &&
-                    parent.property.type === 'Identifier'
+                    parent.property.type === AST_NODE_TYPES.Identifier
                 ) {
                     const name = parent.property.name;
                     if (name === 'message' || name === 'stack') followMessage(parent);
-                    else if (name === 'toString' && parent.parent.type === 'CallExpression') {
+                    else if (name === 'toString' && parent.parent.type === AST_NODE_TYPES.CallExpression) {
                         followMessage(parent.parent);
                     }
                 } else if (
-                    parent.type === 'CallExpression' &&
-                    parent.callee.type === 'Identifier' &&
+                    parent.type === AST_NODE_TYPES.CallExpression &&
+                    parent.callee.type === AST_NODE_TYPES.Identifier &&
                     parent.callee.name === 'String'
                 ) {
                     followMessage(parent);
-                } else if (parent.type === 'TemplateLiteral') {
+                } else if (parent.type === AST_NODE_TYPES.TemplateLiteral) {
                     followMessage(parent);
-                } else if (parent.type === 'VariableDeclarator' && parent.init === outer) {
+                } else if (parent.type === AST_NODE_TYPES.VariableDeclarator && parent.init === outer) {
                     // `const e = err` — an alias is the same error under another name.
                     for (const alias of context.sourceCode.getDeclaredVariables(parent)) followError(alias);
                 }
@@ -145,62 +148,62 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
 
             while (parent !== undefined) {
                 switch (parent.type) {
-                    case 'MemberExpression': {
+                    case AST_NODE_TYPES.MemberExpression: {
                         if (parent.object !== child) return;
-                        const name = parent.property.type === 'Identifier' ? parent.property.name : '';
+                        const name = parent.property.type === AST_NODE_TYPES.Identifier ? parent.property.name : '';
                         const call = parent.parent;
                         if (name === 'length' || DECISION_METHODS.has(name)) return;
                         // `msg.slice(0, 80)`, `msg.trim()` — still the message.
-                        if (call.type === 'CallExpression' && call.callee === parent) {
+                        if (call.type === AST_NODE_TYPES.CallExpression && call.callee === parent) {
                             child = call;
                             parent = call.parent;
                             continue;
                         }
                         return;
                     }
-                    case 'BinaryExpression':
+                    case AST_NODE_TYPES.BinaryExpression:
                         if (COMPARISONS.has(parent.operator)) return;
                         break;
-                    case 'ConditionalExpression':
+                    case AST_NODE_TYPES.ConditionalExpression:
                         if (parent.test === child) return;
                         break;
-                    case 'UnaryExpression':
-                    case 'IfStatement':
-                    case 'WhileStatement':
-                    case 'DoWhileStatement':
-                    case 'SwitchStatement':
-                    case 'SwitchCase':
-                    case 'ExpressionStatement':
-                    case 'ThrowStatement':
+                    case AST_NODE_TYPES.UnaryExpression:
+                    case AST_NODE_TYPES.IfStatement:
+                    case AST_NODE_TYPES.WhileStatement:
+                    case AST_NODE_TYPES.DoWhileStatement:
+                    case AST_NODE_TYPES.SwitchStatement:
+                    case AST_NODE_TYPES.SwitchCase:
+                    case AST_NODE_TYPES.ExpressionStatement:
+                    case AST_NODE_TYPES.ThrowStatement:
                         return;
-                    case 'CallExpression':
+                    case AST_NODE_TYPES.CallExpression:
                         if (parent.callee === child) return;
                         if (isLoggerCall(parent)) return;
-                        if (parent.callee.type === 'Identifier' && parent.callee.name === 'String') break;
+                        if (parent.callee.type === AST_NODE_TYPES.Identifier && parent.callee.name === 'String') break;
                         if (
-                            parent.callee.type === 'MemberExpression' &&
-                            parent.callee.property.type === 'Identifier' &&
+                            parent.callee.type === AST_NODE_TYPES.MemberExpression &&
+                            parent.callee.property.type === AST_NODE_TYPES.Identifier &&
                             parent.callee.property.name === 'test'
                         ) {
                             return;
                         }
                         report(start, `a call to \`${calleeName(parent.callee)}\``);
                         return;
-                    case 'NewExpression': {
-                        const name = parent.callee.type === 'Identifier' ? parent.callee.name : '';
+                    case AST_NODE_TYPES.NewExpression: {
+                        const name = parent.callee.type === AST_NODE_TYPES.Identifier ? parent.callee.name : '';
                         const index = messageArgs[name] ?? (name.endsWith('Error') ? 0 : -1);
                         if (index >= 0 && parent.arguments[index] === child) return;
                         report(start, `an argument of \`new ${name || '…'}\` that is not its message`);
                         return;
                     }
-                    case 'Property': {
+                    case AST_NODE_TYPES.Property: {
                         if (parent.value !== child) return;
                         const object = parent.parent;
-                        const key = parent.key.type === 'Identifier' ? parent.key.name : '';
+                        const key = parent.key.type === AST_NODE_TYPES.Identifier ? parent.key.name : '';
                         if (
                             key === 'logContext' &&
-                            object.parent?.type === 'NewExpression' &&
-                            object.parent.callee.type === 'Identifier' &&
+                            object.parent?.type === AST_NODE_TYPES.NewExpression &&
+                            object.parent.callee.type === AST_NODE_TYPES.Identifier &&
                             object.parent.callee.name in messageArgs
                         ) {
                             return;
@@ -209,25 +212,25 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
                         parent = object.parent;
                         continue;
                     }
-                    case 'VariableDeclarator':
+                    case AST_NODE_TYPES.VariableDeclarator:
                         if (parent.init !== child) return;
                         for (const variable of context.sourceCode.getDeclaredVariables(parent)) followText(variable);
                         return;
-                    case 'AssignmentExpression':
+                    case AST_NODE_TYPES.AssignmentExpression:
                         if (parent.right !== child) return;
-                        if (parent.left.type === 'Identifier') {
+                        if (parent.left.type === AST_NODE_TYPES.Identifier) {
                             followText(findVariable(context, parent, parent.left.name));
                             return;
                         }
                         report(start, `\`${text(parent.left)}\``);
                         return;
-                    case 'ReturnStatement':
+                    case AST_NODE_TYPES.ReturnStatement:
                         report(start, 'a return value');
                         return;
-                    case 'ArrowFunctionExpression':
+                    case AST_NODE_TYPES.ArrowFunctionExpression:
                         if (parent.body === child) report(start, 'a return value');
                         return;
-                    case 'YieldExpression':
+                    case AST_NODE_TYPES.YieldExpression:
                         report(start, 'a yielded value');
                         return;
                     default:
@@ -241,17 +244,17 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
         /** `catch (err)`, or `catch ({ message })`. */
         function fromParam(param: Node | null | undefined, owner: Node): void {
             if (param == null) return;
-            const id = param.type === 'AssignmentPattern' ? param.left : param;
-            if (id.type === 'Identifier') {
+            const id = param.type === AST_NODE_TYPES.AssignmentPattern ? param.left : param;
+            if (id.type === AST_NODE_TYPES.Identifier) {
                 followError(context.sourceCode.getDeclaredVariables(owner).find((v) => v.name === id.name) ?? null);
                 return;
             }
-            if (id.type !== 'ObjectPattern') return;
+            if (id.type !== AST_NODE_TYPES.ObjectPattern) return;
             for (const prop of id.properties) {
-                if (prop.type !== 'Property' || prop.key.type !== 'Identifier') continue;
+                if (prop.type !== AST_NODE_TYPES.Property || prop.key.type !== AST_NODE_TYPES.Identifier) continue;
                 if (prop.key.name !== 'message' && prop.key.name !== 'stack') continue;
-                const bound = prop.value.type === 'AssignmentPattern' ? prop.value.left : prop.value;
-                if (bound.type !== 'Identifier') continue;
+                const bound = prop.value.type === AST_NODE_TYPES.AssignmentPattern ? prop.value.left : prop.value;
+                if (bound.type !== AST_NODE_TYPES.Identifier) continue;
                 followText(context.sourceCode.getDeclaredVariables(owner).find((v) => v.name === bound.name) ?? null);
             }
         }
@@ -262,10 +265,18 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
             },
             // `promise.catch((err) => …)`
             CallExpression(node): void {
-                if (node.callee.type !== 'MemberExpression' || node.callee.property.type !== 'Identifier') return;
+                if (
+                    node.callee.type !== AST_NODE_TYPES.MemberExpression ||
+                    node.callee.property.type !== AST_NODE_TYPES.Identifier
+                )
+                    return;
                 if (node.callee.property.name !== 'catch') return;
                 const handler = node.arguments[0];
-                if (handler?.type !== 'ArrowFunctionExpression' && handler?.type !== 'FunctionExpression') return;
+                if (
+                    handler?.type !== AST_NODE_TYPES.ArrowFunctionExpression &&
+                    handler?.type !== AST_NODE_TYPES.FunctionExpression
+                )
+                    return;
                 fromParam(handler.params[0], handler);
             },
         };
@@ -282,21 +293,22 @@ export const larryPlugin = {
 };
 
 const calleeName = (callee: Node): string => {
-    if (callee.type === 'Identifier') return callee.name;
-    if (callee.type === 'MemberExpression' && callee.property.type === 'Identifier') {
+    if (callee.type === AST_NODE_TYPES.Identifier) return callee.name;
+    if (callee.type === AST_NODE_TYPES.MemberExpression && callee.property.type === AST_NODE_TYPES.Identifier) {
         return `${calleeName(callee.object)}.${callee.property.name}`;
     }
-    if (callee.type === 'ThisExpression') return 'this';
+    if (callee.type === AST_NODE_TYPES.ThisExpression) return 'this';
     return '…';
 };
 
 function isLoggerCall(call: TSESTree.CallExpression): boolean {
     const callee = call.callee;
-    if (callee.type !== 'MemberExpression' || callee.property.type !== 'Identifier') return false;
+    if (callee.type !== AST_NODE_TYPES.MemberExpression || callee.property.type !== AST_NODE_TYPES.Identifier)
+        return false;
     if (!LOG_LEVEL.test(callee.property.name)) return false;
     const owner = callee.object;
-    if (owner.type === 'Identifier') return LOGGER_NAME.test(owner.name);
-    if (owner.type === 'MemberExpression' && owner.property.type === 'Identifier') {
+    if (owner.type === AST_NODE_TYPES.Identifier) return LOGGER_NAME.test(owner.name);
+    if (owner.type === AST_NODE_TYPES.MemberExpression && owner.property.type === AST_NODE_TYPES.Identifier) {
         return LOGGER_NAME.test(owner.property.name);
     }
     return false;

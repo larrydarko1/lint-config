@@ -29,16 +29,8 @@
     }
   },
   "src/eslint/rules/dialogs.ts": {
-    "@typescript-eslint/no-unsafe-enum-comparison": {
-      "count": 5
-    },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
-    }
-  },
-  "src/eslint/rules/function-contracts.ts": {
-    "@typescript-eslint/no-unsafe-enum-comparison": {
-      "count": 30
     }
   },
   "src/eslint/rules/icons.ts": {
@@ -50,16 +42,8 @@
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 5
     },
-    "@typescript-eslint/no-unsafe-enum-comparison": {
-      "count": 58
-    },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 2
-    }
-  },
-  "src/eslint/rules/tauri.ts": {
-    "@typescript-eslint/no-unsafe-enum-comparison": {
-      "count": 3
     }
   },
   "src/gates/api-standards.ts": {

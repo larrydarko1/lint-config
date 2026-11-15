@@ -3,7 +3,7 @@
  * synchronous I/O in `is*`/`has*`/`can*`, and whether a name is accurate.
  */
 
-import type { TSESLint, TSESTree } from '@typescript-eslint/utils';
+import { AST_NODE_TYPES, type TSESLint, type TSESTree } from '@typescript-eslint/utils';
 
 type TypeNode = TSESTree.TypeNode;
 type FunctionNode = TSESTree.FunctionDeclaration | TSESTree.FunctionExpression | TSESTree.ArrowFunctionExpression;
@@ -235,7 +235,7 @@ const noUndefinedHole: TSESLint.RuleModule<'undefinedHole'> = {
     create(context): TSESLint.RuleListener {
         function check(node: FunctionNode): void {
             const optional = node.params.filter(
-                (param) => ('optional' in param && param.optional) || param.type === 'AssignmentPattern',
+                (param) => ('optional' in param && param.optional) || param.type === AST_NODE_TYPES.AssignmentPattern,
             );
             const second = optional[1];
             if (second === undefined) return;
@@ -274,8 +274,8 @@ const noBooleanFlag: TSESLint.RuleModule<'booleanFlag'> = {
         function check(node: FunctionNode): void {
             if (node.params.length < 2) return;
             for (const param of node.params) {
-                const target = param.type === 'AssignmentPattern' ? param.left : param;
-                if (target.type !== 'Identifier') continue;
+                const target = param.type === AST_NODE_TYPES.AssignmentPattern ? param.left : param;
+                if (target.type !== AST_NODE_TYPES.Identifier) continue;
                 const annotation = target.typeAnnotation?.typeAnnotation;
                 if (annotation === undefined || !isBooleanType(annotation)) continue;
                 context.report({
@@ -329,7 +329,8 @@ const noDbAwaitInLoop: TSESLint.RuleModule<'dbInLoop'> = {
                         context.report({ node, messageId: 'dbInLoop' });
                         return;
                     }
-                    if (current.type.includes('Function') || current.type === 'ArrowFunctionExpression') return;
+                    if (current.type.includes('Function') || current.type === AST_NODE_TYPES.ArrowFunctionExpression)
+                        return;
                 }
             },
         };
@@ -346,31 +347,32 @@ export const functionContractsPlugin = {
     },
 };
 
-const isNull = (t: TypeNode): boolean => t.type === 'TSNullKeyword';
-const isUndefined = (t: TypeNode): boolean => t.type === 'TSUndefinedKeyword';
-const isVoid = (t: TypeNode): boolean => t.type === 'TSVoidKeyword';
-const isNever = (t: TypeNode): boolean => t.type === 'TSNeverKeyword';
-const isUnknownOrAny = (t: TypeNode): boolean => t.type === 'TSUnknownKeyword' || t.type === 'TSAnyKeyword';
+const isNull = (t: TypeNode): boolean => t.type === AST_NODE_TYPES.TSNullKeyword;
+const isUndefined = (t: TypeNode): boolean => t.type === AST_NODE_TYPES.TSUndefinedKeyword;
+const isVoid = (t: TypeNode): boolean => t.type === AST_NODE_TYPES.TSVoidKeyword;
+const isNever = (t: TypeNode): boolean => t.type === AST_NODE_TYPES.TSNeverKeyword;
+const isUnknownOrAny = (t: TypeNode): boolean =>
+    t.type === AST_NODE_TYPES.TSUnknownKeyword || t.type === AST_NODE_TYPES.TSAnyKeyword;
 
 /** A type predicate (`x is T`) or an assertion signature (`asserts x is T`). */
-const isPredicate = (t: TypeNode): t is TSESTree.TSTypePredicate => t.type === 'TSTypePredicate';
+const isPredicate = (t: TypeNode): t is TSESTree.TSTypePredicate => t.type === AST_NODE_TYPES.TSTypePredicate;
 
 function isBooleanType(type: TypeNode): boolean {
-    if (type.type === 'TSBooleanKeyword') return true;
+    if (type.type === AST_NODE_TYPES.TSBooleanKeyword) return true;
     // `true | false`, and the literal-typed booleans a narrowed helper returns.
-    if (type.type === 'TSLiteralType')
-        return type.literal.type === 'Literal' && typeof type.literal.value === 'boolean';
-    if (type.type === 'TSUnionType') return type.types.every(isBooleanType);
+    if (type.type === AST_NODE_TYPES.TSLiteralType)
+        return type.literal.type === AST_NODE_TYPES.Literal && typeof type.literal.value === 'boolean';
+    if (type.type === AST_NODE_TYPES.TSUnionType) return type.types.every(isBooleanType);
     return false;
 }
 
 function isArrayType(type: TypeNode): boolean {
-    if (type.type === 'TSArrayType') return true;
+    if (type.type === AST_NODE_TYPES.TSArrayType) return true;
     // `readonly T[]`
-    if (type.type === 'TSTypeOperator' && type.operator === 'readonly') {
+    if (type.type === AST_NODE_TYPES.TSTypeOperator && type.operator === 'readonly') {
         return type.typeAnnotation !== undefined && isArrayType(type.typeAnnotation);
     }
-    if (type.type === 'TSTypeReference' && type.typeName.type === 'Identifier') {
+    if (type.type === AST_NODE_TYPES.TSTypeReference && type.typeName.type === AST_NODE_TYPES.Identifier) {
         return ['Array', 'ReadonlyArray'].includes(type.typeName.name);
     }
     return false;
@@ -378,22 +380,23 @@ function isArrayType(type: TypeNode): boolean {
 
 /** `Promise<T>` → `T`; anything else unchanged. */
 function unwrapPromise(type: TypeNode): TypeNode {
-    if (type.type !== 'TSTypeReference' || type.typeName.type !== 'Identifier') return type;
+    if (type.type !== AST_NODE_TYPES.TSTypeReference || type.typeName.type !== AST_NODE_TYPES.Identifier) return type;
     if (type.typeName.name !== 'Promise') return type;
     return type.typeArguments?.params[0] ?? type;
 }
 
-const unionMembers = (type: TypeNode): TypeNode[] => (type.type === 'TSUnionType' ? type.types : [type]);
+const unionMembers = (type: TypeNode): TypeNode[] => (type.type === AST_NODE_TYPES.TSUnionType ? type.types : [type]);
 
 function functionName(node: FunctionNode): string | null {
-    if (node.id?.type === 'Identifier') return node.id.name;
+    if (node.id?.type === AST_NODE_TYPES.Identifier) return node.id.name;
     const parent = node.parent;
-    if (parent.type === 'VariableDeclarator' && parent.id.type === 'Identifier') return parent.id.name;
+    if (parent.type === AST_NODE_TYPES.VariableDeclarator && parent.id.type === AST_NODE_TYPES.Identifier)
+        return parent.id.name;
     const keyed =
-        parent.type === 'Property' ||
-        parent.type === 'MethodDefinition' ||
-        parent.type === 'PropertyDefinition' ||
-        parent.type === 'TSAbstractMethodDefinition';
-    if (keyed && parent.key.type === 'Identifier') return parent.key.name;
+        parent.type === AST_NODE_TYPES.Property ||
+        parent.type === AST_NODE_TYPES.MethodDefinition ||
+        parent.type === AST_NODE_TYPES.PropertyDefinition ||
+        parent.type === AST_NODE_TYPES.TSAbstractMethodDefinition;
+    if (keyed && parent.key.type === AST_NODE_TYPES.Identifier) return parent.key.name;
     return null;
 }

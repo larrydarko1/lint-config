@@ -5,7 +5,7 @@
  * and the one module a test replaces. `tauriStandards()` turns `no-tauri-outside-bridge` on
  * for the webview outside `src/bridge/`.
  */
-import type { TSESLint, TSESTree } from '@typescript-eslint/utils';
+import { AST_NODE_TYPES, type TSESLint, type TSESTree } from '@typescript-eslint/utils';
 
 type MessageId = 'import' | 'global';
 type Context = Readonly<TSESLint.RuleContext<MessageId, []>>;
@@ -58,17 +58,17 @@ const noTauriOutsideBridge: TSESLint.RuleModule<MessageId> = {
 export const tauriRules = { 'no-tauri-outside-bridge': noTauriOutsideBridge };
 
 const stringValue = (node: TSESTree.Node): string | null =>
-    node.type === 'Literal' && typeof node.value === 'string' ? node.value : null;
+    node.type === AST_NODE_TYPES.Literal && typeof node.value === 'string' ? node.value : null;
 
 /** `a.b` and `a['b']` → `'b'`; `a[b]` names no property. */
 function propertyName(member: TSESTree.MemberExpression): string | null {
     const { property } = member;
-    if (!member.computed && property.type === 'Identifier') return property.name;
+    if (!member.computed && property.type === AST_NODE_TYPES.Identifier) return property.name;
     return stringValue(property);
 }
 
 function checkSource(context: Context, source: TSESTree.Node | null): void {
-    if (source?.type !== 'Literal' || typeof source.value !== 'string') return;
+    if (source?.type !== AST_NODE_TYPES.Literal || typeof source.value !== 'string') return;
     if (source.value.startsWith(TAURI_PACKAGE)) {
         context.report({ node: source, messageId: 'import', data: { source: source.value } });
     }
