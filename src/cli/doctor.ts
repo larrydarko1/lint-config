@@ -76,9 +76,10 @@ export async function diagnose(root: string, running: string): Promise<Diagnosis
               ),
     );
 
-    const { family, diagnoses } = await diagnoseConfig(root);
-    found.push(...diagnoses);
-    if (family === 'base') found.push(diagnoseFamilyFit(manifest));
+    const config = await diagnoseConfig(root);
+    const { family } = config;
+    found.push(...config.diagnoses);
+    if (config.family === 'base') found.push(diagnoseFamilyFit(manifest, config.file));
     if (manifest['name'] === SELF_NAME) {
         return [
             ...found,
@@ -106,13 +107,18 @@ export async function diagnose(root: string, running: string): Promise<Diagnosis
     return found;
 }
 
-/** larry.config.ts, and the family it names: null when it is missing or does not load. */
-async function diagnoseConfig(root: string): Promise<{ family: PresetName | null; diagnoses: Diagnosis[] }> {
+/** The larry config file, and the family it names: both null when it is missing or does not load. */
+async function diagnoseConfig(
+    root: string,
+): Promise<
+    { family: PresetName; file: string; diagnoses: Diagnosis[] } | { family: null; file: null; diagnoses: Diagnosis[] }
+> {
     try {
         const config = await loadConfig(root);
         const skipped = config.skipped.size > 0 ? `, with ${plural(config.skipped.size, 'gate')} skipped` : '';
         return {
             family: config.family,
+            file: config.file,
             diagnoses: [ok(`${config.file} loads: the ${config.family} family${skipped}`)],
         };
     } catch (error) {
@@ -124,6 +130,7 @@ async function diagnoseConfig(root: string): Promise<{ family: PresetName | null
                 : `${first} and ${plural(rest.length, 'other')} are gate scripts`;
         return {
             family: null,
+            file: null,
             diagnoses: [
                 problem(
                     error instanceof Error ? error.message : String(error),
@@ -137,13 +144,13 @@ async function diagnoseConfig(root: string): Promise<{ family: PresetName | null
 }
 
 /** Whether a base project's package.json says it is a kind another family has rules for. */
-function diagnoseFamilyFit(manifest: Manifest): Diagnosis {
+function diagnoseFamilyFit(manifest: Manifest, configFile: string): Diagnosis {
     const found = familyFit(manifest);
     if (found === undefined) return ok('nothing in package.json says another family fits better than base');
     const [fit, sign] = found;
     return note(
-        `larry.config.ts names the base family, but package.json ${sign}, as ${fit} projects do`,
-        `If this is one, the ${fit} family has rules and gates for it: set \`family: '${fit}'\` in larry.config.ts and \`preset: '${fit}'\` in eslint.config.js. The base family is for code no family describes.`,
+        `${configFile} names the base family, but package.json ${sign}, as ${fit} projects do`,
+        `If this is one, the ${fit} family has rules and gates for it: set \`family: '${fit}'\` in ${configFile} and \`preset: '${fit}'\` in eslint.config.js. The base family is for code no family describes.`,
     );
 }
 

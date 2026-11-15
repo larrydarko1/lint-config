@@ -142,12 +142,22 @@ test('a base project hears when package.json looks like a kind another family is
     assert.equal(electron.code, 0, 'a note fails nothing');
     assert.match(
         electron.out,
-        /^– larry\.config\.ts names the base family, but package\.json depends on electron, as electron projects do$/m,
+        /^– larry\.config\.js names the base family, but package\.json depends on electron, as electron projects do$/m,
     );
     assert.match(
         electron.out,
-        /set `family: 'electron'` in larry\.config\.ts and `preset: 'electron'` in eslint\.config\.js/,
+        /set `family: 'electron'` in larry\.config\.js and `preset: 'electron'` in eslint\.config\.js/,
     );
+
+    const typed = doctor(
+        project(t, {
+            'larry.config.js': null,
+            'larry.config.ts': "export default { family: 'base', gates: {} };\n",
+            'package.json': manifest({ dependencies: { electron: '^40.0.0' } }),
+        }),
+    );
+    assert.match(typed.out, /^– larry\.config\.ts names the base family/m, 'the note names the file the project has');
+    assert.match(typed.out, /set `family: 'electron'` in larry\.config\.ts/);
 
     const published = doctor(project(t, { ...base, 'package.json': manifest({ exports: './dist/index.js' }) }));
     assert.match(published.out, /package\.json publishes `exports`, as library projects do$/m);
@@ -313,7 +323,7 @@ test('at a terminal the symbols, commands and summary are coloured, and the text
     );
     assert.ok(lines.includes(`${paint('red', '✗')} ${SELF_NAME} is not a dependency`), coloured.out);
     assert.ok(lines.includes(`  Run ${paint('cyan', `\`npm i -D ${SELF_NAME}\``)}.`), 'its command in cyan');
-    const note = lines.find((line) => line.startsWith(`${paint('yellow', '–')} larry.config.ts names the base family`));
+    const note = lines.find((line) => line.startsWith(`${paint('yellow', '–')} larry.config.js names the base family`));
     assert.ok(note, coloured.out);
     const summary = plain.out.trimEnd().split('\n').at(-1) ?? '';
     assert.equal(lines.at(-2), `${paint('red', '✗')} ${paint('bold', summary.slice('✗ '.length))}`);
