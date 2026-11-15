@@ -7,6 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ESLint, Linter } from 'eslint';
+import ts from 'typescript-eslint';
 
 import { larry } from '../src/eslint/index.ts';
 import * as api from '../src/eslint/api/index.ts';
@@ -320,6 +321,33 @@ test('every API area resolves its whole list, since the last matching block repl
     const config = await restrictionsOf(apiConfig(), 'src/lib/config.ts');
     assert.ok(has(config.selectors, api.configModuleSelectors) && !has(config.selectors, api.apiSourceSelectors));
     assert.equal((await restrictionsOf(apiConfig(), 'db/migrations/001-init.js')).selectors.length > 0, true);
+});
+
+/** The messages ESLint reports for `code` in `file`, under the import rules the config resolves there. */
+const importProblems = async (config, file, code) => {
+    const eslint = new ESLint({ overrideConfigFile: true, baseConfig: config, cwd: ROOT });
+    const { rules } = await eslint.calculateConfigForFile(`${ROOT}/${file}`);
+    const pick = (rule) => (rules[rule] === undefined ? {} : { [rule]: rules[rule] });
+    return new Linter({ configType: 'flat' }).verify(code, [
+        {
+            languageOptions: { parser: ts.parser, sourceType: 'module' },
+            plugins: { '@typescript-eslint': ts.plugin },
+            rules: { ...pick('no-restricted-imports'), ...pick('@typescript-eslint/no-restricted-imports') },
+        },
+    ]);
+};
+
+/** A file where a layering ban applies, and a module from the layer it may not load. */
+const LAYERING_CASES = [[apiConfig, 'src/lib/cache.ts', '@/services/users']];
+
+test('a layering ban lets `import type` through, and a module ban does not', async () => {
+    for (const [config, file, layer] of LAYERING_CASES) {
+        const typeOnly = await importProblems(config(), file, `import type { Thing } from '${layer}';`);
+        assert.equal(typeOnly.length, 0, `${file}: a type import is erased`);
+        assert.equal((await importProblems(config(), file, `import { thing } from '${layer}';`)).length, 1, file);
+        const crypto = await importProblems(config(), file, "import type { Options } from 'bcrypt';");
+        assert.equal(crypto.length, 1, `${file}: crypto stays absolute`);
+    }
 });
 
 test('the API switches drop only their own rules', async () => {

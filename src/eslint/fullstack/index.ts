@@ -38,7 +38,7 @@ export { dbApiWorkerSelectors, dbDbTsSelectors, dbWorkerIndexSelectors, dbBanned
 export { loggerCallSelectors, noDirectErrorResponse } from './logging.ts';
 export { errorHandlingSelectors } from './error-handling.ts';
 export { sharedPackageBannedImports } from './boundaries.ts';
-export { utilsBannedImportPatterns, libBannedImportPatterns } from './code-style.ts';
+export { utilsBannedImportPatterns, libBannedImportPatterns } from '../rules/layering.ts';
 export { wsGatewaySelectors, wsEventNameSelectors, wsGatewayBannedImports, wsSocketClientBannedImports } from './ws.ts';
 
 export type FullstackStandardsOptions = {

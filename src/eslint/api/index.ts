@@ -18,7 +18,6 @@ import {
     httpServiceSelectors,
     proxyWorkBannedImports,
 } from '../fullstack/api.ts';
-import { libBannedImportPatterns } from '../fullstack/code-style.ts';
 import { dbBannedImports, mongoSelectors, scriptEnvSelectors } from '../fullstack/db.ts';
 import { errorHandlingSelectors } from '../fullstack/error-handling.ts';
 import { loggerCallSelectors, noDirectErrorResponse } from '../fullstack/logging.ts';
@@ -26,6 +25,7 @@ import { wsEventNameSelectors, wsGatewayBannedImports, wsGatewaySelectors } from
 import { PRESETS, resolveLayout, type ApiLayout } from '../presets.ts';
 import { noFileURLToPath, noSingleLetterDeclaration } from '../rules/code-style.ts';
 import { configModuleSelectors, envStandards } from '../rules/env.ts';
+import { layeredImports, libBannedImportPatterns } from '../rules/layering.ts';
 import { refactoringStandards, type RefactoringOptions } from '../rules/refactoring.ts';
 import { bannedCryptoModules, securityStandards } from '../rules/security.ts';
 import { testingStandards } from '../rules/testing.ts';
@@ -40,7 +40,7 @@ export { apiRoutesOnlySelectors, apiBannedImports } from '../fullstack/api.ts';
 export { dbBannedImports } from '../fullstack/db.ts';
 export { loggerCallSelectors, noDirectErrorResponse } from '../fullstack/logging.ts';
 export { errorHandlingSelectors } from '../fullstack/error-handling.ts';
-export { libBannedImportPatterns } from '../fullstack/code-style.ts';
+export { libBannedImportPatterns } from '../rules/layering.ts';
 export { wsGatewaySelectors, wsEventNameSelectors, wsGatewayBannedImports } from '../fullstack/ws.ts';
 
 export type ApiStandardsOptions = {
@@ -186,9 +186,7 @@ export function apiStandards(options: ApiStandardsOptions = {}): FamilyStandards
             {
                 files: [`${layout.lib}/**/*.ts`],
                 ignores: NOT_TESTS,
-                rules: {
-                    'no-restricted-imports': ['error', { paths: bannedImports, patterns: libBannedImportPatterns }],
-                },
+                rules: layeredImports(bannedImports, [], libBannedImportPatterns),
             },
             ...(ws
                 ? [
