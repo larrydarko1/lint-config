@@ -705,7 +705,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
                 fail(
                     rel,
                     `waits on a workflow named '${String(name)}', which does not exist`,
-                    `GitHub matches the declared \`name:\`, not the filename, and a name matching nothing is not an error — this workflow simply never runs. Declared names: ${[...declaredNames].map((n) => `'${n}'`).join(', ') || 'none'}.`,
+                    `GitHub matches the declared \`name:\`, not the filename, and a name matching nothing is not an error — this workflow simply never runs. Declared names: ${declaredNames.size > 0 ? [...declaredNames].map((n) => `'${n}'`).join(', ') : 'none'}.`,
                 );
             }
         }

@@ -314,7 +314,7 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
 
         // Headers may write mounted (`/api/videos/:id`) or relative (`/:id`) paths;
         // strip the stated mount. Trailing punctuation is trimmed off the mount.
-        const mount = (/mounted at (\/\S*)/.exec(header)?.[1] ?? '').replace(/[.,;:)]+$/, '') || null;
+        const mount = /mounted at (\/\S*)/.exec(header)?.[1]?.replace(/[.,;:)]+$/, '') ?? null;
         const documented = new Set(
             [...header.matchAll(ROUTE_DOCUMENTATION)].map(([, verb, documentedPath = '']) => {
                 let route = documentedPath;

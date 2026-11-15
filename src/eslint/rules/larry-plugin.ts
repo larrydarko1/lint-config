@@ -82,7 +82,7 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
         },
     },
     create(context): TSESLint.RuleListener {
-        const messageArgs = { ...DEFAULT_MESSAGE_ARGS, ...context.options[0]?.messageArgs };
+        const messageArgs = { ...DEFAULT_MESSAGE_ARGS, ...context.options[0].messageArgs };
         const seen = new Set<Variable>();
         const text = (node: Node): string => context.sourceCode.getText(node).replace(/\s+/g, ' ').slice(0, 60);
 
@@ -107,13 +107,12 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
                 const id = ref.identifier;
                 let outer: Node = id;
                 while (
-                    outer.parent?.type === AST_NODE_TYPES.TSAsExpression ||
-                    outer.parent?.type === AST_NODE_TYPES.TSNonNullExpression
+                    outer.parent.type === AST_NODE_TYPES.TSAsExpression ||
+                    outer.parent.type === AST_NODE_TYPES.TSNonNullExpression
                 ) {
                     outer = outer.parent;
                 }
                 const parent = outer.parent;
-                if (parent === undefined) continue;
 
                 if (
                     parent.type === AST_NODE_TYPES.MemberExpression &&
@@ -193,7 +192,7 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
                         const name = parent.callee.type === AST_NODE_TYPES.Identifier ? parent.callee.name : '';
                         const index = messageArgs[name] ?? (name.endsWith('Error') ? 0 : -1);
                         if (index >= 0 && parent.arguments[index] === child) return;
-                        report(start, `an argument of \`new ${name || '…'}\` that is not its message`);
+                        report(start, `an argument of \`new ${name === '' ? '…' : name}\` that is not its message`);
                         return;
                     }
                     case AST_NODE_TYPES.Property: {
@@ -202,7 +201,7 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
                         const key = parent.key.type === AST_NODE_TYPES.Identifier ? parent.key.name : '';
                         if (
                             key === 'logContext' &&
-                            object.parent?.type === AST_NODE_TYPES.NewExpression &&
+                            object.parent.type === AST_NODE_TYPES.NewExpression &&
                             object.parent.callee.type === AST_NODE_TYPES.Identifier &&
                             object.parent.callee.name in messageArgs
                         ) {
@@ -316,7 +315,11 @@ function isLoggerCall(call: TSESTree.CallExpression): boolean {
 
 /** The variable `name` resolves to from `node`'s scope, walking outwards. */
 function findVariable(context: Context, node: Node, name: string): Variable | null {
-    for (let scope: TSESLint.Scope.Scope | null = context.sourceCode.getScope(node); scope; scope = scope.upper) {
+    for (
+        let scope: TSESLint.Scope.Scope | null = context.sourceCode.getScope(node);
+        scope !== null;
+        scope = scope.upper
+    ) {
         const found = scope.set.get(name);
         if (found !== undefined) return found;
     }

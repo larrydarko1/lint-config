@@ -231,7 +231,7 @@ export function deadCodeProblems(
     const known = new Map(ALL_CATEGORIES);
     for (const [category, budget] of Object.entries(budgets)) {
         const entry = known.get(category);
-        if (!entry) {
+        if (entry === undefined) {
             problems.push({
                 what: `The budget for \`${category}\` names no category.`,
                 why: `A misspelt key budgets nothing, so the category it meant is still held at 0. The categories are: ${[...known.keys()].join(', ')}.`,

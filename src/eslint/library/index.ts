@@ -61,7 +61,7 @@ export function libraryStandards(options: LibraryStandardsOptions = {}): FamilyS
             ...securityStandards({ code: [...source, ...SCRIPTS], vue: [] }),
             // The caller owns the terminal and the logs; a library hands back values and errors.
             { files: source, rules: { 'no-console': 'error' } },
-            ...(consoleAllowed.length ? [{ files: consoleAllowed, rules: { 'no-console': 'off' } }] : []),
+            ...(consoleAllowed.length > 0 ? [{ files: consoleAllowed, rules: { 'no-console': 'off' } }] : []),
             { files: source, rules: { 'no-restricted-properties': ['error', noProcessExit] } },
             ...typescriptStandards({
                 source,

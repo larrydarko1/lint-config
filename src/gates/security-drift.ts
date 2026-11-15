@@ -338,7 +338,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
 
     // ── 6. trust proxy is a hop COUNT ────────────────────────────────────────
     const trustArg = /app\.set\(\s*['"]trust proxy['"]\s*,\s*([^)]+?)\s*\)/.exec(entrySource)?.[1];
-    if (!trustArg?.startsWith('config.')) {
+    if (trustArg?.startsWith('config.') !== true) {
         fail(
             entry,
             trustArg === undefined
@@ -715,10 +715,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
             const quantifiedOnly =
                 pattern.startsWith('`') &&
                 slots.length > 0 &&
-                slots.every(
-                    (slot) =>
-                        pattern[(slot.index ?? 0) - 1] === '{' && pattern[(slot.index ?? 0) + slot[0].length] === '}',
-                );
+                slots.every((slot) => pattern[slot.index - 1] === '{' && pattern[slot.index + slot[0].length] === '}');
             if (!quantifiedOnly) {
                 fail(
                     rel,

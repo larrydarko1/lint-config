@@ -444,7 +444,7 @@ export function inspectFullstackErrorHandling(
     // ── 6. `params` carry no request input ───────────────────────────────────
     for (const t of throws) {
         const params = optionField(t.args, 'params');
-        if (!params?.startsWith('{')) continue;
+        if (params?.startsWith('{') !== true) continue;
         const hit = /\breq\.(params|body|query|headers)\b|\bidentifier\b|\bfilename\b/.exec(params);
         if (hit !== null) {
             fail(
@@ -583,7 +583,7 @@ function callArguments(src: string, open: number): string[] | null {
 /** One named field out of the `options` argument of a `new AppError(...)` call. */
 function optionField(args: string[], name: string): string | null {
     const options = args[3]?.trim();
-    if (!options?.startsWith('{')) return null;
+    if (options?.startsWith('{') !== true) return null;
     const fields = callArguments(options, 0);
     if (fields === null) return null;
     for (const field of fields) {

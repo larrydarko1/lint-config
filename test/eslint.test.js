@@ -36,6 +36,10 @@ test('rootDir is required — tsconfigRootDir must point at the project, not thi
     assert.throws(() => larry({ preset: 'electron' }), /rootDir/);
 });
 
+test('larry() with no options says what it needs, from plain JS', () => {
+    assert.throws(() => larry(), /larry\(\{ rootDir \}\) is required/);
+});
+
 test('an unknown preset fails loudly rather than silently linting nothing', () => {
     assert.throws(() => larry({ preset: 'nope', rootDir: ROOT }), /Unknown preset/);
 });

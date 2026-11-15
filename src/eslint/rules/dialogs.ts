@@ -44,7 +44,11 @@ const isDialog = (name: string | null): name is Dialog => name === 'alert' || na
 
 /** Whether `name` at `node` is the global, not a local or an import that shadows it. */
 function isGlobal(context: Context, node: TSESTree.Node, name: string): boolean {
-    for (let scope: TSESLint.Scope.Scope | null = context.sourceCode.getScope(node); scope; scope = scope.upper) {
+    for (
+        let scope: TSESLint.Scope.Scope | null = context.sourceCode.getScope(node);
+        scope !== null;
+        scope = scope.upper
+    ) {
         const variable = scope.set.get(name);
         if (variable !== undefined) return variable.defs.length === 0;
     }

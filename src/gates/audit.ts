@@ -192,7 +192,7 @@ function findings(report: NpmAuditReport): Finding[] {
     const rows: Finding[] = [];
     for (const [name, vuln] of Object.entries(report.vulnerabilities ?? {})) {
         for (const via of vuln.via ?? []) {
-            if (typeof via !== 'object' || via?.url === undefined) continue;
+            if (typeof via !== 'object' || via.url === undefined) continue;
             const id = via.url.split('/').pop() ?? via.url;
             rows.push({
                 package: name,

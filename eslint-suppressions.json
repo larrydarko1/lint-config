@@ -1,49 +1,17 @@
 {
-  "src/eslint/api/index.ts": {
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 1
-    }
-  },
   "src/eslint/index.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
     "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 1
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 8
     }
   },
   "src/eslint/layout-guard.ts": {
     "@typescript-eslint/no-unsafe-type-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 1
-    }
-  },
-  "src/eslint/library/index.ts": {
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 1
-    }
-  },
-  "src/eslint/rules/dialogs.ts": {
-    "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
     }
   },
   "src/eslint/rules/icons.ts": {
     "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 1
-    }
-  },
-  "src/eslint/rules/larry-plugin.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 5
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 2
     }
   },
   "src/gates/api-standards.ts": {
@@ -53,17 +21,11 @@
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 2
     },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 1
-    },
     "max-depth": {
       "count": 12
     }
   },
   "src/gates/audit.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
     },
@@ -72,9 +34,6 @@
     }
   },
   "src/gates/code-style.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 6
-    },
     "max-depth": {
       "count": 4
     }
@@ -104,9 +63,6 @@
     },
     "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 2
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 1
     }
   },
   "src/gates/docker.ts": {
@@ -124,9 +80,6 @@
     },
     "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 4
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 2
     },
     "max-depth": {
       "count": 25
@@ -174,9 +127,6 @@
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 2
     },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 2
-    },
     "max-depth": {
       "count": 2
     }
@@ -187,9 +137,6 @@
     }
   },
   "src/gates/html-standards.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
     "max-depth": {
       "count": 4
     }
@@ -204,9 +151,6 @@
   },
   "src/gates/import-order.ts": {
     "@typescript-eslint/no-unsafe-type-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
     }
   },
@@ -241,15 +185,9 @@
   "src/gates/lib/bridge-reachability.ts": {
     "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 1
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 1
     }
   },
   "src/gates/lib/local-only-types.ts": {
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 2
-    },
     "max-depth": {
       "count": 3
     }
@@ -292,9 +230,6 @@
     }
   },
   "src/gates/metrics.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
     "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 2
     },
@@ -333,7 +268,7 @@
       "count": 1
     },
     "@typescript-eslint/strict-boolean-expressions": {
-      "count": 2
+      "count": 1
     },
     "max-depth": {
       "count": 24
@@ -352,11 +287,6 @@
       "count": 1
     }
   },
-  "src/gates/rust-order.ts": {
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 3
-    }
-  },
   "src/gates/scss-standards.ts": {
     "@typescript-eslint/no-unsafe-type-assertion": {
       "count": 1
@@ -366,12 +296,6 @@
     }
   },
   "src/gates/security-drift.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 1
-    },
     "max-depth": {
       "count": 3
     }
@@ -428,11 +352,6 @@
     },
     "max-depth": {
       "count": 2
-    }
-  },
-  "src/stylelint.ts": {
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 1
     }
   },
   "src/toolchain.ts": {

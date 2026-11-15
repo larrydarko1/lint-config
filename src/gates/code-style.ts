@@ -275,7 +275,7 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
         for (const match of template.matchAll(MARKUP_COMMENT)) {
             if (/[–—─]{2,}/.test(match[1] ?? '')) {
                 fail(
-                    `${rel}:${lineAt(source, start + (match.index ?? 0))}`,
+                    `${rel}:${lineAt(source, start + match.index)}`,
                     `decorated template comment: <!--${(match[1] ?? '').replace(/\s+/g, ' ').slice(0, 40)}… -->`,
                     'Template section labels are plain text: `<!-- Section name -->`. The dashed form is the style-block divider, and using one form for both is what turns a label into noise.',
                 );
@@ -283,7 +283,7 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
         }
         for (const match of template.matchAll(/^[ \t]*(\/\/|\/\*)/gm)) {
             fail(
-                `${rel}:${lineAt(source, start + (match.index ?? 0))}`,
+                `${rel}:${lineAt(source, start + match.index)}`,
                 `JS-style comment inside <template>: \`${match[1] ?? ''}\``,
                 'Markup comments are `<!-- Section -->`. A `//` in a template is not a comment at all — Vue renders it to the page as text.',
             );
@@ -296,7 +296,7 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
         const globalSheet = rel.endsWith('.scss');
         const blocks = globalSheet
             ? [{ text: source.replace(/^\/\*[\s\S]*?\*\//, ''), offset: 0 }]
-            : [...source.matchAll(/<style[\s\S]*?<\/style>/g)].map((m) => ({ text: m[0], offset: m.index ?? 0 }));
+            : [...source.matchAll(/<style[\s\S]*?<\/style>/g)].map((m) => ({ text: m[0], offset: m.index }));
 
         for (const { text: block, offset } of blocks) {
             for (const match of block.matchAll(STYLE_COMMENT)) {
@@ -308,7 +308,7 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
                 if (globalSheet && whole.startsWith('/**')) continue;
                 if (DIVIDER.test(text)) continue;
                 fail(
-                    `${rel}:${lineAt(source, offset + (match.index ?? 0))}`,
+                    `${rel}:${lineAt(source, offset + match.index)}`,
                     `non-divider style comment: /* ${text.replace(/\s+/g, ' ').slice(0, 45)} */`,
                     'Style blocks carry section dividers only — `/* –––––– Section name –––––– */`, en-dashes. An explanation of a property belongs in the markup or the component docs, not the stylesheet, where the decoration is the only thing making a 700-line block scannable.',
                 );
@@ -321,7 +321,7 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
         const source = read(rel);
         for (const match of source.matchAll(JSDOC_TYPE_TAG)) {
             fail(
-                `${rel}:${lineAt(source, match.index ?? 0)}`,
+                `${rel}:${lineAt(source, match.index)}`,
                 `\`@${match[1] ?? ''} {…}\` carries a type`,
                 'TypeScript already states the type and actually checks it; the tag is a copy that nothing verifies, so it drifts silently. Drop the braces — keep the prose if it says something the signature cannot.',
             );
@@ -334,7 +334,7 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
         const code = stripComments(read(rel));
         for (const match of code.matchAll(RELATIVE_IMPORT)) {
             fail(
-                `${rel}:${lineAt(code, match.index ?? 0)}`,
+                `${rel}:${lineAt(code, match.index)}`,
                 `relative import \`${match[1] ?? ''}\``,
                 'Imports in an aliased root always use the alias. A relative specifier works right up until the file moves, and then it fails somewhere else — which is why it spreads.',
             );

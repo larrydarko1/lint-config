@@ -418,7 +418,8 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
                 if (
                     typeof step.uses === 'string' &&
                     step.uses.startsWith('docker/build-push-action') &&
-                    step.with?.file
+                    step.with?.file !== undefined &&
+                    step.with.file !== ''
                 ) {
                     builds.push({ jobName, file: step.with.file, context: step.with.context });
                 }
@@ -517,18 +518,14 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
             const [doc] = yamlDocuments(kustomization) ?? [null];
             const images =
                 (doc as { images?: { name?: string; newName?: string; newTag?: string }[] } | null)?.images ?? [];
+            const published = [...pushed].filter((name) => name !== undefined).sort();
             for (const entry of images) {
                 if (entry.newName === undefined || entry.newName === '') continue;
                 if (!pushed.has(entry.newName.split('/').pop())) {
                     fail(
                         kustomization,
                         `points \`${entry.name ?? '?'}\` at \`${entry.newName}\`, which ${path.basename(buildWorkflow)} does not push`,
-                        `It publishes: ${
-                            [...pushed]
-                                .filter((name) => name !== undefined)
-                                .sort()
-                                .join(', ') || 'nothing'
-                        }. Naming anything else pulls a tag that was never built — ImagePullBackOff on the cluster, and nothing red anywhere before that.`,
+                        `It publishes: ${published.length > 0 ? published.join(', ') : 'nothing'}. Naming anything else pulls a tag that was never built — ImagePullBackOff on the cluster, and nothing red anywhere before that.`,
                     );
                 }
                 if (/\byour-org\b|\bexample\b|<[^>]+>/.test(entry.newName)) {

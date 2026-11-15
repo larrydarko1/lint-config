@@ -94,7 +94,7 @@ export function stylelint(options: StylelintOptions = {}): Config {
 
     return {
         extends: [dep('stylelint-config-standard-scss')],
-        ...(referenceFiles.length
+        ...(referenceFiles.length > 0
             ? {
                   referenceFiles: referenceFiles.map((files) => ({
                       files: [files],

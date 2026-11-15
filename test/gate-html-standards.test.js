@@ -88,6 +88,11 @@ test('an unknown requirement throws rather than passing silently', (t) => {
     assert.throws(() => run(root, { require: ['ogTtile'] }), /Unknown head requirement 'ogTtile'/);
 });
 
+test('a key every object inherits is still an unknown requirement', (t) => {
+    const root = tree(t, good());
+    assert.throws(() => run(root, { require: ['toString'] }), /Unknown head requirement 'toString'/);
+});
+
 test('a description shorter than a sentence does not count', (t) => {
     const short = SHELL.replace('</head>', '<meta name="description" content="Short." /></head>');
     const long = SHELL.replace('</head>', `<meta name="description" content="${'a'.repeat(60)}" /></head>`);

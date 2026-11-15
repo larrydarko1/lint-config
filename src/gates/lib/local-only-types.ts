@@ -18,6 +18,7 @@ import path from 'node:path';
 import ts from 'typescript';
 
 import { createProgram, findProjects, parseProject, realFile } from './programs.ts';
+import { firstDifference } from './sequence.ts';
 
 /** One export only its own file names. `name` is what it is exported as. */
 type LocalOnlyType = { file: string; name: string; line: number };
@@ -77,7 +78,7 @@ export function findLocalOnlyTypes(root: string, projects: string[] = findProjec
             const visit = (node: ts.Node): void => {
                 if (ts.isIdentifier(node) && !isReExport(node)) {
                     let symbol = checker.getSymbolAtLocation(node);
-                    if (symbol !== undefined && symbol.flags & ts.SymbolFlags.Alias) {
+                    if (symbol !== undefined && (symbol.flags & ts.SymbolFlags.Alias) !== 0) {
                         symbol = checker.getAliasedSymbol(symbol);
                     }
                     for (const declaration of symbol?.declarations ?? []) {
@@ -95,7 +96,7 @@ export function findLocalOnlyTypes(root: string, projects: string[] = findProjec
     return [...candidates]
         .filter(([k]) => !used.has(k))
         .map(([, hit]) => hit)
-        .sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
+        .sort((a, b) => firstDifference(a.file.localeCompare(b.file), a.line - b.line));
 }
 
 const isTypeDeclaration = (node: ts.Node): node is ts.TypeAliasDeclaration | ts.InterfaceDeclaration =>

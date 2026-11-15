@@ -510,7 +510,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
                 if (typeof port === 'number' && !declared.includes(port)) {
                     fail(
                         deployment.rel,
-                        `Deployment \`${deployment.name}\` probes ${kind ?? ''} on port ${port}, which container \`${container.name ?? ''}\` does not declare`,
+                        `Deployment \`${deployment.name}\` probes ${kind} on port ${port}, which container \`${container.name ?? ''}\` does not declare`,
                         `The probe can never succeed, so the pod is either killed on a loop (liveness) or never enters service (readiness). Declared containerPorts: ${declared.length > 0 ? declared.join(', ') : 'none'}.`,
                     );
                 }

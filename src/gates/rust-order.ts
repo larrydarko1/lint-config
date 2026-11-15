@@ -19,7 +19,7 @@
  * sorts inside a group; nothing here rewrites Rust.
  */
 import { isTestModule, rustItems, type RustItem } from './lib/rust.ts';
-import { inPlace } from './lib/sequence.ts';
+import { firstDifference, inPlace } from './lib/sequence.ts';
 
 type RustMisplaced = {
     cat: string;
@@ -69,8 +69,8 @@ export function analyzeRust(source: string): { misplaced: RustMisplaced[]; count
         return { ...e, cat: owner?.cat ?? e.cat, owner: owner?.i ?? e.i, sub };
     });
     const rank = (cat: string): number => RUST_CATEGORIES.indexOf(cat);
-    const ideal = [...keyed].sort(
-        (a, b) => rank(a.cat) - rank(b.cat) || a.owner - b.owner || a.sub - b.sub || a.i - b.i,
+    const ideal = [...keyed].sort((a, b) =>
+        firstDifference(rank(a.cat) - rank(b.cat), a.owner - b.owner, a.sub - b.sub, a.i - b.i),
     );
 
     const keep = inPlace(

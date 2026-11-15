@@ -63,7 +63,7 @@ export const assertWorkspacesCovered = (rootDir: string, workspaces: FullstackWo
         }
     }
 
-    if (problems.length) throw new Error(`Workspace roles out of date:\n  - ${problems.join('\n  - ')}`);
+    if (problems.length > 0) throw new Error(`Workspace roles out of date:\n  - ${problems.join('\n  - ')}`);
 };
 
 /**

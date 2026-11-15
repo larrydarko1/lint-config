@@ -21,6 +21,7 @@ import path from 'node:path';
 import ts from 'typescript';
 
 import { createProgram, findProjects, parseProject, realFile } from './programs.ts';
+import { firstDifference } from './sequence.ts';
 
 /** One leaf of the contract — a method or value the renderer can read — that nothing reads. */
 type UnusedBridgeMember = { member: string; file: string; line: number };
@@ -167,7 +168,7 @@ export function findUnusedBridgeMembers({
     const unused = [...leaves]
         .filter(([member]) => !used.has(member))
         .map(([member, at]) => ({ member, ...at }))
-        .sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
+        .sort((a, b) => firstDifference(a.file.localeCompare(b.file), a.line - b.line));
     return { members: leaves.size, unused, covered };
 }
 

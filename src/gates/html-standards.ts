@@ -207,8 +207,9 @@ export function inspectHtmlStandards(input: HtmlStandardsInput): HtmlStandardsIn
 
     // ── 1. The document shell ───────────────────────────────────────────────
     for (const key of required) {
+        // A plain-JS config can name a key the type would refuse.
+        if (!Object.hasOwn(HEAD_CHECKS, key)) throw new Error(`Unknown head requirement '${key}'.`);
         const check = HEAD_CHECKS[key];
-        if (check === undefined) throw new Error(`Unknown head requirement '${key}'.`);
         if (!check.re.test(html)) fail(indexHtml, `is missing ${check.what}`, check.why);
     }
 

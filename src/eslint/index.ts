@@ -105,8 +105,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
     // The `as Linter.Config` casts: third-party preset types disagree with ESLint's under
     // exactOptionalPropertyTypes. ESLint validates every block at load.
 
-    // eslint.config.js is plain JS, so `larry()` with no argument must fail readably.
-    if (!options?.rootDir)
+    if (!hasRootDir(options))
         throw new Error('larry({ rootDir }) is required — pass `import.meta.dirname` from the project.');
 
     const {
@@ -124,7 +123,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
         overrides = [],
     } = options;
 
-    if (preset !== 'fullstack' && Object.keys(workspaces).length)
+    if (preset !== 'fullstack' && Object.keys(workspaces).length > 0)
         throw new Error(`larry({ workspaces }) is for the full-stack preset; '${preset}' has no workspaces.`);
     if (preset === 'fullstack' && Object.keys(layout).length > 0)
         throw new Error(
@@ -178,7 +177,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
 
         // ── Which globals exist where ────────────────────────────────────────
         // ESLint refuses an empty `files`: an API has no browser code, and a base project may have no Node code.
-        ...(paths.browser.length
+        ...(paths.browser.length > 0
             ? [{ files: paths.browser, languageOptions: { globals: globals.browser } } satisfies Linter.Config]
             : []),
         ...(paths.node.length > 0
@@ -189,7 +188,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
                   } satisfies Linter.Config,
               ]
             : []),
-        ...(paths.nodeAndBrowser.length
+        ...(paths.nodeAndBrowser.length > 0
             ? [
                   {
                       files: paths.nodeAndBrowser,
@@ -340,7 +339,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
         // ── Naming ───────────────────────────────────────────────────────────
         {
             files: paths.typedSource,
-            ...(paths.namingIgnores.length ? { ignores: paths.namingIgnores } : {}),
+            ...(paths.namingIgnores.length > 0 ? { ignores: paths.namingIgnores } : {}),
             rules: { '@typescript-eslint/naming-convention': NAMING_CONVENTION },
         },
 
@@ -357,7 +356,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
         },
 
         // ── Import specifiers ────────────────────────────────────────────────
-        ...(importExtensions ? importExtensionBlocks(importExtensions) : []),
+        ...(importExtensions !== false ? importExtensionBlocks(importExtensions) : []),
 
         // ── The project's own standards and per-area wiring ──────────────────
         ...standardBlocks,
@@ -368,7 +367,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
             files: paths.tests,
             languageOptions: {
                 globals: globals.node,
-                ...(testProject
+                ...((testProject ?? '') !== ''
                     ? {
                           parserOptions: {
                               projectService: false,
@@ -392,6 +391,10 @@ export function larry(options: LarryOptions): Linter.Config[] {
 }
 
 /** Bundled code omits `.ts`; code Node runs directly must name it. */
+/** eslint.config.js is plain JS, so `larry()` with no argument must fail readably, not deep inside. */
+const hasRootDir = (options: unknown): boolean =>
+    options instanceof Object && 'rootDir' in options && typeof options.rootDir === 'string' && options.rootDir !== '';
+
 const importExtensionBlocks = (option: boolean | ImportExtensionsOptions): Linter.Config[] => {
     const { nodeRun = [] } = typeof option === 'object' ? option : {};
     return [
@@ -410,7 +413,7 @@ const importExtensionBlocks = (option: boolean | ImportExtensionsOptions): Linte
                 ],
             },
         },
-        ...(nodeRun.length
+        ...(nodeRun.length > 0
             ? [
                   {
                       files: nodeRun,

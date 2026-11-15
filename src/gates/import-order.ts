@@ -60,9 +60,10 @@ const BUILTINS = new Set(builtinModules);
 export function createImportOrder(options: ImportOrderOptions = {}): ImportOrder {
     const { workspaceScope, localAliases = [] } = options;
 
-    const IMPORT_GROUPS = workspaceScope
-        ? ['builtin', 'external', 'workspace', 'local']
-        : ['builtin', 'external', 'local'];
+    const IMPORT_GROUPS =
+        (workspaceScope ?? '') !== ''
+            ? ['builtin', 'external', 'workspace', 'local']
+            : ['builtin', 'external', 'local'];
 
     const LOCAL = IMPORT_GROUPS.length - 1;
 
