@@ -109,9 +109,9 @@ export function inspectIpcStandards({
     const code = new Map(mainFiles.map((rel) => [rel, stripComments(read(rel))]));
 
     /** channel → owning file, for everything registered with handle/on. */
-    const handlers = new Map();
+    const handlers = new Map<string, string>();
     /** channel → owning file, for everything pushed with webContents.send. */
-    const events = new Map();
+    const events = new Map<string, string>();
     const registrations: { rel: string; line: number; channel: string; fn: FunctionParts | null; source: string }[] =
         [];
 
@@ -180,7 +180,7 @@ export function inspectIpcStandards({
 
     const preloadCode = stripComments(read(preload));
     /** channel → how the preload uses it. */
-    const preloadChannels = new Map();
+    const preloadChannels = new Map<string, 'listen' | 'call'>();
     for (const kind of ['invoke', 'send', 'sendSync', 'on', 'once']) {
         for (const site of callSites(preloadCode, `ipcRenderer.${kind}(`)) {
             const first = splitTopLevel(site.args, ',')[0] ?? '';
@@ -210,7 +210,7 @@ export function inspectIpcStandards({
         const end = raw.indexOf('*/', heading);
         const table = raw.slice(heading, end === -1 ? raw.length : end);
         /** owner file → documented patterns */
-        const documented = new Map();
+        const documented = new Map<string, string[]>();
         for (const row of table.split('\n').slice(1)) {
             // Label, then an optional parenthetical qualifier, then the channel list.
             const m = /^\s*\*?\s*([a-zA-Z]+)(?:-service)?(?:\s+\([^)]*\))?\s+→\s+(.+?)\s*$/.exec(row);

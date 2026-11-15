@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { repoReader } from './lib/files.ts';
+import { dependencyNames } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, type GateFailure } from './lib/report.ts';
 import { cssCustomProps, readPalettes, type ThemeSource } from './lib/theme-palettes.ts';
@@ -402,13 +403,7 @@ export function inspectScssStandards({
     }
 
     if (packageJson !== undefined && exists(packageJson)) {
-        const pkg = JSON.parse(read(packageJson)) as {
-            dependencies?: Record<string, string>;
-            devDependencies?: Record<string, string>;
-        };
-        const fontPkgs = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).filter((d) =>
-            d.startsWith('@fontsource'),
-        );
+        const fontPkgs = dependencyNames(JSON.parse(read(packageJson))).filter((d) => d.startsWith('@fontsource'));
         if (fontPkgs.length > 0) {
             fail(
                 packageJson,

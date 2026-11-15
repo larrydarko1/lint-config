@@ -15,6 +15,7 @@ import path from 'node:path';
 
 import { CONFIG_FILES } from '../config.ts';
 import { packageBin } from './lib/bin.ts';
+import { isRecord, listAt, stringAt } from './lib/json.ts';
 import { findLocalOnlyTypes } from './lib/local-only-types.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport } from './lib/report.ts';
@@ -156,7 +157,7 @@ export function collectHits(report: KnipReport, include: string[]): Record<strin
         for (const category of include) {
             const items = entry[category];
             if (!Array.isArray(items)) continue;
-            for (const item of items as (KnipItem | KnipItem[])[]) {
+            for (const item of items.filter(isKnipEntry)) {
                 (found[category] ??= []).push(
                     // `duplicates`: the names one symbol is exported under. `cycles`: each file
                     // on the loop in import order, so the start is repeated to close it.
@@ -339,20 +340,30 @@ function runKnip(input: KnipRunInput): Record<string, DeadCodeHit[]> {
         });
     } catch (error) {
         // knip exits non-zero whenever it finds anything, but still prints the report.
-        const { stdout, stderr } = error as { stdout?: string; stderr?: string | Buffer };
-        raw = stdout ?? '';
+        const stderr: unknown = isRecord(error) ? error['stderr'] : undefined;
+        raw = stringAt(error, 'stdout') ?? '';
         if (raw.trim() === '') {
-            const detail = stderr === undefined ? '' : `\n${stderr.toString().trim()}`;
+            const detail = typeof stderr === 'string' || Buffer.isBuffer(stderr) ? `\n${stderr.toString().trim()}` : '';
             throw new Error(`knip produced no output.${detail}`, { cause: error });
         }
     }
 
     let report: KnipReport;
     try {
-        report = JSON.parse(raw);
+        report = { issues: listAt(JSON.parse(raw), 'issues').filter(isKnipIssue) };
     } catch {
         throw new Error(`could not parse knip's JSON report.\n${raw.slice(0, 500)}`);
     }
 
     return collectHits(report, include);
 }
+
+const isKnipItem = (item: unknown): item is KnipItem =>
+    isRecord(item) && typeof item['name'] === 'string' && ['undefined', 'number'].includes(typeof item['line']);
+
+/** One finding, or the group of names one finding spans (`duplicates`, `cycles`). */
+const isKnipEntry = (entry: unknown): entry is KnipItem | KnipItem[] =>
+    isKnipItem(entry) || (Array.isArray(entry) && entry.every(isKnipItem));
+
+const isKnipIssue = (issue: unknown): issue is { file: string } & Record<string, unknown> =>
+    isRecord(issue) && typeof issue['file'] === 'string';

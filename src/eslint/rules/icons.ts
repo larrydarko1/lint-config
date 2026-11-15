@@ -103,11 +103,14 @@ export const iconRules = {
 /** vue-eslint-parser's hook, or null when the file is not an SFC it parsed. */
 function templateServices(context: Rule.RuleContext): TemplateServices | null {
     const services: unknown = context.sourceCode.parserServices;
-    if (typeof services !== 'object' || services === null) return null;
-    if (!('defineTemplateBodyVisitor' in services) || typeof services.defineTemplateBodyVisitor !== 'function')
-        return null;
-    return services as TemplateServices;
+    return hasTemplateVisitor(services) ? services : null;
 }
+
+const hasTemplateVisitor = (services: unknown): services is TemplateServices =>
+    typeof services === 'object' &&
+    services !== null &&
+    'defineTemplateBodyVisitor' in services &&
+    typeof services.defineTemplateBodyVisitor === 'function';
 
 const isElement = (node: VElement | VNode): node is VElement => node.type === 'VElement';
 

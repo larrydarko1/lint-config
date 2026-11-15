@@ -41,6 +41,7 @@
 import path from 'node:path';
 
 import { gitIgnores, repoReader, walkFiles } from './lib/files.ts';
+import { dependencyNames } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import { braceBlock, callArgs, callSites, declaredBody, splitTopLevel } from './lib/source.ts';
@@ -560,8 +561,7 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
             );
         }
         if (packageJson !== undefined && exists(packageJson)) {
-            const manifest = JSON.parse(read(packageJson));
-            if (manifest.dependencies?.[library] !== undefined || manifest.devDependencies?.[library] !== undefined) {
+            if (dependencyNames(JSON.parse(read(packageJson))).includes(library)) {
                 fail(
                     packageJson,
                     `depends on \`${library}\``,

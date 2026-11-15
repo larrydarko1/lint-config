@@ -20,6 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { repoFiles } from './lib/files.ts';
+import { dependencyNames, recordAt, toRecord } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import { callArgs, callSites, splitTopLevel } from './lib/source.ts';
@@ -184,7 +185,7 @@ export function replacedClient(
 /** Duplicate case titles within one `describe`. `it.each` titles are skipped (they expand at run time). */
 export function duplicateTitles(source: string): { title: string; count: number }[] {
     const stack = [];
-    const seen = new Map();
+    const seen = new Map<string, number>();
     let depth = 0;
 
     for (const line of source.split('\n')) {
@@ -312,8 +313,7 @@ export function inspectTesting(input: TestingInput): TestingInspection {
                 'There is deliberately no E2E suite here. The standard asks that adding one back be raised first — so raise it, then turn `e2e` on in this gate along with the paragraph in the contributing guide.',
             );
         }
-        const manifest = JSON.parse(read('package.json'));
-        for (const dep of Object.keys({ ...manifest.dependencies, ...manifest.devDependencies })) {
+        for (const dep of dependencyNames(JSON.parse(read('package.json')))) {
             if (/^(@playwright\/|playwright)/.test(dep)) {
                 fail(
                     'package.json',
@@ -391,22 +391,20 @@ export function inspectTesting(input: TestingInput): TestingInspection {
 
     if (haveCoverage) {
         // Vitest's coverage-summary.json: one entry per file, plus a `total`.
-        const summary: Record<string, { statements: { total: number; covered: number } }> = JSON.parse(
-            read(coverageSummary),
-        );
-        for (const [key, entry] of Object.entries(summary)) {
-            if (key === 'total') continue;
+        for (const [key, entry] of Object.entries(toRecord(JSON.parse(read(coverageSummary))))) {
+            const { total, covered } = recordAt(entry, 'statements');
+            if (key === 'total' || typeof total !== 'number' || typeof covered !== 'number') continue;
             // A key outside the root stays absolute.
             const rel = key.startsWith(root) ? path.relative(root, key) : key;
             measured++;
-            if (entry.statements.total === 0) continue;
-            if (entry.statements.covered === 0) {
+            if (total === 0) continue;
+            if (covered === 0) {
                 uncovered++;
                 // A component's statements are its render function: importing it covers none of them.
                 const component = rel.endsWith('.vue');
                 fail(
                     rel,
-                    `0% of ${entry.statements.total} statement(s) covered — ${component ? 'no test renders this component' : 'no test imports this file'}`,
+                    `0% of ${total} statement(s) covered — ${component ? 'no test renders this component' : 'no test imports this file'}`,
                     component
                         ? 'Being imported by a tested parent is not enough: a shallow mount, a stub or a `v-if` the tests never take all leave it unrendered. Mount it in a test of its own — a folder of icons can share one that mounts each — or if it genuinely has no testable runtime, say so in `excludes` rather than leaving it at zero.'
                         : 'The aggregate hides this: one untested module inside a passing total is a rounding error. Write the suite, or if the file genuinely has no testable runtime, say so in `excludes` rather than leaving it at zero.',

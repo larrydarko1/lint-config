@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { SELF_NAME, providedPackages } from '../toolchain.ts';
+import { isRecord } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, type GateFailure } from './lib/report.ts';
 import { inspectToolchainInstall } from './lib/toolchain-install.ts';
@@ -51,7 +52,6 @@ type PackageJsonInspection = {
 
 type PackageJsonInput = Omit<PackageJsonOptions, 'root'> & { root: string };
 
-/** A manifest as the file wrote it. Only the keys this gate reads by name are named. */
 type Manifest = {
     private?: unknown;
     version?: unknown;
@@ -63,6 +63,10 @@ type Manifest = {
     build?: { files?: unknown; [key: string]: unknown };
     [key: string]: unknown;
 };
+
+/** A manifest as the file wrote it. Only the keys this gate reads by name are named. */
+const MANIFEST_SHAPE_WHY =
+    'npm refuses it: `workspaces` is a list of folders, each dependency a version string, `build` a map. Every rule below would be reading a shape it does not have.';
 
 /** The canonical field order, after sort-package-json. A field absent from this list fails. */
 export const CANONICAL_ORDER: string[] = [
@@ -140,7 +144,12 @@ export function inspectPackageJson({
 }: PackageJsonInput): PackageJsonInspection {
     const { problems, fail } = collectFailures();
 
-    const read = (rel: string): Manifest => JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8'));
+    const read = (rel: string): Manifest => {
+        const json: unknown = JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8'));
+        if (isManifest(json)) return json;
+        fail(rel, 'is not a package.json npm can read', MANIFEST_SHAPE_WHY);
+        return {};
+    };
     const rootPkg = read('package.json');
 
     const manifests = [
@@ -259,7 +268,7 @@ export function inspectPackageJson({
             );
         } else {
             const shipsOut = buildFiles.some((entry) =>
-                typeof entry === 'string' ? /(^|\/)out/.test(entry) : entry?.from === 'out',
+                typeof entry === 'string' ? /(^|\/)out/.test(entry) : isRecord(entry) && entry['from'] === 'out',
             );
             if (!shipsOut) {
                 fail(
@@ -359,4 +368,19 @@ function rangeProblem(
         `${field}.${name} is pinned exactly to "${range}"`,
         'An exact pin opts out of security patches while adding nothing — package-lock.json is what actually pins the installed tree.',
     ];
+}
+
+const isStringRecord = (value: unknown): boolean =>
+    isRecord(value) && Object.values(value).every((v) => typeof v === 'string');
+
+/** The fields this gate walks into, each the type npm reads it as. */
+function isManifest(json: unknown): json is Manifest {
+    if (!isRecord(json)) return false;
+    const { workspaces, dependencies, devDependencies, build } = json;
+    return (
+        (workspaces === undefined ||
+            (Array.isArray(workspaces) && workspaces.every((dir) => typeof dir === 'string'))) &&
+        [dependencies, devDependencies].every((field) => field === undefined || isStringRecord(field)) &&
+        (build === undefined || isRecord(build))
+    );
 }

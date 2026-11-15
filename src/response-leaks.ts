@@ -166,7 +166,7 @@ function valueAt(doc: Record<string, unknown>, dotted: string): unknown {
     let current: unknown = doc;
     for (const part of dotted.split('.')) {
         if (current === null || typeof current !== 'object' || Array.isArray(current)) return undefined;
-        current = (current as Record<string, unknown>)[part];
+        current = Reflect.get(current, part);
     }
     return current;
 }

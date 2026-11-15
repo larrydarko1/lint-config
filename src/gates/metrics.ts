@@ -23,48 +23,14 @@ import path from 'node:path';
 import YAML from 'yaml';
 
 import { repoReader } from './lib/files.ts';
+import { isRecord } from './lib/json.ts';
+import { isK8sDoc, type Container, type K8sDoc, type Labels } from './lib/k8s-docs.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
 export type MetricsOptions = Omit<MetricsInput, 'root'> & {
     root?: string;
-};
-
-type Labels = Record<string, string>;
-
-type K8sPort = {
-    name?: string;
-    port?: number;
-    targetPort?: number | string;
-    containerPort?: number;
-};
-
-type Probe = {
-    exec?: { command?: string[] };
-    httpGet?: { path?: string; port?: number | string };
-};
-
-type Container = {
-    name?: string;
-    ports?: K8sPort[];
-    livenessProbe?: Probe;
-    readinessProbe?: Probe;
-};
-
-type K8sDoc = {
-    kind?: string;
-    metadata?: { name?: string; labels?: Labels };
-    spec?: {
-        /** A Service selects pods with plain labels; a ServiceMonitor wraps them in `matchLabels`. */
-        selector?: Record<string, unknown> & { matchLabels?: Labels };
-        clusterIP?: string;
-        endpoints?: { port?: string; path?: string; interval?: string }[];
-        ports?: K8sPort[];
-        template?: { metadata?: { labels?: Labels }; spec?: { containers?: Container[] } };
-        podSelector?: { matchLabels?: Labels };
-        ingress?: { from?: { namespaceSelector?: { matchLabels?: Labels } }[]; ports?: K8sPort[] }[];
-    };
 };
 
 type Resource = {
@@ -128,6 +94,9 @@ type MetricsInspection = {
     problems: GateFailure[];
     counts: { monitors: number; services: number; workloads: number; crdKinds: string[] };
 };
+
+const K8S_SHAPE_WHY =
+    'A label, port or probe is not the type Kubernetes reads it as, so `kubectl apply` refuses the document, and every rule here would be reading a shape it does not have.';
 
 /** Kinds every cluster already knows. Anything else is a CRD CI has to install. */
 const CORE_KINDS = new Set([
@@ -229,7 +198,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
         } catch (error) {
             fail(
                 rel,
-                `is not valid YAML (${(error as Error).message.split('\n')[0] ?? ''})`,
+                `is not valid YAML (${(error instanceof Error ? error.message : String(error)).split('\n')[0] ?? ''})`,
                 'Every relationship this gate checks is invisible while the file cannot be parsed, so this has to be the first thing reported.',
             );
             continue;
@@ -244,9 +213,13 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
                 );
                 continue;
             }
-            const object = document.toJS() as K8sDoc | null;
+            const object = document.toJS() as unknown;
             // `typeof`: `kind` may parse as a map or a number.
-            if (typeof object?.kind !== 'string' || object.kind === '') continue;
+            if (!isRecord(object) || typeof object['kind'] !== 'string' || object['kind'] === '') continue;
+            if (!isK8sDoc(object)) {
+                fail(rel, `has a \`${object['kind']}\` that is not the shape Kubernetes accepts`, K8S_SHAPE_WHY);
+                continue;
+            }
             resources.push({ rel, kind: object.kind, name: object.metadata?.name ?? '<unnamed>', doc: object });
         }
     }
@@ -817,7 +790,7 @@ export function checkMetrics({ root = REPO_ROOT, ...rest }: MetricsOptions): voi
  * An empty selector matches everything, as a NetworkPolicy's does; a Service's
  * empty selector is handled where the Service is read.
  */
-const matches = (selector: Record<string, unknown> | undefined, labels: Record<string, string> | undefined): boolean =>
+const matches = (selector: Record<string, unknown> | undefined, labels: Labels | undefined): boolean =>
     selector !== undefined &&
     labels !== undefined &&
     Object.entries(selector).every(([key, value]) => String(labels[key]) === String(value));

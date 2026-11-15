@@ -19,6 +19,7 @@ import path from 'node:path';
 
 import { packageBin } from './lib/bin.ts';
 import { walkFiles } from './lib/files.ts';
+import { isRecord, toRecord } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './lib/report.ts';
 
@@ -353,7 +354,7 @@ export function checkDuplication(options: DuplicationOptions): void {
         root,
         report: full,
         perRootReports,
-        declarations: scan.length > 1 ? exportedTypes(root, scan, ignoreDirs) : new Map(),
+        declarations: scan.length > 1 ? exportedTypes(root, scan, ignoreDirs) : new Map<string, TypeDeclaration[]>(),
         icons: iconDrawings(root, scan),
         scan,
         ceilings,
@@ -413,7 +414,37 @@ function runJscpd(root: string, paths: string[], config: string): JscpdReport {
         throw new Error(`jscpd produced no report for ${paths.join(', ')}. Run it with \`--all\` to see why.`);
     }
 
-    const parsed = JSON.parse(fs.readFileSync(reportPath, 'utf8')) as JscpdReport;
+    const parsed: unknown = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
     fs.rmSync(outDir, { recursive: true, force: true });
+    if (!isJscpdReport(parsed))
+        throw new Error("jscpd's report is not the shape this gate reads. Did a jscpd upgrade change it?");
     return parsed;
+}
+
+const isCloneLocation = (location: unknown): location is CloneLocation =>
+    isRecord(location) &&
+    typeof location['name'] === 'string' &&
+    typeof location['start'] === 'number' &&
+    typeof location['end'] === 'number';
+
+const isClone = (clone: unknown): clone is Clone =>
+    isRecord(clone) &&
+    typeof clone['format'] === 'string' &&
+    typeof clone['lines'] === 'number' &&
+    typeof clone['tokens'] === 'number' &&
+    isCloneLocation(clone['firstFile']) &&
+    isCloneLocation(clone['secondFile']);
+
+const isFormatStatistics = (format: unknown): boolean =>
+    format === undefined ||
+    (isRecord(format) && typeof format['percentageTokens'] === 'number' && typeof format['clones'] === 'number');
+
+function isJscpdReport(report: unknown): report is JscpdReport {
+    if (!isRecord(report) || !Array.isArray(report['duplicates']) || !report['duplicates'].every(isClone)) return false;
+    const statistics = toRecord(report['statistics']);
+    return (
+        isRecord(statistics['formats']) &&
+        Object.values(statistics['formats']).every(isFormatStatistics) &&
+        typeof toRecord(statistics['total'])['clones'] === 'number'
+    );
 }

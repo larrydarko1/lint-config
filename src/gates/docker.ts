@@ -28,6 +28,7 @@ import path from 'node:path';
 
 import YAML from 'yaml';
 
+import { listAt, recordAt, stringAt, toRecord } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 
@@ -134,7 +135,7 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
             );
             return null;
         }
-        return list.map((d) => d.toJS());
+        return list.map((d) => d.toJS() as unknown);
     };
 
     const nonroot = [...NONROOT_BASES, ...nonrootBases.map((source) => new RegExp(source))];
@@ -348,7 +349,7 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
 
     // ── 9. The base image's Node major is engines.node ──────────────────────
     const enginesRange = exists(packageJson)
-        ? (JSON.parse(read(packageJson)).engines?.node ?? ('' as { engines?: { node?: string } }))
+        ? (stringAt(recordAt(JSON.parse(read(packageJson)), 'engines'), 'node') ?? '')
         : '';
     const enginesMajor = /(\d+)/.exec(enginesRange)?.[1] ?? null;
     if (enginesMajor === null) {
@@ -406,22 +407,14 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
             `Nothing builds the images, so every Dockerfile in ${dockerDir}/ is unverified.`,
         );
     } else {
-        const [build] = (yamlDocuments(buildWorkflow) as
-            | ({
-                  env?: Record<string, unknown>;
-                  jobs?: Record<string, { steps?: { uses?: unknown; with?: { file?: string; context?: string } }[] }>;
-              } | null)[]
-            | null) ?? [null];
+        const [build] = yamlDocuments(buildWorkflow) ?? [null];
         const builds: { jobName: string; file: string; context: string | undefined }[] = [];
-        for (const [jobName, job] of Object.entries(build?.jobs ?? {})) {
-            for (const step of job.steps ?? []) {
-                if (
-                    typeof step.uses === 'string' &&
-                    step.uses.startsWith('docker/build-push-action') &&
-                    step.with?.file !== undefined &&
-                    step.with.file !== ''
-                ) {
-                    builds.push({ jobName, file: step.with.file, context: step.with.context });
+        for (const [jobName, job] of Object.entries(recordAt(build, 'jobs'))) {
+            for (const step of listAt(job, 'steps')) {
+                const file = stringAt(recordAt(step, 'with'), 'file');
+                const building = stringAt(step, 'uses')?.startsWith('docker/build-push-action') === true;
+                if (building && file !== undefined && file !== '') {
+                    builds.push({ jobName, file, context: stringAt(recordAt(step, 'with'), 'context') });
                 }
             }
         }
@@ -452,7 +445,7 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
                 }
             }
         }
-        for (const value of Object.values(build?.env ?? {})) {
+        for (const value of Object.values(recordAt(build, 'env'))) {
             if (typeof value === 'string' && value.includes('/')) pushed.add(value.split('/').pop());
         }
     }
@@ -486,12 +479,12 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
             );
             const ports = new Set<number>();
             for (const doc of yamlDocuments(manifest) ?? []) {
-                const spec = doc as {
-                    spec?: { template?: { spec?: { containers?: { ports?: { containerPort?: number }[] }[] } } };
-                } | null;
-                for (const container of spec?.spec?.template?.spec?.containers ?? []) {
-                    for (const port of container.ports ?? [])
-                        if (port.containerPort !== undefined) ports.add(port.containerPort);
+                const podSpec = recordAt(recordAt(recordAt(doc, 'spec'), 'template'), 'spec');
+                for (const container of listAt(podSpec, 'containers')) {
+                    for (const port of listAt(container, 'ports')) {
+                        const containerPort = toRecord(port)['containerPort'];
+                        if (typeof containerPort === 'number') ports.add(containerPort);
+                    }
                 }
             }
             for (const port of ports) {
@@ -516,8 +509,11 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
             );
         } else {
             const [doc] = yamlDocuments(kustomization) ?? [null];
-            const images =
-                (doc as { images?: { name?: string; newName?: string; newTag?: string }[] } | null)?.images ?? [];
+            const images = listAt(doc, 'images').map((entry) => ({
+                name: stringAt(entry, 'name'),
+                newName: stringAt(entry, 'newName'),
+                newTag: stringAt(entry, 'newTag'),
+            }));
             const published = [...pushed].filter((name) => name !== undefined).sort();
             for (const entry of images) {
                 if (entry.newName === undefined || entry.newName === '') continue;
@@ -629,7 +625,10 @@ function parseStages(src: string): Stage[] {
         if (ins.instruction === 'FROM') {
             const args = ins.args
                 .replace(/^(?:--\S+\s+)*/, '')
-                .replace(/\$\{(\w+)\}|\$(\w+)/g, (whole, a, b) => globalArgs.get(a ?? b) ?? whole);
+                .replace(
+                    /\$\{(\w+)\}|\$(\w+)/g,
+                    (whole: string, braced?: string, bare?: string) => globalArgs.get(braced ?? bare ?? '') ?? whole,
+                );
             const m = /^(\S+)(?:\s+AS\s+(\S+))?$/i.exec(args);
             stages.push({ name: m?.[2] ?? null, base: m?.[1] ?? args, from: ins.line, instructions: [] });
         } else if (stages.length === 0) {

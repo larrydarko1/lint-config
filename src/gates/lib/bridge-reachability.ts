@@ -185,7 +185,7 @@ function escapes(node: ts.Expression): boolean {
         parent = parent.parent;
     }
     if (ts.isCallExpression(parent) || ts.isNewExpression(parent))
-        return parent.arguments?.includes(child as ts.Expression) ?? false;
+        return parent.arguments?.some((argument) => argument === child) ?? false;
     if (ts.isArrowFunction(parent)) return parent.body === child;
     if (ts.isPropertyAssignment(parent)) return parent.initializer === child;
     if (ts.isBinaryExpression(parent)) {

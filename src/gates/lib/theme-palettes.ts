@@ -5,6 +5,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { toRecord } from './json.ts';
+
 /**
  * Where the palettes live:
  *
@@ -106,25 +108,25 @@ export function readPalettes({
             );
         }
         for (const file of files) {
-            let parsed: { name?: unknown; colors?: unknown };
+            let parsed: Record<string, unknown>;
             try {
-                parsed = JSON.parse(read(`${dir}/${file}`));
+                parsed = toRecord(JSON.parse(read(`${dir}/${file}`)));
             } catch (err) {
                 fail(
                     `${dir}/${file}`,
-                    `is not valid JSON — ${(err as Error).message}`,
+                    `is not valid JSON — ${err instanceof Error ? err.message : String(err)}`,
                     'It is copied verbatim into the user profile, so a malformed preset ships broken.',
                 );
                 continue;
             }
-            if (typeof parsed.name !== 'string' || parsed.name === '') {
+            if (typeof parsed['name'] !== 'string' || parsed['name'] === '') {
                 fail(
                     `${dir}/${file}`,
                     'has no `name`',
                     'The theme picker lists presets by `name`; without one the entry renders blank.',
                 );
             }
-            if (typeof parsed.colors !== 'object' || parsed.colors === null) {
+            if (typeof parsed['colors'] !== 'object' || parsed['colors'] === null) {
                 fail(
                     `${dir}/${file}`,
                     'has no `colors` map',
@@ -132,7 +134,7 @@ export function readPalettes({
                 );
                 continue;
             }
-            palettes.set(file.replace(/\.json$/, ''), new Set(Object.keys(parsed.colors)));
+            palettes.set(file.replace(/\.json$/, ''), new Set(Object.keys(parsed['colors'])));
         }
         const fallbackSrc = readOrFail(themes.fallbackFile, 'fallback layer');
         fallback = new Set(cssCustomProps(readBlock(fallbackSrc, /:root\s*\{([\s\S]*?)\n\}/)));

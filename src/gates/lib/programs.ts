@@ -10,7 +10,7 @@ import path from 'node:path';
 import { parse as parseSfc } from '@vue/compiler-sfc';
 import ts from 'typescript';
 
-type TsconfigJson = { extends?: string | string[]; files?: string[] };
+import { isTsconfigJson, type TsconfigJson } from './tsconfig-json.ts';
 
 /** Build output and dependencies: never a project, and too big to walk. */
 const SKIPPED_DIRS = new Set(['node_modules', 'out', 'dist', 'dist-electron', 'coverage']);
@@ -37,9 +37,10 @@ export function findProjects(root: string): string[] {
 
     const data = new Map<string, TsconfigJson>();
     for (const rel of configs) {
-        const { config, error } = ts.readConfigFile(path.join(root, rel), (f) => ts.sys.readFile(f));
+        const read = ts.readConfigFile(path.join(root, rel), (f) => ts.sys.readFile(f));
+        const config: unknown = read.config;
         // Unparseable: the tsconfigs gate reports it; here it simply checks nothing.
-        if (error === undefined) data.set(rel, config as TsconfigJson);
+        if (read.error === undefined && isTsconfigJson(config)) data.set(rel, config);
     }
 
     const extended = new Set<string>();
@@ -63,7 +64,7 @@ export function findProjects(root: string): string[] {
 /** A tsconfig read the way tsc reads it, `.vue` files included in its file list. */
 export function parseProject(root: string, project: string): ts.ParsedCommandLine {
     const configPath = path.join(root, project);
-    const { config } = ts.readConfigFile(configPath, (f) => ts.sys.readFile(f));
+    const config: unknown = ts.readConfigFile(configPath, (f) => ts.sys.readFile(f)).config;
     return ts.parseJsonConfigFileContent(config, ts.sys, path.dirname(configPath), undefined, configPath, undefined, [
         { extension: '.vue', isMixedContent: true, scriptKind: ts.ScriptKind.Deferred },
     ]);

@@ -34,38 +34,17 @@ import YAML from 'yaml';
 
 import { inspectConcurrency } from './lib/concurrency.ts';
 import { inspectGateWiring } from './lib/gate-wiring.ts';
+import { isRecord, readJson, recordAt, stringAt, stringsAt } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
-
-/*
- * Parsed YAML is whatever the file says. Only the containers the gate walks through are
- * named; every value it reads is `unknown` and checked where it is read.
- */
-type StepInputs = { cache?: unknown; ref?: unknown; tags?: unknown; push?: unknown; [input: string]: unknown };
-type Step = { uses?: unknown; run?: unknown; name?: unknown; if?: unknown; with?: StepInputs };
-type Permissions = string | Record<string, unknown> | null;
-type Job = {
-    'runs-on'?: unknown;
-    'timeout-minutes'?: unknown;
-    'if'?: unknown;
-    'needs'?: unknown;
-    'permissions'?: Permissions;
-    'steps'?: unknown;
-    'strategy'?: { matrix?: { include?: unknown; [key: string]: unknown } };
-};
-// eslint-disable-next-line @typescript-eslint/naming-convention -- GitHub's key, as a workflow file spells it.
-type Triggers = { workflow_run?: { workflows?: unknown } | null; [event: string]: unknown };
-type WorkflowDoc = {
-    name?: unknown;
-    on?: unknown;
-    /** YAML 1.1 reads a bare `on:` key as the boolean `true`. */
-    true?: unknown;
-    jobs?: Record<string, Job>;
-    concurrency?: unknown;
-    permissions?: Permissions;
-    /** A composite action's steps. */
-    runs?: Job;
-};
+import {
+    isStep,
+    isWorkflowDoc,
+    workflowShapeProblem,
+    type Job,
+    type Step,
+    type WorkflowDoc,
+} from './lib/workflow-docs.ts';
 
 export type PipelineOptions = {
     /** Repository root. Defaults to the caller's repo root. */
@@ -97,6 +76,8 @@ type PipelineInspection = {
 
 const WORKFLOW_DIR = '.github/workflows';
 const ACTIONS_DIR = '.github/actions';
+const SHAPE_WHY =
+    'GitHub refuses the file before running anything, and every rule below would be reading a shape it does not have.';
 
 /** Event payload fields an outsider controls. Each is attacker-supplied text. */
 const UNTRUSTED = [
@@ -152,7 +133,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
     for (const f of workflowFiles) {
         const rel = `${WORKFLOW_DIR}/${f}`;
         const src = read(rel);
-        let doc;
+        let doc: unknown;
         try {
             doc = YAML.parse(src);
         } catch (err) {
@@ -163,8 +144,12 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
             );
             continue;
         }
-        if (doc !== null && typeof doc === 'object') workflows.push({ rel, src, doc });
-        else parked.push(rel);
+        if (!isRecord(doc)) {
+            parked.push(rel);
+            continue;
+        }
+        if (isWorkflowDoc(doc)) workflows.push({ rel, src, doc });
+        else fail(rel, `is not a workflow GitHub can run: ${workflowShapeProblem(doc) ?? ''}`, SHAPE_WHY);
     }
 
     const actionsDirPath = path.join(root, ACTIONS_DIR);
@@ -182,8 +167,10 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
     for (const rel of actionFiles) {
         const src = read(rel);
         try {
-            const doc = YAML.parse(src);
-            if (doc !== null && typeof doc === 'object') actions.push({ rel, src, doc });
+            const doc: unknown = YAML.parse(src);
+            if (!isRecord(doc)) continue;
+            if (isWorkflowDoc(doc)) actions.push({ rel, src, doc });
+            else fail(rel, `is not an action GitHub can run: ${workflowShapeProblem(doc) ?? ''}`, SHAPE_WHY);
         } catch (err) {
             fail(
                 rel,
@@ -194,12 +181,12 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
     }
 
     /** YAML 1.1 reads a bare `on:` key as the boolean `true`, so both spellings are checked. */
-    const triggersOf = (doc: WorkflowDoc): Triggers => {
+    const triggersOf = (doc: WorkflowDoc): Record<string, unknown> => {
         const on = doc.on ?? doc.true;
-        return typeof on === 'object' && on !== null ? (on as Triggers) : {};
+        return isRecord(on) ? on : {};
     };
     const jobsOf = (doc: WorkflowDoc): [string, Job][] => Object.entries(doc.jobs ?? {});
-    const stepsOf = (job: Job): Step[] => (Array.isArray(job.steps) ? job.steps : []);
+    const stepsOf = (job: Job): Step[] => (Array.isArray(job.steps) ? job.steps.filter(isStep) : []);
     const isWorkflowRun = (doc: WorkflowDoc): boolean => Boolean(triggersOf(doc)['workflow_run']);
     const lineOf = (src: string, needle: string): number => src.slice(0, src.indexOf(needle)).split('\n').length;
 
@@ -297,7 +284,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
         if (typeof declared === 'string' && !declared.includes('${{')) return [declared];
 
         const matrix = job.strategy?.matrix;
-        if (matrix === undefined || typeof declared !== 'string') return values;
+        if (matrix == null || typeof declared !== 'string') return values;
 
         const key = /matrix\.([\w-]+)/.exec(declared)?.[1];
         if (key === undefined) return values;
@@ -305,7 +292,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
         const listed = matrix[key];
         if (Array.isArray(listed)) values.push(...listed.filter((v) => typeof v === 'string'));
         for (const entry of Array.isArray(matrix.include) ? matrix.include : []) {
-            const value = entry?.[key];
+            const value = isRecord(entry) ? entry[key] : undefined;
             if (typeof value === 'string') values.push(value);
         }
         return values;
@@ -374,7 +361,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
         const jobs = new Map(jobsOf(doc));
         const needsOf = (job: Job | undefined): string[] => {
             const needs = job?.needs;
-            if (Array.isArray(needs)) return needs;
+            if (Array.isArray(needs)) return needs.filter((need) => typeof need === 'string');
             return typeof needs === 'string' ? [needs] : [];
         };
 
@@ -601,18 +588,20 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
     }
 
     // ── 16. Every `npm run` a workflow invokes exists ───────────────────────
-    const rootPkg = JSON.parse(read('package.json'));
-    const rootScripts = new Set(Object.keys(rootPkg.scripts ?? {}));
+    const rootPkg = readJson(path.join(root, 'package.json'));
+    const rootScripts = new Set(Object.keys(recordAt(rootPkg, 'scripts')));
+    const workspaces = stringsAt(rootPkg, 'workspaces');
 
     /** Script names per workspace, by folder AND by package name — `npm -w` accepts either. */
-    const wsScripts = new Map();
-    for (const ws of rootPkg.workspaces ?? []) {
+    const wsScripts = new Map<string, Set<string>>();
+    for (const ws of workspaces) {
         const manifest = path.join(root, ws, 'package.json');
         if (!fs.existsSync(manifest)) continue;
-        const pkg = JSON.parse(fs.readFileSync(manifest, 'utf8'));
-        const names = new Set(Object.keys(pkg.scripts ?? {}));
+        const pkg = readJson(manifest);
+        const names = new Set(Object.keys(recordAt(pkg, 'scripts')));
         wsScripts.set(path.basename(ws), names);
-        if (typeof pkg.name === 'string' && pkg.name !== '') wsScripts.set(pkg.name, names);
+        const name = stringAt(pkg, 'name');
+        if (name !== undefined && name !== '') wsScripts.set(name, names);
     }
 
     for (const { rel, jobs } of stepSources) {
@@ -625,7 +614,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
                         fail(
                             rel,
                             `job \`${name}\` runs \`npm -w ${ws} run ${script}\`, but there is no \`${ws}\` workspace`,
-                            `Declared workspaces: ${(rootPkg.workspaces ?? []).join(', ')}.`,
+                            `Declared workspaces: ${workspaces.join(', ')}.`,
                         );
                     } else if (!available.has(script)) {
                         fail(
@@ -648,13 +637,13 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
                   .flatMap(([, job]) => stepsOf(job).map((s) => s.run))
                   .filter((r) => typeof r === 'string')
                   .join('\n');
-    const wiring = inspectGateWiring({ root, checksDir, ciWorkflow, scripts: rootPkg.scripts ?? {}, ciRuns });
+    const wiring = inspectGateWiring({ root, checksDir, ciWorkflow, scripts: recordAt(rootPkg, 'scripts'), ciRuns });
     problems.push(...wiring.problems);
 
     // ── 18. The CI node version satisfies engines.node ──────────────────────
-    const enginesNode = rootPkg.engines?.node;
+    const enginesNode = stringAt(recordAt(rootPkg, 'engines'), 'node');
 
-    if (typeof enginesNode !== 'string') {
+    if (enginesNode === undefined) {
         fail(
             'package.json',
             'declares no `engines.node`',
@@ -664,7 +653,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
         const floor = Number(/(\d+)/.exec(enginesNode)?.[1]);
 
         /** Every `node-version:` a workflow or composite action asks setup-node for. */
-        const nodeVersions = new Map();
+        const nodeVersions = new Map<string, number>();
         for (const { rel, src } of [...workflows, ...actions]) {
             for (const m of src.matchAll(/node-version:\s*'?"?(\d+)/g)) nodeVersions.set(rel, Number(m[1]));
         }
@@ -698,7 +687,8 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
     // A workflow with no `name:` is named by its path.
     const declaredNames = new Set(workflows.map((w) => (typeof w.doc['name'] === 'string' ? w.doc['name'] : w.rel)));
     for (const { rel, doc } of workflows) {
-        const waitsOn = triggersOf(doc)['workflow_run']?.workflows;
+        const workflowRun = triggersOf(doc)['workflow_run'];
+        const waitsOn = isRecord(workflowRun) ? workflowRun['workflows'] : undefined;
         if (!Array.isArray(waitsOn)) continue;
         for (const name of waitsOn) {
             if (typeof name !== 'string' || !declaredNames.has(name)) {

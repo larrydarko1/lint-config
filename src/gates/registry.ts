@@ -84,11 +84,13 @@ export const GATES = {
 
 /** The gates a project of `family` runs, in the order they are listed above. */
 export function gatesFor<TFamily extends PresetName>(family: TFamily): FamilyGate<TFamily>[] {
-    return (Object.keys(GATES) as GateName[]).filter((name): name is FamilyGate<TFamily> => {
-        // Widened from the literal tuple each entry keeps.
-        const families: readonly PresetName[] = GATES[name].families;
-        return families.includes(family);
-    });
+    return Object.keys(GATES)
+        .filter(isGateName)
+        .filter((name): name is FamilyGate<TFamily> => {
+            // Widened from the literal tuple each entry keeps.
+            const families: readonly PresetName[] = GATES[name].families;
+            return families.includes(family);
+        });
 }
 
 /** One entry. A helper rather than a literal so each keeps its own families and options in its type. */
@@ -98,3 +100,5 @@ function gate<const TFamilies extends readonly PresetName[], TOptions>(
 ): GateEntry<TFamilies, TOptions> {
     return { families, load };
 }
+
+const isGateName = (name: string): name is GateName => Object.hasOwn(GATES, name);

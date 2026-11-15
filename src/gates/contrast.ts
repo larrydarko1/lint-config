@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { walkFiles } from './lib/files.ts';
+import { isRecord } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import type { ThemeSource } from './lib/theme-palettes.ts';
@@ -196,8 +197,8 @@ function readPaletteColours(root: string, themes: ThemeSource): Map<string, Pale
         const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((file) => file.endsWith('.json')) : [];
         for (const file of files.sort()) {
             const parsed: unknown = JSON.parse(read(`${themes.dir}/${file}`) ?? '{}');
-            const colours = typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'colors') : undefined;
-            if (typeof colours !== 'object' || colours === null) continue;
+            const colours = isRecord(parsed) ? parsed['colors'] : undefined;
+            if (!isRecord(colours)) continue;
             const entries = Object.entries(colours).filter(
                 (entry): entry is [string, string] => typeof entry[1] === 'string',
             );

@@ -203,6 +203,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
         // First on purpose: it matches everything, and flat config is last-match-wins.
         {
             plugins: {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- typescript-eslint types a rule's context its own way, and ESLint's Plugin type does not accept it. ESLint runs the same object either way.
                 'larry': larryPlugin as unknown as ESLint.Plugin,
                 '@eslint-community/eslint-comments': { rules: eslintCommentRules },
             },

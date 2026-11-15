@@ -111,7 +111,7 @@ export function inspectI18n(options: I18nGateOptions): I18nGateResult {
         try {
             flat[loc] = flatten(JSON.parse(fs.readFileSync(path.join(localePath, `${loc}.json`), 'utf8')));
         } catch (err) {
-            return fatal(`${loc}.json could not be read as JSON — ${(err as Error).message}`);
+            return fatal(`${loc}.json could not be read as JSON — ${err instanceof Error ? err.message : String(err)}`);
         }
     }
 

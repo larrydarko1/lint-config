@@ -418,7 +418,7 @@ export function checkTauriSecurity({ root = REPO_ROOT, ...rest }: TauriSecurityO
     });
 }
 
-const isObject = (value: unknown): value is object =>
+const isObject = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const strings = (value: unknown): string[] =>
@@ -447,7 +447,7 @@ function directives(csp: unknown): Map<string, string[]> {
             if (name !== undefined && name !== '') out.set(name.toLowerCase(), sources);
         }
     } else if (isObject(csp)) {
-        for (const [name, value] of Object.entries(csp as Record<string, unknown>))
+        for (const [name, value] of Object.entries(csp))
             out.set(
                 name.toLowerCase(),
                 strings(value)

@@ -427,7 +427,7 @@ export function inspectElectronSecurity({
 
     // ── 12. v-html bindings ──────────────────────────────────────────────────
     /** file → bindings found */
-    const bindings = new Map();
+    const bindings = new Map<string, string[]>();
     let vHtmlCount = 0;
     for (const rel of rendererFiles.filter((f) => f.endsWith('.vue'))) {
         const source = read(rel).replace(/<!--[\s\S]*?-->/g, (c) => c.replace(/[^\n]/g, ' '));

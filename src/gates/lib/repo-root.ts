@@ -5,6 +5,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { isRecord } from './json.ts';
+
 /**
  * @param [startDir] Where to start looking. Defaults to this file's directory,
  *   which is inside the installed package — the walk still reaches the consuming repo.
@@ -24,7 +26,8 @@ const isWorkspaceRoot = (dir: string): boolean => {
     const manifest = path.join(dir, 'package.json');
     if (!fs.existsSync(manifest)) return false;
     try {
-        return Array.isArray(JSON.parse(fs.readFileSync(manifest, 'utf8')).workspaces);
+        const json: unknown = JSON.parse(fs.readFileSync(manifest, 'utf8'));
+        return isRecord(json) && Array.isArray(json['workspaces']);
     } catch {
         // Unparseable package.json — keep walking rather than guessing.
         return false;

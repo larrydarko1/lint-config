@@ -101,7 +101,8 @@ export function createImportOrder(options: ImportOrderOptions = {}): ImportOrder
                 const first = comments.find((c) => !/\n\s*\n/.test(code.slice(c.end, start)));
                 if (first !== undefined) start = first.pos;
             }
-            const spec = (stmt.moduleSpecifier as ts.StringLiteral).text;
+            if (!ts.isStringLiteral(stmt.moduleSpecifier)) continue;
+            const spec = stmt.moduleSpecifier.text;
             items.push({
                 spec,
                 group: groupOf(spec),
