@@ -605,9 +605,28 @@
             ] }
     ],
     "no-restricted-imports": [
-        { "files": ["src/main.ts","src/App.vue","src/composables/__tests__/useClock.test.ts"], "entry": [
+        { "files": ["src/main.ts","src/App.vue"], "entry": [
                 "error",
-                {"paths":[{"name":"bcrypt","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"bcryptjs","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"scrypt-js","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"scryptsy","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"crypto-js","message":"Use Node’s built-in `node:crypto` (AES-256-GCM / HMAC-SHA-256), not crypto-js"}]}
+                {"paths":[{"name":"bcrypt","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"bcryptjs","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"scrypt-js","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"scryptsy","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"crypto-js","message":"Use Node’s built-in `node:crypto` (AES-256-GCM / HMAC-SHA-256), not crypto-js"}],"patterns":[{"regex":"^(?:pinia(?:/.*)?|vuex(?:/.*)?)$","message":"No store library by default — state lives in composables. Reach for a store only when state is genuinely cross-view and shared by 3+ unrelated components, and add the exception here deliberately."},{"regex":"^(?:vue-toastification(?:/.*)?|vue-sonner(?:/.*)?|notivue(?:/.*)?|vue3-toastify(?:/.*)?|vue-toast-notification(?:/.*)?|@kyvg/vue3-notification(?:/.*)?|sweetalert2(?:/.*)?)$","message":"No notification library — the app owns one notification component and one function that feeds it (`notify.error(…)`), styled with the app's tokens and translated with its locale. A second channel splits where messages appear and how repeats collapse."},{"group":["../*","./*"],"message":"Use the `@/` alias, not a relative path — `@/composables/feed/useFeed`, not `../../composables/feed/useFeed` or `./useFeed`. Relative paths break silently when a file moves and hide the import depth."}]}
+            ] },
+        { "files": ["src/composables/__tests__/useClock.test.ts"], "entry": [
+                "error",
+                {"paths":[{"name":"bcrypt","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"bcryptjs","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"scrypt-js","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"scryptsy","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"crypto-js","message":"Use Node’s built-in `node:crypto` (AES-256-GCM / HMAC-SHA-256), not crypto-js"}],"patterns":[{"regex":"^(?:pinia(?:/.*)?|vuex(?:/.*)?)$","message":"No store library by default — state lives in composables. Reach for a store only when state is genuinely cross-view and shared by 3+ unrelated components, and add the exception here deliberately."}]}
+            ] }
+    ],
+    "no-restricted-syntax": [
+        { "files": ["src/main.ts","src/App.vue"], "entry": [
+                "error",
+                {"selector":"MemberExpression[object.type='MetaProperty'][property.name='env']","message":"Do not read `import.meta.env` here. Validate it once with Zod in a single frontend config module and import the typed value — every VITE_* var is inlined into the shipped bundle, so this is also the boundary that keeps a secret out of it."},
+                {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
+                {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."},
+                {"selector":"CallExpression[callee.name=\"fileURLToPath\"]","message":"Use `import.meta.dirname` directly with `path.resolve()` instead of the `fileURLToPath` pattern. Modern ES modules support `import.meta.dirname` natively (Node.js 20.11.0+), which is simpler and more readable than converting `import.meta.url` through fileURLToPath."}
+            ] },
+        { "files": ["src/composables/__tests__/useClock.test.ts","e2e/login.spec.ts"], "entry": [
+                "error",
+                {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
+                {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."},
+                {"selector":"CallExpression[callee.name=\"fileURLToPath\"]","message":"Use `import.meta.dirname` directly with `path.resolve()` instead of the `fileURLToPath` pattern. Modern ES modules support `import.meta.dirname` natively (Node.js 20.11.0+), which is simpler and more readable than converting `import.meta.url` through fileURLToPath."}
             ] }
     ],
     "no-self-assign": [
@@ -934,7 +953,7 @@
         { "files": "*", "entry": "error" }
     ],
     "vue/no-ref-object-reactivity-loss": [
-        { "files": ["src/main.ts","src/App.vue","src/composables/__tests__/useClock.test.ts"], "entry": "error" }
+        { "files": ["src/main.ts","src/App.vue"], "entry": "error" }
     ],
     "vue/no-required-prop-with-default": [
         { "files": ["src/main.ts","src/composables/__tests__/useClock.test.ts","src/i18n/locales/en.json","e2e/login.spec.ts","vite.config.ts","eslint.config.js"], "entry": "warn" },
@@ -1085,7 +1104,7 @@
         { "files": "*", "entry": "error" }
     ],
     "vue/require-typed-ref": [
-        { "files": ["src/main.ts","src/App.vue","src/composables/__tests__/useClock.test.ts"], "entry": "error" }
+        { "files": ["src/main.ts","src/App.vue"], "entry": "error" }
     ],
     "vue/require-v-for-key": [
         { "files": "*", "entry": "error" }

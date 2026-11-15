@@ -8,45 +8,23 @@
     }
   },
   "src/eslint/api/index.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
     "@typescript-eslint/strict-boolean-expressions": {
-      "count": 2
+      "count": 1
     }
   },
-  "src/eslint/fullstack/api.ts": {
+  "src/eslint/api/api.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 3
+    },
+    "@typescript-eslint/explicit-module-boundary-types": {
+      "count": 1
+    }
+  },
+  "src/eslint/api/db.ts": {
     "@typescript-eslint/explicit-function-return-type": {
       "count": 4
     },
     "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 2
-    }
-  },
-  "src/eslint/fullstack/db.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 5
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 2
-    }
-  },
-  "src/eslint/fullstack/error-handling.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    }
-  },
-  "src/eslint/fullstack/logging.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
-    "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
     }
   },
@@ -201,11 +179,6 @@
       "count": 1
     },
     "@typescript-eslint/explicit-module-boundary-types": {
-      "count": 1
-    }
-  },
-  "src/eslint/spa/index.ts": {
-    "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
     }
   },

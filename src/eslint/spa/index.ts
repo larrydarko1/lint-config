@@ -1,12 +1,13 @@
 /**
  * The SPA family: one Vue app built by Vite, in one package, with no server of its own.
- * Its rules are the full-stack frontend's: the shared ones in ../rules, given this
- * layout's folders, and none of the rules for an API, a database or a socket gateway,
- * because there is none. The selectors a project composes into its own
- * `no-restricted-syntax` blocks are re-exported individually below.
+ * Its rules are the shared ones in ../rules and the app's areas in ./areas.ts, given
+ * this layout's folders; the full-stack family gives the same areas its frontend, with
+ * the rules for a client of its own API on top. The selectors a project composes into
+ * its own `no-restricted-syntax` blocks are re-exported individually below.
  */
 import { familyStandards, type FamilyStandards } from '../family.ts';
 import { PRESETS } from '../presets.ts';
+import { testCodeSelectors } from '../rules/code-style.ts';
 import { envStandards } from '../rules/env.ts';
 import { htmlStandards, type HtmlOptions } from '../rules/html.ts';
 import { i18nStandards, readsLocalesRole, type I18nOptions } from '../rules/i18n.ts';
@@ -15,6 +16,7 @@ import { securityStandards, type SecurityOptions } from '../rules/security.ts';
 import { testingStandards } from '../rules/testing.ts';
 import { typescriptStandards } from '../rules/typescript.ts';
 import { vueStandards } from '../rules/vue.ts';
+import { frontendAreas } from './areas.ts';
 
 export { bannedCryptoModules } from '../rules/security.ts';
 export { configModuleSelectors, noImportMetaEnv } from '../rules/env.ts';
@@ -22,6 +24,7 @@ export { noSingleLetterDeclaration, noFileURLToPath } from '../rules/code-style.
 export { tsSourceSelectors } from '../rules/typescript.ts';
 export { noStoreLibraryPatterns, noToastLibraryPatterns, aliasOnlyImportPatterns } from '../rules/vue.ts';
 export { functionContractsPlugin } from '../rules/function-contracts.ts';
+export { utilsBannedImportPatterns } from '../rules/layering.ts';
 
 export type SpaStandardsOptions = {
     /** See rules/security.ts — `vHtmlAllowed`. */
@@ -54,9 +57,6 @@ export function spaStandards(options: SpaStandardsOptions = {}): FamilyStandards
 
         return [
             ...securityStandards({ code: source, vue }, security),
-            // A browser console is read by nobody once the app ships.
-            { files: source, ignores: TESTS, rules: { 'no-console': 'error' } },
-            ...(consoleAllowed.length ? [{ files: consoleAllowed, rules: { 'no-console': 'off' } }] : []),
             ...typescriptStandards({ source, code: [...source, ...E2E], defaultExportAllowed: [] }),
             ...envStandards([...TESTS, 'scripts/**/*.ts', '*.config.{js,ts}']),
             ...(i18n === false
@@ -72,6 +72,9 @@ export function spaStandards(options: SpaStandardsOptions = {}): FamilyStandards
                 refactoring,
             ),
             ...testingStandards(['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}', 'e2e/**/*.spec.ts']),
+            ...frontendAreas(layout.src),
+            { files: E2E, rules: { 'no-restricted-syntax': ['error', ...testCodeSelectors] } },
+            ...(consoleAllowed.length > 0 ? [{ files: consoleAllowed, rules: { 'no-console': 'off' } }] : []),
         ];
     });
 }

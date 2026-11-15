@@ -7,6 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ESLint, Linter } from 'eslint';
+import ts from 'typescript-eslint';
 
 import { larry } from '../src/eslint/index.ts';
 import * as api from '../src/eslint/api/index.ts';
@@ -186,6 +187,24 @@ test('the SPA bans console in the app, not in its tests, and consoleAllowed open
     assert.equal(await severityOf(config, 'src/main.ts', 'no-console'), 2);
 });
 
+test('the SPA wires its own areas: crypto, import.meta.env and the test relaxations', async () => {
+    const app = await entryOf(spaConfig(), 'src/App.vue', 'no-restricted-syntax');
+    const selectors = app.slice(1).map((entry) => entry.selector);
+    assert.ok(selectors.includes(spa.noImportMetaEnv.selector), 'import.meta.env');
+    assert.ok(selectors.includes(spa.noFileURLToPath.selector), 'fileURLToPath');
+    const imports = await entryOf(spaConfig(), 'src/App.vue', 'no-restricted-imports');
+    assert.ok(
+        imports[1].paths.some((path) => path.name === 'bcrypt'),
+        'crypto',
+    );
+    const suite = 'src/components/__tests__/Card.test.ts';
+    assert.equal(await severityOf(spaConfig(), suite, 'vue/require-typed-ref'), 0);
+    assert.deepEqual(
+        (await entryOf(spaConfig(), suite, 'no-restricted-syntax')).slice(1).map((entry) => entry.selector),
+        [...spa.tsSourceSelectors, spa.noSingleLetterDeclaration, spa.noFileURLToPath].map((entry) => entry.selector),
+    );
+});
+
 test('SPA tests sit beside their code, so they are named like it and need no return types', async () => {
     const file = 'src/composables/__tests__/useTheme.test.ts';
     assert.equal(await severityOf(spaConfig(), file, '@typescript-eslint/naming-convention'), 2);
@@ -320,6 +339,41 @@ test('every API area resolves its whole list, since the last matching block repl
     const config = await restrictionsOf(apiConfig(), 'src/lib/config.ts');
     assert.ok(has(config.selectors, api.configModuleSelectors) && !has(config.selectors, api.apiSourceSelectors));
     assert.equal((await restrictionsOf(apiConfig(), 'db/migrations/001-init.js')).selectors.length > 0, true);
+});
+
+/** The messages ESLint reports for `code` in `file`, under the import rules the config resolves there. */
+const importProblems = async (config, file, code) => {
+    const eslint = new ESLint({ overrideConfigFile: true, baseConfig: config, cwd: ROOT });
+    const { rules } = await eslint.calculateConfigForFile(`${ROOT}/${file}`);
+    const pick = (rule) => (rules[rule] === undefined ? {} : { [rule]: rules[rule] });
+    return new Linter({ configType: 'flat' }).verify(code, [
+        {
+            languageOptions: { parser: ts.parser, sourceType: 'module' },
+            plugins: { '@typescript-eslint': ts.plugin },
+            rules: { ...pick('no-restricted-imports'), ...pick('@typescript-eslint/no-restricted-imports') },
+        },
+    ]);
+};
+
+/** A file where a layering ban applies, and a module from the layer it may not load. */
+const LAYERING_CASES = [
+    [apiConfig, 'src/lib/cache.ts', '@/services/users'],
+    [spaConfig, 'src/utils/format.ts', '@/lib/http'],
+    [fullstackConfig, 'api/src/lib/cache.ts', '@/services/users'],
+    [fullstackConfig, 'worker/src/lib/queue.ts', '@/services/jobs'],
+    [fullstackConfig, 'frontend/src/utils/format.ts', '@/lib/http'],
+    [fullstackConfig, 'packages/shared/src/db/collections.ts', 'mongodb'],
+    [fullstackConfig, 'packages/shared/src/types.ts', 'vue'],
+];
+
+test('a layering ban lets `import type` through, and a module ban does not', async () => {
+    for (const [config, file, layer] of LAYERING_CASES) {
+        const typeOnly = await importProblems(config(), file, `import type { Thing } from '${layer}';`);
+        assert.equal(typeOnly.length, 0, `${file}: a type import is erased`);
+        assert.equal((await importProblems(config(), file, `import { thing } from '${layer}';`)).length, 1, file);
+        const crypto = await importProblems(config(), file, "import type { Options } from 'bcrypt';");
+        assert.equal(crypto.length, 1, `${file}: crypto stays absolute`);
+    }
 });
 
 test('the API switches drop only their own rules', async () => {

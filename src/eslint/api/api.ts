@@ -1,16 +1,9 @@
-import type { FullstackLayout } from '../presets.ts';
-
-/** What the messages point the reader at. The API family has the same files at its own root. */
+/** What the messages point the reader at: each family's own files. */
 type ApiMessagePaths = {
     /** The module holding AppError. */
     appError: string;
     /** Where a returned shape gets its name, and who compiles against it. */
     namedShapes: string;
-};
-
-const FULLSTACK_MESSAGE_PATHS: ApiMessagePaths = {
-    appError: 'api/src/lib/app-error.ts',
-    namedShapes: 'in packages/shared so the API and the frontend both compile against it',
 };
 
 const noParseIntQuery = {
@@ -129,43 +122,6 @@ export const httpServiceSelectors = ({ appError, namedShapes }: ApiMessagePaths)
     ...noLooseReturnShape(namedShapes),
 ];
 
-export const apiStandards = (layout: FullstackLayout) => [
-    {
-        files: layout.api,
-        ignores: ['**/__tests__/**', '**/lib/config.ts'],
-        rules: {
-            'no-restricted-syntax': ['error', ...apiSourceSelectors],
-        },
-    },
-    {
-        files: layout.services,
-        ignores: ['**/__tests__/**', '**/lib/config.ts'],
-        rules: {
-            'no-restricted-syntax': ['error', ...outboundCallSelectors],
-        },
-    },
-    {
-        files: layout.backend,
-        rules: {
-            'no-restricted-imports': ['error', { paths: apiBannedImports }],
-        },
-    },
-    {
-        files: [`${layout.workspaces.api}/src/routes/**/*.ts`],
-        ignores: ['**/__tests__/**'],
-        rules: {
-            'no-restricted-syntax': ['error', ...apiSourceSelectors, ...apiRoutesOnlySelectors],
-        },
-    },
-    {
-        files: layout.frontend,
-        ignores: ['**/__tests__/**'],
-        rules: {
-            'no-restricted-syntax': ['error', ...frontendSelectors],
-        },
-    },
-];
-
 const noThrowObject = (appError: string) => ({
     selector: 'ThrowStatement > ObjectExpression',
     message: `Throw \`new AppError(status, code, message)\` — not a bare \`{ status, message }\` object. Client-facing errors must carry a machine code (see ${appError}).`,
@@ -186,5 +142,3 @@ const noLooseReturnShape = (namedShapes: string) => {
         },
     ];
 };
-
-export const apiSourceSelectors = httpServiceSelectors(FULLSTACK_MESSAGE_PATHS);

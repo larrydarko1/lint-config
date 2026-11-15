@@ -238,7 +238,8 @@ standards functions with a frontend accept the same options: `security.vHtmlAllo
 `fullstackStandards()`, `spaStandards()`, `apiStandards()` and `libraryStandards()` also accept `logging.consoleAllowed`.
 
 **The SPA family is the full-stack frontend on its own.** It applies the shared standards to
-`src/` and nothing for a backend, since it has none. Its layout follows the full-stack frontend:
+`src/`, with each area's `no-restricted-syntax` and `no-restricted-imports`: the app's source,
+`utils/` and its tests. It has nothing for a backend, since it has none. Its layout follows the full-stack frontend:
 tests in a `__tests__/` folder beside the code they test (`src/composables/__tests__/useTheme.test.ts`),
 locale files in `src/i18n/locales/`, Node scripts in `scripts/` with their own tsconfig, and
 `public/` left unlinted because Vite copies it into the build untouched.
@@ -289,6 +290,20 @@ export default larry({
     standards: apiStandards({ ws: false }),
 });
 ```
+
+**The full-stack family is the other two, given its workspaces.** The frontend gets the SPA
+family's areas, plus the client's side of the API contract: no typed or rendered `errors[]`,
+`resource:action` socket events, and `socket.io-client` only in `<frontend>/src/api/socket.ts`.
+The api gets the API family's areas, with the index manifest and the document types in the first
+shared package (`packages/shared/src/db/indexes.ts` and `collections.ts`). Each service gets the
+backend rules without the HTTP ones, and builds its one database client in its own
+`src/lib/db.ts`, as the api does. Each shared package is framework-neutral: it loads no Vue, no
+server framework and no driver. Like the API family, it needs no `overrides` to be complete.
+
+**A layering ban is about what runs.** The bans on which layer may import which (a shared package
+on a driver, `utils/` on `lib/`, `lib/` on `services/`) use `@typescript-eslint/no-restricted-imports`
+with `allowTypeImports`, so `import type` passes: it is erased before anything runs. The module
+bans (crypto, a store library) and the relative-path ban refuse a type import too.
 
 The backend gates take their paths as options rather than assuming the workspace folders. Two of
 them also check a frontend in the same repository: pass `frontend: false` to
@@ -418,9 +433,9 @@ in full. The typed rules read a Vue file's `<script>` only, so `vue/no-restricte
 its `<template>` too.
 
 **One notification channel.** `larry/no-native-dialog` keeps the browser's dialogs out; `noToastLibraryPatterns`
-keeps a notification library out, so every message goes through the one component the app owns. Like the
-other banned-import lists, it is composed into the project's own `no-restricted-imports` block for the frontend,
-because that rule is last-match-wins:
+keeps a notification library out, so every message goes through the one component the app owns. The SPA and
+full-stack families wire it into the frontend's `no-restricted-imports`. In the Electron and Tauri families, like
+the other banned-import lists, it is composed into the project's own block, because that rule is last-match-wins:
 
 ```js
 'no-restricted-imports': ['error', { patterns: [...noStoreLibraryPatterns, ...noToastLibraryPatterns, ...aliasOnlyImportPatterns] }],
