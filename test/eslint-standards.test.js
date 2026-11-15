@@ -187,6 +187,24 @@ test('the SPA bans console in the app, not in its tests, and consoleAllowed open
     assert.equal(await severityOf(config, 'src/main.ts', 'no-console'), 2);
 });
 
+test('the SPA wires its own areas: crypto, import.meta.env and the test relaxations', async () => {
+    const app = await entryOf(spaConfig(), 'src/App.vue', 'no-restricted-syntax');
+    const selectors = app.slice(1).map((entry) => entry.selector);
+    assert.ok(selectors.includes(spa.noImportMetaEnv.selector), 'import.meta.env');
+    assert.ok(selectors.includes(spa.noFileURLToPath.selector), 'fileURLToPath');
+    const imports = await entryOf(spaConfig(), 'src/App.vue', 'no-restricted-imports');
+    assert.ok(
+        imports[1].paths.some((path) => path.name === 'bcrypt'),
+        'crypto',
+    );
+    const suite = 'src/components/__tests__/Card.test.ts';
+    assert.equal(await severityOf(spaConfig(), suite, 'vue/require-typed-ref'), 0);
+    assert.deepEqual(
+        (await entryOf(spaConfig(), suite, 'no-restricted-syntax')).slice(1).map((entry) => entry.selector),
+        [spa.noFileURLToPath.selector],
+    );
+});
+
 test('SPA tests sit beside their code, so they are named like it and need no return types', async () => {
     const file = 'src/composables/__tests__/useTheme.test.ts';
     assert.equal(await severityOf(spaConfig(), file, '@typescript-eslint/naming-convention'), 2);
@@ -338,7 +356,10 @@ const importProblems = async (config, file, code) => {
 };
 
 /** A file where a layering ban applies, and a module from the layer it may not load. */
-const LAYERING_CASES = [[apiConfig, 'src/lib/cache.ts', '@/services/users']];
+const LAYERING_CASES = [
+    [apiConfig, 'src/lib/cache.ts', '@/services/users'],
+    [spaConfig, 'src/utils/format.ts', '@/lib/http'],
+];
 
 test('a layering ban lets `import type` through, and a module ban does not', async () => {
     for (const [config, file, layer] of LAYERING_CASES) {

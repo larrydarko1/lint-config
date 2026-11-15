@@ -238,7 +238,8 @@ standards functions with a frontend accept the same options: `security.vHtmlAllo
 `fullstackStandards()`, `spaStandards()`, `apiStandards()` and `libraryStandards()` also accept `logging.consoleAllowed`.
 
 **The SPA family is the full-stack frontend on its own.** It applies the shared standards to
-`src/` and nothing for a backend, since it has none. Its layout follows the full-stack frontend:
+`src/`, with each area's `no-restricted-syntax` and `no-restricted-imports`: the app's source,
+`utils/` and its tests. It has nothing for a backend, since it has none. Its layout follows the full-stack frontend:
 tests in a `__tests__/` folder beside the code they test (`src/composables/__tests__/useTheme.test.ts`),
 locale files in `src/i18n/locales/`, Node scripts in `scripts/` with their own tsconfig, and
 `public/` left unlinted because Vite copies it into the build untouched.
@@ -418,9 +419,9 @@ in full. The typed rules read a Vue file's `<script>` only, so `vue/no-restricte
 its `<template>` too.
 
 **One notification channel.** `larry/no-native-dialog` keeps the browser's dialogs out; `noToastLibraryPatterns`
-keeps a notification library out, so every message goes through the one component the app owns. Like the
-other banned-import lists, it is composed into the project's own `no-restricted-imports` block for the frontend,
-because that rule is last-match-wins:
+keeps a notification library out, so every message goes through the one component the app owns. The SPA family
+wires it into the app's `no-restricted-imports`. In the other families with a frontend, like the other
+banned-import lists, it is composed into the project's own block, because that rule is last-match-wins:
 
 ```js
 'no-restricted-imports': ['error', { patterns: [...noStoreLibraryPatterns, ...noToastLibraryPatterns, ...aliasOnlyImportPatterns] }],
