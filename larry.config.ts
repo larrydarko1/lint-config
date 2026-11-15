@@ -20,7 +20,7 @@ export default defineConfig({
                 'src/gates/lib/rust.ts': 424,
                 'src/gates/metrics.ts': 757,
                 'src/gates/pipeline.ts': 703,
-                'src/gates/scss-standards.ts': 727,
+                'src/gates/scss-standards.ts': 476,
                 'src/gates/security-drift.ts': 947,
                 'src/gates/tauri-commands.ts': 503,
                 'src/gates/tauri-security.ts': 434,

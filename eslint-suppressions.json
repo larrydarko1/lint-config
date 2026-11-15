@@ -493,6 +493,17 @@
       "count": 3
     }
   },
+  "src/gates/lib/theme-palettes.ts": {
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-type-assertion": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 2
+    }
+  },
   "src/gates/metrics.ts": {
     "@typescript-eslint/explicit-function-return-type": {
       "count": 4
@@ -573,16 +584,13 @@
   },
   "src/gates/scss-standards.ts": {
     "@typescript-eslint/explicit-function-return-type": {
-      "count": 10
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
+      "count": 6
     },
     "@typescript-eslint/no-unsafe-type-assertion": {
-      "count": 2
+      "count": 1
     },
     "max-depth": {
-      "count": 3
+      "count": 1
     }
   },
   "src/gates/security-drift.ts": {

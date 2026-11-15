@@ -19,7 +19,7 @@ import path from 'node:path';
 import { walkFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
-import type { ThemeSource } from './scss-standards.ts';
+import type { ThemeSource } from './lib/theme-palettes.ts';
 
 export type ContrastOptions = {
     root?: string;
