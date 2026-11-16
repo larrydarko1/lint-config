@@ -1,17 +1,7 @@
 {
-  "src/gates/code-style.ts": {
-    "max-depth": {
-      "count": 4
-    }
-  },
   "src/gates/contrast.ts": {
     "max-depth": {
       "count": 2
-    }
-  },
-  "src/gates/electron-security.ts": {
-    "max-depth": {
-      "count": 3
     }
   },
   "src/gates/env-drift.ts": {
@@ -19,39 +9,9 @@
       "count": 2
     }
   },
-  "src/gates/error-handling/electron.ts": {
-    "max-depth": {
-      "count": 3
-    }
-  },
   "src/gates/error-handling/tauri.ts": {
     "max-depth": {
       "count": 1
-    }
-  },
-  "src/gates/html-standards.ts": {
-    "max-depth": {
-      "count": 4
-    }
-  },
-  "src/gates/i18n.ts": {
-    "max-depth": {
-      "count": 4
-    }
-  },
-  "src/gates/ipc-standards.ts": {
-    "max-depth": {
-      "count": 5
-    }
-  },
-  "src/gates/lib/local-only-types.ts": {
-    "max-depth": {
-      "count": 3
-    }
-  },
-  "src/gates/lib/source.ts": {
-    "max-depth": {
-      "count": 3
     }
   },
   "src/gates/lib/theme-palettes.ts": {
@@ -72,16 +32,6 @@
   "src/gates/scss-standards.ts": {
     "max-depth": {
       "count": 1
-    }
-  },
-  "src/gates/security-drift.ts": {
-    "max-depth": {
-      "count": 3
-    }
-  },
-  "src/gates/tauri-commands.ts": {
-    "max-depth": {
-      "count": 6
     }
   },
   "src/gates/tauri-security.ts": {

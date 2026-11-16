@@ -298,21 +298,22 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
             ? [{ text: source.replace(/^\/\*[\s\S]*?\*\//, ''), offset: 0 }]
             : [...source.matchAll(/<style[\s\S]*?<\/style>/g)].map((m) => ({ text: m[0], offset: m.index }));
 
-        for (const { text: block, offset } of blocks) {
-            for (const match of block.matchAll(STYLE_COMMENT)) {
-                const whole = match[0];
-                const text = (match[1] ?? '').trim();
-                // Control comments for another tool: stylelint's, and the contrast gate's opt-out.
-                if (text.startsWith('stylelint-') || text.startsWith('contrast-exempt:')) continue;
-                if (styleExplanations) continue;
-                if (globalSheet && whole.startsWith('/**')) continue;
-                if (DIVIDER.test(text)) continue;
-                fail(
-                    `${rel}:${lineAt(source, offset + match.index)}`,
-                    `non-divider style comment: /* ${text.replace(/\s+/g, ' ').slice(0, 45)} */`,
-                    'Style blocks carry section dividers only — `/* –––––– Section name –––––– */`, en-dashes. An explanation of a property belongs in the markup or the component docs, not the stylesheet, where the decoration is the only thing making a 700-line block scannable.',
-                );
-            }
+        const comments = blocks.flatMap(({ text: block, offset }) =>
+            [...block.matchAll(STYLE_COMMENT)].map((match) => ({ match, at: offset + match.index })),
+        );
+        for (const { match, at } of comments) {
+            const whole = match[0];
+            const text = (match[1] ?? '').trim();
+            // Control comments for another tool: stylelint's, and the contrast gate's opt-out.
+            if (text.startsWith('stylelint-') || text.startsWith('contrast-exempt:')) continue;
+            if (styleExplanations) continue;
+            if (globalSheet && whole.startsWith('/**')) continue;
+            if (DIVIDER.test(text)) continue;
+            fail(
+                `${rel}:${lineAt(source, at)}`,
+                `non-divider style comment: /* ${text.replace(/\s+/g, ' ').slice(0, 45)} */`,
+                'Style blocks carry section dividers only — `/* –––––– Section name –––––– */`, en-dashes. An explanation of a property belongs in the markup or the component docs, not the stylesheet, where the decoration is the only thing making a 700-line block scannable.',
+            );
         }
     }
 

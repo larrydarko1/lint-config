@@ -376,28 +376,28 @@ export function inspectTauriCommands(input: TauriCommandsInput): TauriCommandsIn
         }
     }
     const listened = new Set<string>();
-    for (const { rel, code } of bridge) {
-        for (const fn of ['listen', 'once']) {
-            for (const call of tsCalls(code, fn)) {
-                const at = `${rel}:${lineAt(code, call.index)}`;
-                if (call.name === null) {
-                    fail(
-                        at,
-                        `calls \`${fn}\` with an event name that is not a string literal`,
-                        'Write the event out, as Rust’s constant spells it, so the two can be matched.',
-                    );
-                    continue;
-                }
-                if (call.name.startsWith('tauri://')) continue;
-                listened.add(call.name);
-                if (!emitted.has(call.name))
-                    fail(
-                        at,
-                        `listens for \`${call.name}\`, which Rust never emits`,
-                        'The handler never runs. Match Rust’s constant exactly, or delete the subscription.',
-                    );
-            }
+    const subscriptions = bridge.flatMap(({ rel, code }) =>
+        ['listen', 'once'].flatMap((fn) =>
+            tsCalls(code, fn).map(({ index, name }) => ({ fn, name, at: `${rel}:${lineAt(code, index)}` })),
+        ),
+    );
+    for (const { fn, name, at } of subscriptions) {
+        if (name === null) {
+            fail(
+                at,
+                `calls \`${fn}\` with an event name that is not a string literal`,
+                'Write the event out, as Rust’s constant spells it, so the two can be matched.',
+            );
+            continue;
         }
+        if (name.startsWith('tauri://')) continue;
+        listened.add(name);
+        if (!emitted.has(name))
+            fail(
+                at,
+                `listens for \`${name}\`, which Rust never emits`,
+                'The handler never runs. Match Rust’s constant exactly, or delete the subscription.',
+            );
     }
     for (const [name, at] of emitted) {
         if (!listened.has(name))
@@ -440,16 +440,15 @@ export function inspectTauriCommands(input: TauriCommandsInput): TauriCommandsIn
                     `has no \`${errorCodes.name} = [...]\``,
                     'The webview’s list of codes is what `toErrorCode` matches a rejection against. Without it every command’s failure reads as `INTERNAL`.',
                 );
-            } else {
-                const known = [...list.matchAll(/(['"`])([^'"`]+)\1/g)].map((m) => m[2]);
-                for (const c of new Set(produced)) {
-                    if (!known.includes(c))
-                        fail(
-                            errorFile,
-                            `\`code()\` returns \`${c}\`, which \`${errorCodes.name}\` does not list`,
-                            'The bridge reads an unknown code as `INTERNAL`, so the user is told something went wrong instead of what. Add it, with its translation in every locale.',
-                        );
-                }
+            }
+            const known = [...(list ?? '').matchAll(/(['"`])([^'"`]+)\1/g)].map((m) => m[2]);
+            const unlisted = list === undefined ? [] : [...new Set(produced)].filter((c) => !known.includes(c));
+            for (const c of unlisted) {
+                fail(
+                    errorFile,
+                    `\`code()\` returns \`${c}\`, which \`${errorCodes.name}\` does not list`,
+                    'The bridge reads an unknown code as `INTERNAL`, so the user is told something went wrong instead of what. Add it, with its translation in every locale.',
+                );
             }
         }
         const serialize = rustItems(source, lexed).find(
@@ -512,12 +511,12 @@ function tsCalls(code: string, fn: string): { index: number; name: string | null
     for (const m of code.matchAll(new RegExp(String.raw`(?<![\w$])${fn}\s*`, 'g'))) {
         let j = m.index + m[0].length;
         if (code[j] === '<') {
+            // An arrow's `=>` inside the type argument closes nothing.
             let depth = 0;
-            for (; j < code.length; j++) {
-                if (code[j] === '<') depth++;
-                else if (code[j] === '>' && code[j - 1] !== '=' && --depth === 0) break;
-            }
-            j = j + 1;
+            do {
+                depth += Number(code[j] === '<') - Number(code[j] === '>' && code[j - 1] !== '=');
+                j++;
+            } while (depth > 0 && j < code.length);
             while (/\s/.test(code.charAt(j))) j++;
         }
         if (code[j] !== '(') continue;

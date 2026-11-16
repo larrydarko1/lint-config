@@ -23,6 +23,9 @@ import { firstDifference } from './sequence.ts';
 /** One export only its own file names. `name` is what it is exported as. */
 type LocalOnlyType = { file: string; name: string; line: number };
 
+/** An exported type: the name it is declared as, the name it is exported as, and where. */
+type ExportedType = { declared: string; name: string; node: ts.Node };
+
 /**
  * @param root Repository root.
  * @param [projects] tsconfigs, relative to `root`. Defaults to `findProjects(root)`.
@@ -48,30 +51,8 @@ export function findLocalOnlyTypes(root: string, projects: string[] = findProjec
             const lineOf = (node: ts.Node): number =>
                 sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
 
-            // Candidates: `export type X`, `export interface X`, and `export { X }` of a local one.
-            // A declaration file is never one, but the names it writes are uses like any other.
-            for (const statement of sourceFile.isDeclarationFile ? [] : sourceFile.statements) {
-                if (isTypeDeclaration(statement) && hasExportKeyword(statement) && !isPublic(statement)) {
-                    const { text } = statement.name;
-                    candidates.set(key(file, text), { file: rel, name: text, line: lineOf(statement.name) });
-                } else if (
-                    ts.isExportDeclaration(statement) &&
-                    statement.moduleSpecifier === undefined &&
-                    statement.exportClause !== undefined &&
-                    ts.isNamedExports(statement.exportClause) &&
-                    !isPublic(statement)
-                ) {
-                    for (const element of statement.exportClause.elements) {
-                        const local = checker.getExportSpecifierLocalTargetSymbol(element);
-                        const declaration = local?.declarations?.find(isTypeDeclaration);
-                        if (declaration?.getSourceFile() !== sourceFile) continue;
-                        candidates.set(key(file, declaration.name.text), {
-                            file: rel,
-                            name: element.name.text,
-                            line: lineOf(element),
-                        });
-                    }
-                }
+            for (const { declared, name, node } of exportedTypes(sourceFile, checker)) {
+                candidates.set(key(file, declared), { file: rel, name, line: lineOf(node) });
             }
 
             // Uses: every name here that resolves, through any imports, to a type declared elsewhere.
@@ -97,6 +78,35 @@ export function findLocalOnlyTypes(root: string, projects: string[] = findProjec
         .filter(([k]) => !used.has(k))
         .map(([, hit]) => hit)
         .sort((a, b) => firstDifference(a.file.localeCompare(b.file), a.line - b.line));
+}
+
+/**
+ * The candidates in one file: `export type X`, `export interface X`, and `export { X }` of
+ * a local one, unless marked public. A declaration file has none, but the names it writes
+ * are uses like any other.
+ */
+function exportedTypes(sourceFile: ts.SourceFile, checker: ts.TypeChecker): ExportedType[] {
+    if (sourceFile.isDeclarationFile) return [];
+    return sourceFile.statements.flatMap((statement): ExportedType[] => {
+        if (isTypeDeclaration(statement) && hasExportKeyword(statement) && !isPublic(statement)) {
+            return [{ declared: statement.name.text, name: statement.name.text, node: statement.name }];
+        }
+        if (
+            !ts.isExportDeclaration(statement) ||
+            statement.moduleSpecifier !== undefined ||
+            statement.exportClause === undefined ||
+            !ts.isNamedExports(statement.exportClause) ||
+            isPublic(statement)
+        ) {
+            return [];
+        }
+        return statement.exportClause.elements.flatMap((element) => {
+            const local = checker.getExportSpecifierLocalTargetSymbol(element);
+            const declaration = local?.declarations?.find(isTypeDeclaration);
+            if (declaration?.getSourceFile() !== sourceFile) return [];
+            return [{ declared: declaration.name.text, name: element.name.text, node: element }];
+        });
+    });
 }
 
 const isTypeDeclaration = (node: ts.Node): node is ts.TypeAliasDeclaration | ts.InterfaceDeclaration =>

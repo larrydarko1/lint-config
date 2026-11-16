@@ -31,6 +31,7 @@ import {
     declaredBody,
     functionParts,
     propertyValue,
+    skipString,
     splitTopLevel,
     type FunctionParts,
 } from './lib/source.ts';
@@ -544,12 +545,7 @@ function enclosingFunctionStart(code: string, index: number): number {
             const typed = /\)\s*:\s*[\w$.<>[\]|&\s,'"]*$/.exec(before);
             const close = typed !== null ? typed.index : before.endsWith(')') ? before.length - 1 : -1;
             if (close === -1) continue;
-            let parens = 0;
-            let k = close;
-            for (; k >= 0; k--) {
-                if (before[k] === ')') parens++;
-                else if (before[k] === '(' && --parens === 0) break;
-            }
+            const k = openingParen(before, close);
             const keyword = /([\w$]+)\s*$/.exec(before.slice(0, Math.max(0, k)))?.[1] ?? '';
             if (!['if', 'for', 'while', 'switch', 'catch', 'with'].includes(keyword)) return j + 1;
         }
@@ -630,15 +626,8 @@ function statementEnd(text: string): number {
     let depth = 0;
     for (let j = 0; j < text.length; j++) {
         const ch = text[j];
-        if (ch === "'" || ch === '"' || ch === '`') {
-            const quote = ch;
-            for (j += 1; j < text.length && text[j] !== quote; j++) if (text[j] === '\\') j++;
-            if (quote === '`') {
-                // A template may hold `${…}` with its own backticks; re-scan it properly.
-                const start = text.lastIndexOf('`', j - 1);
-                j = templateEnd(text, start === -1 ? j : start);
-            }
-        } else if (ch === '(' || ch === '{' || ch === '[') depth++;
+        if (ch === "'" || ch === '"' || ch === '`') j = skipString(text, j);
+        else if (ch === '(' || ch === '{' || ch === '[') depth++;
         else if (ch === ')' || ch === '}' || ch === ']') {
             if (depth === 0) return j;
             depth--;
@@ -647,24 +636,14 @@ function statementEnd(text: string): number {
     return text.length;
 }
 
-/**
- * @param start Offset of the opening backtick.
- * @returns Offset of the closing backtick.
- */
-function templateEnd(text: string, start: number): number {
-    for (let j = start + 1; j < text.length; j++) {
-        if (text[j] === '\\') j++;
-        else if (text[j] === '`') return j;
-        else if (text[j] === '$' && text[j + 1] === '{') {
-            let depth = 0;
-            for (j += 1; j < text.length; j++) {
-                if (text[j] === '`') j = templateEnd(text, j);
-                else if (text[j] === '{') depth++;
-                else if (text[j] === '}' && --depth === 0) break;
-            }
-        }
+/** The offset of the `(` matching the `)` at `close`, scanning back; `-1` when it has none. */
+function openingParen(text: string, close: number): number {
+    let parens = 0;
+    for (let k = close; k >= 0; k--) {
+        parens += Number(text[k] === ')') - Number(text[k] === '(');
+        if (parens === 0) return k;
     }
-    return text.length;
+    return -1;
 }
 
 function unwrap(expr: string): string {
@@ -684,7 +663,7 @@ function unwrap(expr: string): string {
 }
 
 const isStringLiteral = (e: string): boolean => /^(['"])(?:\\.|(?!\1).)*\1$/s.test(e);
-const isTemplate = (e: string): boolean => e.startsWith('`') && templateEnd(e, 0) === e.length - 1;
+const isTemplate = (e: string): boolean => e.startsWith('`') && skipString(e, 0) === e.length - 1;
 const isIdentifier = (e: string): boolean => /^[A-Za-z_$][\w$]*$/.test(e);
 
 /**

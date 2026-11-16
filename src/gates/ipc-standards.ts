@@ -131,37 +131,36 @@ export function inspectIpcStandards({
             );
         }
 
-        for (const receiver of receivers) {
-            for (const method of ['handle', 'handleOnce', 'on', 'once']) {
-                for (const site of callSites(source, `${receiver}.${method}(`)) {
-                    if (site.index > 0 && /[\w$]/.test(source[site.index - 1] ?? '')) continue;
-                    const line = lineAt(source, site.index);
-                    const [first = '', ...rest] = splitTopLevel(site.args, ',');
-                    const channel = literal(first);
-                    if (channel === null) {
-                        fail(
-                            `${rel}:${line}`,
-                            `registers a channel that is not a string literal (\`${first.slice(0, 30)}\`)`,
-                            'A channel assembled at runtime is invisible to every rule here — parity, reachability, naming. Spell each channel out, one registration per line.',
-                        );
-                        continue;
-                    }
-                    const owner = handlers.get(channel);
-                    if (owner !== undefined) {
-                        fail(
-                            `${rel}:${line}`,
-                            `registers \`${channel}\`, which ${owner} already registers`,
-                            'The second registration throws at startup for handle(), or silently double-fires for on().',
-                        );
-                    }
-                    handlers.set(channel, rel);
-                    const handler = rest.join(', ').trim();
-                    const fn =
-                        functionParts(handler) ??
-                        (/^[A-Za-z_$][\w$]*$/.test(handler) ? declaredFunction(source, handler) : null);
-                    registrations.push({ rel, line, channel, fn, source });
-                }
+        const registrationSites = [...receivers].flatMap((receiver) =>
+            ['handle', 'handleOnce', 'on', 'once'].flatMap((method) => callSites(source, `${receiver}.${method}(`)),
+        );
+        for (const site of registrationSites) {
+            if (site.index > 0 && /[\w$]/.test(source[site.index - 1] ?? '')) continue;
+            const line = lineAt(source, site.index);
+            const [first = '', ...rest] = splitTopLevel(site.args, ',');
+            const channel = literal(first);
+            if (channel === null) {
+                fail(
+                    `${rel}:${line}`,
+                    `registers a channel that is not a string literal (\`${first.slice(0, 30)}\`)`,
+                    'A channel assembled at runtime is invisible to every rule here — parity, reachability, naming. Spell each channel out, one registration per line.',
+                );
+                continue;
             }
+            const owner = handlers.get(channel);
+            if (owner !== undefined) {
+                fail(
+                    `${rel}:${line}`,
+                    `registers \`${channel}\`, which ${owner} already registers`,
+                    'The second registration throws at startup for handle(), or silently double-fires for on().',
+                );
+            }
+            handlers.set(channel, rel);
+            const handler = rest.join(', ').trim();
+            const fn =
+                functionParts(handler) ??
+                (/^[A-Za-z_$][\w$]*$/.test(handler) ? declaredFunction(source, handler) : null);
+            registrations.push({ rel, line, channel, fn, source });
         }
         for (const site of callSites(source, 'webContents.send(')) {
             const first = splitTopLevel(site.args, ',')[0] ?? '';
@@ -233,19 +232,20 @@ export function inspectIpcStandards({
                     'The table documents a service that was renamed or removed.',
                 );
             }
-            for (const pattern of patterns) {
-                const matched = [...handlers].some(
-                    ([channel, file]) =>
-                        file === owner &&
-                        (pattern.endsWith('*') ? channel.startsWith(pattern.slice(0, -1)) : channel === pattern),
+            const stale = patterns.filter(
+                (pattern) =>
+                    ![...handlers].some(
+                        ([channel, file]) =>
+                            file === owner &&
+                            (pattern.endsWith('*') ? channel.startsWith(pattern.slice(0, -1)) : channel === pattern),
+                    ),
+            );
+            for (const pattern of stale) {
+                fail(
+                    mainIndex,
+                    `the ownership table documents \`${pattern}\` for ${path.basename(owner)}, which registers no such channel`,
+                    'A stale entry is a map pointing the wrong way. Remove it, or restore the handler it describes.',
                 );
-                if (!matched) {
-                    fail(
-                        mainIndex,
-                        `the ownership table documents \`${pattern}\` for ${path.basename(owner)}, which registers no such channel`,
-                        'A stale entry is a map pointing the wrong way. Remove it, or restore the handler it describes.',
-                    );
-                }
             }
         }
         for (const [channel, owner] of handlers) {

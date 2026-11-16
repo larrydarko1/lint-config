@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import { repoReader } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
-import { braceBlock, callArgs, catchBodies, evalProduct, fnBody } from './lib/source.ts';
+import { balancedClose, braceBlock, callArgs, catchBodies, evalProduct, fnBody } from './lib/source.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
 /** The auth surface: the files the credential rules read, and the names inside them. */
@@ -581,39 +581,39 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     const credentialWord = new RegExp(String.raw`\b(?:${credentials.join('|')})\b`, 'i');
     const derivationCall = new RegExp(String.raw`\b(?:${derivations.join('|')})\s*\(`);
 
-    for (const rel of backend) {
-        // The defining module takes the key as a parameter.
-        if (rel === auth.throttleFile) continue;
+    // The defining module takes the key as a parameter.
+    const throttleCallers = backend.filter((rel) => rel !== auth.throttleFile);
+    const throttleCalls = throttleCallers.flatMap((rel) => {
         const source = callsOnly(code(rel));
+        return THROTTLE_FNS.map((name) => ({ rel, source, name }));
+    });
+    for (const { rel, source, name } of throttleCalls) {
+        const token = `${name}(`;
+        let at = 0;
+        while ((at = source.indexOf(token, at)) !== -1) {
+            const [argument = ''] = callArgs(source.slice(at), token);
+            at += token.length;
+            const trimmed = argument.trim();
+            if (trimmed === '') continue;
 
-        for (const name of THROTTLE_FNS) {
-            const token = `${name}(`;
-            let at = 0;
-            while ((at = source.indexOf(token, at)) !== -1) {
-                const [argument = ''] = callArgs(source.slice(at), token);
-                at += token.length;
-                const trimmed = argument.trim();
-                if (trimmed === '') continue;
+            counts.throttleCalls += 1;
+            // An identifier is graded on its binding, or on its own name when it has none.
+            const isIdentifier = /^[A-Za-z_$][\w$]*$/.test(trimmed);
+            const binding = isIdentifier ? bindingBefore(source, trimmed, at) : null;
+            const expression = binding ?? trimmed;
 
-                counts.throttleCalls += 1;
-                // An identifier is graded on its binding, or on its own name when it has none.
-                const isIdentifier = /^[A-Za-z_$][\w$]*$/.test(trimmed);
-                const binding = isIdentifier ? bindingBefore(source, trimmed, at) : null;
-                const expression = binding ?? trimmed;
-
-                if (credentialWord.test(expression) && !derivationCall.test(expression)) {
-                    fail(
-                        rel,
-                        `${name}() is keyed by \`${expression.slice(0, 60)}\``,
-                        'That is the submitted credential itself. It then lives in a Redis key, readable by anyone with access to the cache and outliving the request that carried it. Key by a blind index or a hash of it instead.',
-                    );
-                } else if (isIdentifier && binding === null) {
-                    fail(
-                        rel,
-                        `${name}(${trimmed}) — nothing in this file binds \`${trimmed}\``,
-                        'The gate cannot see what this key is made of, so it cannot tell a blind index from a raw email. Bind it locally, next to the call it keys.',
-                    );
-                }
+            if (credentialWord.test(expression) && !derivationCall.test(expression)) {
+                fail(
+                    rel,
+                    `${name}() is keyed by \`${expression.slice(0, 60)}\``,
+                    'That is the submitted credential itself. It then lives in a Redis key, readable by anyone with access to the cache and outliving the request that carried it. Key by a blind index or a hash of it instead.',
+                );
+            } else if (isIdentifier && binding === null) {
+                fail(
+                    rel,
+                    `${name}(${trimmed}) — nothing in this file binds \`${trimmed}\``,
+                    'The gate cannot see what this key is made of, so it cannot tell a blind index from a raw email. Bind it locally, next to the call it keys.',
+                );
             }
         }
     }
@@ -965,22 +965,10 @@ function nginxLocations(source: string): { name: string; body: string }[] {
 
     while ((i = source.indexOf('location', i)) !== -1) {
         const open = source.indexOf('{', i);
-        if (open === -1) break;
-        let depth = 0;
-        let closed = false;
-        for (let j = open; j < source.length; j++) {
-            if (source[j] === '{') depth++;
-            else if (source[j] === '}') {
-                depth -= 1;
-                if (depth === 0) {
-                    blocks.push({ name: source.slice(i, open).trim(), body: source.slice(open, j) });
-                    i = j + 1;
-                    closed = true;
-                    break;
-                }
-            }
-        }
-        if (!closed) break;
+        const close = open === -1 ? -1 : balancedClose(source, open, '{', '}');
+        if (close === -1) break;
+        blocks.push({ name: source.slice(i, open).trim(), body: source.slice(open, close) });
+        i = close + 1;
     }
 
     return blocks;
