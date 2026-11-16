@@ -68,6 +68,10 @@ export const GATES = {
         ['tauri'],
         async () => (await import('./error-handling/tauri.ts')).checkTauriErrorHandling,
     ),
+    'extension-manifest': gate(
+        ['vs-extension'],
+        async () => (await import('./extension-manifest.ts')).checkExtensionManifest,
+    ),
     'publish': gate(['library'], async () => (await import('./publish.ts')).checkPublish),
     'api-standards': gate(BACKEND, async () => (await import('./api-standards.ts')).checkApiStandards),
     'db-drift': gate(BACKEND, async () => (await import('./db-drift.ts')).checkDbDrift),

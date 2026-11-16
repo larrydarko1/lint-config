@@ -121,6 +121,10 @@
             "types": "./dist/gates/error-handling/tauri.d.ts",
             "default": "./dist/gates/error-handling/tauri.js"
         },
+        "./gates/extension-manifest": {
+            "types": "./dist/gates/extension-manifest.d.ts",
+            "default": "./dist/gates/extension-manifest.js"
+        },
         "./gates/html-standards": {
             "types": "./dist/gates/html-standards.d.ts",
             "default": "./dist/gates/html-standards.js"

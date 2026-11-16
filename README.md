@@ -684,6 +684,7 @@ its source roots, its services, and exceptions it has approved, each with a stat
 | `tauri-security`           | tauri                    | CSP, security flags, the capability list, one capability per window, grants        |
 | `tauri-commands`           | tauri                    | commands, `build.rs`, grants, `invoke`s, events and error codes agree              |
 | `error-handling/tauri`     | tauri                    | failing commands log once, a panic hook, Rust and webview swallows have reasons    |
+| `extension-manifest`       | vs-extension             | commands, views and settings agree with the source; activation, trust, package     |
 | `publish`                  | library                  | the packed tarball installs: no TS source, every entry point loads and type-checks |
 | `api-standards`            | api, fullstack           | route map, middleware order, rate limits, response schemas, the contract           |
 | `db-drift`                 | api, fullstack           | collection registry, indexes, migrations, drain order, ops scripts                 |
