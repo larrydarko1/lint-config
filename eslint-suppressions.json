@@ -1,9 +1,4 @@
 {
-  "src/gates/api-standards.ts": {
-    "max-depth": {
-      "count": 12
-    }
-  },
   "src/gates/code-style.ts": {
     "max-depth": {
       "count": 4
@@ -12,14 +7,6 @@
   "src/gates/contrast.ts": {
     "max-depth": {
       "count": 2
-    }
-  },
-  "src/gates/db-drift.ts": {
-    "@typescript-eslint/no-unsafe-type-assertion": {
-      "count": 11
-    },
-    "max-depth": {
-      "count": 10
     }
   },
   "src/gates/electron-security.ts": {
@@ -35,20 +22,6 @@
   "src/gates/error-handling/electron.ts": {
     "max-depth": {
       "count": 3
-    }
-  },
-  "src/gates/error-handling/fullstack.ts": {
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 2
-    },
-    "max-depth": {
-      "count": 2
     }
   },
   "src/gates/error-handling/tauri.ts": {
@@ -74,14 +47,6 @@
   "src/gates/lib/local-only-types.ts": {
     "max-depth": {
       "count": 3
-    }
-  },
-  "src/gates/lib/rust.ts": {
-    "@typescript-eslint/no-unsafe-type-assertion": {
-      "count": 1
-    },
-    "max-depth": {
-      "count": 2
     }
   },
   "src/gates/lib/source.ts": {

@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { repoReader, walkFiles } from '../lib/files.ts';
+import { recordAt } from '../lib/json.ts';
 import { REPO_ROOT } from '../lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from '../lib/report.ts';
 import { stripComments } from '../lib/strip-comments.ts';
@@ -203,7 +204,7 @@ export function inspectFullstackErrorHandling(
     const statusOf = new Map<string, Map<number, string[]>>();
     for (const t of throws) {
         if (t.errorCode === null || !Number.isInteger(t.status)) continue;
-        const seen = statusOf.get(t.errorCode) ?? new Map();
+        const seen = statusOf.get(t.errorCode) ?? new Map<number, string[]>();
         statusOf.set(t.errorCode, seen);
         seen.set(t.status, [...(seen.get(t.status) ?? []), `${t.rel}:${t.line}`]);
     }
@@ -352,41 +353,37 @@ export function inspectFullstackErrorHandling(
         }
 
         const apiSrc = apiFiles.map(code).join('\n');
-        for (const c of allCodes) {
-            if (!apiSrc.includes(`'${c}'`)) {
-                fail(
-                    codesFile,
-                    `\`${c}\` is never thrown or emitted`,
-                    'Remove it, or throw it. An unreachable code still costs a translation in every locale and suggests a failure path that does not exist.',
-                );
-            }
+        for (const c of allCodes.filter((name) => !apiSrc.includes(`'${name}'`))) {
+            fail(
+                codesFile,
+                `\`${c}\` is never thrown or emitted`,
+                'Remove it, or throw it. An unreachable code still costs a translation in every locale and suggests a failure path that does not exist.',
+            );
         }
 
         const known = new Set(allCodes);
         const localePath = path.join(root, localeDir);
-        if (fs.existsSync(localePath)) {
-            for (const file of fs.readdirSync(localePath).filter((f) => f.endsWith('.json'))) {
-                const rel = `${localeDir}/${file}`;
-                const dict = JSON.parse(read(rel)).errors ?? {};
-                for (const key of Object.keys(dict)) {
-                    if (!known.has(key)) {
-                        fail(
-                            rel,
-                            `\`errors.${key}\` translates a code that no longer exists`,
-                            'Drop it. An orphaned entry outlives the rename that stranded it and makes the dictionary look like it covers more than it does.',
-                        );
-                    }
-                }
-                for (const c of allCodes) {
-                    const text = dict[c];
-                    if (typeof text !== 'string' || text.trim() === '') {
-                        fail(
-                            rel,
-                            `no translation for \`${c}\``,
-                            'A code with no translation reaches the user as raw SCREAMING_SNAKE. Adding a code means adding it to every locale.',
-                        );
-                    }
-                }
+        const localeFiles = fs.existsSync(localePath) ? fs.readdirSync(localePath) : [];
+        for (const file of localeFiles.filter((f) => f.endsWith('.json'))) {
+            const rel = `${localeDir}/${file}`;
+            const dict = recordAt(JSON.parse(read(rel)), 'errors');
+            for (const key of Object.keys(dict).filter((name) => !known.has(name))) {
+                fail(
+                    rel,
+                    `\`errors.${key}\` translates a code that no longer exists`,
+                    'Drop it. An orphaned entry outlives the rename that stranded it and makes the dictionary look like it covers more than it does.',
+                );
+            }
+            const untranslated = allCodes.filter((name) => {
+                const text = dict[name];
+                return typeof text !== 'string' || text.trim() === '';
+            });
+            for (const c of untranslated) {
+                fail(
+                    rel,
+                    `no translation for \`${c}\``,
+                    'A code with no translation reaches the user as raw SCREAMING_SNAKE. Adding a code means adding it to every locale.',
+                );
             }
         }
 

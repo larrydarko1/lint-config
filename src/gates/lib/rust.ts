@@ -120,18 +120,15 @@ export function lexRust(source: string): RustLex {
             continue;
         }
         if (ch === '/' && next === '*') {
+            // Rust block comments nest, so count opens against closes.
             let depth = 0;
             let j = i;
-            while (j < source.length) {
-                if (source[j] === '/' && source[j + 1] === '*') {
-                    depth += 1;
-                    j += 2;
-                } else if (source[j] === '*' && source[j + 1] === '/') {
-                    depth -= 1;
-                    j += 2;
-                    if (depth === 0) break;
-                } else j += 1;
-            }
+            do {
+                const opens = source.startsWith('/*', j);
+                const closes = !opens && source.startsWith('*/', j);
+                depth += Number(opens) - Number(closes);
+                j += opens || closes ? 2 : 1;
+            } while (depth > 0 && j < source.length);
             out.push(blank(source.slice(i, j)));
             i = j;
             continue;
@@ -277,7 +274,7 @@ export function rustItems(source: string, lexed: RustLex = lexRust(source)): Rus
         let kind: RustItemKind = 'unknown';
         if (keyword === 'extern crate') kind = 'extern-crate';
         else if (keyword.startsWith('macro_rules')) kind = 'macro-rules';
-        else if (keyword !== '') kind = keyword as RustItemKind;
+        else if (isOwnKind(keyword)) kind = keyword;
         else if (macro !== null) kind = 'macro';
         else if (/^(?:unsafe\s+)?extern\s+"[^"]*"\s*\{/.test(rest)) kind = 'extern-block';
 
@@ -373,6 +370,10 @@ export function summarySentences(lines: string[]): number {
 /** Whether an item is `#[cfg(test)] mod tests { … }`: Rust's own place for unit tests. */
 export const isTestModule = (item: RustItem): boolean =>
     item.kind === 'mod' && item.body !== null && item.attributes.some((a) => /\bcfg\s*\(\s*test\s*\)/.test(a));
+
+/** The `ITEM_HEAD` keywords that are their own kind's name. */
+const isOwnKind = (keyword: string): keyword is RustItemKind =>
+    /^(?:fn|struct|enum|union|trait|impl|type|const|static|mod|use)$/.test(keyword);
 
 const lineAt = (text: string, index: number): number => text.slice(0, index).split('\n').length;
 
