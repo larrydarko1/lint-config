@@ -3,7 +3,7 @@
 Formatting, linting, commit rules and CI quality gates for my projects, kept in one package so a
 rule is changed once and every project picks it up on its next update.
 
-It is opinionated and built for six kinds of project, with a seventh family for code that is none
+It is opinionated and built for seven kinds of project, with an eighth family for code that is none
 of them:
 
 - **fullstack**: a Vue frontend and an Express API as npm workspaces, with a worker, a database
@@ -13,6 +13,7 @@ of them:
 - **library**: a TypeScript package published to npm, tested with `node --test`. This package is one.
 - **spa**: a Vue app built by Vite, in one package, with no server of its own.
 - **tauri**: a Vue app in a Tauri webview, with a Rust side.
+- **vs-extension**: a VS Code extension, bundled for the editor, with an E2E suite that runs in a real editor.
 - **base**: anything else. It assumes no layout, and holds only the rules and gates that fit any
   TypeScript project.
 
@@ -207,7 +208,7 @@ import { larry } from '@larrydarko/lint-config/eslint';
 import { electronStandards } from '@larrydarko/lint-config/eslint/electron';
 
 export default larry({
-    preset: 'electron', // or 'api', 'base', 'fullstack', 'library', 'spa' or 'tauri'
+    preset: 'electron', // or 'api', 'base', 'fullstack', 'library', 'spa', 'tauri' or 'vs-extension'
     rootDir: import.meta.dirname,
     standards: electronStandards(),
     overrides: [/* this project's own blocks */],
@@ -225,7 +226,7 @@ export default larry({
 `preset` chooses a family's folder layout, and `layout` (or `workspaces`, in the full-stack
 family) moves any of its roles (see below).
 `paths` overrides one area of the shared config on its own. The family
-modules (`/eslint/api`, `/eslint/base`, `/eslint/electron`, `/eslint/fullstack`, `/eslint/library`, `/eslint/spa` and `/eslint/tauri`) export the standards blocks.
+modules (`/eslint/api`, `/eslint/base`, `/eslint/electron`, `/eslint/fullstack`, `/eslint/library`, `/eslint/spa`, `/eslint/tauri` and `/eslint/vs-extension`) export the standards blocks.
 They also export the selectors, banned-import lists and rule plugins those blocks are built from,
 so the project's own per-folder blocks can reuse them in `overrides`.
 
@@ -342,6 +343,31 @@ export default larry({
             },
         },
     ],
+});
+```
+
+**The VS Code extension family is code that runs in someone else's process.** The editor runs
+every installed extension in one Node process, its extension host, and `vsExtensionStandards()`
+holds `src/` to what that asks: no blocking `fs` or `child_process` call (`larry/no-sync-io`), no
+Disposable dropped (`larry/no-floating-disposable`), no console and no `process.exit()`. The bundle
+is CommonJS, where `import.meta` is empty, so the source reaches its own files through
+`context.extensionUri`, never `import.meta.dirname` or `__dirname`. `src/lib/` holds the logic and
+never loads `vscode`, which exists only inside the editor, so Vitest can run it from `tests/`; the
+glue in `src/vscode/` is what the E2E suite in `e2e/` runs, inside a real editor through the VS Code
+test CLI, and a spec may not import the source. A reporter or another module a tool loads by its
+default export goes in `defaultExportAllowed`. The standard behind the family is
+`prompts/7_security/vs-extension.instructions.md` in the workflow repo, and the `extension-manifest`
+gate holds package.json to the source.
+
+```js
+// eslint.config.js
+import { larry } from '@larrydarko/lint-config/eslint';
+import { vsExtensionStandards } from '@larrydarko/lint-config/eslint/vs-extension';
+
+export default larry({
+    preset: 'vs-extension',
+    rootDir: import.meta.dirname,
+    standards: vsExtensionStandards({ env: { processEnvAllowed: ['src/lib/tools.ts'] } }),
 });
 ```
 
@@ -464,6 +490,11 @@ whole-file exception at the very top.
 - `larry/no-tauri-outside-bridge` — `@tauri-apps/*` is imported in `src/bridge/` and nowhere else, types
   included, and nothing else reads `window.__TAURI__` or `__TAURI_INTERNALS__`, or tests for them with `in`. A local
   module whose path merely contains `tauri` passes. On the Tauri webview outside its bridge.
+- `larry/no-sync-io` — no `*Sync` call from `fs` or `child_process`, named, through the module or destructured
+  from it. A module of another name passes. On an extension's source, which runs in the editor's shared host.
+- `larry/no-floating-disposable` — a `register*`, `create*` or `onDid*`/`onWill*` call on the `vscode` import
+  whose Disposable is dropped. A terminal, which belongs to the person, and a name that is not the import pass.
+  On an extension's source.
 
 **Full-stack workspaces are roles.** The full-stack rules are written against four roles, not
 folder names: `frontend` (the Vue app), `api` (the HTTP service), `services` (Node processes
@@ -502,13 +533,14 @@ export default larry({
 });
 ```
 
-| Family     | Roles, with their defaults                                                                                                                                                                                                                                                                                                                             |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `electron` | `src` (`src`), `main` (`<src>/main`), `preload` (`<src>/preload`), `renderer` (`<src>/renderer`), `tests` (`tests`), `locales` (`assets/locales`)                                                                                                                                                                                                      |
-| `spa`      | `src` (`src`), `locales` (`<src>/i18n/locales`)                                                                                                                                                                                                                                                                                                        |
-| `tauri`    | `src` (`src`), `bridge` (`<src>/bridge`), `tests` (`tests`), `locales` (`<src>/i18n/locales`)                                                                                                                                                                                                                                                          |
-| `api`      | `src` (`src`), `routes` (`<src>/routes`), `gateway` (`<src>/gateway`), `lib` (`<src>/lib`), `config` (`<lib>/config.ts`), `dbModule` (`<lib>/db.ts`), `errorHandler` (`<src>/middleware/error-handler.ts`), `appError` (`<lib>/app-error.ts`), `indexManifest` (`<src>/db/indexes.ts`), `documentTypes` (`<src>/db/collections.ts`), `database` (`db`) |
-| `library`  | `src` (`src`), `tests` (`test`)                                                                                                                                                                                                                                                                                                                        |
+| Family         | Roles, with their defaults                                                                                                                                                                                                                                                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `electron`     | `src` (`src`), `main` (`<src>/main`), `preload` (`<src>/preload`), `renderer` (`<src>/renderer`), `tests` (`tests`), `locales` (`assets/locales`)                                                                                                                                                                                                      |
+| `spa`          | `src` (`src`), `locales` (`<src>/i18n/locales`)                                                                                                                                                                                                                                                                                                        |
+| `tauri`        | `src` (`src`), `bridge` (`<src>/bridge`), `tests` (`tests`), `locales` (`<src>/i18n/locales`)                                                                                                                                                                                                                                                          |
+| `api`          | `src` (`src`), `routes` (`<src>/routes`), `gateway` (`<src>/gateway`), `lib` (`<src>/lib`), `config` (`<lib>/config.ts`), `dbModule` (`<lib>/db.ts`), `errorHandler` (`<src>/middleware/error-handler.ts`), `appError` (`<lib>/app-error.ts`), `indexManifest` (`<src>/db/indexes.ts`), `documentTypes` (`<src>/db/collections.ts`), `database` (`db`) |
+| `vs-extension` | `src` (`src`), `entry` (`<src>/extension.ts`), `lib` (`<src>/lib`), `vscode` (`<src>/vscode`), `tests` (`tests`)                                                                                                                                                                                                                                       |
+| `library`      | `src` (`src`), `tests` (`test`)                                                                                                                                                                                                                                                                                                                        |
 
 `larry()` holds the roles to the repository, as it does the full-stack workspaces. A role the
 standards read must exist, and so must any role the project names; otherwise the config fails and
@@ -528,20 +560,20 @@ their messages.
 default taken from inside this package would point at the package, and every type-aware rule would
 quietly find no tsconfig.
 
-| Option             | Default      | What it is for                                                                        |
-| ------------------ | ------------ | ------------------------------------------------------------------------------------- |
-| `preset`           | —            | `'api'`, `'base'`, `'electron'`, `'fullstack'`, `'library'`, `'spa'` or `'tauri'`     |
-| `rootDir`          | —            | the project root; **required**                                                        |
-| `workspaces`       | the four     | full-stack only: which workspace plays which role                                     |
-| `layout`           | the family's | every family but full-stack and base: where each role lives                           |
-| `paths`            | the preset's | override `source`, `tests`, `browser`, `node`, `ignores`, …; for `base`, **required** |
-| `vue`              | `true`       | load the Vue plugin and parse `.vue` files; `false` for `api`, `base`, `library`      |
-| `importExtensions` | `false`      | enforce import specifiers; `{ nodeRun }` for folders Node runs directly               |
-| `testProject`      | none         | a dedicated tsconfig for tests, such as `./tsconfig.test.json`                        |
-| `testRules`        | `{}`         | extra relaxations for tests                                                           |
-| `rules`            | `{}`         | extra rules on typed source                                                           |
-| `standards`        | `[]`         | the family's standards blocks                                                         |
-| `overrides`        | `[]`         | the project's own blocks, appended last before Prettier                               |
+| Option             | Default      | What it is for                                                                                      |
+| ------------------ | ------------ | --------------------------------------------------------------------------------------------------- |
+| `preset`           | —            | `'api'`, `'base'`, `'electron'`, `'fullstack'`, `'library'`, `'spa'`, `'tauri'` or `'vs-extension'` |
+| `rootDir`          | —            | the project root; **required**                                                                      |
+| `workspaces`       | the four     | full-stack only: which workspace plays which role                                                   |
+| `layout`           | the family's | every family but full-stack and base: where each role lives                                         |
+| `paths`            | the preset's | override `source`, `tests`, `browser`, `node`, `ignores`, …; for `base`, **required**               |
+| `vue`              | `true`       | load the Vue plugin and parse `.vue` files; `false` for `api`, `base`, `library`, `vs-extension`    |
+| `importExtensions` | `false`      | enforce import specifiers; `{ nodeRun }` for folders Node runs directly                             |
+| `testProject`      | none         | a dedicated tsconfig for tests, such as `./tsconfig.test.json`                                      |
+| `testRules`        | `{}`         | extra relaxations for tests                                                                         |
+| `rules`            | `{}`         | extra rules on typed source                                                                         |
+| `standards`        | `[]`         | the family's standards blocks                                                                       |
+| `overrides`        | `[]`         | the project's own blocks, appended last before Prettier                                             |
 
 Order matters. In flat config the last matching block wins, and a block with no `files` matches
 everything. That is why the catch-all block comes first and the test relaxations come after the
