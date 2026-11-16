@@ -13,7 +13,7 @@ import vuePlugin from 'eslint-plugin-vue';
 import globals from 'globals';
 import ts from 'typescript-eslint';
 
-import { buildStandards, type AnyFamilyStandards } from './family.ts';
+import { buildStandards, standardsName, type AnyFamilyStandards } from './family.ts';
 import { assertLayoutExists, assertPathsExist, assertWorkspacesCovered } from './layout-guard.ts';
 import {
     BASE_REQUIRED,
@@ -47,7 +47,7 @@ export type LarryOptions = PresetOptions & {
      * role the standards read, or one named here, must exist. See presets.ts for the roles.
      */
     layout?: LayoutOverrides;
-    /** Load the Vue plugin and parse `.vue` files. Defaults to true, and to false for the `api`, `base` and `library` presets, which assume no components. */
+    /** Load the Vue plugin and parse `.vue` files. Defaults to true, and to false for the `api`, `base`, `library` and `vs-extension` presets, which assume no components. */
     vue?: boolean;
     /** Enforce import specifiers: no extension on TS/JS, but `.vue` and `.json` keep theirs. Defaults to false.*/
     importExtensions?: boolean | ImportExtensionsOptions;
@@ -57,7 +57,7 @@ export type LarryOptions = PresetOptions & {
     testRules?: Linter.RulesRecord;
     /** Extra rules for all source files, merged last. */
     rules?: Linter.RulesRecord;
-    /** The family's standards (security, logging, …): `apiStandards()`, `baseStandards()`, `electronStandards()`, `fullstackStandards()`, `libraryStandards()`, `spaStandards()` or `tauriStandards()`. Plain blocks are spliced in as they are. */
+    /** The family's standards (security, logging, …): `apiStandards()`, `baseStandards()`, `electronStandards()`, `fullstackStandards()`, `libraryStandards()`, `spaStandards()`, `tauriStandards()` or `vsExtensionStandards()`. Plain blocks are spliced in as they are. */
     standards?: Linter.Config[] | AnyFamilyStandards;
     /** The project's own blocks — the per-area `no-restricted-syntax`/`no-restricted-imports` wiring. Appended last, before Prettier. */
     overrides?: Linter.Config[];
@@ -114,7 +114,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
         workspaces = {},
         layout = {},
         paths: pathOverrides = {},
-        vue: useVue = preset !== 'api' && preset !== 'base' && preset !== 'library',
+        vue: useVue = !['api', 'base', 'library', 'vs-extension'].includes(preset),
         importExtensions = false,
         testProject = null,
         testRules = {},
@@ -134,7 +134,7 @@ export function larry(options: LarryOptions): Linter.Config[] {
             "larry({ layout }) moves a family's roles; the base preset has none, so name its globs in `paths`.",
         );
     if (typeof standards === 'function' && standards.family !== preset)
-        throw new Error(`${standards.family}Standards() needs preset: '${standards.family}', not '${preset}'.`);
+        throw new Error(`${standardsName(standards.family)}() needs preset: '${standards.family}', not '${preset}'.`);
 
     // First, so an unknown preset or role is reported before the guard reads the disk for it.
     const paths = resolvePaths(preset, pathOverrides, { ...workspaces, ...layout });

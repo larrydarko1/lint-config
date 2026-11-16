@@ -57,6 +57,10 @@
             "types": "./dist/eslint/tauri/index.d.ts",
             "default": "./dist/eslint/tauri/index.js"
         },
+        "./eslint/vs-extension": {
+            "types": "./dist/eslint/vs-extension/index.d.ts",
+            "default": "./dist/eslint/vs-extension/index.js"
+        },
         "./eslint/presets": {
             "types": "./dist/eslint/presets.d.ts",
             "default": "./dist/eslint/presets.js"

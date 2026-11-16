@@ -3,6 +3,7 @@
  * shared config with what only this project knows left to its options, and every gate
  * whose options name the project's own files skipped with what it needs.
  */
+import { standardsName } from '../eslint/family.ts';
 import type { BasePaths, PresetName } from '../eslint/presets.ts';
 import { gatesFor } from '../gates/registry.ts';
 import { SELF_NAME } from '../toolchain.ts';
@@ -69,7 +70,7 @@ export function scaffoldFiles(scaffold: Scaffold): Record<string, string> {
         'larry.config.ts': larryConfig(scaffold),
         'eslint.config.js': lines(
             `import { larry } from '${SELF_NAME}/eslint';`,
-            `import { ${family}Standards } from '${SELF_NAME}/eslint/${family}';`,
+            `import { ${standardsName(family)} } from '${SELF_NAME}/eslint/${family}';`,
             '',
             'export default larry({',
             `    preset: '${family}',`,
@@ -78,7 +79,7 @@ export function scaffoldFiles(scaffold: Scaffold): Record<string, string> {
                 ? ['    // Workspaces other than frontend, api, worker and packages/shared are named in `workspaces`.']
                 : []),
             ...(scaffold.basePaths === undefined ? [] : pathsOption(scaffold.basePaths)),
-            `    standards: ${family}Standards(),`,
+            `    standards: ${standardsName(family)}(),`,
             '});',
         ),
         'prettier.config.js': lines(`export { default } from '${SELF_NAME}/prettier';`),

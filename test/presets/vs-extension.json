@@ -1,0 +1,749 @@
+{
+    "@eslint-community/eslint-comments/disable-enable-pair": [
+        { "files": "*", "entry": ["error",{"allowWholeFile":true}] }
+    ],
+    "@eslint-community/eslint-comments/no-aggregating-enable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/no-duplicate-disable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/no-unlimited-disable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/no-unused-enable": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@eslint-community/eslint-comments/require-description": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/adjacent-overload-signatures": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/array-type": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/await-thenable": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/ban-ts-comment": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": ["error",{"minimumDescriptionLength":10}] },
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
+    ],
+    "@typescript-eslint/ban-tslint-comment": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/class-literal-property-style": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-generic-constructors": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-indexed-object-style": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-type-assertions": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-type-definitions": [
+        { "files": "*", "entry": ["error","type"] }
+    ],
+    "@typescript-eslint/consistent-type-exports": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/consistent-type-imports": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","scripts/build.ts"], "entry": ["error",{"prefer":"type-imports","fixStyle":"inline-type-imports"}] }
+    ],
+    "@typescript-eslint/explicit-function-return-type": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","scripts/build.ts"], "entry": ["error",{"allowTypedFunctionExpressions":false,"allowIIFEs":true}] }
+    ],
+    "@typescript-eslint/explicit-module-boundary-types": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/max-params": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": ["error",{"max":6}] }
+    ],
+    "@typescript-eslint/naming-convention": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","scripts/build.ts"], "entry": [
+                "error",
+                {"selector":"default","format":["camelCase"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"variable","format":["camelCase","UPPER_CASE","PascalCase"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"import","format":["camelCase","PascalCase"]},
+                {"selector":"function","format":["camelCase","PascalCase"]},
+                {"selector":"parameter","format":["camelCase"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"property","format":["camelCase","UPPER_CASE"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":"property","modifiers":["requiresQuotes"],"format":null},
+                {"selector":"objectLiteralProperty","format":["camelCase","UPPER_CASE","PascalCase","snake_case"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
+                {"selector":["objectLiteralProperty","objectLiteralMethod"],"modifiers":["requiresQuotes"],"format":null},
+                {"selector":"typeLike","format":["PascalCase"]},
+                {"selector":"enumMember","format":["UPPER_CASE"]},
+                {"selector":"typeParameter","format":["PascalCase"],"prefix":["T"]}
+            ] }
+    ],
+    "@typescript-eslint/no-array-constructor": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-array-delete": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-base-to-string": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-confusing-non-null-assertion": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-confusing-void-expression": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": ["error",{"ignoreArrowShorthand":true}] }
+    ],
+    "@typescript-eslint/no-deprecated": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-duplicate-enum-values": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-duplicate-type-constituents": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-dynamic-delete": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-empty-function": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","scripts/build.ts"], "entry": ["error",{"allow":["arrowFunctions"]}] }
+    ],
+    "@typescript-eslint/no-empty-object-type": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-explicit-any": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-extra-non-null-assertion": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-extraneous-class": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-floating-promises": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-for-in-array": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-generated-empty-object-type": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-implied-eval": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-inferrable-types": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-invalid-void-type": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-meaningless-void-operator": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-misused-new": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-misused-promises": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-misused-spread": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-mixed-enums": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-namespace": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-non-null-asserted-nullish-coalescing": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-non-null-asserted-optional-chain": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-non-null-assertion": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-redundant-type-constituents": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-require-imports": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-restricted-imports": [
+        { "files": ["src/lib/runner.ts"], "entry": [
+                "error",
+                {"paths":[{"name":"bcrypt","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"bcryptjs","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"scrypt-js","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"scryptsy","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"crypto-js","message":"Use Node’s built-in `node:crypto` (AES-256-GCM / HMAC-SHA-256), not crypto-js"}],"patterns":[{"group":["../*","./*"],"message":"Use the `@/` alias, not a relative path — `@/composables/feed/useFeed`, not `../../composables/feed/useFeed` or `./useFeed`. Relative paths break silently when a file moves and hide the import depth."},{"regex":"^vscode$","message":"`lib/` runs in Vitest, outside the editor, where the `vscode` module does not exist: the import fails before any test runs. Take what is needed as plain values and leave the API to the glue in `vscode/`. A type, with `import type`, is fine.","allowTypeImports":true},{"group":["@/vscode/*","@/vscode/**","@/extension"],"message":"`lib/` is the logic the glue calls, never the other way round: importing the glue brings `vscode` with it.","allowTypeImports":true}]}
+            ] },
+        { "files": ["tests/lib/runner.test.ts"], "entry": [
+                "error",
+                {"paths":[{"name":"bcrypt","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"bcryptjs","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"scrypt-js","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"scryptsy","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"crypto-js","message":"Use Node’s built-in `node:crypto` (AES-256-GCM / HMAC-SHA-256), not crypto-js"}],"patterns":[{"regex":"^vscode$","message":"A unit suite runs in Vitest, outside the editor, where the `vscode` module does not exist: the import fails before any test runs. Take what is needed as plain values and leave the API to the glue in `vscode/`. A type, with `import type`, is fine.","allowTypeImports":true}]}
+            ] }
+    ],
+    "@typescript-eslint/no-this-alias": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-boolean-literal-compare": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-condition": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": ["error",{"allowConstantLoopConditions":"only-allowed-literals"}] }
+    ],
+    "@typescript-eslint/no-unnecessary-template-expression": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-arguments": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-assertion": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-constraint": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-conversion": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unnecessary-type-parameters": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-argument": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-assignment": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-call": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-declaration-merging": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-enum-comparison": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-function-type": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-member-access": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-return": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-type-assertion": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unsafe-unary-minus": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unused-expressions": [
+        { "files": "*", "entry": ["error",{"allowShortCircuit":false,"allowTaggedTemplates":false,"allowTernary":false}] }
+    ],
+    "@typescript-eslint/no-unused-private-class-members": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-unused-vars": [
+        { "files": "*", "entry": ["error",{"argsIgnorePattern":"^_","varsIgnorePattern":"^_","caughtErrorsIgnorePattern":"^_"}] }
+    ],
+    "@typescript-eslint/no-useless-constructor": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-useless-default-assignment": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/no-wrapper-object-types": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/non-nullable-type-assertion-style": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/only-throw-error": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-as-const": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-find": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-for-of": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-function-type": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-includes": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-literal-enum-member": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-namespace-keyword": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-nullish-coalescing": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-optional-chain": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-promise-reject-errors": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-readonly": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-reduce-type-parameter": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-regexp-exec": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-return-this-type": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/prefer-string-starts-ends-with": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/related-getter-setter-pairs": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/require-array-sort-compare": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/require-await": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/restrict-plus-operands": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/restrict-template-expressions": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/return-await": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": ["error","error-handling-correctness-only"] }
+    ],
+    "@typescript-eslint/strict-boolean-expressions": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","scripts/build.ts"], "entry": ["error",{"allowString":false,"allowNumber":false,"allowNullableObject":false}] }
+    ],
+    "@typescript-eslint/switch-exhaustiveness-check": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": ["error",{"considerDefaultExhaustiveForUnions":true}] }
+    ],
+    "@typescript-eslint/triple-slash-reference": [
+        { "files": "*", "entry": "error" }
+    ],
+    "@typescript-eslint/unbound-method": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/unified-signatures": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "array-callback-return": [
+        { "files": "*", "entry": ["error",{"allowImplicit":false,"checkForEach":false,"allowVoid":false}] }
+    ],
+    "constructor-super": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
+    ],
+    "eqeqeq": [
+        { "files": "*", "entry": ["error","always",{"null":"ignore"}] }
+    ],
+    "for-direction": [
+        { "files": "*", "entry": "error" }
+    ],
+    "getter-return": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": ["error",{"allowImplicit":false}] }
+    ],
+    "larry/no-floating-disposable": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts"], "entry": "error" }
+    ],
+    "larry/no-sync-io": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts"], "entry": "error" }
+    ],
+    "max-depth": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts"], "entry": ["error",3] },
+        { "files": ["tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": ["error",4] }
+    ],
+    "no-async-promise-executor": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-case-declarations": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-class-assign": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
+    ],
+    "no-compare-neg-zero": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-cond-assign": [
+        { "files": "*", "entry": ["error","except-parens"] }
+    ],
+    "no-console": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts"], "entry": ["error",{}] }
+    ],
+    "no-const-assign": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
+    ],
+    "no-constant-binary-expression": [
+        { "files": "*", "entry": ["error",{"checkRelationalComparisons":false}] }
+    ],
+    "no-constant-condition": [
+        { "files": "*", "entry": ["error",{"checkLoops":"allExceptWhileTrue"}] }
+    ],
+    "no-constructor-return": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-control-regex": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-debugger": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-delete-var": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-dupe-args": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
+    ],
+    "no-dupe-class-members": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
+    ],
+    "no-dupe-else-if": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-dupe-keys": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
+    ],
+    "no-duplicate-case": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-else-return": [
+        { "files": "*", "entry": ["error",{"allowElseIf":false}] }
+    ],
+    "no-empty": [
+        { "files": "*", "entry": ["error",{"allowEmptyCatch":false}] }
+    ],
+    "no-empty-character-class": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-empty-pattern": [
+        { "files": "*", "entry": ["error",{"allowObjectPatternsAsParameters":false}] }
+    ],
+    "no-empty-static-block": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-eval": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": ["error",{"allowIndirect":false}] }
+    ],
+    "no-ex-assign": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-extra-boolean-cast": [
+        { "files": "*", "entry": ["error",{}] }
+    ],
+    "no-fallthrough": [
+        { "files": "*", "entry": ["error",{"allowEmptyCase":false,"reportUnusedFallthroughComment":false}] }
+    ],
+    "no-func-assign": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
+    ],
+    "no-global-assign": [
+        { "files": "*", "entry": ["error",{"exceptions":[]}] }
+    ],
+    "no-implicit-coercion": [
+        { "files": "*", "entry": ["error",{"allow":[],"boolean":true,"disallowTemplateShorthand":false,"number":true,"string":true}] }
+    ],
+    "no-implied-eval": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "no-import-assign": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
+    ],
+    "no-invalid-regexp": [
+        { "files": "*", "entry": ["error",{}] }
+    ],
+    "no-irregular-whitespace": [
+        { "files": "*", "entry": ["error",{"skipComments":false,"skipJSXText":false,"skipRegExps":false,"skipStrings":true,"skipTemplates":false}] }
+    ],
+    "no-loss-of-precision": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-misleading-character-class": [
+        { "files": "*", "entry": ["error",{"allowEscape":false}] }
+    ],
+    "no-new-func": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-new-native-nonconstructor": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
+    ],
+    "no-nonoctal-decimal-escape": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-obj-calls": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
+    ],
+    "no-octal": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-param-reassign": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-process-env": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts"], "entry": "error" }
+    ],
+    "no-prototype-builtins": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-redeclare": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": ["error",{"builtinGlobals":true}] }
+    ],
+    "no-regex-spaces": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-restricted-exports": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts"], "entry": [
+                "error",
+                {"restrictDefaultExports":{"direct":true,"named":true,"defaultFrom":true,"namedFrom":true,"namespaceFrom":true}}
+            ] }
+    ],
+    "no-restricted-globals": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts"], "entry": [
+                "error",
+                {"name":"__dirname","message":"`__dirname` is where the bundle runs from, not a path the extension owns. Reach its files through `context.extensionUri`."},
+                {"name":"__filename","message":"`__filename` is where the bundle runs from, not a path the extension owns. Reach its files through `context.extensionUri`."}
+            ] },
+        { "files": ["tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": [
+                "error",
+                {"name":"__dirname","message":"Use `import.meta.dirname` (Node 21.2+) — `__dirname` is CommonJS-only."},
+                {"name":"__filename","message":"Use `import.meta.filename` (Node 21.2+) — `__filename` is CommonJS-only."}
+            ] }
+    ],
+    "no-restricted-imports": [
+        { "files": ["src/extension.ts","src/vscode/commands.ts"], "entry": [
+                "error",
+                {"paths":[{"name":"bcrypt","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"bcryptjs","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"scrypt-js","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"scryptsy","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"crypto-js","message":"Use Node’s built-in `node:crypto` (AES-256-GCM / HMAC-SHA-256), not crypto-js"}],"patterns":[{"group":["../*","./*"],"message":"Use the `@/` alias, not a relative path — `@/composables/feed/useFeed`, not `../../composables/feed/useFeed` or `./useFeed`. Relative paths break silently when a file moves and hide the import depth."}]}
+            ] },
+        { "files": ["e2e/activation.spec.ts"], "entry": [
+                "error",
+                {"paths":[{"name":"bcrypt","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"bcryptjs","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"scrypt-js","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"scryptsy","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"crypto-js","message":"Use Node’s built-in `node:crypto` (AES-256-GCM / HMAC-SHA-256), not crypto-js"},{"name":"assert","message":"Import `node:assert/strict`. The legacy API compares with `==`, so `assert.equal(1, '1')` passes."},{"name":"node:assert","message":"Import `node:assert/strict`. The legacy API compares with `==`, so `assert.equal(1, '1')` passes."}],"patterns":[{"group":["@/*","**/src/*","**/src/**"],"message":"An E2E spec drives the extension the editor loaded, through the `vscode` API. Importing its source bundles a second copy, with state of its own, that the editor never ran."}]}
+            ] },
+        { "files": ["scripts/build.ts"], "entry": [
+                "error",
+                {"paths":[{"name":"bcrypt","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"bcryptjs","message":"Password hashing must use Argon2id (argon2), never bcrypt"},{"name":"scrypt-js","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"scryptsy","message":"Password hashing must use Argon2id (argon2), never scrypt"},{"name":"crypto-js","message":"Use Node’s built-in `node:crypto` (AES-256-GCM / HMAC-SHA-256), not crypto-js"}]}
+            ] }
+    ],
+    "no-restricted-properties": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts"], "entry": [
+                "error",
+                {"object":"process","property":"exit","message":"The extension host is one process for every installed extension: exiting it stops all of them, and the editor reports a crash. Throw, or show the failure and return."}
+            ] }
+    ],
+    "no-restricted-syntax": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts"], "entry": [
+                "error",
+                {"selector":"CallExpression[callee.property.name=/^(trace|debug|info|warn|error)$/] > TemplateLiteral[expressions.length>0]:first-child","message":"No interpolation in the log message — the message must stay low-cardinality so identical events read alike in the Output panel. Pass the variables as arguments: log.warn(\"Kata not found\", { kataId })."},
+                {"selector":"CallExpression[callee.property.name=/^(trace|debug|info|warn|error)$/] Property[key.name=/^(err|error)$/] > MemberExpression[property.name='message']","message":"Log the whole error, not its `message` — the output channel writes the stack and the error’s own fields (an fs error’s `code`), which are the part that tells you what happened."},
+                {"selector":"CatchClause > BlockStatement > ExpressionStatement:has(CallExpression[callee.property.name=/^(error|warn)$/]) + ThrowStatement","message":"Do not log and rethrow — that logs the same failure once per layer. Let it reach the command or event handler that shows it to the person, and log it once there."},
+                {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
+                {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."},
+                {"selector":"MemberExpression[object.type='MetaProperty'][property.name=/^(dirname|filename|url)$/]","message":"The extension is bundled as CommonJS, where `import.meta` is empty, so this reads `undefined` once built while the tests, which run the source, pass. Reach the extension’s own files through `context.extensionUri`, which also works in a remote window."}
+            ] },
+        { "files": ["tests/lib/runner.test.ts"], "entry": [
+                "error",
+                {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
+                {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."},
+                {"selector":"CallExpression[callee.name=\"fileURLToPath\"]","message":"Use `import.meta.dirname` directly with `path.resolve()` instead of the `fileURLToPath` pattern. Modern ES modules support `import.meta.dirname` natively (Node.js 20.11.0+), which is simpler and more readable than converting `import.meta.url` through fileURLToPath."}
+            ] },
+        { "files": ["e2e/activation.spec.ts"], "entry": [
+                "error",
+                {"selector":"CallExpression > MemberExpression.callee[object.name=/^(test|it|describe|suite)$/][property.name='only']","message":"`.only` narrows a `--test-only` run to this case and silently drops the rest. Remove it before committing."},
+                {"selector":"CallExpression > MemberExpression.callee[object.name=/^(test|it|describe|suite)$/][property.name=/^(skip|todo)$/]","message":"A skipped or todo case reports as passing while checking nothing. Fix it or delete it; deferred work goes in the tracker."},
+                {"selector":"CallExpression[callee.name=/^(test|it|describe|suite)$/] > ObjectExpression > Property[key.name=/^(only|skip|todo)$/]","message":"A focused, skipped or todo case reports as passing while checking nothing. Fix it or delete it; deferred work goes in the tracker."},
+                {"selector":"ExportNamedDeclaration[source=null][declaration=null]","message":"Export at the declaration site (`export const foo = …`), not in a detached `export { foo }` block — a detached export disconnects the symbol from its definition and makes rename-refactoring unreliable. Re-export barrels (`export { x } from \"./y\"`) are exempt."},
+                {"selector":"VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]","message":"Name it. Single-letter variables are allowed only for `i`/`j` as loop counters and `_` for an ignored parameter — everywhere else the name is the only thing telling the next reader what the value is."},
+                {"selector":"CallExpression[callee.name=\"fileURLToPath\"]","message":"Use `import.meta.dirname` directly with `path.resolve()` instead of the `fileURLToPath` pattern. Modern ES modules support `import.meta.dirname` natively (Node.js 20.11.0+), which is simpler and more readable than converting `import.meta.url` through fileURLToPath."}
+            ] }
+    ],
+    "no-self-assign": [
+        { "files": "*", "entry": ["error",{"props":true}] }
+    ],
+    "no-self-compare": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-setter-return": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
+    ],
+    "no-shadow-restricted-names": [
+        { "files": "*", "entry": ["error",{"reportGlobalThis":true}] }
+    ],
+    "no-sparse-arrays": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-template-curly-in-string": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-this-before-super": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
+    ],
+    "no-unassigned-vars": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-undef": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": ["error",{"typeof":false}] }
+    ],
+    "no-unmodified-loop-condition": [
+        { "files": "*", "entry": ["error",{"checkConditionalExpressions":false}] }
+    ],
+    "no-unreachable": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
+    ],
+    "no-unreachable-loop": [
+        { "files": "*", "entry": ["error",{"ignore":[]}] }
+    ],
+    "no-unsafe-finally": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-unsafe-negation": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": ["error",{"enforceForOrderingRelations":false}] }
+    ],
+    "no-unsafe-optional-chaining": [
+        { "files": "*", "entry": ["error",{"disallowArithmeticOperators":false}] }
+    ],
+    "no-unused-labels": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-unused-private-class-members": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-assignment": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-backreference": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-call": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-catch": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-computed-key": [
+        { "files": "*", "entry": ["error",{"enforceForClassMembers":true}] }
+    ],
+    "no-useless-concat": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-useless-escape": [
+        { "files": "*", "entry": ["error",{"allowRegexCharacters":[]}] }
+    ],
+    "no-useless-rename": [
+        { "files": "*", "entry": ["error",{"ignoreDestructuring":false,"ignoreImport":false,"ignoreExport":false}] }
+    ],
+    "no-useless-return": [
+        { "files": "*", "entry": "error" }
+    ],
+    "no-var": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "no-warning-comments": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts",".vscode-test.mjs"], "entry": ["error",{"location":"anywhere","terms":["todo","fixme","fix me","hack","xxx","wip","tbd"]}] }
+    ],
+    "no-with": [
+        { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
+    ],
+    "object-shorthand": [
+        { "files": "*", "entry": ["error","always"] }
+    ],
+    "prefer-const": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": ["error",{"destructuring":"all","ignoreReadBeforeAssign":false}] }
+    ],
+    "prefer-rest-params": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "prefer-spread": [
+        { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts","tests/lib/runner.test.ts","e2e/activation.spec.ts","scripts/build.ts"], "entry": "error" }
+    ],
+    "prefer-template": [
+        { "files": "*", "entry": "error" }
+    ],
+    "preserve-caught-error": [
+        { "files": "*", "entry": ["error",{"requireCatchParameter":false,"errorClassNames":[]}] }
+    ],
+    "radix": [
+        { "files": "*", "entry": "error" }
+    ],
+    "require-yield": [
+        { "files": "*", "entry": "error" }
+    ],
+    "use-isnan": [
+        { "files": "*", "entry": ["error",{"enforceForIndexOf":false,"enforceForSwitchCase":true}] }
+    ],
+    "valid-typeof": [
+        { "files": "*", "entry": ["error",{"requireStringLiterals":false}] }
+    ],
+    "vitest/consistent-test-it": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": ["error",{"fn":"test","withinDescribe":"it"}] }
+    ],
+    "vitest/expect-expect": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": ["error",{"assertFunctionNames":["expect","assert"],"additionalTestBlockFunctions":[]}] }
+    ],
+    "vitest/no-commented-out-tests": [
+        { "files": ["tests/lib/runner.test.ts","e2e/activation.spec.ts"], "entry": "error" }
+    ],
+    "vitest/no-conditional-expect": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": ["error",{"expectAssertions":false}] }
+    ],
+    "vitest/no-conditional-in-test": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": "error" }
+    ],
+    "vitest/no-disabled-tests": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": "error" }
+    ],
+    "vitest/no-duplicate-hooks": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": "error" }
+    ],
+    "vitest/no-focused-tests": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": ["error",{"fixable":true}] }
+    ],
+    "vitest/no-identical-title": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": "error" }
+    ],
+    "vitest/no-standalone-expect": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": ["error",{"additionalTestBlockFunctions":[]}] }
+    ],
+    "vitest/no-test-return-statement": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": "error" }
+    ],
+    "vitest/prefer-hooks-on-top": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": "error" }
+    ],
+    "vitest/prefer-to-be": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": "error" }
+    ],
+    "vitest/prefer-to-have-length": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": "error" }
+    ],
+    "vitest/require-awaited-expect-poll": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": "error" }
+    ],
+    "vitest/require-to-throw-message": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": "error" }
+    ],
+    "vitest/valid-describe-callback": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": "error" }
+    ],
+    "vitest/valid-expect": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": ["error",{"alwaysAwait":false,"asyncMatchers":["toReject","toResolve"],"minArgs":1,"maxArgs":1}] }
+    ],
+    "vitest/valid-expect-in-promise": [
+        { "files": ["tests/lib/runner.test.ts"], "entry": "error" }
+    ]
+}
