@@ -20,11 +20,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { inspectE2eLayout, inspectServerErrors, type E2eLayout, type ServerErrorWiring } from './lib/e2e.ts';
 import { repoFiles } from './lib/files.ts';
-import { dependencyNames, recordAt, toRecord } from './lib/json.ts';
+import { recordAt, toRecord } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
-import { inspectServerErrors, type E2eLayout, type ServerErrorWiring } from './lib/server-error-wiring.ts';
 import { callSites, splitTopLevel } from './lib/source.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
@@ -287,48 +287,8 @@ export function inspectTesting(input: TestingInput): TestingInspection {
         }
     }
 
-    // ── 2. A `.spec` file belongs to the E2E runner ─────────────────────────
-    for (const rel of specs) {
-        if (e2e === false) {
-            fail(
-                rel,
-                'a .spec file',
-                'Every test file ends in `.test.ts`. Vitest matches that suffix and nothing else, so a `.spec` file is run by nothing at all while still reading as a test — rename it.',
-            );
-        } else if (!rel.startsWith(`${e2e.dir}/`)) {
-            fail(
-                rel,
-                `a .spec file outside \`${e2e.dir}/\``,
-                `Playwright specs live in \`${e2e.dir}/\`. Anywhere else, no runner picks the file up: Vitest matches \`*.test.ts\`, Playwright only looks under its own testDir — so the suite silently stops running while still looking like a test.`,
-            );
-        }
-    }
-
-    // ── 3. E2E lives where this project said, which may be nowhere ──────────
-    if (e2e === false) {
-        for (const rel of files.filter((f) => f.startsWith('e2e/') || f.startsWith('playwright.config.'))) {
-            fail(
-                rel,
-                'an E2E suite appearing without discussion',
-                'There is deliberately no E2E suite here. The standard asks that adding one back be raised first — so raise it, then turn `e2e` on in this gate along with the paragraph in the contributing guide.',
-            );
-        }
-        for (const dep of dependencyNames(JSON.parse(read('package.json')))) {
-            if (/^(@playwright\/|playwright)/.test(dep)) {
-                fail(
-                    'package.json',
-                    `\`${dep}\` is installed`,
-                    'The same decision arriving through the manifest instead of a config file. An E2E dependency nothing runs is a CI install cost and an unread intent.',
-                );
-            }
-        }
-    } else if (specs.length > 0 && !exists(e2e.config)) {
-        fail(
-            e2e.config,
-            'missing',
-            'E2E tests get their own Playwright config, separate from the Vitest projects. Without it the specs under `e2e/` are run by nothing.',
-        );
-    }
+    // ── 2 and 3. Where E2E lives, which may be nowhere ──────────────────────
+    inspectE2eLayout(e2e, { files, specs }, { read, exists, fail });
 
     // ── 4. The coverage config, ratcheted ───────────────────────────────────
     const configSrc = read(config);
