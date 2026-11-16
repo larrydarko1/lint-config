@@ -227,6 +227,40 @@ test('`allowScripts` is known and sorts with the dependency policy, after `resol
     assert.equal(result.problems.length, 0, whats(result));
 });
 
+test('an editor extension manifest in sort-package-json order passes', (t) => {
+    const result = run(t, {
+        'package.json': JSON.stringify({
+            name: 'tally',
+            displayName: 'Tally',
+            version: '1.2.3',
+            description: 'a thing',
+            categories: ['Other'],
+            license: 'MIT',
+            publisher: 'someone',
+            type: 'module',
+            main: './out/extension.cjs',
+            scripts: { build: 'node scripts/build.ts' },
+            contributes: { commands: [] },
+            activationEvents: [],
+            capabilities: { untrustedWorkspaces: { supported: true }, virtualWorkspaces: false },
+            extensionDependencies: [],
+            engines: { vscode: '^1.100.0' },
+            private: true,
+            icon: 'resources/icon.png',
+            galleryBanner: { color: '#000000' },
+        }),
+    });
+    assert.equal(result.problems.length, 0, whats(result));
+});
+
+test('the editor reads `contributes` after `scripts`, where sort-package-json puts it', (t) => {
+    const result = run(t, {
+        'package.json':
+            '{\n"name":"tally",\n"version":"1.2.3",\n"description":"a thing",\n"license":"MIT",\n"type":"module",\n"contributes":{},\n"scripts":{},\n"private":true\n}\n',
+    });
+    assert.match(whats(result), /field order diverges at `contributes` \(expected `scripts`\)/);
+});
+
 test('a field the order list does not know fails', (t) => {
     const result = run(t, { 'package.json': manifest({ ...GOOD, wibble: 1 }) });
     assert.match(whats(result), /does not know where to sort: wibble/);

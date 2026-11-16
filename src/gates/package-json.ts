@@ -68,18 +68,28 @@ type Manifest = {
 const MANIFEST_SHAPE_WHY =
     'npm refuses it: `workspaces` is a list of folders, each dependency a version string, `build` a map. Every rule below would be reading a shape it does not have.';
 
-/** The canonical field order, after sort-package-json. A field absent from this list fails. */
+/**
+ * The canonical field order, after sort-package-json. A field absent from this list fails.
+ * An editor extension's package.json is also its manifest, so the VS Code fields are here
+ * too, each where sort-package-json puts it; the ones it does not know sit beside their kin.
+ */
 export const CANONICAL_ORDER: string[] = [
     'name',
+    'displayName',
     'version',
     'description',
+    'categories',
     'keywords',
     'homepage',
     'bugs',
     'license',
+    'qna',
     'author',
     'contributors',
     'funding',
+    'sponsor',
+    'publisher',
+    'pricing',
     'type',
     'files',
     'main',
@@ -97,6 +107,14 @@ export const CANONICAL_ORDER: string[] = [
     'directories',
     'repository',
     'scripts',
+    // What the editor reads to load the extension: its strings, what it adds, when it starts, where it may run.
+    'l10n',
+    'contributes',
+    'activationEvents',
+    'capabilities',
+    'extensionKind',
+    'api',
+    'enabledApiProposals',
     'config',
     'dependencies',
     'devDependencies',
@@ -104,6 +122,8 @@ export const CANONICAL_ORDER: string[] = [
     'peerDependenciesMeta',
     'optionalDependencies',
     'bundleDependencies',
+    'extensionPack',
+    'extensionDependencies',
     'overrides',
     'resolutions',
     // npm's install-script allow-list: dependency policy, read with the overrides above it.
@@ -120,6 +140,13 @@ export const CANONICAL_ORDER: string[] = [
     'browserslist',
     'build',
     'lint-staged',
+    'vsce',
+    // How the marketplace presents an extension.
+    'icon',
+    'badges',
+    'galleryBanner',
+    'preview',
+    'markdown',
 ];
 
 /** Ranges that are not a version at all — a workspace link, a tarball, a git URL. */
