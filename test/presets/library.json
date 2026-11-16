@@ -74,7 +74,7 @@
                 {"selector":"property","format":["camelCase","UPPER_CASE"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
                 {"selector":"property","modifiers":["requiresQuotes"],"format":null},
                 {"selector":"objectLiteralProperty","format":["camelCase","UPPER_CASE","PascalCase","snake_case"],"leadingUnderscore":"allow","trailingUnderscore":"forbid"},
-                {"selector":"objectLiteralProperty","modifiers":["requiresQuotes"],"format":null},
+                {"selector":["objectLiteralProperty","objectLiteralMethod"],"modifiers":["requiresQuotes"],"format":null},
                 {"selector":"typeLike","format":["PascalCase"]},
                 {"selector":"enumMember","format":["UPPER_CASE"]},
                 {"selector":"typeParameter","format":["PascalCase"],"prefix":["T"]}

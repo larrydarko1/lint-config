@@ -6,12 +6,13 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ESLint } from 'eslint';
+import { ESLint, Linter } from 'eslint';
 import vuePlugin from 'eslint-plugin-vue';
 import ts from 'typescript-eslint';
 
 import { larry } from '../src/eslint/index.ts';
 import { PRESETS, resolvePaths } from '../src/eslint/presets.ts';
+import { NAMING_CONVENTION } from '../src/eslint/rules/naming.ts';
 import { larryPlugin } from '../src/eslint/rules/larry-plugin.ts';
 import { vueStandards } from '../src/eslint/rules/vue.ts';
 
@@ -256,4 +257,22 @@ test('a cast in a Vue template is an error, since the typed cast rule only reads
 
     assert.ok((await ruleIds('<p>{{ (p as number) + 1 }}</p>')).includes('vue/no-restricted-syntax'));
     assert.ok(!(await ruleIds('<p>{{ p }}</p>')).includes('vue/no-restricted-syntax'));
+});
+
+test('a quoted object key is exempt from the naming convention, whether its value is data or a function', () => {
+    const namingErrors = (code) =>
+        new Linter({ configType: 'flat' }).verify(
+            code,
+            [
+                {
+                    files: ['**/*.ts'],
+                    languageOptions: { parser: ts.parser },
+                    plugins: { '@typescript-eslint': ts.plugin },
+                    rules: { '@typescript-eslint/naming-convention': NAMING_CONVENTION },
+                },
+            ],
+            'thing.ts',
+        );
+    assert.deepEqual(namingErrors("export const byFamily = { 'vs-extension': 1, 'my-fn': (): number => 1 };"), []);
+    assert.equal(namingErrors('export const byFamily = { my_fn: (): number => 1 };').length, 1);
 });
