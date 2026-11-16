@@ -391,11 +391,11 @@ export function larry(options: LarryOptions): Linter.Config[] {
     ];
 }
 
-/** Bundled code omits `.ts`; code Node runs directly must name it. */
 /** eslint.config.js is plain JS, so `larry()` with no argument must fail readably, not deep inside. */
 const hasRootDir = (options: unknown): boolean =>
     options instanceof Object && 'rootDir' in options && typeof options.rootDir === 'string' && options.rootDir !== '';
 
+/** Bundled code omits `.ts`; code Node runs directly must name it. */
 const importExtensionBlocks = (option: boolean | ImportExtensionsOptions): Linter.Config[] => {
     const { nodeRun = [] } = typeof option === 'object' ? option : {};
     return [
