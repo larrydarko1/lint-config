@@ -250,6 +250,30 @@ test('the scripts CI runs include typecheck and test when the project has them',
     assert.ok(!fs.existsSync(path.join(root, '.stylelintrc.mjs')), 'a library has no styles');
 });
 
+test('an extension builds into out/, ships an allowlist, and names its entry to knip and dead-code', (t) => {
+    const root = repo(t, { 'src/extension.ts': 'export function activate(): void {}\n' });
+    const result = larry(root, 'init', 'vs-extension', '--distribution', 'open');
+    assert.equal(result.code, 0, result.err);
+    assert.equal(read(root, '.vscodeignore'), '**\n!package.json\n!README.md\n!LICENSE\n!out/extension.cjs\n');
+    assert.deepEqual(read(root, '.gitignore').split('\n'), [
+        'node_modules',
+        'out',
+        '.vscode-test',
+        '*.vsix',
+        '.env',
+        '',
+    ]);
+    assert.match(read(root, '.prettierignore'), /^out$/m);
+    assert.match(read(root, 'knip.config.js'), /entry: \['src\/extension\.ts!'\]/);
+    assert.match(read(root, 'larry.config.ts'), /'dead-code': \{ publicApi: \['src\/extension\.ts'\] \}/);
+    assert.match(
+        read(root, 'eslint.config.js'),
+        /import \{ vsExtensionStandards \} from '@larrydarko\/lint-config\/eslint\/vs-extension';/,
+    );
+    assert.match(result.out, /Name the icon and anything else the extension reads at run time/);
+    assert.ok(!fs.existsSync(path.join(root, '.stylelintrc.mjs')), 'an extension has no styles of its own');
+});
+
 test('CI installs the floor of engines.node: the one declared, else the family default', (t) => {
     const nodeOf = (root) => /node-version: (\d+)/.exec(read(root, '.github/workflows/ci.yml'))?.[1];
     const enginesOf = (root) => JSON.parse(read(root, 'package.json')).engines;

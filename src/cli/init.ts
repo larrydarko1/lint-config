@@ -199,6 +199,11 @@ function nextSteps(root: string, family: PresetName, manifest: Manifest, result:
             'eslint.config.js names the folders init found, since the base family assumes none. Add the rest of the code to `paths`: a folder named there that does not exist fails the config.',
         );
     }
+    if (result.written.includes('.vscodeignore')) {
+        next.push(
+            '.vscodeignore ships package.json, README.md, LICENSE and out/extension.cjs. Name the icon and anything else the extension reads at run time with `!`.',
+        );
+    }
     if (UI_FAMILIES.includes(family) && result.written.includes('.stylelintrc.mjs')) {
         next.push(
             ".stylelintrc.mjs uses the defaults. The README's Stylelint table lists the options a UI usually sets.",

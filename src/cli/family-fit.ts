@@ -8,9 +8,10 @@ import { isRecord } from '../gates/lib/json.ts';
 
 /**
  * A dependency only one kind of project has, and the family for it. In this order, since
- * an Electron or Tauri app depends on Vue too.
+ * an Electron or Tauri app depends on Vue too, and an extension's webview may.
  */
 const FAMILY_DEPENDENCIES: [family: PresetName, dependency: string][] = [
+    ['vs-extension', '@types/vscode'],
     ['electron', 'electron'],
     ['tauri', '@tauri-apps/api'],
     ['spa', 'vue'],
