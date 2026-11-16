@@ -243,15 +243,14 @@ export function inspectPackageJson({
                     'electron-vite builds into out/. Pointing main at src/ ships TypeScript to a runtime that cannot read it.',
                 );
             }
-            if (mainInput !== null) {
-                const expected = `out/${(mainInput[1] ?? '').replace(/^src\//, '').replace(/\.ts$/, '.js')}`;
-                if (rootPkg.main !== expected) {
-                    fail(
-                        'package.json',
-                        `\`main\` is "${rootPkg.main}" but electron-vite emits "${expected}"`,
-                        'A packaging-only failure: dev works because electron-vite launches the process itself, so this surfaces first as an installer that opens to nothing.',
-                    );
-                }
+            const expected =
+                mainInput === null ? null : `out/${(mainInput[1] ?? '').replace(/^src\//, '').replace(/\.ts$/, '.js')}`;
+            if (expected !== null && rootPkg.main !== expected) {
+                fail(
+                    'package.json',
+                    `\`main\` is "${rootPkg.main}" but electron-vite emits "${expected}"`,
+                    'A packaging-only failure: dev works because electron-vite launches the process itself, so this surfaces first as an installer that opens to nothing.',
+                );
             }
         }
     }

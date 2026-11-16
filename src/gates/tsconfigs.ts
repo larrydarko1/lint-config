@@ -514,13 +514,13 @@ export function inspectTsconfigs({
                     ? flags.filter((arg) => !arg.startsWith('-'))
                     : [/(?:-p|--project)\s+(\S+)/.exec(segment)?.[1]].filter((arg) => arg !== undefined);
 
-                for (const specifier of named.length > 0 ? named : ['tsconfig.json']) {
-                    const rel = toConfigPath(specifier, dir);
-                    if (building) addWithReferences(rel, reached);
-                    else {
-                        reached.add(rel);
-                        pointed.add(rel);
-                    }
+                const rels = (named.length > 0 ? named : ['tsconfig.json']).map((specifier) =>
+                    toConfigPath(specifier, dir),
+                );
+                for (const rel of building ? rels : []) addWithReferences(rel, reached);
+                for (const rel of building ? [] : rels) {
+                    reached.add(rel);
+                    pointed.add(rel);
                 }
             }
         }

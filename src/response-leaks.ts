@@ -84,12 +84,11 @@ export async function sensitiveValues(
     for (const [collection, fields] of Object.entries(sensitive)) {
         const projection = Object.fromEntries(fields.map((field) => [field, 1 as const]));
         const docs = await db.collection(collection).find({}, { projection }).toArray();
-        for (const doc of docs) {
-            for (const field of fields) {
-                for (const value of stringsIn(valueAt(doc, field))) {
-                    if (value.length >= minLength) values.set(value, `${collection}.${field}`);
-                }
-            }
+        const held = docs.flatMap((doc) =>
+            fields.flatMap((field) => stringsIn(valueAt(doc, field)).map((value) => ({ field, value }))),
+        );
+        for (const { field, value } of held.filter((entry) => entry.value.length >= minLength)) {
+            values.set(value, `${collection}.${field}`);
         }
     }
     return values;

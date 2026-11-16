@@ -410,14 +410,12 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
         }
         for (const rel of serverFiles) {
             const src = code(rel);
-            for (const helper of helpers) {
-                if (new RegExp(String.raw`await\s+${helper}\(`).test(src)) {
-                    fail(
-                        rel,
-                        `awaits ${helper}()`,
-                        "Socket emits are fire-and-forget. Awaiting one couples the request to the socket layer's latency and failures — persist first, then emit, and never wait for it.",
-                    );
-                }
+            for (const helper of helpers.filter((name) => new RegExp(String.raw`await\s+${name}\(`).test(src))) {
+                fail(
+                    rel,
+                    `awaits ${helper}()`,
+                    "Socket emits are fire-and-forget. Awaiting one couples the request to the socket layer's latency and failures — persist first, then emit, and never wait for it.",
+                );
             }
         }
     }

@@ -109,20 +109,17 @@ export function inspectContrast(input: ContrastInput): ContrastInspection {
                 );
             }
         }
-        for (const fg of text) {
-            for (const bg of backgrounds) {
-                const [fgValue, bgValue] = [colours.get(fg), colours.get(bg)];
-                if (fgValue === undefined || bgValue === undefined || !HEX.test(fgValue) || !HEX.test(bgValue))
-                    continue;
-                const ratio = contrastRatio(fgValue, bgValue);
-                pairs.push({ palette, text: fg, background: bg, ratio });
-                if (ratio < minRatio) {
-                    fail(
-                        themeFile,
-                        `\`${palette}\`: ${fg} (${fgValue}) on ${bg} (${bgValue}) is ${ratio.toFixed(2)}:1, under ${minRatio}:1`,
-                        'Text a reader cannot make out. Darken the text token or lighten the background, in this palette only.',
-                    );
-                }
+        for (const [fg, bg] of text.flatMap((fg) => backgrounds.map((bg) => [fg, bg] as const))) {
+            const [fgValue, bgValue] = [colours.get(fg), colours.get(bg)];
+            if (fgValue === undefined || bgValue === undefined || !HEX.test(fgValue) || !HEX.test(bgValue)) continue;
+            const ratio = contrastRatio(fgValue, bgValue);
+            pairs.push({ palette, text: fg, background: bg, ratio });
+            if (ratio < minRatio) {
+                fail(
+                    themeFile,
+                    `\`${palette}\`: ${fg} (${fgValue}) on ${bg} (${bgValue}) is ${ratio.toFixed(2)}:1, under ${minRatio}:1`,
+                    'Text a reader cannot make out. Darken the text token or lighten the background, in this palette only.',
+                );
             }
         }
     }

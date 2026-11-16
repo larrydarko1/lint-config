@@ -353,20 +353,18 @@ export function inspectScssStandards({
         ...Object.keys(componentLocalVars),
         ...styleFiles.flatMap((rel) => cssCustomProps(stripComments(read(rel)))),
     ]);
-    if (declared.size > 0) {
-        const unresolved = new Map<string, string>();
-        for (const rel of styleFiles) {
-            for (const [, token = ''] of stripComments(read(rel)).matchAll(/var\(\s*--([a-z0-9-]+)/gi)) {
-                if (!declared.has(token) && !unresolved.has(token)) unresolved.set(token, rel);
-            }
+    const unresolved = new Map<string, string>();
+    for (const rel of declared.size > 0 ? styleFiles : []) {
+        for (const [, token = ''] of stripComments(read(rel)).matchAll(/var\(\s*--([a-z0-9-]+)/gi)) {
+            if (!declared.has(token) && !unresolved.has(token)) unresolved.set(token, rel);
         }
-        for (const [token, rel] of unresolved) {
-            fail(
-                rel,
-                `uses \`var(--${token})\`, which nothing declares`,
-                'Not in the fallback layer, not in any palette, and not listed as component-local in this gate. It resolves to nothing — the property is simply dropped.',
-            );
-        }
+    }
+    for (const [token, rel] of unresolved) {
+        fail(
+            rel,
+            `uses \`var(--${token})\`, which nothing declares`,
+            'Not in the fallback layer, not in any palette, and not listed as component-local in this gate. It resolves to nothing — the property is simply dropped.',
+        );
     }
 
     // ── 8. No Sass colour maths on a runtime token ──────────────────────────

@@ -157,11 +157,13 @@ export function readPalettes({
         )) {
             const tokens = new Set(cssCustomProps(body));
             if (tokens.size === 0) continue;
-            for (const sel of selectors.split(',').map((s) => s.trim())) {
-                const named = /\[data-theme=['"]([a-z0-9-]+)['"]\]|#app\.([a-z0-9-]+)/.exec(sel);
-                if (named === null) fallback = tokens;
-                else palettes.set(named[1] ?? named[2] ?? '', tokens);
-            }
+            const names = selectors
+                .split(',')
+                .map((sel) => /\[data-theme=['"]([a-z0-9-]+)['"]\]|#app\.([a-z0-9-]+)/.exec(sel.trim()))
+                .map((named) => (named === null ? null : (named[1] ?? named[2] ?? '')));
+            // A selector naming no theme is `:root`, the fallback layer.
+            if (names.includes(null)) fallback = tokens;
+            for (const name of names.filter((named) => named !== null)) palettes.set(name, tokens);
         }
         if (fallback === undefined) {
             fail(
@@ -186,14 +188,12 @@ export function readPalettes({
                     'It is the home for colours that do not fork. Empty, it is a file that only looks like it is doing something.',
                 );
             }
-            for (const token of invariant) {
-                if (fallback?.has(token) === true) {
-                    fail(
-                        themes.invariantFile,
-                        `declares \`--${token}\`, which the palette file also declares`,
-                        'Two declarations, and the palette file loads last — so the invariant one silently never applies. Only one file can own a token; whichever is wrong, this is not a merge.',
-                    );
-                }
+            for (const token of [...invariant].filter((name) => fallback?.has(name) === true)) {
+                fail(
+                    themes.invariantFile,
+                    `declares \`--${token}\`, which the palette file also declares`,
+                    'Two declarations, and the palette file loads last — so the invariant one silently never applies. Only one file can own a token; whichever is wrong, this is not a merge.',
+                );
             }
         }
     } else {

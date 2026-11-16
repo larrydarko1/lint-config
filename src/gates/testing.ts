@@ -594,26 +594,25 @@ function inspectServerErrors(wiring: ServerErrorWiring, e2e: E2eLayout, specs: s
                 'never creates a server-error recorder',
                 'A test that checks what it came to check walks straight past a 500 on the side: the page still renders, a spinner just never stops. The recorder watches every API response and fails the test that received a 5xx.',
             );
-        } else {
-            if (!created.some((args) => /\blogFile\b/.test(args))) {
+        }
+        if (created.length > 0 && !created.some((args) => /\blogFile\b/.test(args))) {
+            fail(
+                fixtures,
+                "creates the server-error recorder without the API's `logFile`",
+                'Without the log, a failure says that a request failed but not why. With it, the failure carries what the API logged for that request id: the error, its message and the line it came from.',
+            );
+        }
+        const name = recorderName(source);
+        for (const [method, what] of [
+            ['watch', 'never watches a browser context'],
+            ['drain', 'never drains the recorder'],
+        ] as const) {
+            if (created.length > 0 && !new RegExp(`\\b${name}\\s*\\.\\s*${method}\\s*\\(`).test(source)) {
                 fail(
                     fixtures,
-                    "creates the server-error recorder without the API's `logFile`",
-                    'Without the log, a failure says that a request failed but not why. With it, the failure carries what the API logged for that request id: the error, its message and the line it came from.',
+                    `${what} for server errors`,
+                    'The recorder sees only the contexts it watches, and fails a test only when it is drained after it. Watch the context every test gets, and drain in an `auto` fixture.',
                 );
-            }
-            const name = recorderName(source);
-            for (const [method, what] of [
-                ['watch', 'never watches a browser context'],
-                ['drain', 'never drains the recorder'],
-            ] as const) {
-                if (!new RegExp(`\\b${name}\\s*\\.\\s*${method}\\s*\\(`).test(source)) {
-                    fail(
-                        fixtures,
-                        `${what} for server errors`,
-                        'The recorder sees only the contexts it watches, and fails a test only when it is drained after it. Watch the context every test gets, and drain in an `auto` fixture.',
-                    );
-                }
             }
         }
     }

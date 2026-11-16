@@ -352,6 +352,7 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
                       ? object.identifier
                       : '';
             const scoped = object === null ? [] : scopedPaths(object);
+            const dir = FS_DIRS.exec(id)?.[1];
             if (PROGRAM_RUNNERS.includes(id)) {
                 fail(
                     file,
@@ -376,26 +377,24 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
                     `grants the bundle \`${id}\``,
                     'It grants every command in the group, used or not. Grant the commands the app calls, one by one.',
                 );
-            } else {
-                const dir = FS_DIRS.exec(id)?.[1];
-                if (dir !== undefined && !OWN_DIR.test(dir)) {
-                    fail(
-                        file,
-                        `grants \`${id}\``,
-                        `That scope is the user’s \`$${dir.toUpperCase()}\`, not the app’s own directories. A file the user picks needs no static scope: the dialog adds it.`,
-                    );
-                }
+            } else if (dir !== undefined && !OWN_DIR.test(dir)) {
+                fail(
+                    file,
+                    `grants \`${id}\``,
+                    `That scope is the user’s \`$${dir.toUpperCase()}\`, not the app’s own directories. A file the user picks needs no static scope: the dialog adds it.`,
+                );
             }
-            for (const entry of scoped) {
-                if (id.startsWith('fs:') ? !OWN_PATH.test(entry) || entry.includes('..') : isWideScope(entry)) {
-                    fail(
-                        file,
-                        `scopes \`${id}\` to \`${entry}\``,
-                        id.startsWith('fs:')
-                            ? 'A static fs scope is for the app’s own directories (`$APPDATA/**`). The files a user picks are added by the dialog plugin, for the session.'
-                            : 'That reaches the whole disk or the whole home directory. Name the directories the app needs.',
-                    );
-                }
+            const tooWide = scoped.filter((entry) =>
+                id.startsWith('fs:') ? !OWN_PATH.test(entry) || entry.includes('..') : isWideScope(entry),
+            );
+            for (const entry of tooWide) {
+                fail(
+                    file,
+                    `scopes \`${id}\` to \`${entry}\``,
+                    id.startsWith('fs:')
+                        ? 'A static fs scope is for the app’s own directories (`$APPDATA/**`). The files a user picks are added by the dialog plugin, for the session.'
+                        : 'That reaches the whole disk or the whole home directory. Name the directories the app needs.',
+                );
             }
         }
     }

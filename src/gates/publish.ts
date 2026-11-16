@@ -121,8 +121,8 @@ export function inspectPublish(input: PublishOptions = {}): PublishInspection {
         const unpacked = new Set<string>();
         for (const [field, target, subpath] of namedFiles(pkg, entries)) {
             const file = path.posix.normalize(target);
+            if (!shipped.has(file) && subpath !== null) unpacked.add(subpath);
             if (!shipped.has(file)) {
-                if (subpath !== null) unpacked.add(subpath);
                 fail(
                     'package.json',
                     `\`${field}\` names ${file}, which is not in the tarball`,

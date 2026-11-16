@@ -215,8 +215,7 @@ export function inspectEnvDrift(input: EnvDriftInput): EnvDriftInspection {
         const own = schemaFieldKeys(source);
 
         for (const [, name = ''] of source.matchAll(/\.\.\.(\w+)/g)) {
-            for (const key of fragments[name] ?? []) {
-                if (!own.has(key)) continue;
+            for (const key of [...(fragments[name] ?? [])].filter((field) => own.has(field))) {
                 fail(
                     service.config,
                     `redeclares ${key}, which it already gets from \`...${name}\``,
@@ -273,31 +272,29 @@ export function inspectEnvDrift(input: EnvDriftInput): EnvDriftInspection {
     }
 
     // ── 8. .env is ignored, .env.example is not ──────────────────────────────
-    if (gitignore) {
-        for (const service of services) {
-            if (service.local !== undefined) {
-                const ignoredLocal = gitIgnores(root, service.local);
-                if (ignoredLocal === null) {
-                    warnings.push(
-                        `Could not ask git whether ${service.local} is ignored (no repository here?), so that rule did not run.`,
-                    );
-                } else if (!ignoredLocal) {
-                    fail(
-                        '.gitignore',
-                        `does not ignore \`${service.local}\``,
-                        'The real env holds live secrets. Committing one publishes every key at once, and deleting the line later does not remove it from the history.',
-                    );
-                }
-            }
-
-            const ignoredExample = gitIgnores(root, service.example);
-            if (ignoredExample === true) {
+    for (const service of gitignore ? services : []) {
+        if (service.local !== undefined) {
+            const ignoredLocal = gitIgnores(root, service.local);
+            if (ignoredLocal === null) {
+                warnings.push(
+                    `Could not ask git whether ${service.local} is ignored (no repository here?), so that rule did not run.`,
+                );
+            } else if (!ignoredLocal) {
                 fail(
                     '.gitignore',
-                    `ignores \`${service.example}\``,
-                    'A broad `*.env` rule swallows the example too, so the file each service documents its keys in stops being committed — and the drift check above silently has nothing left to compare against.',
+                    `does not ignore \`${service.local}\``,
+                    'The real env holds live secrets. Committing one publishes every key at once, and deleting the line later does not remove it from the history.',
                 );
             }
+        }
+
+        const ignoredExample = gitIgnores(root, service.example);
+        if (ignoredExample === true) {
+            fail(
+                '.gitignore',
+                `ignores \`${service.example}\``,
+                'A broad `*.env` rule swallows the example too, so the file each service documents its keys in stops being committed — and the drift check above silently has nothing left to compare against.',
+            );
         }
     }
 
