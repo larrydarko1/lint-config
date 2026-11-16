@@ -203,6 +203,19 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
                 `no longer exports ${name}`,
                 'This gate and the migrations both read it by name, so the export is an interface rather than an implementation detail.',
             );
+            continue;
+        }
+        const isEntry =
+            name === collectionsExport ? (entry: unknown): boolean => typeof entry === 'string' : isIndexSpec;
+        const wrong = listAt(registry, name).filter((entry) => !isEntry(entry)).length;
+        if (!Array.isArray(registry[name]) || wrong > 0) {
+            fail(
+                manifest,
+                Array.isArray(registry[name])
+                    ? `${name} holds ${plural(wrong, 'entry', 'entries')} of the wrong shape`
+                    : `exports ${name} as something other than a list`,
+                'The gate cannot read such an entry, so nothing checks it. A collection is a name, and an index entry names its collection, with its keys, options and why, when given, of the documented types.',
+            );
         }
     }
     if (problems.length > 0) return { problems, warnings, collections: [], indexes: 0, migrations: 0 };

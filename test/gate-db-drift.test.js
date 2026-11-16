@@ -230,6 +230,24 @@ test('a renamed export is reported', async (t) => {
     assert.deepEqual(whats(result), ['no longer exports INDEXES']);
 });
 
+test('a registry entry of the wrong shape is reported, not skipped', async (t) => {
+    const manifest = MANIFEST.replace("'RefreshTokens'] as const", "'RefreshTokens', 7] as const").replace(
+        "    { collection: 'Users', keys: { email: 1 }",
+        "    { collection: 42, keys: { email: 1 }, why: 'x' },\n    { collection: 'Users', keys: { email: 1 }",
+    );
+    const result = await run(t, good({ 'packages/shared/src/db/indexes.ts': manifest }));
+    assert.deepEqual(whats(result), [
+        'COLLECTIONS holds 1 entry of the wrong shape',
+        'INDEXES holds 1 entry of the wrong shape',
+    ]);
+});
+
+test('a registry export that is not a list is reported', async (t) => {
+    const manifest = MANIFEST.replace(/export const INDEXES[\s\S]*$/, 'export const INDEXES = {};\n');
+    const result = await run(t, good({ 'packages/shared/src/db/indexes.ts': manifest }));
+    assert.deepEqual(whats(result), ['exports INDEXES as something other than a list']);
+});
+
 test('several index exports are all read', async (t) => {
     const manifest = `${MANIFEST}\nexport const EXTRA_INDEXES: IndexSpec[] = [\n    { collection: 'Users', keys: { username: 1 }, why: 'Profile pages resolve a username.' },\n];\n`;
     const result = await run(
