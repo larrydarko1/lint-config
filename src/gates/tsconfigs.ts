@@ -16,9 +16,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { walkFiles } from './lib/files.ts';
+import { recordAt, stringsAt } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, type GateFailure } from './lib/report.ts';
 import { stripComments } from './lib/strip-comments.ts';
+import { isTsconfigJson, type CompilerOptions, type TsconfigJson } from './lib/tsconfig-json.ts';
 
 export type TsconfigsOptions = {
     /** Defaults to the repo root resolved from the process cwd. */
@@ -53,23 +55,15 @@ type TsconfigsInspection = {
 
 type TsconfigsInput = Omit<TsconfigsOptions, 'root'> & { root: string };
 
-/** compilerOptions, naming only the settings this gate reads by name. */
-type CompilerOptions = Record<string, unknown> & { types?: string[]; lib?: string[] };
-
-/** A tsconfig as JSON — the keys this gate reads. */
-type TsconfigJson = {
-    extends?: string | string[];
-    compilerOptions?: CompilerOptions;
-    files?: string[];
-    references?: { path: string }[];
-};
-
 type ParsedConfig = {
     raw: string;
     data: TsconfigJson;
     own: CompilerOptions;
     options: CompilerOptions | undefined;
 };
+
+const TSCONFIG_SHAPE_WHY =
+    'tsc refuses it before compiling anything: `extends` and `files` are strings or lists of them, `compilerOptions` a map, each reference a `{ path }`.';
 
 /** The checking flags the base must hold, at their strict value. A project may differ, with a reason. */
 export const BASE_FLAGS: Record<string, boolean> = {
@@ -150,13 +144,10 @@ export function inspectTsconfigs({
     browserSources = [],
     nonEmitting = [],
 }: TsconfigsInput): TsconfigsInspection {
-    const problems: GateFailure[] = [];
-    const fail = (file: string, what: string, why: string): void => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
     const ignored = new Set([...DEFAULT_IGNORED, ...ignore]);
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
 
     const configs = new Map(listConfigs('.').map((rel) => [rel, parse(rel)]));
     const baseConfig = configs.get(base);
@@ -246,8 +237,9 @@ export function inspectTsconfigs({
 
     // ── 4. A declared target names the same ES year as its lib ──────────────
     for (const [rel, cfg] of projects) {
-        const { target, lib } = cfg.own;
+        const { target } = cfg.own;
         if (target === undefined) continue;
+        const lib = cfg.own['lib'] === undefined ? undefined : stringsAt(cfg.own, 'lib');
         const targetText = typeof target === 'string' ? target : JSON.stringify(target);
         if (lib === undefined) {
             fail(
@@ -267,7 +259,7 @@ export function inspectTsconfigs({
     // ── 5. Every project declares `types` ───────────────────────────────────
     // The default is every hoisted `@types/*` package, not none.
     for (const [rel, cfg] of projects) {
-        if (cfg.own.types === undefined) {
+        if (cfg.own['types'] === undefined) {
             fail(
                 rel,
                 'does not declare `types`',
@@ -277,10 +269,10 @@ export function inspectTsconfigs({
     }
     for (const rel of nodeTyped) {
         const own = configs.get(rel)?.own;
-        if (own !== undefined && JSON.stringify(own.types) !== JSON.stringify(['node'])) {
+        if (own !== undefined && JSON.stringify(own['types']) !== JSON.stringify(['node'])) {
             fail(
                 rel,
-                `declares types ${JSON.stringify(own.types)}`,
+                `declares types ${JSON.stringify(own['types'])}`,
                 'A Node service takes `["node"]` and nothing else — no DOM lib, no test globals in the shipped program.',
             );
         }
@@ -291,14 +283,14 @@ export function inspectTsconfigs({
     for (const rel of browserProjects) {
         const cfg = configs.get(rel);
         if (cfg === undefined) continue;
-        if ((cfg.own.types ?? []).includes('node') && !hasReason(cfg.raw, 'types')) {
+        if (stringsAt(cfg.own, 'types').includes('node') && !hasReason(cfg.raw, 'types')) {
             fail(
                 rel,
                 'declares `node` in `types` with no reason',
                 'Everything a browser program may touch arrives over the network or the preload bridge. Typing Node globals in makes unreachable APIs compile. If something forces it, write what — and see `browserSources`, which checks what the code actually does.',
             );
         }
-        const libs = cfg.own.lib ?? [];
+        const libs = stringsAt(cfg.own, 'lib');
         if (libs.some((entry) => !/^(es|dom)/i.test(entry))) {
             fail(rel, `declares lib ${JSON.stringify(libs)}`, 'A browser program takes ES and DOM libraries only.');
         }
@@ -308,7 +300,7 @@ export function inspectTsconfigs({
     // A dependency's `/// <reference types="node" />` brings Node in without a declaration.
     for (const rel of walkFiles(root, browserSources, {
         match: /\.(?:vue|[cm]?tsx?)$/,
-        exclude: (p) => IS_TEST.test(p) || TEST_FILE.test(p) || p.endsWith('.d.ts'),
+        exclude: (p): boolean => IS_TEST.test(p) || TEST_FILE.test(p) || p.endsWith('.d.ts'),
     })) {
         const source = stripComments(fs.readFileSync(path.join(root, rel), 'utf8'));
         for (const [, specifier = ''] of source.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)) {
@@ -410,16 +402,17 @@ export function inspectTsconfigs({
     /** A config as text and data: `options` includes ancestors, `own` is only this file (rules 3–6). */
     function parse(rel: string): ParsedConfig {
         const raw = read(rel);
-        let data: TsconfigJson;
+        let data: TsconfigJson = {};
         try {
-            data = JSON.parse(stripComments(raw));
+            const json: unknown = JSON.parse(stripComments(raw));
+            if (isTsconfigJson(json)) data = json;
+            else fail(rel, 'is not a tsconfig tsc can read', TSCONFIG_SHAPE_WHY);
         } catch (e) {
             fail(
                 rel,
                 `is not parseable JSON (${e instanceof Error ? e.message : String(e)})`,
                 'tsc reads JSONC — comments are fine, a trailing comma is not.',
             );
-            data = {};
         }
         return { raw, data, own: data.compilerOptions ?? {}, options: effective(rel, data) };
     }
@@ -434,7 +427,8 @@ export function inspectTsconfigs({
             const parent = resolveExtends(specifier, rel);
             if (parent === null) continue; // an unresolvable parent is tsc's complaint
             try {
-                inherited = { ...inherited, ...effective(parent, JSON.parse(stripComments(read(parent))), seen) };
+                const json: unknown = JSON.parse(stripComments(read(parent)));
+                if (isTsconfigJson(json)) inherited = { ...inherited, ...effective(parent, json, seen) };
             } catch {
                 continue;
             }
@@ -480,7 +474,7 @@ export function inspectTsconfigs({
      * Single-line comment blocks, which is what a section divider is. A
      * multi-line block is prose about the setting under it and is left alone.
      */
-    function sectionsOf(raw: string) {
+    function sectionsOf(raw: string): { line: number; name: string }[] {
         return raw
             .split('\n')
             .map((line, i) => ({ line: i + 1, text: line.trim() }))
@@ -500,13 +494,15 @@ export function inspectTsconfigs({
      * (`-p`, `-b` plus references, or the default `tsconfig.json`). `pointed` is
      * the subset named without build mode, for rule 8.
      */
-    function reachableConfigs() {
+    function reachableConfigs(): { reached: Set<string>; pointed: Set<string> } {
         const reached = new Set<string>();
         const pointed = new Set<string>();
 
         for (const dir of ['.', ...workspaceDirs()]) {
-            const scripts: Record<string, string> = JSON.parse(read(path.join(dir, 'package.json'))).scripts ?? {};
-            for (const segment of Object.values(scripts).flatMap((command) => command.split('&&'))) {
+            const scripts = recordAt(JSON.parse(read(path.join(dir, 'package.json'))), 'scripts');
+            for (const segment of Object.values(scripts)
+                .filter((command) => typeof command === 'string')
+                .flatMap((command) => command.split('&&'))) {
                 const args = segment.trim().split(/\s+/);
                 const at = args.findIndex((arg) => /^(?:vue-)?tsc$/.test(arg));
                 if (at === -1) continue; // not a compiler run — `tsc-alias`, `tsx`, a path with tsc in it
@@ -518,13 +514,13 @@ export function inspectTsconfigs({
                     ? flags.filter((arg) => !arg.startsWith('-'))
                     : [/(?:-p|--project)\s+(\S+)/.exec(segment)?.[1]].filter((arg) => arg !== undefined);
 
-                for (const specifier of named.length > 0 ? named : ['tsconfig.json']) {
-                    const rel = toConfigPath(specifier, dir);
-                    if (building) addWithReferences(rel, reached);
-                    else {
-                        reached.add(rel);
-                        pointed.add(rel);
-                    }
+                const rels = (named.length > 0 ? named : ['tsconfig.json']).map((specifier) =>
+                    toConfigPath(specifier, dir),
+                );
+                for (const rel of building ? rels : []) addWithReferences(rel, reached);
+                for (const rel of building ? [] : rels) {
+                    reached.add(rel);
+                    pointed.add(rel);
                 }
             }
         }
@@ -554,7 +550,7 @@ export function inspectTsconfigs({
 
     /** Workspaces, or none — a single-manifest repo declares no `workspaces` at all. */
     function workspaceDirs(): string[] {
-        const workspaces: string[] = JSON.parse(read('package.json')).workspaces ?? [];
+        const workspaces = stringsAt(JSON.parse(read('package.json')), 'workspaces');
         return workspaces.filter((dir) => fs.existsSync(path.join(root, dir, 'package.json')));
     }
 }

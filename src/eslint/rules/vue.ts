@@ -1,3 +1,5 @@
+import type { Linter } from 'eslint';
+
 import { bannedPackages } from './banned-packages.ts';
 
 export const aliasOnlyImportPatterns = [
@@ -34,7 +36,7 @@ export const noToastLibraryPatterns = [
  * @param layout.vue The components.
  * @param layout.frontend Everything that runs in the Vue app, components and scripts both.
  */
-export const vueStandards = (layout: { vue: string[]; frontend: string[] }) => [
+export const vueStandards = (layout: { vue: string[]; frontend: string[] }): Linter.Config[] => [
     // One home for icons — see icons.ts.
     { files: layout.vue, ignores: iconFiles(layout.vue), rules: { 'larry/no-inline-svg': 'error' } },
     { files: iconFiles(layout.vue), rules: { 'larry/icon-component': 'error' } },

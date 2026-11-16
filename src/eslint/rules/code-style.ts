@@ -1,5 +1,8 @@
 import { tsSourceSelectors } from './typescript.ts';
 
+/** One `no-restricted-syntax` entry. */
+export type SyntaxBan = { selector: string; message: string };
+
 export const noSingleLetterDeclaration = {
     selector: 'VariableDeclarator[id.name=/^[a-hk-zA-Z$]$/]',
     message:

@@ -35,25 +35,27 @@ export function callSites(source: string, token: string): CallSite[] {
 
     while ((i = source.indexOf(token, i)) !== -1) {
         const open = i + token.length - 1;
-        let depth = 0;
-        let closed = false;
-        for (let j = open; j < source.length; j++) {
-            if (source[j] === '(') depth++;
-            else if (source[j] === ')') {
-                depth -= 1;
-                if (depth === 0) {
-                    sites.push({ index: i, end: j, args: source.slice(open + 1, j) });
-                    i = j + 1;
-                    closed = true;
-                    break;
-                }
-            }
-        }
+        const close = balancedClose(source, open, '(', ')');
         // Unbalanced from here on: stop rather than rescan the same text forever.
-        if (!closed) break;
+        if (close === -1) break;
+        sites.push({ index: i, end: close, args: source.slice(open + 1, close) });
+        i = close + 1;
     }
 
     return sites;
+}
+
+/**
+ * The offset of the `close` that balances the `open` character at `start`, counting
+ * only that pair. `-1` when it never closes.
+ */
+export function balancedClose(source: string, start: number, open: string, close: string): number {
+    let depth = 0;
+    for (let j = start; j < source.length; j++) {
+        depth += Number(source[j] === open) - Number(source[j] === close);
+        if (depth === 0) return j;
+    }
+    return -1;
 }
 
 /**
@@ -248,18 +250,10 @@ export function catchBodies(source: string): string[] {
 
     while ((match = re.exec(source)) !== null) {
         const open = match.index + match[0].length - 1;
-        let depth = 0;
-        for (let j = open; j < source.length; j++) {
-            if (source[j] === '{') depth++;
-            else if (source[j] === '}') {
-                depth -= 1;
-                if (depth === 0) {
-                    bodies.push(source.slice(open + 1, j));
-                    re.lastIndex = j;
-                    break;
-                }
-            }
-        }
+        const close = balancedClose(source, open, '{', '}');
+        if (close === -1) continue;
+        bodies.push(source.slice(open + 1, close));
+        re.lastIndex = close;
     }
 
     return bodies;
@@ -289,20 +283,24 @@ export function evalProduct(expression: string | undefined): number {
  *
  * @param start The offset of the opening quote.
  */
-function skipString(text: string, start: number): number {
+export function skipString(text: string, start: number): number {
     const quote = text[start];
     for (let j = start + 1; j < text.length; j++) {
         const ch = text[j];
         if (ch === '\\') j++;
         else if (ch === quote) return j;
-        else if (quote === '`' && ch === '$' && text[j + 1] === '{') {
-            let depth = 0;
-            for (j += 1; j < text.length; j++) {
-                if (text[j] === '`' || text[j] === "'" || text[j] === '"') j = skipString(text, j);
-                else if (text[j] === '{') depth++;
-                else if (text[j] === '}' && --depth === 0) break;
-            }
-        }
+        else if (quote === '`' && ch === '$' && text[j + 1] === '{') j = interpolationEnd(text, j + 1);
+    }
+    return text.length;
+}
+
+/** The offset of the `}` closing the `${` whose brace is at `open`, with the strings inside it skipped. */
+function interpolationEnd(text: string, open: number): number {
+    let depth = 0;
+    for (let j = open; j < text.length; j++) {
+        if (text[j] === '`' || text[j] === "'" || text[j] === '"') j = skipString(text, j);
+        else if (text[j] === '{') depth++;
+        else if (text[j] === '}' && --depth === 0) return j;
     }
     return text.length;
 }

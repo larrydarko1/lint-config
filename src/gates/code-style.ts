@@ -21,7 +21,7 @@ import path from 'node:path';
 import { HEADER_RULE, RUST_HEADER_RULE, type HeaderRule } from './lib/file-headers.ts';
 import { walkFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import { lexRust, rustDocBlocks, rustItems, summarySentences } from './lib/rust.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
@@ -69,9 +69,9 @@ type CodeStyleInspection = {
 
 /** The three filename conventions, as predicates on the stem. */
 const CASE_STYLE = {
-    kebab: { test: (stem: string) => /^[a-z0-9]+(-[a-z0-9]+)*$/.test(stem), label: 'kebab-case' },
-    camel: { test: (stem: string) => /^[a-z][A-Za-z0-9]*$/.test(stem), label: 'camelCase' },
-    pascal: { test: (stem: string) => /^[A-Z][A-Za-z0-9]*$/.test(stem), label: 'PascalCase' },
+    kebab: { test: (stem: string): boolean => /^[a-z0-9]+(-[a-z0-9]+)*$/.test(stem), label: 'kebab-case' },
+    camel: { test: (stem: string): boolean => /^[a-z][A-Za-z0-9]*$/.test(stem), label: 'camelCase' },
+    pascal: { test: (stem: string): boolean => /^[A-Z][A-Za-z0-9]*$/.test(stem), label: 'PascalCase' },
 };
 
 const MARKUP_COMMENT = /<!--([\s\S]*?)-->/g;
@@ -113,15 +113,12 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
         styleExplanations = false,
     } = input;
 
-    const problems: GateFailure[] = [];
-    const fail = (file: string, what: string, why: string): void => {
-        problems.push({ file, what, why });
-    };
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+    const { problems, fail } = collectFailures();
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
 
     const all = walkFiles(root, scan, {
         match: /\.(ts|tsx|vue|scss|rs)$/,
-        exclude: (rel) => isSpec(rel) || isCargoOutput(rel),
+        exclude: (rel): boolean => isSpec(rel) || isCargoOutput(rel),
     });
     const ts = all.filter((rel) => /\.tsx?$/.test(rel) && !isDeclaration(rel));
     const vue = all.filter((rel) => rel.endsWith('.vue'));
@@ -278,7 +275,7 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
         for (const match of template.matchAll(MARKUP_COMMENT)) {
             if (/[–—─]{2,}/.test(match[1] ?? '')) {
                 fail(
-                    `${rel}:${lineAt(source, start + (match.index ?? 0))}`,
+                    `${rel}:${lineAt(source, start + match.index)}`,
                     `decorated template comment: <!--${(match[1] ?? '').replace(/\s+/g, ' ').slice(0, 40)}… -->`,
                     'Template section labels are plain text: `<!-- Section name -->`. The dashed form is the style-block divider, and using one form for both is what turns a label into noise.',
                 );
@@ -286,7 +283,7 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
         }
         for (const match of template.matchAll(/^[ \t]*(\/\/|\/\*)/gm)) {
             fail(
-                `${rel}:${lineAt(source, start + (match.index ?? 0))}`,
+                `${rel}:${lineAt(source, start + match.index)}`,
                 `JS-style comment inside <template>: \`${match[1] ?? ''}\``,
                 'Markup comments are `<!-- Section -->`. A `//` in a template is not a comment at all — Vue renders it to the page as text.',
             );
@@ -299,23 +296,24 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
         const globalSheet = rel.endsWith('.scss');
         const blocks = globalSheet
             ? [{ text: source.replace(/^\/\*[\s\S]*?\*\//, ''), offset: 0 }]
-            : [...source.matchAll(/<style[\s\S]*?<\/style>/g)].map((m) => ({ text: m[0], offset: m.index ?? 0 }));
+            : [...source.matchAll(/<style[\s\S]*?<\/style>/g)].map((m) => ({ text: m[0], offset: m.index }));
 
-        for (const { text: block, offset } of blocks) {
-            for (const match of block.matchAll(STYLE_COMMENT)) {
-                const whole = match[0];
-                const text = (match[1] ?? '').trim();
-                // Control comments for another tool: stylelint's, and the contrast gate's opt-out.
-                if (text.startsWith('stylelint-') || text.startsWith('contrast-exempt:')) continue;
-                if (styleExplanations) continue;
-                if (globalSheet && whole.startsWith('/**')) continue;
-                if (DIVIDER.test(text)) continue;
-                fail(
-                    `${rel}:${lineAt(source, offset + (match.index ?? 0))}`,
-                    `non-divider style comment: /* ${text.replace(/\s+/g, ' ').slice(0, 45)} */`,
-                    'Style blocks carry section dividers only — `/* –––––– Section name –––––– */`, en-dashes. An explanation of a property belongs in the markup or the component docs, not the stylesheet, where the decoration is the only thing making a 700-line block scannable.',
-                );
-            }
+        const comments = blocks.flatMap(({ text: block, offset }) =>
+            [...block.matchAll(STYLE_COMMENT)].map((match) => ({ match, at: offset + match.index })),
+        );
+        for (const { match, at } of comments) {
+            const whole = match[0];
+            const text = (match[1] ?? '').trim();
+            // Control comments for another tool: stylelint's, and the contrast gate's opt-out.
+            if (text.startsWith('stylelint-') || text.startsWith('contrast-exempt:')) continue;
+            if (styleExplanations) continue;
+            if (globalSheet && whole.startsWith('/**')) continue;
+            if (DIVIDER.test(text)) continue;
+            fail(
+                `${rel}:${lineAt(source, at)}`,
+                `non-divider style comment: /* ${text.replace(/\s+/g, ' ').slice(0, 45)} */`,
+                'Style blocks carry section dividers only — `/* –––––– Section name –––––– */`, en-dashes. An explanation of a property belongs in the markup or the component docs, not the stylesheet, where the decoration is the only thing making a 700-line block scannable.',
+            );
         }
     }
 
@@ -324,7 +322,7 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
         const source = read(rel);
         for (const match of source.matchAll(JSDOC_TYPE_TAG)) {
             fail(
-                `${rel}:${lineAt(source, match.index ?? 0)}`,
+                `${rel}:${lineAt(source, match.index)}`,
                 `\`@${match[1] ?? ''} {…}\` carries a type`,
                 'TypeScript already states the type and actually checks it; the tag is a copy that nothing verifies, so it drifts silently. Drop the braces — keep the prose if it says something the signature cannot.',
             );
@@ -337,7 +335,7 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
         const code = stripComments(read(rel));
         for (const match of code.matchAll(RELATIVE_IMPORT)) {
             fail(
-                `${rel}:${lineAt(code, match.index ?? 0)}`,
+                `${rel}:${lineAt(code, match.index)}`,
                 `relative import \`${match[1] ?? ''}\``,
                 'Imports in an aliased root always use the alias. A relative specifier works right up until the file moves, and then it fails somewhere else — which is why it spreads.',
             );
@@ -427,8 +425,8 @@ export function checkCodeStyle(options: CodeStyleOptions): void {
 }
 
 const isSpec = (rel: string): boolean => rel.includes('__tests__') || /\.(test|spec)\.(ts|tsx)$/.test(rel);
-const isDeclaration = (rel: string) => rel.endsWith('.d.ts');
-const isCargoOutput = (rel: string) => rel.endsWith('.rs') && /(^|\/)target\//.test(rel);
+const isDeclaration = (rel: string): boolean => rel.endsWith('.d.ts');
+const isCargoOutput = (rel: string): boolean => rel.endsWith('.rs') && /(^|\/)target\//.test(rel);
 
 /** 1-based line of a byte offset, so a per-occurrence finding can point at it. */
 const lineAt = (source: string, index: number): number => source.slice(0, index).split('\n').length;

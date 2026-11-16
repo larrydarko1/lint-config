@@ -89,7 +89,7 @@ const OWN_PATH = /^\$(?:APP|APPCACHE|APPCONFIG|APPDATA|APPLOCALDATA|APPLOG|RESOU
 
 export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecurityInput): TauriSecurityInspection {
     const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => problems.push({ file, what, why });
+    const fail = (file: string | null, what: string, why: string): number => problems.push({ file, what, why });
     const counts = { windows: 0, capabilities: 0, permissions: 0 };
 
     const configRel = `${tauriDir}/tauri.conf.json`;
@@ -129,7 +129,7 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
             'With no policy the webview has none at all: an injected script runs and can reach every command the capability grants. Tauri adds its nonces and hashes only to a policy you write.',
         );
     }
-    const checkScripts = (rel: string, key: 'csp' | 'devCsp', csp: unknown) => {
+    const checkScripts = (rel: string, key: 'csp' | 'devCsp', csp: unknown): void => {
         if (csp === undefined || csp === null) return;
         const policy = directives(csp);
         const directive = policy.has('script-src') ? 'script-src' : 'default-src';
@@ -164,7 +164,7 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
     };
 
     // ── 2/3/4. Flags a platform file could undo ──────────────────────────────
-    const checkFlags = (rel: string, data: TauriConfig) => {
+    const checkFlags = (rel: string, data: TauriConfig): void => {
         const a = data.app ?? {};
         const sec = a.security ?? {};
         if (rel !== configRel && sec.csp === null)
@@ -352,6 +352,7 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
                       ? object.identifier
                       : '';
             const scoped = object === null ? [] : scopedPaths(object);
+            const dir = FS_DIRS.exec(id)?.[1];
             if (PROGRAM_RUNNERS.includes(id)) {
                 fail(
                     file,
@@ -376,26 +377,24 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
                     `grants the bundle \`${id}\``,
                     'It grants every command in the group, used or not. Grant the commands the app calls, one by one.',
                 );
-            } else {
-                const dir = FS_DIRS.exec(id)?.[1];
-                if (dir !== undefined && !OWN_DIR.test(dir)) {
-                    fail(
-                        file,
-                        `grants \`${id}\``,
-                        `That scope is the user’s \`$${dir.toUpperCase()}\`, not the app’s own directories. A file the user picks needs no static scope: the dialog adds it.`,
-                    );
-                }
+            } else if (dir !== undefined && !OWN_DIR.test(dir)) {
+                fail(
+                    file,
+                    `grants \`${id}\``,
+                    `That scope is the user’s \`$${dir.toUpperCase()}\`, not the app’s own directories. A file the user picks needs no static scope: the dialog adds it.`,
+                );
             }
-            for (const entry of scoped) {
-                if (id.startsWith('fs:') ? !OWN_PATH.test(entry) || entry.includes('..') : isWideScope(entry)) {
-                    fail(
-                        file,
-                        `scopes \`${id}\` to \`${entry}\``,
-                        id.startsWith('fs:')
-                            ? 'A static fs scope is for the app’s own directories (`$APPDATA/**`). The files a user picks are added by the dialog plugin, for the session.'
-                            : 'That reaches the whole disk or the whole home directory. Name the directories the app needs.',
-                    );
-                }
+            const tooWide = scoped.filter((entry) =>
+                id.startsWith('fs:') ? !OWN_PATH.test(entry) || entry.includes('..') : isWideScope(entry),
+            );
+            for (const entry of tooWide) {
+                fail(
+                    file,
+                    `scopes \`${id}\` to \`${entry}\``,
+                    id.startsWith('fs:')
+                        ? 'A static fs scope is for the app’s own directories (`$APPDATA/**`). The files a user picks are added by the dialog plugin, for the session.'
+                        : 'That reaches the whole disk or the whole home directory. Name the directories the app needs.',
+                );
             }
         }
     }
@@ -418,7 +417,7 @@ export function checkTauriSecurity({ root = REPO_ROOT, ...rest }: TauriSecurityO
     });
 }
 
-const isObject = (value: unknown): value is object =>
+const isObject = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const strings = (value: unknown): string[] =>
@@ -447,7 +446,7 @@ function directives(csp: unknown): Map<string, string[]> {
             if (name !== undefined && name !== '') out.set(name.toLowerCase(), sources);
         }
     } else if (isObject(csp)) {
-        for (const [name, value] of Object.entries(csp as Record<string, unknown>))
+        for (const [name, value] of Object.entries(csp))
             out.set(
                 name.toLowerCase(),
                 strings(value)

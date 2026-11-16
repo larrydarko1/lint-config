@@ -9,6 +9,7 @@
  */
 import { execFileSync } from 'node:child_process';
 
+import { isRecord, listAt, recordAt, stringAt } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './lib/report.ts';
 
@@ -46,18 +47,6 @@ type AuditInspection = {
 };
 
 /** `npm audit --json`, reduced to what this gate reads. */
-type NpmAuditReport = {
-    error?: { summary?: string; code?: string };
-    vulnerabilities?: Record<
-        string,
-        {
-            severity?: string;
-            /** Advisory objects, or the names of dependencies the advisory arrives through. */
-            via?: (string | { url?: string; title?: string; severity?: string })[];
-        }
-    >;
-};
-
 type Finding = {
     package: string;
     id: string;
@@ -108,12 +97,12 @@ export function inspectAudit(input: {
         }
     }
 
-    // Whatever npm printed. Every field below is optional, and each is checked before use.
-    const audit = report as NpmAuditReport | undefined;
-    const ran = audit !== undefined && audit.error === undefined && auditError === undefined;
+    // Whatever npm printed: nothing in it is trusted until it is read.
+    const error = isRecord(report) ? report['error'] : undefined;
+    const ran = isRecord(report) && error === undefined && auditError === undefined;
 
     if (!ran) {
-        const detail = auditError ?? audit?.error?.summary ?? audit?.error?.code ?? 'unknown error';
+        const detail = auditError ?? stringAt(error, 'summary') ?? stringAt(error, 'code') ?? 'unknown error';
         problems.push({
             file: null,
             what: `npm audit could not complete: ${detail}`,
@@ -122,7 +111,7 @@ export function inspectAudit(input: {
         return { problems, waived: 0, ran: false };
     }
 
-    const all = findings(audit);
+    const all = findings(report);
     const allowed = new Map(allowlist.map((e) => [e.id, e]));
     let waived = 0;
 
@@ -164,8 +153,8 @@ export function checkAudit(options: AuditOptions = {}): void {
 
     const report = createGateReport({ name: 'Audit' });
 
-    let parsed;
-    let auditError;
+    let parsed: unknown;
+    let auditError: string | undefined;
     try {
         parsed = JSON.parse(runAudit(root, omit));
     } catch (err) {
@@ -188,17 +177,17 @@ export function checkAudit(options: AuditOptions = {}): void {
 }
 
 /** One row per (package, advisory). String `via` entries are carriers and would double-count. */
-function findings(report: NpmAuditReport): Finding[] {
+function findings(report: unknown): Finding[] {
     const rows: Finding[] = [];
-    for (const [name, vuln] of Object.entries(report.vulnerabilities ?? {})) {
-        for (const via of vuln.via ?? []) {
-            if (typeof via !== 'object' || via?.url === undefined) continue;
-            const id = via.url.split('/').pop() ?? via.url;
+    for (const [name, vuln] of Object.entries(recordAt(report, 'vulnerabilities'))) {
+        for (const via of listAt(vuln, 'via')) {
+            const url = stringAt(via, 'url');
+            if (url === undefined) continue;
             rows.push({
                 package: name,
-                id,
-                title: via.title ?? '',
-                severity: via.severity ?? vuln.severity ?? '',
+                id: url.split('/').pop() ?? url,
+                title: stringAt(via, 'title') ?? '',
+                severity: stringAt(via, 'severity') ?? stringAt(vuln, 'severity') ?? '',
             });
         }
     }
@@ -211,8 +200,8 @@ function runAudit(root: string, omit: string[]): string {
         return execFileSync('npm', args, { cwd: root, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
     } catch (err) {
         // npm audit exits non-zero whenever it finds anything, and still prints the report.
-        const { stdout } = err as { stdout?: unknown };
-        if (typeof stdout === 'string' && stdout.length > 0) return stdout;
+        const stdout = stringAt(err, 'stdout');
+        if (stdout !== undefined && stdout.length > 0) return stdout;
         throw err;
     }
 }

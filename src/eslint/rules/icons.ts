@@ -42,11 +42,11 @@ const noInlineSvg: Rule.RuleModule = {
                 'This `<svg>` draws a fixed picture, so it is an icon: move it to `components/icons/IconName.vue` and use `<IconName />` here. One icon drawn inline in two places is how they drift apart. An SVG drawn from data — bound attributes, `v-for`, a `<slot>` — stays inline.',
         },
     },
-    create(context) {
+    create(context): Rule.RuleListener {
         const services = templateServices(context);
         if (services === null) return {};
         return services.defineTemplateBodyVisitor({
-            "VElement[name='svg']"(svg) {
+            "VElement[name='svg']"(svg): void {
                 if (insideSvg(svg) || drawnFromData(svg)) return;
                 context.report({ loc: svg.startTag.loc, messageId: 'inlineIcon' });
             },
@@ -67,11 +67,11 @@ const iconComponent: Rule.RuleModule = {
                 'A fixed `id` repeats every time this icon renders twice on one page, and the second `url(#…)` points at the first. Bind one from `useId()` if a gradient or clip path needs it.',
         },
     },
-    create(context) {
+    create(context): Rule.RuleListener {
         const services = templateServices(context);
         if (services === null) return {};
         return services.defineTemplateBodyVisitor({
-            "VElement[name='template']"(template) {
+            "VElement[name='template']"(template): void {
                 if (template.parent.type !== 'VDocumentFragment') return;
 
                 const roots = template.children.filter(isElement);
@@ -103,11 +103,14 @@ export const iconRules = {
 /** vue-eslint-parser's hook, or null when the file is not an SFC it parsed. */
 function templateServices(context: Rule.RuleContext): TemplateServices | null {
     const services: unknown = context.sourceCode.parserServices;
-    if (typeof services !== 'object' || services === null) return null;
-    if (!('defineTemplateBodyVisitor' in services) || typeof services.defineTemplateBodyVisitor !== 'function')
-        return null;
-    return services as TemplateServices;
+    return hasTemplateVisitor(services) ? services : null;
 }
+
+const hasTemplateVisitor = (services: unknown): services is TemplateServices =>
+    typeof services === 'object' &&
+    services !== null &&
+    'defineTemplateBodyVisitor' in services &&
+    typeof services.defineTemplateBodyVisitor === 'function';
 
 const isElement = (node: VElement | VNode): node is VElement => node.type === 'VElement';
 

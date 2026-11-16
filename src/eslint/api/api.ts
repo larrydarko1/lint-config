@@ -1,3 +1,5 @@
+import type { SyntaxBan } from '../rules/code-style.ts';
+
 /** What the messages point the reader at: each family's own files. */
 type ApiMessagePaths = {
     /** The module holding AppError. */
@@ -113,7 +115,7 @@ export const apiBannedImports = [...fixedWindowLimiters, ...proxyWorkBannedImpor
 export const frontendSelectors = [noApiErrorsFieldType, noApiErrorsRender];
 
 /** The selectors for an HTTP service's source, with the messages pointing at `paths`. */
-export const httpServiceSelectors = ({ appError, namedShapes }: ApiMessagePaths) => [
+export const httpServiceSelectors = ({ appError, namedShapes }: ApiMessagePaths): SyntaxBan[] => [
     noThrowObject(appError),
     noParseIntQuery,
     noEnglishErrorResponse,
@@ -122,12 +124,12 @@ export const httpServiceSelectors = ({ appError, namedShapes }: ApiMessagePaths)
     ...noLooseReturnShape(namedShapes),
 ];
 
-const noThrowObject = (appError: string) => ({
+const noThrowObject = (appError: string): SyntaxBan => ({
     selector: 'ThrowStatement > ObjectExpression',
     message: `Throw \`new AppError(status, code, message)\` — not a bare \`{ status, message }\` object. Client-facing errors must carry a machine code (see ${appError}).`,
 });
 
-const noLooseReturnShape = (namedShapes: string) => {
+const noLooseReturnShape = (namedShapes: string): SyntaxBan[] => {
     const message = `Do not return \`Record<string, unknown>\` from an exported function — it switches type checking off for everything the caller receives, which is how the API and frontend drifted apart on VideoMeta. Name the shape (e.g. \`VideoMeta\`) ${namedShapes}.`;
     return [
         {

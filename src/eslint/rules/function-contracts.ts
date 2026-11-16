@@ -3,7 +3,7 @@
  * synchronous I/O in `is*`/`has*`/`can*`, and whether a name is accurate.
  */
 
-import type { TSESLint, TSESTree } from '@typescript-eslint/utils';
+import { AST_NODE_TYPES, type TSESLint, type TSESTree } from '@typescript-eslint/utils';
 
 type TypeNode = TSESTree.TypeNode;
 type FunctionNode = TSESTree.FunctionDeclaration | TSESTree.FunctionExpression | TSESTree.ArrowFunctionExpression;
@@ -53,7 +53,7 @@ const nameContract: TSESLint.RuleModule<
                 '`{{name}}` joins two jobs with "And". Split it into two functions — the name is telling you the seam.',
         },
     },
-    create(context) {
+    create(context): TSESLint.RuleListener {
         const stack: { node: FunctionNode; hasAwait: boolean }[] = [];
 
         function check(node: FunctionNode): void {
@@ -173,10 +173,10 @@ const nameContract: TSESLint.RuleModule<
         }
 
         return {
-            ':function'(node: FunctionNode) {
+            ':function'(node: FunctionNode): void {
                 stack.push({ node, hasAwait: false });
             },
-            'AwaitExpression'() {
+            'AwaitExpression'(): void {
                 const top = stack.at(-1);
                 if (top !== undefined) top.hasAwait = true;
             },
@@ -198,7 +198,7 @@ const oneFailureChannel: TSESLint.RuleModule<'bothNullAndUndefined'> = {
                 '`{{name}}` returns both `null` and `undefined`. Pick one: `null` means "looked, not there", `undefined` means "not set / not asked for" — never both for the same answer, or every caller writes a different check.',
         },
     },
-    create(context) {
+    create(context): TSESLint.RuleListener {
         function check(node: FunctionNode): void {
             if (node.returnType == null) return;
             const members = unionMembers(unwrapPromise(node.returnType.typeAnnotation));
@@ -232,10 +232,10 @@ const noUndefinedHole: TSESLint.RuleModule<'undefinedHole'> = {
                 '`{{name}}` has {{count}} optional parameters. To reach the last one a caller must pass `undefined` for the ones it skips, and the call site becomes a comma-counting exercise. Collapse them into one trailing options object.',
         },
     },
-    create(context) {
+    create(context): TSESLint.RuleListener {
         function check(node: FunctionNode): void {
             const optional = node.params.filter(
-                (param) => ('optional' in param && param.optional) || param.type === 'AssignmentPattern',
+                (param) => ('optional' in param && param.optional) || param.type === AST_NODE_TYPES.AssignmentPattern,
             );
             const second = optional[1];
             if (second === undefined) return;
@@ -270,12 +270,12 @@ const noBooleanFlag: TSESLint.RuleModule<'booleanFlag'> = {
                 '`{{name}}` takes a boolean flag `{{param}}` alongside other arguments — `{{name}}(…, true)` says nothing at the call site. Write two named functions, or move it into an options object where it is named.',
         },
     },
-    create(context) {
+    create(context): TSESLint.RuleListener {
         function check(node: FunctionNode): void {
             if (node.params.length < 2) return;
             for (const param of node.params) {
-                const target = param.type === 'AssignmentPattern' ? param.left : param;
-                if (target.type !== 'Identifier') continue;
+                const target = param.type === AST_NODE_TYPES.AssignmentPattern ? param.left : param;
+                if (target.type !== AST_NODE_TYPES.Identifier) continue;
                 const annotation = target.typeAnnotation?.typeAnnotation;
                 if (annotation === undefined || !isBooleanType(annotation)) continue;
                 context.report({
@@ -313,14 +313,14 @@ const noDbAwaitInLoop: TSESLint.RuleModule<'dbInLoop'> = {
                 'Database call awaited inside a loop — that is one round-trip per item, and it grows with your data. Fetch them in one query (`$in`) and join in memory with a `Map`. If these genuinely must be sequential (ordered writes, backpressure), say so in a comment and disable this line explicitly.',
         },
     },
-    create(context) {
+    create(context): TSESLint.RuleListener {
         // Only loops that walk a list; `for (;;)` and `while` are paging and retries.
         const LOOPS = ['ForInStatement', 'ForOfStatement'];
         const DB_CALL = /\.collection\s*(<[^>]*>)?\s*\(/;
         const sourceCode = context.sourceCode;
 
         return {
-            AwaitExpression(node) {
+            AwaitExpression(node): void {
                 if (!DB_CALL.test(sourceCode.getText(node))) return;
                 // Walk out to the nearest function or loop — a loop *inside* a
                 // nested function is that function's problem, not this one's.
@@ -329,7 +329,8 @@ const noDbAwaitInLoop: TSESLint.RuleModule<'dbInLoop'> = {
                         context.report({ node, messageId: 'dbInLoop' });
                         return;
                     }
-                    if (current.type.includes('Function') || current.type === 'ArrowFunctionExpression') return;
+                    if (current.type.includes('Function') || current.type === AST_NODE_TYPES.ArrowFunctionExpression)
+                        return;
                 }
             },
         };
@@ -346,31 +347,32 @@ export const functionContractsPlugin = {
     },
 };
 
-const isNull = (t: TypeNode): boolean => t.type === 'TSNullKeyword';
-const isUndefined = (t: TypeNode): boolean => t.type === 'TSUndefinedKeyword';
-const isVoid = (t: TypeNode): boolean => t.type === 'TSVoidKeyword';
-const isNever = (t: TypeNode): boolean => t.type === 'TSNeverKeyword';
-const isUnknownOrAny = (t: TypeNode): boolean => t.type === 'TSUnknownKeyword' || t.type === 'TSAnyKeyword';
+const isNull = (t: TypeNode): boolean => t.type === AST_NODE_TYPES.TSNullKeyword;
+const isUndefined = (t: TypeNode): boolean => t.type === AST_NODE_TYPES.TSUndefinedKeyword;
+const isVoid = (t: TypeNode): boolean => t.type === AST_NODE_TYPES.TSVoidKeyword;
+const isNever = (t: TypeNode): boolean => t.type === AST_NODE_TYPES.TSNeverKeyword;
+const isUnknownOrAny = (t: TypeNode): boolean =>
+    t.type === AST_NODE_TYPES.TSUnknownKeyword || t.type === AST_NODE_TYPES.TSAnyKeyword;
 
 /** A type predicate (`x is T`) or an assertion signature (`asserts x is T`). */
-const isPredicate = (t: TypeNode): t is TSESTree.TSTypePredicate => t.type === 'TSTypePredicate';
+const isPredicate = (t: TypeNode): t is TSESTree.TSTypePredicate => t.type === AST_NODE_TYPES.TSTypePredicate;
 
 function isBooleanType(type: TypeNode): boolean {
-    if (type.type === 'TSBooleanKeyword') return true;
+    if (type.type === AST_NODE_TYPES.TSBooleanKeyword) return true;
     // `true | false`, and the literal-typed booleans a narrowed helper returns.
-    if (type.type === 'TSLiteralType')
-        return type.literal.type === 'Literal' && typeof type.literal.value === 'boolean';
-    if (type.type === 'TSUnionType') return type.types.every(isBooleanType);
+    if (type.type === AST_NODE_TYPES.TSLiteralType)
+        return type.literal.type === AST_NODE_TYPES.Literal && typeof type.literal.value === 'boolean';
+    if (type.type === AST_NODE_TYPES.TSUnionType) return type.types.every(isBooleanType);
     return false;
 }
 
 function isArrayType(type: TypeNode): boolean {
-    if (type.type === 'TSArrayType') return true;
+    if (type.type === AST_NODE_TYPES.TSArrayType) return true;
     // `readonly T[]`
-    if (type.type === 'TSTypeOperator' && type.operator === 'readonly') {
+    if (type.type === AST_NODE_TYPES.TSTypeOperator && type.operator === 'readonly') {
         return type.typeAnnotation !== undefined && isArrayType(type.typeAnnotation);
     }
-    if (type.type === 'TSTypeReference' && type.typeName.type === 'Identifier') {
+    if (type.type === AST_NODE_TYPES.TSTypeReference && type.typeName.type === AST_NODE_TYPES.Identifier) {
         return ['Array', 'ReadonlyArray'].includes(type.typeName.name);
     }
     return false;
@@ -378,22 +380,23 @@ function isArrayType(type: TypeNode): boolean {
 
 /** `Promise<T>` → `T`; anything else unchanged. */
 function unwrapPromise(type: TypeNode): TypeNode {
-    if (type.type !== 'TSTypeReference' || type.typeName.type !== 'Identifier') return type;
+    if (type.type !== AST_NODE_TYPES.TSTypeReference || type.typeName.type !== AST_NODE_TYPES.Identifier) return type;
     if (type.typeName.name !== 'Promise') return type;
     return type.typeArguments?.params[0] ?? type;
 }
 
-const unionMembers = (type: TypeNode): TypeNode[] => (type.type === 'TSUnionType' ? type.types : [type]);
+const unionMembers = (type: TypeNode): TypeNode[] => (type.type === AST_NODE_TYPES.TSUnionType ? type.types : [type]);
 
 function functionName(node: FunctionNode): string | null {
-    if (node.id?.type === 'Identifier') return node.id.name;
+    if (node.id?.type === AST_NODE_TYPES.Identifier) return node.id.name;
     const parent = node.parent;
-    if (parent.type === 'VariableDeclarator' && parent.id.type === 'Identifier') return parent.id.name;
+    if (parent.type === AST_NODE_TYPES.VariableDeclarator && parent.id.type === AST_NODE_TYPES.Identifier)
+        return parent.id.name;
     const keyed =
-        parent.type === 'Property' ||
-        parent.type === 'MethodDefinition' ||
-        parent.type === 'PropertyDefinition' ||
-        parent.type === 'TSAbstractMethodDefinition';
-    if (keyed && parent.key.type === 'Identifier') return parent.key.name;
+        parent.type === AST_NODE_TYPES.Property ||
+        parent.type === AST_NODE_TYPES.MethodDefinition ||
+        parent.type === AST_NODE_TYPES.PropertyDefinition ||
+        parent.type === AST_NODE_TYPES.TSAbstractMethodDefinition;
+    if (keyed && parent.key.type === AST_NODE_TYPES.Identifier) return parent.key.name;
     return null;
 }

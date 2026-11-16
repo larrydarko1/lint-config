@@ -6,11 +6,11 @@
  * are blanked where a rule asks whether something is called. `v-html` is ESLint's.
  */
 import fs from 'node:fs';
-import path from 'node:path';
 
+import { repoReader } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
-import { braceBlock, callArgs, catchBodies, evalProduct, fnBody } from './lib/source.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { balancedClose, braceBlock, callArgs, catchBodies, evalProduct, fnBody } from './lib/source.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
 /** The auth surface: the files the credential rules read, and the names inside them. */
@@ -153,21 +153,16 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
         derivations = DERIVATIONS,
     } = input;
 
-    const problems: GateFailure[] = [];
-    const fail = (file: string, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
-    const abs = (rel: string) => path.join(root, rel);
-    const exists = (rel: string) => fs.existsSync(abs(rel));
-    const read = (rel: string) => fs.readFileSync(abs(rel), 'utf8');
+    const { abs, exists, read } = repoReader(root);
     /** Source with every comment blanked. */
-    const code = (rel: string) => stripComments(read(rel));
+    const code = (rel: string): string => stripComments(read(rel));
 
     /** Every file under `dirs` that is shipped rather than tested. */
     const sources = (dirs: string[], match: RegExp): string[] => {
         const out: string[] = [];
-        const visit = (rel: string) => {
+        const visit = (rel: string): void => {
             if (!exists(rel)) return;
             for (const dirent of fs.readdirSync(abs(rel), { withFileTypes: true })) {
                 const child = `${rel}/${dirent.name}`;
@@ -343,7 +338,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
 
     // ── 6. trust proxy is a hop COUNT ────────────────────────────────────────
     const trustArg = /app\.set\(\s*['"]trust proxy['"]\s*,\s*([^)]+?)\s*\)/.exec(entrySource)?.[1];
-    if (!trustArg?.startsWith('config.')) {
+    if (trustArg?.startsWith('config.') !== true) {
         fail(
             entry,
             trustArg === undefined
@@ -366,7 +361,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
 
     // ── 7. Request-size cap ──────────────────────────────────────────────────
     const limit = /express\.json\(\s*\{[^}]*limit:\s*['"]([^'"]+)['"]/.exec(entrySource)?.[1];
-    const unit = (value: string) => (/mb$/i.test(value) ? 1024 * 1024 : /kb$/i.test(value) ? 1024 : 1);
+    const unit = (value: string): number => (/mb$/i.test(value) ? 1024 * 1024 : /kb$/i.test(value) ? 1024 : 1);
     const bytes = limit === undefined ? 0 : Number(limit.replace(/[a-z]+$/i, '')) * unit(limit);
 
     if (bytes <= 0 || bytes > 10 * 1024 * 1024) {
@@ -586,39 +581,39 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     const credentialWord = new RegExp(String.raw`\b(?:${credentials.join('|')})\b`, 'i');
     const derivationCall = new RegExp(String.raw`\b(?:${derivations.join('|')})\s*\(`);
 
-    for (const rel of backend) {
-        // The defining module takes the key as a parameter.
-        if (rel === auth.throttleFile) continue;
+    // The defining module takes the key as a parameter.
+    const throttleCallers = backend.filter((rel) => rel !== auth.throttleFile);
+    const throttleCalls = throttleCallers.flatMap((rel) => {
         const source = callsOnly(code(rel));
+        return THROTTLE_FNS.map((name) => ({ rel, source, name }));
+    });
+    for (const { rel, source, name } of throttleCalls) {
+        const token = `${name}(`;
+        let at = 0;
+        while ((at = source.indexOf(token, at)) !== -1) {
+            const [argument = ''] = callArgs(source.slice(at), token);
+            at += token.length;
+            const trimmed = argument.trim();
+            if (trimmed === '') continue;
 
-        for (const name of THROTTLE_FNS) {
-            const token = `${name}(`;
-            let at = 0;
-            while ((at = source.indexOf(token, at)) !== -1) {
-                const [argument = ''] = callArgs(source.slice(at), token);
-                at += token.length;
-                const trimmed = argument.trim();
-                if (trimmed === '') continue;
+            counts.throttleCalls += 1;
+            // An identifier is graded on its binding, or on its own name when it has none.
+            const isIdentifier = /^[A-Za-z_$][\w$]*$/.test(trimmed);
+            const binding = isIdentifier ? bindingBefore(source, trimmed, at) : null;
+            const expression = binding ?? trimmed;
 
-                counts.throttleCalls += 1;
-                // An identifier is graded on its binding, or on its own name when it has none.
-                const isIdentifier = /^[A-Za-z_$][\w$]*$/.test(trimmed);
-                const binding = isIdentifier ? bindingBefore(source, trimmed, at) : null;
-                const expression = binding ?? trimmed;
-
-                if (credentialWord.test(expression) && !derivationCall.test(expression)) {
-                    fail(
-                        rel,
-                        `${name}() is keyed by \`${expression.slice(0, 60)}\``,
-                        'That is the submitted credential itself. It then lives in a Redis key, readable by anyone with access to the cache and outliving the request that carried it. Key by a blind index or a hash of it instead.',
-                    );
-                } else if (isIdentifier && binding === null) {
-                    fail(
-                        rel,
-                        `${name}(${trimmed}) — nothing in this file binds \`${trimmed}\``,
-                        'The gate cannot see what this key is made of, so it cannot tell a blind index from a raw email. Bind it locally, next to the call it keys.',
-                    );
-                }
+            if (credentialWord.test(expression) && !derivationCall.test(expression)) {
+                fail(
+                    rel,
+                    `${name}() is keyed by \`${expression.slice(0, 60)}\``,
+                    'That is the submitted credential itself. It then lives in a Redis key, readable by anyone with access to the cache and outliving the request that carried it. Key by a blind index or a hash of it instead.',
+                );
+            } else if (isIdentifier && binding === null) {
+                fail(
+                    rel,
+                    `${name}(${trimmed}) — nothing in this file binds \`${trimmed}\``,
+                    'The gate cannot see what this key is made of, so it cannot tell a blind index from a raw email. Bind it locally, next to the call it keys.',
+                );
             }
         }
     }
@@ -720,10 +715,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
             const quantifiedOnly =
                 pattern.startsWith('`') &&
                 slots.length > 0 &&
-                slots.every(
-                    (slot) =>
-                        pattern[(slot.index ?? 0) - 1] === '{' && pattern[(slot.index ?? 0) + slot[0].length] === '}',
-                );
+                slots.every((slot) => pattern[slot.index - 1] === '{' && pattern[slot.index + slot[0].length] === '}');
             if (!quantifiedOnly) {
                 fail(
                     rel,
@@ -973,22 +965,10 @@ function nginxLocations(source: string): { name: string; body: string }[] {
 
     while ((i = source.indexOf('location', i)) !== -1) {
         const open = source.indexOf('{', i);
-        if (open === -1) break;
-        let depth = 0;
-        let closed = false;
-        for (let j = open; j < source.length; j++) {
-            if (source[j] === '{') depth++;
-            else if (source[j] === '}') {
-                depth -= 1;
-                if (depth === 0) {
-                    blocks.push({ name: source.slice(i, open).trim(), body: source.slice(open, j) });
-                    i = j + 1;
-                    closed = true;
-                    break;
-                }
-            }
-        }
-        if (!closed) break;
+        const close = open === -1 ? -1 : balancedClose(source, open, '{', '}');
+        if (close === -1) break;
+        blocks.push({ name: source.slice(i, open).trim(), body: source.slice(open, close) });
+        i = close + 1;
     }
 
     return blocks;

@@ -1235,10 +1235,9 @@ npm run ci:check       # everything CI runs: the above, ESLint, Prettier and eve
 This package is a library, and it checks itself the way the library family checks one:
 `eslint.config.js` and `knip.config.js` import `larry()`, `libraryStandards()` and `knip()` from
 `./src`, and `larry.config.ts` holds every gate's options, run by `npm run check` (the `larry` CLI
-from `src/`), which is wired into `ci:check` and `.github/workflows/ci.yml`. ESLint findings that predate this are recorded in
-`eslint-suppressions.json`. A new finding fails, and so does a suppressed one once it's fixed,
-until `npx eslint . --prune-suppressions` drops it, so the file only shrinks. `code-style`'s
-`baseline` works the same way for the files over the line softcap.
+from `src/`), which is wired into `ci:check` and `.github/workflows/ci.yml`. ESLint passes on the
+whole repo with no suppressions file, so any finding fails. `code-style`'s `baseline` is the one
+ratchet: a file over the line softcap is listed at its size, and may shrink but never grow.
 
 `test/presets/` holds, for every preset, the rules ESLint resolves on one file per area, with the
 family's standards at their defaults. `npm test` compares them, so a change to a shared block that

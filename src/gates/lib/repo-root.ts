@@ -5,6 +5,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { isRecord } from './json.ts';
+
 /**
  * @param [startDir] Where to start looking. Defaults to this file's directory,
  *   which is inside the installed package — the walk still reaches the consuming repo.
@@ -20,18 +22,19 @@ export function findRepoRoot(startDir: string = import.meta.dirname): string {
 }
 
 /** True when `dir` holds a package.json with a `workspaces` array — a monorepo root. */
-const isWorkspaceRoot = (dir: string) => {
+const isWorkspaceRoot = (dir: string): boolean => {
     const manifest = path.join(dir, 'package.json');
     if (!fs.existsSync(manifest)) return false;
     try {
-        return Array.isArray(JSON.parse(fs.readFileSync(manifest, 'utf8')).workspaces);
+        const json: unknown = JSON.parse(fs.readFileSync(manifest, 'utf8'));
+        return isRecord(json) && Array.isArray(json['workspaces']);
     } catch {
         // Unparseable package.json — keep walking rather than guessing.
         return false;
     }
 };
 
-const isGitRoot = (dir: string) => fs.existsSync(path.join(dir, '.git'));
+const isGitRoot = (dir: string): boolean => fs.existsSync(path.join(dir, '.git'));
 
 const walkUp = (startDir: string, marker: (dir: string) => boolean): string | null => {
     let dir = startDir;

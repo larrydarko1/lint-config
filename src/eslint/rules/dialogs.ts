@@ -5,7 +5,7 @@
  * project's notification function, and what they are asked through its own dialog.
  * `vueStandards()` turns `no-native-dialog` on for everything that runs in the Vue app.
  */
-import type { TSESLint, TSESTree } from '@typescript-eslint/utils';
+import { AST_NODE_TYPES, type TSESLint, type TSESTree } from '@typescript-eslint/utils';
 
 type Dialog = 'alert' | 'confirm' | 'prompt';
 type Context = Readonly<TSESLint.RuleContext<Dialog, []>>;
@@ -28,9 +28,9 @@ const noNativeDialog: TSESLint.RuleModule<Dialog> = {
             prompt: "`prompt()` freezes the whole window, and Electron does not implement it: it returns nothing. Ask with an inline input or the app's own dialog.",
         },
     },
-    create(context) {
+    create(context): TSESLint.RuleListener {
         return {
-            CallExpression(node) {
+            CallExpression(node): void {
                 const dialog = dialogCalled(context, node.callee);
                 if (dialog !== null) context.report({ node, messageId: dialog });
             },
@@ -44,7 +44,11 @@ const isDialog = (name: string | null): name is Dialog => name === 'alert' || na
 
 /** Whether `name` at `node` is the global, not a local or an import that shadows it. */
 function isGlobal(context: Context, node: TSESTree.Node, name: string): boolean {
-    for (let scope: TSESLint.Scope.Scope | null = context.sourceCode.getScope(node); scope; scope = scope.upper) {
+    for (
+        let scope: TSESLint.Scope.Scope | null = context.sourceCode.getScope(node);
+        scope !== null;
+        scope = scope.upper
+    ) {
         const variable = scope.set.get(name);
         if (variable !== undefined) return variable.defs.length === 0;
     }
@@ -53,17 +57,18 @@ function isGlobal(context: Context, node: TSESTree.Node, name: string): boolean 
 
 function propertyName(member: TSESTree.MemberExpression): string | null {
     const { property } = member;
-    if (!member.computed && property.type === 'Identifier') return property.name;
-    if (property.type === 'Literal' && typeof property.value === 'string') return property.value;
+    if (!member.computed && property.type === AST_NODE_TYPES.Identifier) return property.name;
+    if (property.type === AST_NODE_TYPES.Literal && typeof property.value === 'string') return property.value;
     return null;
 }
 
 /** `alert(…)`, `window.alert(…)`, `globalThis['confirm'](…)`; null for anything else. */
 function dialogCalled(context: Context, callee: TSESTree.Node): Dialog | null {
-    if (callee.type === 'Identifier') {
+    if (callee.type === AST_NODE_TYPES.Identifier) {
         return isDialog(callee.name) && isGlobal(context, callee, callee.name) ? callee.name : null;
     }
-    if (callee.type !== 'MemberExpression' || callee.object.type !== 'Identifier') return null;
+    if (callee.type !== AST_NODE_TYPES.MemberExpression || callee.object.type !== AST_NODE_TYPES.Identifier)
+        return null;
     if (!OWNERS.has(callee.object.name) || !isGlobal(context, callee.object, callee.object.name)) return null;
     const name = propertyName(callee);
     return isDialog(name) ? name : null;

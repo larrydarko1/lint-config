@@ -43,6 +43,18 @@ export function plural(n: number, noun: string, plural = `${noun}s`): string {
     return `${n} ${n === 1 ? noun : plural}`;
 }
 
+/** The failures an `inspect*` function collects, and the function that adds one. */
+export function collectFailures(): {
+    problems: GateFailure[];
+    fail: (file: string | null, what: string, why: string) => void;
+} {
+    const problems: GateFailure[] = [];
+    const fail = (file: string | null, what: string, why: string): void => {
+        problems.push({ file, what, why });
+    };
+    return { problems, fail };
+}
+
 /**
  * @param options.name The gate's name as it appears in its own output ("Error handling").
  */
@@ -57,12 +69,12 @@ export function createGateReport(options: GateReportOptions): GateReport {
         },
 
         /** How many violations have been recorded so far. */
-        get count() {
+        get count(): number {
             return failures.length;
         },
 
         /** The recorded violations, for a gate that needs to summarise them itself. */
-        get failures() {
+        get failures(): GateFailure[] {
             return [...failures];
         },
 

@@ -38,12 +38,12 @@
  * Also: `optionalAuth` before the limited mounts (they key on `req.userId`), and no
  * `{ ok: true, data }` success envelope.
  */
-import fs from 'node:fs';
 import path from 'node:path';
 
-import { gitIgnores, walkFiles } from './lib/files.ts';
+import { gitIgnores, repoReader, walkFiles } from './lib/files.ts';
+import { dependencyNames } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import { braceBlock, callArgs, callSites, declaredBody, splitTopLevel } from './lib/source.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
@@ -293,19 +293,14 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
         jobs,
     } = input;
 
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
-
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
-    const exists = (rel: string) => fs.existsSync(path.join(root, rel));
+    const { problems, fail } = collectFailures();
+    const { read, exists } = repoReader(root);
     /** Comments blanked: a commented-out route must not answer for a live one. */
-    const code = (rel: string) => stripComments(read(rel));
+    const code = (rel: string): string => stripComments(read(rel));
 
     const routeFiles = walkFiles(root, routesDir, {
         match: /\.ts$/,
-        exclude: (rel) => rel.includes('__tests__'),
+        exclude: /__tests__/,
     });
 
     // ── 1. Route documentation parity ───────────────────────────────────────
@@ -320,7 +315,7 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
 
         // Headers may write mounted (`/api/videos/:id`) or relative (`/:id`) paths;
         // strip the stated mount. Trailing punctuation is trimmed off the mount.
-        const mount = (/mounted at (\/\S*)/.exec(header)?.[1] ?? '').replace(/[.,;:)]+$/, '') || null;
+        const mount = /mounted at (\/\S*)/.exec(header)?.[1]?.replace(/[.,;:)]+$/, '') ?? null;
         const documented = new Set(
             [...header.matchAll(ROUTE_DOCUMENTATION)].map(([, verb, documentedPath = '']) => {
                 let route = documentedPath;
@@ -352,26 +347,27 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
     }
 
     // ── 2. Route path shape ─────────────────────────────────────────────────
-    for (const rel of routeFiles) {
-        for (const [, , routePath = ''] of code(rel).matchAll(ROUTE_DECLARATION)) {
-            for (const segment of routePath.split('/')) {
-                // A parameter or a wildcard is named by the code, not by the URL.
-                if (segment === '' || segment.startsWith(':') || segment.startsWith('*')) continue;
-                if (VERB_SEGMENTS.has(segment)) {
-                    fail(
-                        rel,
-                        `route path '${routePath}' has the verb segment '${segment}'`,
-                        'The HTTP method does the verbing — `POST /videos`, not `POST /videos/create`. A verb in the path means two things claim to say what the request does.',
-                    );
-                }
-                if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(segment)) {
-                    fail(
-                        rel,
-                        `route path '${routePath}' has the non-kebab-case segment '${segment}'`,
-                        'Resource paths are kebab-case: /email-verifications, not /emailVerifications. URLs are case-sensitive and camelCase in one reads as a typo next to the rest.',
-                    );
-                }
-            }
+    const segments = routeFiles.flatMap((rel) =>
+        [...code(rel).matchAll(ROUTE_DECLARATION)].flatMap(([, , routePath = '']) =>
+            routePath.split('/').map((segment) => ({ rel, routePath, segment })),
+        ),
+    );
+    for (const { rel, routePath, segment } of segments) {
+        // A parameter or a wildcard is named by the code, not by the URL.
+        if (segment === '' || segment.startsWith(':') || segment.startsWith('*')) continue;
+        if (VERB_SEGMENTS.has(segment)) {
+            fail(
+                rel,
+                `route path '${routePath}' has the verb segment '${segment}'`,
+                'The HTTP method does the verbing — `POST /videos`, not `POST /videos/create`. A verb in the path means two things claim to say what the request does.',
+            );
+        }
+        if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(segment)) {
+            fail(
+                rel,
+                `route path '${routePath}' has the non-kebab-case segment '${segment}'`,
+                'Resource paths are kebab-case: /email-verifications, not /emailVerifications. URLs are case-sensitive and camelCase in one reads as a typo next to the rest.',
+            );
         }
     }
 
@@ -413,7 +409,7 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
 
     // ── 5. Middleware order ─────────────────────────────────────────────────
     /** Where a middleware is installed. `-1` when it is not. */
-    const installedAt = (token: string) => index.indexOf(token);
+    const installedAt = (token: string): number => index.indexOf(token);
 
     const helmetAt = installedAt('helmet(');
     const corsAt = installedAt('cors({');
@@ -566,8 +562,7 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
             );
         }
         if (packageJson !== undefined && exists(packageJson)) {
-            const manifest = JSON.parse(read(packageJson));
-            if (manifest.dependencies?.[library] !== undefined || manifest.devDependencies?.[library] !== undefined) {
+            if (dependencyNames(JSON.parse(read(packageJson))).includes(library)) {
                 fail(
                     packageJson,
                     `depends on \`${library}\``,
@@ -668,16 +663,14 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
 
         for (const rel of routeFiles) {
             const raw = rawResponses(code(rel));
-            if (rel in pending) {
-                if (raw.length === 0) {
-                    fail(
-                        rel,
-                        'answers through the schema helper now, but is still in `responses.pending`',
-                        'Remove the entry. A file left on the list is allowed to send raw responses again, and nothing would notice.',
-                    );
-                }
-                continue;
+            if (rel in pending && raw.length === 0) {
+                fail(
+                    rel,
+                    'answers through the schema helper now, but is still in `responses.pending`',
+                    'Remove the entry. A file left on the list is allowed to send raw responses again, and nothing would notice.',
+                );
             }
+            if (rel in pending) continue;
             for (const line of raw) {
                 fail(
                     `${rel}:${line}`,
@@ -699,18 +692,16 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
 
         const schemaFiles = walkFiles(root, schemasDir, {
             match: /\.ts$/,
-            exclude: (rel) => rel.includes('__tests__'),
+            exclude: /__tests__/,
         });
         for (const rel of schemaFiles) {
             const source = code(rel);
-            for (const [pattern, name] of LOOSE_SCHEMA) {
-                if (pattern.test(source)) {
-                    fail(
-                        rel,
-                        `a response schema uses ${name}`,
-                        'It lets through fields no one declared, so the schema stops being a list of what may leave the server. Name every field instead.',
-                    );
-                }
+            for (const [, name] of LOOSE_SCHEMA.filter(([pattern]) => pattern.test(source))) {
+                fail(
+                    rel,
+                    `a response schema uses ${name}`,
+                    'It lets through fields no one declared, so the schema stops being a list of what may leave the server. Name every field instead.',
+                );
             }
             if (callArgs(source, 'z.record(').some((args) => lastArgument(args).startsWith('z.string('))) {
                 fail(
@@ -900,7 +891,7 @@ function inspectContract(contract: ContractOptions, ctx: ContractContext): void 
         );
         const frontendFiles = walkFiles(root, caller.dir, {
             match: /\.(?:ts|vue)$/,
-            exclude: (rel) => rel.includes('__tests__') || /\.(?:test|spec)\.ts$/.test(rel),
+            exclude: /__tests__|\.(?:test|spec)\.ts$/,
         });
         for (const rel of frontendFiles) {
             if (rel === apiClient) continue;
@@ -1009,135 +1000,138 @@ function inspectContractHandlers(
     const entries = contractEntries(code(contractFile));
     const objectSources = objects.filter(exists).map(code);
 
-    for (const [rel, mount] of mounts) {
+    const routes = [...mounts].flatMap(([rel, mount]) => {
         const source = code(rel);
-        for (const declaration of source.matchAll(ROUTE_DECLARATION)) {
-            const [, verb = '', routePath = ''] = declaration;
-            const key = `${verb.toUpperCase()} ${mount}${routePath === '/' ? '' : routePath}`;
-            const entry = entries.get(key);
-            if (entry === undefined) continue; // reported as unlisted above
-            const call = callArgs(source.slice(declaration.index), `router.${verb}(`)[0] ?? '';
-            const at = `${rel}:${source.slice(0, declaration.index).split('\n').length}`;
+        return [...source.matchAll(ROUTE_DECLARATION)].map((declaration) => ({ rel, mount, source, declaration }));
+    });
+    for (const { rel, mount, source, declaration } of routes) {
+        const [, verb = '', routePath = ''] = declaration;
+        const key = `${verb.toUpperCase()} ${mount}${routePath === '/' ? '' : routePath}`;
+        const entry = entries.get(key);
+        if (entry === undefined) continue; // reported as unlisted above
+        const call = callArgs(source.slice(declaration.index), `router.${verb}(`)[0] ?? '';
+        const at = `${rel}:${source.slice(0, declaration.index).split('\n').length}`;
 
-            // What the validator is handed, with spreads and named objects followed.
-            const handed = new Map<string, string>();
-            const unreadable: string[] = [];
-            const collect = (text: string, seen: Set<string>): void => {
-                const name = text.trim().replace(/^\.\.\./, '');
-                if (text.trim().startsWith('{')) {
-                    for (const [prop, value] of objectProperties(braceBlock(text, /^\s*/))) {
-                        if (prop.startsWith('...')) collect(prop, seen);
-                        else handed.set(prop, value);
-                    }
-                    return;
+        // What the validator is handed, with spreads and named objects followed.
+        const handed = new Map<string, string>();
+        const unreadable: string[] = [];
+        const collect = (text: string, seen: Set<string>): void => {
+            const name = text.trim().replace(/^\.\.\./, '');
+            if (text.trim().startsWith('{')) {
+                for (const [prop, value] of objectProperties(braceBlock(text, /^\s*/))) {
+                    if (prop.startsWith('...')) collect(prop, seen);
+                    else handed.set(prop, value);
                 }
-                if (!/^[A-Za-z_$][\w$]*$/.test(name) || seen.has(name)) return;
-                seen.add(name);
-                const declared = new RegExp(`\\bconst\\s+${name}\\s*(?::[^=]+)?=\\s*(?=\\{)`);
-                const home = [source, ...objectSources].find((text2) => declared.test(text2));
-                if (home === undefined) {
-                    unreadable.push(name);
-                    return;
-                }
-                const match = declared.exec(home);
-                if (match !== null) collect(`{${braceBlock(home.slice(match.index), declared)}}`, seen);
-            };
-            const validated = callArgs(call, `${validate}(`)[0];
-            if (validated !== undefined) collect(splitTopLevel(validated, ',')[0] ?? '', new Set());
-            if (unreadable.length > 0) {
-                fail(
-                    at,
-                    `hands \`${validate}\` ${unreadable.map((name) => `\`${name}\``).join(', ')}, which this gate cannot read`,
-                    `The gate compares the schemas a route validates with the ones its contract entry names. Declare the object in the router, or list the module that declares it in \`contract.handlers.objects\`.`,
-                );
+                return;
             }
-            // The route's code: its own, and that of a handler it names, last in the route or
-            // last in the validator's arguments.
-            const handlerNames = [
-                splitTopLevel(call, ',').at(-1),
-                validated === undefined ? undefined : splitTopLevel(validated, ',').at(-1),
-            ]
-                .map((arg) => arg?.trim() ?? '')
-                .filter((arg) => /^[A-Za-z_$][\w$]*$/.test(arg));
-            const body = [call, ...handlerNames.map((name) => declaredBody(source, name))].join('\n');
-
-            // An object it cannot read is reported above; what it holds is unknown, not missing.
-            for (const slot of unreadable.length > 0 ? [] : ['params', 'body', 'query']) {
-                const named = entry.get(slot);
-                // A route may check its path itself, with the contract's schema: one that answers
-                // a bad path as a probe rather than a form to correct.
-                const checksItself =
-                    slot === 'params' &&
-                    named !== undefined &&
-                    /^[A-Za-z_$][\w$]*$/.test(named) &&
-                    new RegExp(`(?<![\\w$.])${named}\\.(?:safeParse|parse)\\(`).test(body);
-                const used = handed.get(slot) ?? (checksItself ? named : undefined);
-                if (named === used) continue;
-                const what = slot === 'params' ? 'path parameters' : slot;
-                const some = slot === 'params' ? what : `a ${slot}`;
-                fail(
-                    at,
-                    used === undefined
-                        ? `${key} validates no ${what}, but the contract names \`${named}\``
-                        : named === undefined
-                          ? `${key} validates ${some} with \`${used}\`, but the contract names none`
-                          : `${key} validates its ${what} with \`${used}\`, but the contract names \`${named}\``,
-                    slot === 'params'
-                        ? 'The contract says what a path may hold, and the fuzz document describes each route from it. A router validating with another schema refuses paths the contract allows, or takes ones it never declared, and no type error says so. Make the router and the contract name the same schema.'
-                        : `The frontend builds this ${slot} from the schema the contract names, and its tests are checked against it. A router validating with another one refuses what the frontend sends, or takes what it never declared, and no type error says so. Make the router and the contract name the same schema.`,
-                );
+            if (!/^[A-Za-z_$][\w$]*$/.test(name) || seen.has(name)) return;
+            seen.add(name);
+            const declared = new RegExp(`\\bconst\\s+${name}\\s*(?::[^=]+)?=\\s*(?=\\{)`);
+            const home = [source, ...objectSources].find((text2) => declared.test(text2));
+            if (home === undefined) {
+                unreadable.push(name);
+                return;
             }
-
-            const answers = callArgs(body, `${send}(`).map((args) => compact(splitTopLevel(args, ',')[1] ?? ''));
-            const response = entry.get('response');
-            if (response === 'null') {
-                if (answers.length > 0) {
-                    fail(
-                        at,
-                        `${key} answers through \`${send}\`, but the contract says it answers with no body`,
-                        'The frontend is typed from the contract, so it never reads this body: whatever it carries is sent for nobody, and a client typed by hand may come to depend on it. Answer 204, or name the schema in the contract.',
-                    );
-                }
-            } else if (response !== undefined && response !== "'raw'" && response !== '"raw"') {
-                if (answers.length === 0) {
-                    fail(
-                        at,
-                        `${key} never answers through \`${send}\``,
-                        `The contract names a schema for this route's answer, and \`${send}\` is what holds the data to it. Answer through it with that schema.`,
-                    );
-                }
-                for (const schema of answers) {
-                    const escaped = schema.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
-                    if (schema !== '' && new RegExp(`(?<![\\w$.])${escaped}(?![\\w$])`).test(response)) continue;
-                    fail(
-                        at,
-                        `${key} answers with \`${schema}\`, which its contract entry does not name`,
-                        'The frontend is typed from the schema the contract names. A route answering with another one sends fields the frontend never reads, or lacks ones it does, and only a test that checks this exact answer notices. Answer with the schema the contract names, or change the entry.',
-                    );
-                }
-            }
-
-            // What the route takes as files.
-            const listedFiles = new Map(
-                [...(entry.get('files') ?? '').matchAll(/([A-Za-z_$][\w$]*)\s*:\s*['"](one|many)['"]/g)].map(
-                    ([, name = '', kind = '']) => [name, kind],
-                ),
+            const match = declared.exec(home);
+            if (match !== null) collect(`{${braceBlock(home.slice(match.index), declared)}}`, seen);
+        };
+        const validated = callArgs(call, `${validate}(`)[0];
+        if (validated !== undefined) collect(splitTopLevel(validated, ',')[0] ?? '', new Set());
+        if (unreadable.length > 0) {
+            fail(
+                at,
+                `hands \`${validate}\` ${unreadable.map((name) => `\`${name}\``).join(', ')}, which this gate cannot read`,
+                `The gate compares the schemas a route validates with the ones its contract entry names. Declare the object in the router, or list the module that declares it in \`contract.handlers.objects\`.`,
             );
-            const taken = uploadFields(call);
-            const describe = (fields: Map<string, string>): string =>
-                fields.size === 0
-                    ? 'none'
-                    : [...fields]
-                          .sort(([a], [b]) => a.localeCompare(b))
-                          .map(([name, kind]) => `\`${name}\` (${kind})`)
-                          .join(', ');
-            if (describe(listedFiles) !== describe(taken)) {
+        }
+        // The route's code: its own, and that of a handler it names, last in the route or
+        // last in the validator's arguments.
+        const handlerNames = [
+            splitTopLevel(call, ',').at(-1),
+            validated === undefined ? undefined : splitTopLevel(validated, ',').at(-1),
+        ]
+            .map((arg) => arg?.trim() ?? '')
+            .filter((arg) => /^[A-Za-z_$][\w$]*$/.test(arg));
+        const body = [call, ...handlerNames.map((name) => declaredBody(source, name))].join('\n');
+
+        // An object it cannot read is reported above; what it holds is unknown, not missing.
+        for (const slot of unreadable.length > 0 ? [] : ['params', 'body', 'query']) {
+            const named = entry.get(slot);
+            // A route may check its path itself, with the contract's schema: one that answers
+            // a bad path as a probe rather than a form to correct.
+            const checksItself =
+                slot === 'params' &&
+                named !== undefined &&
+                /^[A-Za-z_$][\w$]*$/.test(named) &&
+                new RegExp(`(?<![\\w$.])${named}\\.(?:safeParse|parse)\\(`).test(body);
+            const used = handed.get(slot) ?? (checksItself ? named : undefined);
+            if (named === used) continue;
+            const what = slot === 'params' ? 'path parameters' : slot;
+            const some = slot === 'params' ? what : `a ${slot}`;
+            fail(
+                at,
+                used === undefined
+                    ? `${key} validates no ${what}, but the contract names \`${named}\``
+                    : named === undefined
+                      ? `${key} validates ${some} with \`${used}\`, but the contract names none`
+                      : `${key} validates its ${what} with \`${used}\`, but the contract names \`${named}\``,
+                slot === 'params'
+                    ? 'The contract says what a path may hold, and the fuzz document describes each route from it. A router validating with another schema refuses paths the contract allows, or takes ones it never declared, and no type error says so. Make the router and the contract name the same schema.'
+                    : `The frontend builds this ${slot} from the schema the contract names, and its tests are checked against it. A router validating with another one refuses what the frontend sends, or takes what it never declared, and no type error says so. Make the router and the contract name the same schema.`,
+            );
+        }
+
+        const answers = callArgs(body, `${send}(`).map((args) => compact(splitTopLevel(args, ',')[1] ?? ''));
+        const response = entry.get('response');
+        if (response === 'null') {
+            if (answers.length > 0) {
                 fail(
                     at,
-                    `${key} takes the upload fields ${describe(taken)}, but the contract names ${describe(listedFiles)}`,
-                    'The frontend appends its files under the names the contract gives them. The upload middleware refuses a field it was not told about, so a name that differs is an upload that fails for every user.',
+                    `${key} answers through \`${send}\`, but the contract says it answers with no body`,
+                    'The frontend is typed from the contract, so it never reads this body: whatever it carries is sent for nobody, and a client typed by hand may come to depend on it. Answer 204, or name the schema in the contract.',
                 );
             }
+        } else if (response !== undefined && response !== "'raw'" && response !== '"raw"') {
+            if (answers.length === 0) {
+                fail(
+                    at,
+                    `${key} never answers through \`${send}\``,
+                    `The contract names a schema for this route's answer, and \`${send}\` is what holds the data to it. Answer through it with that schema.`,
+                );
+            }
+            const unnamed = answers.filter((schema) => {
+                const escaped = schema.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+                return schema === '' || !new RegExp(`(?<![\\w$.])${escaped}(?![\\w$])`).test(response);
+            });
+            for (const schema of unnamed) {
+                fail(
+                    at,
+                    `${key} answers with \`${schema}\`, which its contract entry does not name`,
+                    'The frontend is typed from the schema the contract names. A route answering with another one sends fields the frontend never reads, or lacks ones it does, and only a test that checks this exact answer notices. Answer with the schema the contract names, or change the entry.',
+                );
+            }
+        }
+
+        // What the route takes as files.
+        const listedFiles = new Map(
+            [...(entry.get('files') ?? '').matchAll(/([A-Za-z_$][\w$]*)\s*:\s*['"](one|many)['"]/g)].map(
+                ([, name = '', kind = '']) => [name, kind],
+            ),
+        );
+        const taken = uploadFields(call);
+        const describe = (fields: Map<string, string>): string =>
+            fields.size === 0
+                ? 'none'
+                : [...fields]
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([name, kind]) => `\`${name}\` (${kind})`)
+                      .join(', ');
+        if (describe(listedFiles) !== describe(taken)) {
+            fail(
+                at,
+                `${key} takes the upload fields ${describe(taken)}, but the contract names ${describe(listedFiles)}`,
+                'The frontend appends its files under the names the contract gives them. The upload middleware refuses a field it was not told about, so a name that differs is an upload that fails for every user.',
+            );
         }
     }
 }
@@ -1153,7 +1147,6 @@ function providedKeys(source: string, call: 'provide' | 'inject'): Set<string> {
 function inspectContractCoverage(coverage: ContractCoverage, testChecks: string[], ctx: ContractContext): void {
     const { read, code, exists, fail } = ctx;
     const { module, suites } = coverage;
-    const suiteOf = (rel: string) => suites.find(({ config }) => rel.startsWith(`${path.dirname(config)}/`));
 
     // What each suite's recorders inject, so its setup can be checked to provide the same key.
     const injected = new Map<string, Set<string>>();
@@ -1178,7 +1171,7 @@ function inspectContractCoverage(coverage: ContractCoverage, testChecks: string[
             );
             continue;
         }
-        const suite = suiteOf(rel);
+        const suite = suites.find(({ config }) => rel.startsWith(`${path.dirname(config)}/`));
         if (suite === undefined) {
             fail(
                 rel,
@@ -1432,7 +1425,7 @@ function inspectFuzzConfig(
     const lines = raw.split('\n');
     const codeLines = source.split('\n');
     // A reason sits in the comment directly above, or at the end of the line itself.
-    const reasoned = (i: number) => lines[i - 1]?.trim().startsWith('#') === true || codeLines[i] !== lines[i];
+    const reasoned = (i: number): boolean => lines[i - 1]?.trim().startsWith('#') === true || codeLines[i] !== lines[i];
 
     let table = '';
     for (const [i, line] of codeLines.entries()) {
@@ -1485,34 +1478,34 @@ function inspectFuzzConfig(
     );
     const stale =
         'The route was renamed or removed and the config was not. An exception for a route nobody serves is dead, and one meant for its replacement is missing, so the replacement is judged by rules the exception was written to relax.';
-    for (const key of FUZZ_ID_FILTERS) {
-        for (const { line, values } of tomlStrings(source, key)) {
-            for (const value of values.filter((id) => !listed.has(id))) {
-                fail(`${config}:${line}`, `names \`${value}\`, which the contract does not list`, stale);
-            }
+    const filters = (keys: readonly string[]): ReturnType<typeof tomlStrings> =>
+        keys.flatMap((key) => tomlStrings(source, key));
+    for (const { line, values } of filters(FUZZ_ID_FILTERS)) {
+        for (const value of values.filter((id) => !listed.has(id))) {
+            fail(`${config}:${line}`, `names \`${value}\`, which the contract does not list`, stale);
         }
     }
-    for (const key of FUZZ_PATH_FILTERS) {
-        for (const { line, values } of tomlStrings(source, key)) {
-            for (const value of values.filter((p) => !paths.has(p))) {
-                fail(`${config}:${line}`, `names the path \`${value}\`, which the contract does not list`, stale);
-            }
+    for (const { line, values } of filters(FUZZ_PATH_FILTERS)) {
+        for (const value of values.filter((p) => !paths.has(p))) {
+            fail(`${config}:${line}`, `names the path \`${value}\`, which the contract does not list`, stale);
         }
     }
-    for (const key of FUZZ_PATTERN_FILTERS) {
-        for (const { line, values } of tomlStrings(source, key)) {
-            for (const value of values) {
-                let pattern: RegExp;
-                try {
-                    pattern = new RegExp(value);
-                } catch {
-                    continue; // Python syntax JavaScript cannot read; the fuzzer reports a pattern that is wrong for it
-                }
-                if ([...paths].some((p) => pattern.test(p))) continue;
-                fail(`${config}:${line}`, `\`${value}\` matches no path the contract lists`, stale);
-            }
+    for (const { line, values } of filters(FUZZ_PATTERN_FILTERS)) {
+        for (const value of values.filter((pattern) => matchesNone(pattern, paths))) {
+            fail(`${config}:${line}`, `\`${value}\` matches no path the contract lists`, stale);
         }
     }
+}
+
+/** True when `source` is a pattern JavaScript can read and no path matches it. */
+function matchesNone(source: string, paths: Set<string>): boolean {
+    let pattern: RegExp;
+    try {
+        pattern = new RegExp(source);
+    } catch {
+        return false; // Python syntax JavaScript cannot read; the fuzzer reports a pattern that is wrong for it
+    }
+    return ![...paths].some((p) => pattern.test(p));
 }
 
 /** Rule 12: one job contract, parsed on both ends of the queue. */
@@ -1585,7 +1578,7 @@ function inspectJobs(jobs: JobsOptions, ctx: ContractContext): void {
     const workspace = producer.split('/')[0] ?? '';
     const apiFiles = walkFiles(root, workspace, {
         match: /\.ts$/,
-        exclude: (rel) => rel.includes('__tests__') || /\.(?:test|spec)\.ts$/.test(rel) || rel.includes('node_modules'),
+        exclude: /__tests__|\.(?:test|spec)\.ts$|node_modules/,
     });
     for (const rel of apiFiles) {
         if (rel === producer) continue;
@@ -1633,7 +1626,7 @@ function inspectJobs(jobs: JobsOptions, ctx: ContractContext): void {
             continue;
         }
         const source = code(rel);
-        const line = (index: number) => `${rel}:${source.slice(0, index).split('\n').length}`;
+        const line = (index: number): string => `${rel}:${source.slice(0, index).split('\n').length}`;
         const sites = (['new Worker(', 'new Queue('] as const)
             .flatMap((token) => callSites(source, token).map((site) => ({ ...site, token })))
             .sort((a, b) => a.index - b.index);

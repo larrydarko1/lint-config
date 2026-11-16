@@ -1,3 +1,8 @@
+/** A comparator's result from its keys' differences, most significant first: the first that is not 0. */
+export function firstDifference(...differences: number[]): number {
+    return differences.find((difference) => difference !== 0) ?? 0;
+}
+
 /**
  * Which entries of `actual` are already in `ideal`'s order: the longest common
  * subsequence of the two. Everything outside it is what has to move, so one moved

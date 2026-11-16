@@ -22,7 +22,7 @@ import path from 'node:path';
 
 import { walkFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import { braceBlock, callSites, declaredBody, propertyValue } from './lib/source.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
@@ -122,14 +122,11 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
     } = input;
     const { client, clientDirs } = input.frontend === false ? { client: null, clientDirs: [] } : input;
 
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
-    const exists = (rel: string) => fs.existsSync(path.join(root, rel));
-    const code = (rel: string) => stripComments(read(rel));
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
+    const exists = (rel: string): boolean => fs.existsSync(path.join(root, rel));
+    const code = (rel: string): string => stripComments(read(rel));
 
     const source = read(gateway);
     const header = /^\/\*\*[\s\S]*?\*\//.exec(source)?.[0] ?? '';
@@ -138,11 +135,11 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
 
     const serverFiles = walkFiles(root, serverDirs, {
         match: /\.ts$/,
-        exclude: (rel) => rel.includes('__tests__'),
+        exclude: (rel): boolean => rel.includes('__tests__'),
     });
     const clientFiles = walkFiles(root, clientDirs, {
         match: /\.(ts|vue)$/,
-        exclude: (rel) => rel.includes('__tests__'),
+        exclude: (rel): boolean => rel.includes('__tests__'),
     });
 
     // ── 1. One Socket.IO server, on the existing HTTP listener ──────────────
@@ -413,14 +410,12 @@ export function inspectWsStandards(input: WsStandardsOptions): WsStandardsInspec
         }
         for (const rel of serverFiles) {
             const src = code(rel);
-            for (const helper of helpers) {
-                if (new RegExp(String.raw`await\s+${helper}\(`).test(src)) {
-                    fail(
-                        rel,
-                        `awaits ${helper}()`,
-                        "Socket emits are fire-and-forget. Awaiting one couples the request to the socket layer's latency and failures — persist first, then emit, and never wait for it.",
-                    );
-                }
+            for (const helper of helpers.filter((name) => new RegExp(String.raw`await\s+${name}\(`).test(src))) {
+                fail(
+                    rel,
+                    `awaits ${helper}()`,
+                    "Socket emits are fire-and-forget. Awaiting one couples the request to the socket layer's latency and failures — persist first, then emit, and never wait for it.",
+                );
             }
         }
     }

@@ -21,8 +21,9 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { packageBin } from './lib/bin.ts';
+import { isRecord, listAt, stringAt, toRecord } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 
 export type PublishOptions = {
     /** The package's directory, holding its package.json. Defaults to the repo root. */
@@ -44,16 +45,14 @@ type PublishInspection = {
 };
 
 /** package.json, as far as this gate reads it. */
+/** The package.json fields this gate reads, each in the type npm reads it as. */
 type Manifest = {
-    name?: string;
-    main?: string;
-    types?: string;
-    bin?: string | Record<string, string>;
-    exports?: unknown;
+    name: string | undefined;
+    main: string | undefined;
+    types: string | undefined;
+    bin: string | Record<string, string>;
+    exports: unknown;
 };
-
-/** What the loader script prints for each specifier. */
-type Loaded = Record<string, { names: string[] } | { error: string }>;
 
 /** The consumer's compiler: strict, Node's resolution, and `skipLibCheck` off (rule 6). `types` is set per package. */
 const CONSUMER_TSCONFIG = {
@@ -70,18 +69,15 @@ const CONSUMER_TSCONFIG = {
 
 export function inspectPublish(input: PublishOptions = {}): PublishInspection {
     const { root = REPO_ROOT } = input;
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
-    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as Manifest;
+    const pkg = toManifest(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')));
     if (pkg.name === undefined) throw new Error('package.json has no `name`, so there is nothing to install.');
     const { name } = pkg;
     const subpaths = exportedSubpaths(pkg);
     const patterns = subpaths.filter(([subpath]) => subpath.includes('*')).length;
     const entries = subpaths.filter(([subpath]) => !subpath.includes('*'));
-    const specifierOf = (subpath: string) => (subpath === '.' ? name : `${name}${subpath.slice(1)}`);
+    const specifierOf = (subpath: string): string => (subpath === '.' ? name : `${name}${subpath.slice(1)}`);
 
     const work = fs.mkdtempSync(path.join(os.tmpdir(), 'lint-config-publish-'));
     try {
@@ -92,16 +88,17 @@ export function inspectPublish(input: PublishOptions = {}): PublishInspection {
         // Under `npm publish --dry-run` the flag reaches this gate as npm_config_dry_run, and a
         // dry-run pack reports a filename without writing the tarball, so it is dropped here.
         const { npm_config_dry_run: _dryRun, ...env } = process.env;
-        const packed = JSON.parse(
+        const packed: unknown = JSON.parse(
             execFileSync('npm', ['pack', '--json', '--pack-destination', work], {
                 cwd: root,
                 encoding: 'utf8',
                 env,
                 stdio: ['ignore', 'pipe', 'pipe'],
             }),
-        ) as { filename: string; files: { path: string }[] }[];
-        const [{ filename, files } = { filename: '', files: [] }] = packed;
-        const shipped = new Set(files.map((file) => file.path));
+        );
+        const pack: unknown = Array.isArray(packed) ? packed[0] : undefined;
+        const filename = stringAt(pack, 'filename') ?? '';
+        const shipped = new Set(listAt(pack, 'files').map((file) => stringAt(file, 'path') ?? ''));
 
         const installed = path.join(work, 'node_modules', ...name.split('/'));
         fs.mkdirSync(installed, { recursive: true });
@@ -124,8 +121,8 @@ export function inspectPublish(input: PublishOptions = {}): PublishInspection {
         const unpacked = new Set<string>();
         for (const [field, target, subpath] of namedFiles(pkg, entries)) {
             const file = path.posix.normalize(target);
+            if (!shipped.has(file) && subpath !== null) unpacked.add(subpath);
             if (!shipped.has(file)) {
-                if (subpath !== null) unpacked.add(subpath);
                 fail(
                     'package.json',
                     `\`${field}\` names ${file}, which is not in the tarball`,
@@ -148,19 +145,20 @@ export function inspectPublish(input: PublishOptions = {}): PublishInspection {
             .filter(([subpath]) => !unpacked.has(subpath))
             .map(([subpath]) => specifierOf(subpath));
         fs.writeFileSync(path.join(work, 'load.mjs'), loaderScript(specifiers));
-        const loaded = JSON.parse(
-            execFileSync(process.execPath, ['load.mjs'], { cwd: work, encoding: 'utf8' }),
-        ) as Loaded;
+        const loaded = toRecord(
+            JSON.parse(execFileSync(process.execPath, ['load.mjs'], { cwd: work, encoding: 'utf8' })),
+        );
         let exports = 0;
         for (const specifier of specifiers) {
             const result = loaded[specifier];
-            if (result !== undefined && 'names' in result) {
-                exports += result.names.length;
+            const names = isRecord(result) ? result['names'] : undefined;
+            if (Array.isArray(names)) {
+                exports += names.length;
                 continue;
             }
             fail(
                 specifier,
-                `does not load: ${result?.error ?? 'no result'}`,
+                `does not load: ${stringAt(result, 'error') ?? 'no result'}`,
                 'This is the error a project gets on its first import. The suite runs the sources, so only the installed copy shows it.',
             );
         }
@@ -238,7 +236,7 @@ function targetsOf(target: unknown): string[] {
 
 /** `[field, file, subpath]` for every file the manifest promises an installer; `subpath` for an export. */
 function namedFiles(pkg: Manifest, entries: [string, unknown][]): [string, string, string | null][] {
-    const bins = typeof pkg.bin === 'string' ? { [pkg.name ?? '']: pkg.bin } : (pkg.bin ?? {});
+    const bins = typeof pkg.bin === 'string' ? { [pkg.name ?? '']: pkg.bin } : pkg.bin;
     const fields: [string, string | undefined][] = [
         ['main', pkg.main],
         ['types', pkg.types],
@@ -292,8 +290,20 @@ function typeErrors(work: string): string[] {
         });
         return [];
     } catch (error) {
-        return ((error as { stdout?: string }).stdout ?? '')
-            .split('\n')
-            .filter((line) => /\(\d+,\d+\): error /.test(line));
+        return (stringAt(error, 'stdout') ?? '').split('\n').filter((line) => /\(\d+,\d+\): error /.test(line));
     }
+}
+
+function toManifest(json: unknown): Manifest {
+    const bin = isRecord(json) ? json['bin'] : undefined;
+    const bins = Object.entries(toRecord(bin)).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string',
+    );
+    return {
+        name: stringAt(json, 'name'),
+        main: stringAt(json, 'main'),
+        types: stringAt(json, 'types'),
+        bin: typeof bin === 'string' ? bin : Object.fromEntries(bins),
+        exports: isRecord(json) ? json['exports'] : undefined,
+    };
 }

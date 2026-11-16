@@ -24,7 +24,7 @@ import path from 'node:path';
 
 import { findUnusedBridgeMembers } from './lib/bridge-reachability.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import { callSites, declaredFunction, functionParts, splitTopLevel, type FunctionParts } from './lib/source.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
@@ -80,11 +80,9 @@ export function inspectIpcStandards({
     receiverTypes = ['IpcMain'],
     renderer = ['src/renderer'],
 }: IpcStandardsInput): IpcStandardsInspection {
-    const problems: GateFailure[] = [];
-    const fail: (file: string, what: string, why: string) => void = (file, what, why) =>
-        problems.push({ file, what, why });
-    const exists = (rel: string) => fs.existsSync(path.join(root, rel));
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+    const { problems, fail } = collectFailures();
+    const exists = (rel: string): boolean => fs.existsSync(path.join(root, rel));
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
     const empty = { problems, counts: { handlers: 0, events: 0, preloadChannels: 0, bridgeMembers: 0 } };
 
     for (const rel of [mainIndex, preload]) {
@@ -111,9 +109,9 @@ export function inspectIpcStandards({
     const code = new Map(mainFiles.map((rel) => [rel, stripComments(read(rel))]));
 
     /** channel → owning file, for everything registered with handle/on. */
-    const handlers = new Map();
+    const handlers = new Map<string, string>();
     /** channel → owning file, for everything pushed with webContents.send. */
-    const events = new Map();
+    const events = new Map<string, string>();
     const registrations: { rel: string; line: number; channel: string; fn: FunctionParts | null; source: string }[] =
         [];
 
@@ -133,37 +131,36 @@ export function inspectIpcStandards({
             );
         }
 
-        for (const receiver of receivers) {
-            for (const method of ['handle', 'handleOnce', 'on', 'once']) {
-                for (const site of callSites(source, `${receiver}.${method}(`)) {
-                    if (site.index > 0 && /[\w$]/.test(source[site.index - 1] ?? '')) continue;
-                    const line = lineAt(source, site.index);
-                    const [first = '', ...rest] = splitTopLevel(site.args, ',');
-                    const channel = literal(first);
-                    if (channel === null) {
-                        fail(
-                            `${rel}:${line}`,
-                            `registers a channel that is not a string literal (\`${first.slice(0, 30)}\`)`,
-                            'A channel assembled at runtime is invisible to every rule here — parity, reachability, naming. Spell each channel out, one registration per line.',
-                        );
-                        continue;
-                    }
-                    const owner = handlers.get(channel);
-                    if (owner !== undefined) {
-                        fail(
-                            `${rel}:${line}`,
-                            `registers \`${channel}\`, which ${owner} already registers`,
-                            'The second registration throws at startup for handle(), or silently double-fires for on().',
-                        );
-                    }
-                    handlers.set(channel, rel);
-                    const handler = rest.join(', ').trim();
-                    const fn =
-                        functionParts(handler) ??
-                        (/^[A-Za-z_$][\w$]*$/.test(handler) ? declaredFunction(source, handler) : null);
-                    registrations.push({ rel, line, channel, fn, source });
-                }
+        const registrationSites = [...receivers].flatMap((receiver) =>
+            ['handle', 'handleOnce', 'on', 'once'].flatMap((method) => callSites(source, `${receiver}.${method}(`)),
+        );
+        for (const site of registrationSites) {
+            if (site.index > 0 && /[\w$]/.test(source[site.index - 1] ?? '')) continue;
+            const line = lineAt(source, site.index);
+            const [first = '', ...rest] = splitTopLevel(site.args, ',');
+            const channel = literal(first);
+            if (channel === null) {
+                fail(
+                    `${rel}:${line}`,
+                    `registers a channel that is not a string literal (\`${first.slice(0, 30)}\`)`,
+                    'A channel assembled at runtime is invisible to every rule here — parity, reachability, naming. Spell each channel out, one registration per line.',
+                );
+                continue;
             }
+            const owner = handlers.get(channel);
+            if (owner !== undefined) {
+                fail(
+                    `${rel}:${line}`,
+                    `registers \`${channel}\`, which ${owner} already registers`,
+                    'The second registration throws at startup for handle(), or silently double-fires for on().',
+                );
+            }
+            handlers.set(channel, rel);
+            const handler = rest.join(', ').trim();
+            const fn =
+                functionParts(handler) ??
+                (/^[A-Za-z_$][\w$]*$/.test(handler) ? declaredFunction(source, handler) : null);
+            registrations.push({ rel, line, channel, fn, source });
         }
         for (const site of callSites(source, 'webContents.send(')) {
             const first = splitTopLevel(site.args, ',')[0] ?? '';
@@ -182,7 +179,7 @@ export function inspectIpcStandards({
 
     const preloadCode = stripComments(read(preload));
     /** channel → how the preload uses it. */
-    const preloadChannels = new Map();
+    const preloadChannels = new Map<string, 'listen' | 'call'>();
     for (const kind of ['invoke', 'send', 'sendSync', 'on', 'once']) {
         for (const site of callSites(preloadCode, `ipcRenderer.${kind}(`)) {
             const first = splitTopLevel(site.args, ',')[0] ?? '';
@@ -212,7 +209,7 @@ export function inspectIpcStandards({
         const end = raw.indexOf('*/', heading);
         const table = raw.slice(heading, end === -1 ? raw.length : end);
         /** owner file → documented patterns */
-        const documented = new Map();
+        const documented = new Map<string, string[]>();
         for (const row of table.split('\n').slice(1)) {
             // Label, then an optional parenthetical qualifier, then the channel list.
             const m = /^\s*\*?\s*([a-zA-Z]+)(?:-service)?(?:\s+\([^)]*\))?\s+→\s+(.+?)\s*$/.exec(row);
@@ -235,19 +232,20 @@ export function inspectIpcStandards({
                     'The table documents a service that was renamed or removed.',
                 );
             }
-            for (const pattern of patterns) {
-                const matched = [...handlers].some(
-                    ([channel, file]) =>
-                        file === owner &&
-                        (pattern.endsWith('*') ? channel.startsWith(pattern.slice(0, -1)) : channel === pattern),
+            const stale = patterns.filter(
+                (pattern) =>
+                    ![...handlers].some(
+                        ([channel, file]) =>
+                            file === owner &&
+                            (pattern.endsWith('*') ? channel.startsWith(pattern.slice(0, -1)) : channel === pattern),
+                    ),
+            );
+            for (const pattern of stale) {
+                fail(
+                    mainIndex,
+                    `the ownership table documents \`${pattern}\` for ${path.basename(owner)}, which registers no such channel`,
+                    'A stale entry is a map pointing the wrong way. Remove it, or restore the handler it describes.',
                 );
-                if (!matched) {
-                    fail(
-                        mainIndex,
-                        `the ownership table documents \`${pattern}\` for ${path.basename(owner)}, which registers no such channel`,
-                        'A stale entry is a map pointing the wrong way. Remove it, or restore the handler it describes.',
-                    );
-                }
             }
         }
         for (const [channel, owner] of handlers) {

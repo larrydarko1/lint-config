@@ -1,4 +1,5 @@
 import vueI18n from '@intlify/eslint-plugin-vue-i18n';
+import type { ESLint, Linter } from 'eslint';
 import * as jsoncParser from 'jsonc-eslint-parser';
 
 export type I18nOptions = {
@@ -25,6 +26,9 @@ export type I18nOptions = {
     customLocales?: string[];
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the plugin's own types disagree with ESLint's under exactOptionalPropertyTypes; ESLint validates it at load. The same object, not a copy: a consumer registering it too would otherwise be refused.
+const vueI18nPlugin = vueI18n as unknown as ESLint.Plugin;
+
 /** Whether the family's `locales` role is read: not with i18n off, nor when `localeFiles` names the files itself. */
 export const readsLocalesRole = (options: I18nOptions | false | undefined): boolean =>
     options !== false && options?.localeFiles === undefined;
@@ -38,7 +42,7 @@ export const readsLocalesRole = (options: I18nOptions | false | undefined): bool
 export const i18nStandards = (
     layout: { vue: string[]; frontend: string[]; localeFiles: string; usageSrc: string },
     options: I18nOptions = {},
-) => {
+): Linter.Config[] => {
     const {
         localeFiles = layout.localeFiles,
         localeDir = `./${localeFiles}`,
@@ -49,7 +53,7 @@ export const i18nStandards = (
         customLocales = [],
     } = options;
 
-    const noUnknownLocale = ['error', { locales: customLocales }];
+    const noUnknownLocale: Linter.RuleEntry = ['error', { locales: customLocales }];
 
     return [
         {
@@ -62,7 +66,7 @@ export const i18nStandards = (
         },
         {
             files: layout.vue,
-            plugins: { '@intlify/vue-i18n': vueI18n },
+            plugins: { '@intlify/vue-i18n': vueI18nPlugin },
             rules: {
                 '@intlify/vue-i18n/no-raw-text': [
                     'error',
@@ -84,7 +88,7 @@ export const i18nStandards = (
         },
         {
             files: layout.frontend,
-            plugins: { '@intlify/vue-i18n': vueI18n },
+            plugins: { '@intlify/vue-i18n': vueI18nPlugin },
             rules: {
                 '@intlify/vue-i18n/no-missing-keys': 'error',
                 '@intlify/vue-i18n/valid-message-syntax': 'error',
@@ -95,7 +99,7 @@ export const i18nStandards = (
         },
         {
             files: [localeFiles],
-            plugins: { '@intlify/vue-i18n': vueI18n },
+            plugins: { '@intlify/vue-i18n': vueI18nPlugin },
             languageOptions: { parser: jsoncParser },
             rules: {
                 '@typescript-eslint/naming-convention': 'off',

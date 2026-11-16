@@ -17,9 +17,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { walkFiles } from './lib/files.ts';
+import { isRecord } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
-import type { ThemeSource } from './scss-standards.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
+import type { ThemeSource } from './lib/theme-palettes.ts';
 
 export type ContrastOptions = {
     root?: string;
@@ -79,10 +80,7 @@ export function inspectContrast(input: ContrastInput): ContrastInspection {
         textAliases = text.map((key) => `$color-${key}`),
     } = input;
     const themeFile = themes.source === 'json-presets' ? themes.dir : themes.file;
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string): void => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
     // ── 1–2. Every pair, in every palette ───────────────────────────────────
     const palettes = readPaletteColours(root, themes);
@@ -111,20 +109,17 @@ export function inspectContrast(input: ContrastInput): ContrastInspection {
                 );
             }
         }
-        for (const fg of text) {
-            for (const bg of backgrounds) {
-                const [fgValue, bgValue] = [colours.get(fg), colours.get(bg)];
-                if (fgValue === undefined || bgValue === undefined || !HEX.test(fgValue) || !HEX.test(bgValue))
-                    continue;
-                const ratio = contrastRatio(fgValue, bgValue);
-                pairs.push({ palette, text: fg, background: bg, ratio });
-                if (ratio < minRatio) {
-                    fail(
-                        themeFile,
-                        `\`${palette}\`: ${fg} (${fgValue}) on ${bg} (${bgValue}) is ${ratio.toFixed(2)}:1, under ${minRatio}:1`,
-                        'Text a reader cannot make out. Darken the text token or lighten the background, in this palette only.',
-                    );
-                }
+        for (const [fg, bg] of text.flatMap((fg) => backgrounds.map((bg) => [fg, bg] as const))) {
+            const [fgValue, bgValue] = [colours.get(fg), colours.get(bg)];
+            if (fgValue === undefined || bgValue === undefined || !HEX.test(fgValue) || !HEX.test(bgValue)) continue;
+            const ratio = contrastRatio(fgValue, bgValue);
+            pairs.push({ palette, text: fg, background: bg, ratio });
+            if (ratio < minRatio) {
+                fail(
+                    themeFile,
+                    `\`${palette}\`: ${fg} (${fgValue}) on ${bg} (${bgValue}) is ${ratio.toFixed(2)}:1, under ${minRatio}:1`,
+                    'Text a reader cannot make out. Darken the text token or lighten the background, in this palette only.',
+                );
             }
         }
     }
@@ -199,8 +194,8 @@ function readPaletteColours(root: string, themes: ThemeSource): Map<string, Pale
         const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((file) => file.endsWith('.json')) : [];
         for (const file of files.sort()) {
             const parsed: unknown = JSON.parse(read(`${themes.dir}/${file}`) ?? '{}');
-            const colours = typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'colors') : undefined;
-            if (typeof colours !== 'object' || colours === null) continue;
+            const colours = isRecord(parsed) ? parsed['colors'] : undefined;
+            if (!isRecord(colours)) continue;
             const entries = Object.entries(colours).filter(
                 (entry): entry is [string, string] => typeof entry[1] === 'string',
             );

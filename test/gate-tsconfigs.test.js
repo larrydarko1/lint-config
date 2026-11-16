@@ -108,6 +108,19 @@ test('an environmental setting in the base fails', (t) => {
     assert.match(whats(result), /sets `target`/);
 });
 
+test('a tsconfig tsc cannot read is reported, not walked into a crash', (t) => {
+    for (const project of [
+        { extends: 5, compilerOptions: { types: [] } },
+        { extends: '../tsconfig.base.json', compilerOptions: 'x' },
+    ]) {
+        const result = run(t, good({ 'app/tsconfig.json': project }));
+        assert.ok(
+            result.problems.some((p) => p.file === 'app/tsconfig.json' && p.what === 'is not a tsconfig tsc can read'),
+            JSON.stringify(project),
+        );
+    }
+});
+
 test('every environmental setting is rejected in the base', (t) => {
     for (const setting of ENVIRONMENTAL) {
         const base = strictBase();

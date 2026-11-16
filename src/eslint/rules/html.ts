@@ -1,3 +1,4 @@
+import type { Linter } from 'eslint';
 import a11y from 'eslint-plugin-vuejs-accessibility';
 
 export type HtmlOptions = {
@@ -12,7 +13,10 @@ export type HtmlOptions = {
  * @param layout.vue The components.
  * @param layout.globalStylesheet The family's default for `options.globalStylesheet`.
  */
-export const htmlStandards = (layout: { vue: string[]; globalStylesheet: string[] }, options: HtmlOptions = {}) => {
+export const htmlStandards = (
+    layout: { vue: string[]; globalStylesheet: string[] },
+    options: HtmlOptions = {},
+): Linter.Config[] => {
     const { globalStylesheet = layout.globalStylesheet } = options;
 
     return [
@@ -45,14 +49,14 @@ export const htmlStandards = (layout: { vue: string[]; globalStylesheet: string[
             },
         },
         // The host of the global stylesheet — scoping it would scope the whole app.
-        ...(globalStylesheet.length
+        ...(globalStylesheet.length > 0
             ? [
                   {
                       files: globalStylesheet,
                       rules: {
                           'vue/enforce-style-attribute': ['error', { allow: ['scoped', 'plain'] }],
                       },
-                  },
+                  } satisfies Linter.Config,
               ]
             : []),
     ];

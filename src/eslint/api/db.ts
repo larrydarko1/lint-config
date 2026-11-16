@@ -1,3 +1,5 @@
+import type { SyntaxBan } from '../rules/code-style.ts';
+
 /** What the messages point the reader at: each family's own files. */
 type DbMessagePaths = {
     /** The index manifest ensureIndexes() applies. */
@@ -5,6 +7,8 @@ type DbMessagePaths = {
     /** Where each collection's document type is declared. */
     documentTypes: string;
 };
+
+type MongoArea = 'migration' | 'application' | 'dbModule' | 'serviceEntry';
 
 const DOWN_MESSAGE =
     'Migrations are forward-only: no down(). A reversal that loses data is not a rollback (the bootstrap down() dropped all 28 collections). To undo a migration, write a new forward migration. See db/migrations/README.md.';
@@ -62,7 +66,7 @@ const noMigrationDown = [
 export const scriptEnvSelectors = [noEnvFallbackInScripts];
 
 /** Each area's selectors, with the messages pointing at `paths`. */
-export const mongoSelectors = ({ indexManifest, documentTypes }: DbMessagePaths) => ({
+export const mongoSelectors = ({ indexManifest, documentTypes }: DbMessagePaths): Record<MongoArea, SyntaxBan[]> => ({
     /** A migration: forward-only, and no indexes of its own. */
     migration: [...noMigrationDown, noCreateIndexInMigration(indexManifest)],
     /** Application code: the manifest owns indexes, lib/db.ts owns the client. */
@@ -78,17 +82,17 @@ export const mongoSelectors = ({ indexManifest, documentTypes }: DbMessagePaths)
     serviceEntry: [noCreateIndexInApi(indexManifest), noDropIndexInApi, noUntypedCollection(documentTypes)],
 });
 
-const noCreateIndexInMigration = (indexManifest: string) => ({
+const noCreateIndexInMigration = (indexManifest: string): SyntaxBan => ({
     selector: "CallExpression[callee.property.name='createIndex']",
     message: `Do not create indexes in a migration. Every index is declared once in ${indexManifest} and applied by ensureIndexes() at API boot. Declaring them here too is what let HashDatabase{source,addedAt} drift. See db/migrations/README.md.`,
 });
 
-const noCreateIndexInApi = (indexManifest: string) => ({
+const noCreateIndexInApi = (indexManifest: string): SyntaxBan => ({
     selector: "CallExpression[callee.property.name='createIndex']",
     message: `Do not call createIndex here. Add an entry to the index manifest (${indexManifest}) — it is applied by ensureIndexes() in lib/db.ts on the next boot.`,
 });
 
-const noUntypedCollection = (documentTypes: string) => ({
+const noUntypedCollection = (documentTypes: string): SyntaxBan => ({
     selector: "CallExpression[callee.property.name='collection'][arguments.0.type='Literal']:not([typeArguments])",
     message: `Give every collection its document type: \`db.collection<MediaDoc>('Media')\`, with the Doc types from ${documentTypes}. Untyped, every read is \`any\`-shaped and a write with a misspelt or wrong-typed field compiles fine — which is how the worker never used MediaDoc.`,
 });

@@ -91,7 +91,7 @@ export function inspectI18n(options: I18nGateOptions): I18nGateResult {
 
     const localePath = path.resolve(root, localeDir);
     const configPath = path.resolve(root, configFile);
-    const fatal = (message: string) => ({ errors: [], locales: [], keyCount: 0, fatal: message });
+    const fatal = (message: string): I18nGateResult => ({ errors: [], locales: [], keyCount: 0, fatal: message });
 
     if (!fs.existsSync(localePath)) {
         return fatal(`Locale directory not found at ${localeDir} — update the gate's localeDir.`);
@@ -111,7 +111,7 @@ export function inspectI18n(options: I18nGateOptions): I18nGateResult {
         try {
             flat[loc] = flatten(JSON.parse(fs.readFileSync(path.join(localePath, `${loc}.json`), 'utf8')));
         } catch (err) {
-            return fatal(`${loc}.json could not be read as JSON — ${(err as Error).message}`);
+            return fatal(`${loc}.json could not be read as JSON — ${err instanceof Error ? err.message : String(err)}`);
         }
     }
 
@@ -130,47 +130,8 @@ export function inspectI18n(options: I18nGateOptions): I18nGateResult {
     // ── 1–3. Cross-locale value-shape parity against the reference locale ────────
     for (const loc of locales.filter((l) => l !== reference)) {
         const cur = flat[loc] ?? {};
-        for (const [key, refVal] of Object.entries(ref)) {
-            const curVal = cur[key];
-
-            if (refVal.startsWith('__array:')) {
-                const base = key.slice(0, -2);
-                if (curVal === undefined) {
-                    if (typeof cur[base] === 'string') {
-                        errors.push(
-                            `[${loc}] ${base}: string where ${reference} has an array of ${refVal.split(':')[1]}`,
-                        );
-                    }
-                    continue;
-                }
-                if (curVal !== refVal) {
-                    errors.push(
-                        `[${loc}] ${base}: array length ${curVal.split(':')[1]} ≠ ${reference} ${refVal.split(':')[1]}`,
-                    );
-                }
-                continue;
-            }
-
-            if (curVal === undefined) {
-                // Absent keys are ESLint's; an array/string mismatch is not caught anywhere else.
-                if (cur[`${key}[]`] !== undefined) {
-                    errors.push(`[${loc}] ${key}: array where ${reference} has a string`);
-                }
-                continue;
-            }
-
-            const rp = pluralSegments(refVal);
-            const cp = pluralSegments(curVal);
-            if (rp !== cp) {
-                errors.push(`[${loc}] ${key}: ${cp} plural segment(s) ≠ ${reference} ${rp} — "${curVal}"`);
-            }
-
-            const rph = placeholders(refVal).join(',');
-            const cph = placeholders(curVal).join(',');
-            if (rph !== cph) {
-                errors.push(`[${loc}] ${key}: placeholders [${cph}] ≠ ${reference} [${rph}]`);
-            }
-        }
+        for (const [key, refVal] of Object.entries(ref))
+            errors.push(...shapeMismatches(loc, key, refVal, cur, reference));
     }
 
     // ── 4. createI18n options ───────────────────────────────────────────────────
@@ -248,4 +209,47 @@ function placeholders(str: string): string[] {
 
 function pluralSegments(str: string): number {
     return str.split('|').length;
+}
+
+/** Rules 1–3 for one key of one locale: the value has the reference's shape, plural segments and placeholders. */
+function shapeMismatches(
+    loc: string,
+    key: string,
+    refVal: string,
+    cur: Record<string, string>,
+    reference: string,
+): string[] {
+    const curVal = cur[key];
+
+    if (refVal.startsWith('__array:')) {
+        const base = key.slice(0, -2);
+        const refLength = refVal.split(':')[1];
+        if (curVal === undefined) {
+            return typeof cur[base] === 'string'
+                ? [`[${loc}] ${base}: string where ${reference} has an array of ${refLength}`]
+                : [];
+        }
+        return curVal === refVal
+            ? []
+            : [`[${loc}] ${base}: array length ${curVal.split(':')[1]} ≠ ${reference} ${refLength}`];
+    }
+
+    // Absent keys are ESLint's; an array/string mismatch is not caught anywhere else.
+    if (curVal === undefined) {
+        return cur[`${key}[]`] === undefined ? [] : [`[${loc}] ${key}: array where ${reference} has a string`];
+    }
+
+    const errors: string[] = [];
+    const rp = pluralSegments(refVal);
+    const cp = pluralSegments(curVal);
+    if (rp !== cp) {
+        errors.push(`[${loc}] ${key}: ${cp} plural segment(s) ≠ ${reference} ${rp} — "${curVal}"`);
+    }
+
+    const rph = placeholders(refVal).join(',');
+    const cph = placeholders(curVal).join(',');
+    if (rph !== cph) {
+        errors.push(`[${loc}] ${key}: placeholders [${cph}] ≠ ${reference} [${rph}]`);
+    }
+    return errors;
 }

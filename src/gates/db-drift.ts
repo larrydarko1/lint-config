@@ -15,9 +15,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { collectionShapeProblems } from './lib/document-shape.ts';
 import { gitIgnores } from './lib/files.ts';
+import { isRecord, listAt, recordAt, stringAt, stringsAt, toRecord } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 
 export type DbDriftOptions = Omit<DbDriftInput, 'root'> & {
     /** Defaults to the repository root. */
@@ -161,14 +163,11 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
         backups,
     } = input;
 
-    const problems: GateFailure[] = [];
+    const { problems, fail } = collectFailures();
     const warnings: string[] = [];
-    const fail = (file: string, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
 
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
-    const exists = (rel: string) => fs.existsSync(path.join(root, rel));
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
+    const exists = (rel: string): boolean => fs.existsSync(path.join(root, rel));
 
     // ── 0. Anchors ───────────────────────────────────────────────────────────
     // A moved file stops the gate, so no rule passes on nothing.
@@ -187,11 +186,11 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
     // migrate-mongo imports it with no bundler and no aliases.
     let registry: Record<string, unknown>;
     try {
-        registry = (await import(pathToFileURL(path.join(root, manifest)).href)) as Record<string, unknown>;
+        registry = toRecord(await import(pathToFileURL(path.join(root, manifest)).href));
     } catch (err) {
         fail(
             manifest,
-            `does not load under plain Node: ${(err as Error).message.split('\n')[0]}`,
+            `does not load under plain Node: ${(err instanceof Error ? err.message : String(err)).split('\n')[0]}`,
             'The bootstrap migration imports it through the migrate-mongo CLI, where there is no bundler and no path aliases. Every import in this file has to be type-only.',
         );
         return { problems, warnings, collections: [], indexes: 0, migrations: 0 };
@@ -204,12 +203,25 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
                 `no longer exports ${name}`,
                 'This gate and the migrations both read it by name, so the export is an interface rather than an implementation detail.',
             );
+            continue;
+        }
+        const isEntry =
+            name === collectionsExport ? (entry: unknown): boolean => typeof entry === 'string' : isIndexSpec;
+        const wrong = listAt(registry, name).filter((entry) => !isEntry(entry)).length;
+        if (!Array.isArray(registry[name]) || wrong > 0) {
+            fail(
+                manifest,
+                Array.isArray(registry[name])
+                    ? `${name} holds ${plural(wrong, 'entry', 'entries')} of the wrong shape`
+                    : `exports ${name} as something other than a list`,
+                'The gate cannot read such an entry, so nothing checks it. A collection is a name, and an index entry names its collection, with its keys, options and why, when given, of the documented types.',
+            );
         }
     }
     if (problems.length > 0) return { problems, warnings, collections: [], indexes: 0, migrations: 0 };
 
-    const collections = [...(registry[collectionsExport] as string[])];
-    const indexes = indexExports.flatMap((name) => [...(registry[name] as IndexSpec[])]);
+    const collections = stringsAt(registry, collectionsExport);
+    const indexes = indexExports.flatMap((name) => listAt(registry, name).filter(isIndexSpec));
     const indexed = new Set(indexes.map((index) => index.collection));
 
     const migrationFiles = fs
@@ -273,7 +285,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
     }
 
     // ── 5. Every collection has an example document ──────────────────────────
-    const exampleCollection = (file: string) => file.replace(/\.json$/, '').split('.')[0] ?? '';
+    const exampleCollection = (file: string): string => file.replace(/\.json$/, '').split('.')[0] ?? '';
     const exampleFiles = fs.readdirSync(path.join(root, examplesDir)).filter((file) => file.endsWith('.json'));
     {
         const present = new Set(exampleFiles.map((file) => file.replace(/\.json$/, '')));
@@ -297,96 +309,19 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
 
     // ── 6. Docs and examples describe the REAL document shape ────────────────
     {
-        const doc = read(architecture);
-        const types = read(typesFile);
-
+        const sources = {
+            manifest,
+            collectionTypes,
+            typesFile,
+            types: read(typesFile),
+            architecture,
+            doc: read(architecture),
+        };
         for (const collection of collections) {
-            const typeName = collectionTypes[collection];
-            if (typeName === undefined) {
-                fail(
-                    manifest,
-                    `'${collection}' has no entry in collectionTypes`,
-                    'Point it at the type that declares its document shape, so its docs and its example can be checked against something rather than trusted.',
-                );
-                continue;
-            }
-
-            const type = typeFields(types, typeName);
-            if (type === null) {
-                fail(
-                    typesFile,
-                    `has no "type ${typeName} = { … }"`,
-                    `'${collection}' is mapped to a type that does not exist, so nothing has been checking its docs or its example.`,
-                );
-                continue;
-            }
-
-            const declared = new Set(type.fields.map((field) => field.name).filter((name) => name !== '_id'));
-            const required = type.fields
-                .filter((field) => !field.optional && field.name !== '_id')
-                .map((field) => field.name);
-
-            const documented = documentedFields(doc, collection);
-            if (documented !== null) {
-                for (const field of declared) {
-                    if (documented.includes(field)) continue;
-                    fail(
-                        architecture,
-                        `the '${collection}' table is missing \`${field}\`, which is a field of ${typeName}`,
-                        'A doc that is missing half a schema is read as if it were the whole of it.',
-                    );
-                }
-                for (const field of documented) {
-                    if (field === '_id' || declared.has(field)) continue;
-                    fail(
-                        architecture,
-                        `the '${collection}' table documents \`${field}\`, which is not a field of ${typeName}`,
-                        'This is how a schema doc becomes fiction: nothing removed the row when the field went.',
-                    );
-                }
-                for (const field of new Set(documented.filter((f, i) => documented.indexOf(f) !== i))) {
-                    fail(
-                        architecture,
-                        `the '${collection}' table lists \`${field}\` more than once`,
-                        'Two rows for one field means one of them is stale, and a reader has no way to tell which.',
-                    );
-                }
-            }
-
-            for (const file of exampleFiles.filter((f) => exampleCollection(f) === kebab(collection))) {
-                const rel = `${examplesDir}/${file}`;
-                let example: Record<string, unknown>;
-                try {
-                    example = JSON.parse(read(rel)) as Record<string, unknown>;
-                } catch (err) {
-                    fail(
-                        rel,
-                        `is not valid JSON (${(err as Error).message})`,
-                        'An example nothing can parse is an example nothing has checked.',
-                    );
-                    continue;
-                }
-
-                const keys = Object.keys(example);
-                if (!type.open) {
-                    for (const key of keys) {
-                        if (key === '_id' || declared.has(key)) continue;
-                        fail(
-                            rel,
-                            `has \`${key}\`, which is not a field of ${typeName}`,
-                            'The example documents a schema that does not exist, which is worse than having no example: a reader copies it.',
-                        );
-                    }
-                }
-                for (const field of required) {
-                    if (keys.includes(field)) continue;
-                    fail(
-                        rel,
-                        `is missing \`${field}\`, which ${typeName} declares as required`,
-                        'Every real document has it, so an example without it is not an example of a real document.',
-                    );
-                }
-            }
+            const examples = exampleFiles
+                .filter((file) => exampleCollection(file) === kebab(collection))
+                .map((file) => ({ rel: `${examplesDir}/${file}`, source: read(`${examplesDir}/${file}`) }));
+            problems.push(...collectionShapeProblems(collection, sources, examples));
         }
     }
 
@@ -480,15 +415,15 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
         }
 
         try {
-            const mod = (await import(pathToFileURL(path.join(root, rel)).href)) as { up?: unknown; down?: unknown };
-            if (typeof mod.up !== 'function') {
+            const mod = toRecord(await import(pathToFileURL(path.join(root, rel)).href));
+            if (typeof mod['up'] !== 'function') {
                 fail(
                     rel,
                     'does not export an up() function',
                     'migrate-mongo has nothing to run, and will say so only when someone deploys.',
                 );
             }
-            if (mod.down !== undefined) {
+            if (mod['down'] !== undefined) {
                 fail(
                     rel,
                     'exports a down()',
@@ -496,7 +431,8 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
                 );
             }
         } catch (err) {
-            const { code, message } = err as NodeJS.ErrnoException;
+            const code = stringAt(err, 'code');
+            const message = err instanceof Error ? err.message : String(err);
             fail(
                 rel,
                 `fails to import under plain Node (${code ?? 'error'})`,
@@ -507,7 +443,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
 
     // ── 10. A merged migration is immutable ──────────────────────────────────
     {
-        const hash = (file: string) =>
+        const hash = (file: string): string =>
             crypto
                 .createHash('sha256')
                 .update(read(path.join(migrationsDir, file)))
@@ -520,7 +456,7 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
                 'It is the record of what each migration looked like when it was committed. Without it, an edit to an already-applied migration is undetectable.',
             );
         } else {
-            const recorded = JSON.parse(read(checksums)) as Record<string, string>;
+            const recorded = toRecord(JSON.parse(read(checksums)));
 
             for (const file of migrationFiles) {
                 if (!(file in recorded)) {
@@ -593,59 +529,56 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
                 `the shutdown is missing ${missing.map((stage) => stage.what).join(', ')}`,
                 'Either the shutdown was restructured — in which case re-point this rule — or a stage was dropped. Both need a human, because neither shows up until a deploy.',
             );
-        } else {
-            for (let i = 1; i < found.length; i++) {
-                const previous = found[i - 1];
-                const current = found[i];
-                if (previous === undefined || current === undefined || previous.at < current.at) continue;
-                fail(
-                    drainOrder.file,
-                    `${current.what} happens before ${previous.what}`,
-                    'The drain has to run in dependency order, from the thing that produces work to the thing that stores it. Any other order severs a write that was already in progress.',
-                );
-            }
+        }
+        const pairs = missing.length > 0 ? [] : found.slice(1).map((current, i) => ({ previous: found[i], current }));
+        for (const { previous, current } of pairs) {
+            if (previous === undefined || previous.at < current.at) continue;
+            fail(
+                drainOrder.file,
+                `${current.what} happens before ${previous.what}`,
+                'The drain has to run in dependency order, from the thing that produces work to the thing that stores it. Any other order severs a write that was already in progress.',
+            );
         }
     }
 
     // ── 14. Every index export is actually applied by someone ────────────────
-    if (indexAppliers !== undefined) {
-        for (const name of indexExports) {
-            if (indexAppliers.some((applier) => applier.applies.includes(name))) continue;
+    const unapplied =
+        indexAppliers === undefined
+            ? []
+            : indexExports.filter((name) => !indexAppliers.some((applier) => applier.applies.includes(name)));
+    for (const name of unapplied) {
+        fail(
+            manifest,
+            `exports ${name}, which no process applies`,
+            'It reads as a declared index and creates nothing. Every environment runs without it, and the first sign is a slow query in production.',
+        );
+    }
+    for (const applier of indexAppliers ?? []) {
+        const source = read(applier.file);
+        const fn = applier.fn ?? 'ensureIndexes';
+
+        // Blank the declaration first, so defining the applier is not calling it.
+        const calls = source.replace(new RegExp(String.raw`function\s+${fn}\s*\(`, 'g'), 'x(');
+        if (!new RegExp(String.raw`\b${fn}\s*\(|\.then\(\s*${fn}\s*[),]`).test(calls)) {
             fail(
-                manifest,
-                `exports ${name}, which no process applies`,
-                'It reads as a declared index and creates nothing. Every environment runs without it, and the first sign is a slow query in production.',
+                applier.file,
+                `never calls ${fn}()`,
+                'The manifest becomes a document nothing reads, and every fresh environment boots with no indexes at all — fast in development, and a table scan per request on real data.',
             );
         }
-
-        for (const applier of indexAppliers) {
-            const source = read(applier.file);
-            const fn = applier.fn ?? 'ensureIndexes';
-
-            // Blank the declaration first, so defining the applier is not calling it.
-            const calls = source.replace(new RegExp(String.raw`function\s+${fn}\s*\(`, 'g'), 'x(');
-            if (!new RegExp(String.raw`\b${fn}\s*\(|\.then\(\s*${fn}\s*[),]`).test(calls)) {
-                fail(
-                    applier.file,
-                    `never calls ${fn}()`,
-                    'The manifest becomes a document nothing reads, and every fresh environment boots with no indexes at all — fast in development, and a table scan per request on real data.',
-                );
-            }
-            for (const name of applier.applies) {
-                if (source.includes(name)) continue;
-                fail(
-                    applier.file,
-                    `does not reference ${name} from ${manifest}`,
-                    'It is applying something, but not the manifest this gate checks — so the two are free to disagree.',
-                );
-            }
+        for (const name of applier.applies.filter((exported) => !source.includes(exported))) {
+            fail(
+                applier.file,
+                `does not reference ${name} from ${manifest}`,
+                'It is applying something, but not the manifest this gate checks — so the two are free to disagree.',
+            );
         }
     }
 
     // ── 15. No migrate-down script, and no migrating at startup ──────────────
     for (const rel of packageManifests) {
         if (!exists(rel)) continue;
-        const scripts = (JSON.parse(read(rel)) as { scripts?: Record<string, string> }).scripts ?? {};
+        const scripts = recordAt(JSON.parse(read(rel)), 'scripts');
         const down = Object.keys(scripts).filter((name) => /migrate.*down|down.*migrate/i.test(name));
         if (down.length === 0) continue;
         fail(
@@ -729,21 +662,20 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
                     'has no zero-document check',
                     'mongodump exiting 0 proves a file was written, not that it held anything. A backup of nothing must exit 1, not report success.',
                 );
-            } else {
-                if (manifestWrite !== -1 && zero < manifestWrite) {
-                    fail(
-                        ops.backup.file,
-                        'checks for zero documents before writing the manifest',
-                        'Write the manifest first so the failed run leaves a record of itself, then exit 1. A failure with no paper trail is indistinguishable from a run that never happened.',
-                    );
-                }
-                if (success !== -1 && success < zero) {
-                    fail(
-                        ops.backup.file,
-                        'prints "Backup complete" before the zero-document check',
-                        'That is the silent empty dump, with a paper trail saying it worked.',
-                    );
-                }
+            }
+            if (zero !== -1 && zero < manifestWrite) {
+                fail(
+                    ops.backup.file,
+                    'checks for zero documents before writing the manifest',
+                    'Write the manifest first so the failed run leaves a record of itself, then exit 1. A failure with no paper trail is indistinguishable from a run that never happened.',
+                );
+            }
+            if (success !== -1 && success < zero) {
+                fail(
+                    ops.backup.file,
+                    'prints "Backup complete" before the zero-document check',
+                    'That is the silent empty dump, with a paper trail saying it worked.',
+                );
             }
         }
 
@@ -794,18 +726,16 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
             const doc = read(backups.drills).replace(/<!--[\s\S]*?-->/g, '');
             const dates = [...doc.matchAll(/^\| (\d{4}-\d{2}-\d{2}) \|/gm)].map((m) => m[1] ?? '').sort();
             const last = dates.at(-1);
+            const ageDays = last === undefined ? 0 : Math.floor((Date.now() - Date.parse(last)) / 86_400_000);
 
             if (last === undefined) {
                 warnings.push(
                     `${backups.drills}: no drill has ever been logged. Run one — restore yesterday's backup onto a fresh staging instance and smoke-test the critical flows.`,
                 );
-            } else {
-                const ageDays = Math.floor((Date.now() - Date.parse(last)) / 86_400_000);
-                if (ageDays > maxAgeDays) {
-                    warnings.push(
-                        `${backups.drills}: the last restore drill was ${ageDays} days ago (${last}). The standard says quarterly, so this is ${ageDays - maxAgeDays} days overdue.`,
-                    );
-                }
+            } else if (ageDays > maxAgeDays) {
+                warnings.push(
+                    `${backups.drills}: the last restore drill was ${ageDays} days ago (${last}). The standard says quarterly, so this is ${ageDays - maxAgeDays} days overdue.`,
+                );
             }
         }
 
@@ -825,14 +755,14 @@ export async function inspectDbDrift(input: DbDriftInput): Promise<DbDriftInspec
         }
 
         if (backups.latest !== undefined && exists(backups.latest)) {
-            const latest = JSON.parse(read(backups.latest)) as { completedAt?: string; totalDocuments?: number };
-            const ageDays = Math.floor((Date.now() - Date.parse(latest.completedAt ?? '')) / 86_400_000);
+            const latest: unknown = JSON.parse(read(backups.latest));
+            const ageDays = Math.floor((Date.now() - Date.parse(stringAt(latest, 'completedAt') ?? '')) / 86_400_000);
             if (ageDays > 1) {
                 warnings.push(
                     `${backups.latest}: the last backup completed ${ageDays} days ago. Nightly backups are not running.`,
                 );
             }
-            if (latest.totalDocuments === 0) {
+            if (isRecord(latest) && latest['totalDocuments'] === 0) {
                 fail(
                     backups.latest,
                     'records a backup that contained zero documents',
@@ -865,54 +795,7 @@ export async function checkDbDrift({ root = REPO_ROOT, ...rest }: DbDriftOptions
 }
 
 /** `Users` → `users`, `HashDatabase` → `hash-database`, `AssetInfo` → `asset-info`. */
-const kebab = (name: string) => name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
-
-/** The top-level fields of `type Name = { … }`, brace-counted, ignoring anything nested. */
-function typeFields(
-    source: string,
-    typeName: string,
-): { open: boolean; fields: { name: string; optional: boolean }[] } | null {
-    const opener = new RegExp(String.raw`^\s*(?:export\s+)?type ${typeName}\s*=\s*\{`, 'm').exec(source);
-    if (opener === null) return null;
-
-    let depth = 1;
-    let top = '';
-    for (let i = opener.index + opener[0].length; i < source.length && depth > 0; i++) {
-        const ch = source[i];
-        if (ch === '{') {
-            if (depth === 1) top += ch;
-            depth++;
-        } else if (ch === '}') {
-            depth--;
-        } else if (depth === 1) {
-            top += ch;
-        }
-    }
-
-    const code = top.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-    return {
-        // An index signature allows extra example keys.
-        open: /\[\s*\w+\s*:\s*string\s*\]\s*:/.test(code),
-        fields: [...code.matchAll(/(?:^|[;\n{])\s*(\w+)(\??)\s*:/g)].map((m) => ({
-            name: m[1] ?? '',
-            optional: m[2] === '?',
-        })),
-    };
-}
-
-/**
- * The field names listed in the `#### Collection` table of the architecture doc.
- *
- * @returns Null when the collection has no section at all.
- */
-function documentedFields(doc: string, collection: string): string[] | null {
-    const start = doc.indexOf(`#### ${collection}\n`);
-    if (start === -1) return null;
-    const rest = doc.slice(start + 1);
-    const next = rest.search(/\n#{2,4} /);
-    const section = next === -1 ? rest : rest.slice(0, next);
-    return [...section.matchAll(/^\| `(\w+)`\s*\|/gm)].map((m) => m[1] ?? '');
-}
+const kebab = (name: string): string => name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
 
 /** Every `.ts` file under a directory, recursively. */
 function walk(root: string, dir: string): string[] {
@@ -924,3 +807,12 @@ function walk(root: string, dir: string): string[] {
         return entry.name.endsWith('.ts') ? [rel] : [];
     });
 }
+
+const isIndexSpec = (spec: unknown): spec is IndexSpec =>
+    isRecord(spec) &&
+    typeof spec['collection'] === 'string' &&
+    (spec['keys'] === undefined || isRecord(spec['keys'])) &&
+    (spec['options'] === undefined ||
+        (isRecord(spec['options']) &&
+            ['undefined', 'number'].includes(typeof spec['options']['expireAfterSeconds']))) &&
+    (spec['why'] === undefined || typeof spec['why'] === 'string');

@@ -17,7 +17,7 @@ import path from 'node:path';
 
 import { walkFiles } from '../lib/files.ts';
 import { REPO_ROOT } from '../lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from '../lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from '../lib/report.ts';
 import { closingBracket } from '../lib/rust.ts';
 import { stripComments } from '../lib/strip-comments.ts';
 import { countSwallows, findSwallowedErrors, isPlaceholderReason } from '../lib/swallowed-errors.ts';
@@ -56,11 +56,8 @@ const RUST_SWALLOWS: [pattern: RegExp, what: string][] = [
  */
 export function inspectTauriErrorHandling(input: TauriErrorHandlingOptions = {}): TauriErrorHandlingInspection {
     const { root = REPO_ROOT, tauriDir = 'src-tauri', webviewDir = 'src', bridgeDir = 'src/bridge' } = input;
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+    const { problems, fail } = collectFailures();
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
 
     const srcDir = `${tauriDir}/src`;
     const rust = readRustFiles(root, srcDir);
@@ -129,24 +126,23 @@ export function inspectTauriErrorHandling(input: TauriErrorHandlingOptions = {})
     }
 
     // ── 4. A swallowed failure states its reason ─────────────────────────────
-    let rustSwallows = 0;
-    for (const file of rust) {
-        for (const [pattern, what] of RUST_SWALLOWS) {
-            for (const m of file.lexed.code.matchAll(pattern)) {
-                rustSwallows += 1;
-                const reason = swallowReason(file.source, m.index, m.index + m[0].length);
-                if (!isPlaceholderReason(reason)) continue;
-                fail(
-                    `${file.rel}:${lineAt(file.source, m.index)}`,
-                    `${what} without a reason${reason === '' ? '' : ` ("${reason}")`}`,
-                    'Say what is dropped and why that is safe, in a comment beside it: "the window is already closing". Clippy refuses `let _ =` on a `Result`, and not these.',
-                );
-            }
-        }
+    const rustSwallowSites = rust.flatMap((file) =>
+        RUST_SWALLOWS.flatMap(([pattern, what]) =>
+            [...file.lexed.code.matchAll(pattern)].map((m) => ({ file, what, m })),
+        ),
+    );
+    for (const { file, what, m } of rustSwallowSites) {
+        const reason = swallowReason(file.source, m.index, m.index + m[0].length);
+        if (!isPlaceholderReason(reason)) continue;
+        fail(
+            `${file.rel}:${lineAt(file.source, m.index)}`,
+            `${what} without a reason${reason === '' ? '' : ` ("${reason}")`}`,
+            'Say what is dropped and why that is safe, in a comment beside it: "the window is already closing". Clippy refuses `let _ =` on a `Result`, and not these.',
+        );
     }
     const scanned = { root, files: walkFiles(root, webviewDir, { match: /\.(ts|vue)$/ }) };
     for (const { file, what, why } of findSwallowedErrors(scanned)) fail(file, what, why);
-    const swallows = countSwallows(scanned) + rustSwallows;
+    const swallows = countSwallows(scanned) + rustSwallowSites.length;
 
     return { problems, counts: { fallible, swallows } };
 }

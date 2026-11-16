@@ -15,9 +15,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { walkFiles } from '../lib/files.ts';
+import { repoReader, walkFiles } from '../lib/files.ts';
+import { recordAt } from '../lib/json.ts';
 import { REPO_ROOT } from '../lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from '../lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from '../lib/report.ts';
 import { stripComments } from '../lib/strip-comments.ts';
 import { countSwallows, findSwallowedErrors } from '../lib/swallowed-errors.ts';
 
@@ -124,18 +125,12 @@ export function inspectFullstackErrorHandling(
         directCodeEmitters = [],
     } = input;
 
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
+    const { read, exists } = repoReader(root);
+    const code = (rel: string): string => stripComments(read(rel));
+    const lineOf = (src: string, index: number): number => src.slice(0, index).split('\n').length;
 
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
-    const exists = (rel: string) => fs.existsSync(path.join(root, rel));
-    const code = (rel: string) => stripComments(read(rel));
-    const lineOf = (src: string, index: number) => src.slice(0, index).split('\n').length;
-
-    const notTests = (rel: string) => !rel.includes('__tests__');
-    const apiFiles = walkFiles(root, apiDir, { match: /\.ts$/, exclude: (r) => !notTests(r) });
+    const apiFiles = walkFiles(root, apiDir, { match: /\.ts$/, exclude: /__tests__/ });
     const statusTable = new Set(allowedStatus);
     const parseLevel = new Set(parseLevel400);
     const explicitSecurity = new Set(securityEventCodes);
@@ -143,7 +138,7 @@ export function inspectFullstackErrorHandling(
     const emitters = [...directCodeEmitters, handler];
 
     // True when a code must carry `securityEvent: true`.
-    const isSecurityEvent = (c: string) =>
+    const isSecurityEvent = (c: string): boolean =>
         !routine.has(c) && (explicitSecurity.has(c) || SECURITY_EVENT_PATTERNS.some((p) => p.test(c)));
 
     // Every code in the shared contract, in declaration order.
@@ -209,7 +204,7 @@ export function inspectFullstackErrorHandling(
     const statusOf = new Map<string, Map<number, string[]>>();
     for (const t of throws) {
         if (t.errorCode === null || !Number.isInteger(t.status)) continue;
-        const seen = statusOf.get(t.errorCode) ?? new Map();
+        const seen = statusOf.get(t.errorCode) ?? new Map<number, string[]>();
         statusOf.set(t.errorCode, seen);
         seen.set(t.status, [...(seen.get(t.status) ?? []), `${t.rel}:${t.line}`]);
     }
@@ -358,41 +353,37 @@ export function inspectFullstackErrorHandling(
         }
 
         const apiSrc = apiFiles.map(code).join('\n');
-        for (const c of allCodes) {
-            if (!apiSrc.includes(`'${c}'`)) {
-                fail(
-                    codesFile,
-                    `\`${c}\` is never thrown or emitted`,
-                    'Remove it, or throw it. An unreachable code still costs a translation in every locale and suggests a failure path that does not exist.',
-                );
-            }
+        for (const c of allCodes.filter((name) => !apiSrc.includes(`'${name}'`))) {
+            fail(
+                codesFile,
+                `\`${c}\` is never thrown or emitted`,
+                'Remove it, or throw it. An unreachable code still costs a translation in every locale and suggests a failure path that does not exist.',
+            );
         }
 
         const known = new Set(allCodes);
         const localePath = path.join(root, localeDir);
-        if (fs.existsSync(localePath)) {
-            for (const file of fs.readdirSync(localePath).filter((f) => f.endsWith('.json'))) {
-                const rel = `${localeDir}/${file}`;
-                const dict = JSON.parse(read(rel)).errors ?? {};
-                for (const key of Object.keys(dict)) {
-                    if (!known.has(key)) {
-                        fail(
-                            rel,
-                            `\`errors.${key}\` translates a code that no longer exists`,
-                            'Drop it. An orphaned entry outlives the rename that stranded it and makes the dictionary look like it covers more than it does.',
-                        );
-                    }
-                }
-                for (const c of allCodes) {
-                    const text = dict[c];
-                    if (typeof text !== 'string' || text.trim() === '') {
-                        fail(
-                            rel,
-                            `no translation for \`${c}\``,
-                            'A code with no translation reaches the user as raw SCREAMING_SNAKE. Adding a code means adding it to every locale.',
-                        );
-                    }
-                }
+        const localeFiles = fs.existsSync(localePath) ? fs.readdirSync(localePath) : [];
+        for (const file of localeFiles.filter((f) => f.endsWith('.json'))) {
+            const rel = `${localeDir}/${file}`;
+            const dict = recordAt(JSON.parse(read(rel)), 'errors');
+            for (const key of Object.keys(dict).filter((name) => !known.has(name))) {
+                fail(
+                    rel,
+                    `\`errors.${key}\` translates a code that no longer exists`,
+                    'Drop it. An orphaned entry outlives the rename that stranded it and makes the dictionary look like it covers more than it does.',
+                );
+            }
+            const untranslated = allCodes.filter((name) => {
+                const text = dict[name];
+                return typeof text !== 'string' || text.trim() === '';
+            });
+            for (const c of untranslated) {
+                fail(
+                    rel,
+                    `no translation for \`${c}\``,
+                    'A code with no translation reaches the user as raw SCREAMING_SNAKE. Adding a code means adding it to every locale.',
+                );
             }
         }
 
@@ -450,7 +441,7 @@ export function inspectFullstackErrorHandling(
     // ── 6. `params` carry no request input ───────────────────────────────────
     for (const t of throws) {
         const params = optionField(t.args, 'params');
-        if (!params?.startsWith('{')) continue;
+        if (params?.startsWith('{') !== true) continue;
         const hit = /\breq\.(params|body|query|headers)\b|\bidentifier\b|\bfilename\b/.exec(params);
         if (hit !== null) {
             fail(
@@ -463,10 +454,10 @@ export function inspectFullstackErrorHandling(
 
     // ── 7. The non-HTTP services ─────────────────────────────────────────────
     let queueWorkers = 0;
-    const serviceFiles = walkFiles(root, serviceDirs, { match: /\.ts$/, exclude: (r) => !notTests(r) });
+    const serviceFiles = walkFiles(root, serviceDirs, { match: /\.ts$/, exclude: /__tests__/ });
     for (const rel of [
         ...serviceFiles,
-        ...walkFiles(root, appErrorBanDirs, { match: /\.ts$/, exclude: (r) => !notTests(r) }),
+        ...walkFiles(root, appErrorBanDirs, { match: /\.ts$/, exclude: /__tests__/ }),
     ]) {
         const src = code(rel);
         for (const m of src.matchAll(/(?:const|let)\s+(\w+)\s*=\s*new Worker\s*[<(]/g)) {
@@ -506,7 +497,7 @@ export function inspectFullstackErrorHandling(
                 "A SCREAMING_SNAKE code with no translation must fall back to errors.INTERNAL — a raw code must never reach the user's eyes.",
             );
         }
-        for (const rel of walkFiles(root, frontendDir, { match: /\.(ts|vue)$/, exclude: (r) => !notTests(r) })) {
+        for (const rel of walkFiles(root, frontendDir, { match: /\.(ts|vue)$/, exclude: /__tests__/ })) {
             if (/\bAppError\b/.test(code(rel))) {
                 fail(
                     rel,
@@ -589,7 +580,7 @@ function callArguments(src: string, open: number): string[] | null {
 /** One named field out of the `options` argument of a `new AppError(...)` call. */
 function optionField(args: string[], name: string): string | null {
     const options = args[3]?.trim();
-    if (!options?.startsWith('{')) return null;
+    if (options?.startsWith('{') !== true) return null;
     const fields = callArguments(options, 0);
     if (fields === null) return null;
     for (const field of fields) {

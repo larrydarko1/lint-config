@@ -110,6 +110,23 @@ test('a workflow that satisfies every rule passes', (t) => {
     assert.doesNotMatch(out, /pushed image/);
 });
 
+test('a job left empty is reported, not walked into a crash', (t) => {
+    const { err, failed } = run(patched(t, 'jobs:\n  check:\n', 'jobs:\n  empty:\n  check:\n'));
+    assert.equal(failed, true);
+    assert.match(err, /is not a workflow GitHub can run: `jobs\.empty` is not a map/);
+});
+
+test('an empty matrix leaves a matrix-named runner unresolved, and says so', (t) => {
+    const root = patched(
+        t,
+        '    runs-on: ubuntu-24.04\n',
+        '    runs-on: ${{ matrix.os }}\n    strategy:\n      matrix:\n',
+    );
+    const { err, failed } = run(root);
+    assert.equal(failed, true);
+    assert.match(err, /has a computed `runs-on` this gate cannot resolve/);
+});
+
 // ── 1-4: the rules both families already had ────────────────────────────────
 
 test('1. a job with no timeout-minutes is reported', (t) => {

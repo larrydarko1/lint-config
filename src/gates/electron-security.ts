@@ -22,17 +22,16 @@
  * - Spans are bracket-counted (source.ts). The rule 8 boundary check and the rule 11
  * sanitizers are recognised by name; their correctness is a unit test's question.
  */
-import fs from 'node:fs';
-import path from 'node:path';
 
-import { walkFiles } from './lib/files.ts';
+import { repoReader, walkFiles } from './lib/files.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import {
     callSites,
     declaredBody,
     functionParts,
     propertyValue,
+    skipString,
     splitTopLevel,
     type FunctionParts,
 } from './lib/source.ts';
@@ -166,12 +165,8 @@ export function inspectElectronSecurity({
     vHtml = [],
     sanitizers = [],
 }: ElectronSecurityInput): ElectronSecurityInspection {
-    const problems: GateFailure[] = [];
-    const fail: (file: string, what: string, why: string) => void = (file, what, why) =>
-        problems.push({ file, what, why });
-
-    const exists = (dir: string) => fs.existsSync(path.join(root, dir));
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+    const { problems, fail } = collectFailures();
+    const { exists, read } = repoReader(root);
 
     if (!exists(mainDir)) {
         fail(mainDir, 'does not exist', 'This gate reads the main process from here. Point `mainDir` at it.');
@@ -183,13 +178,13 @@ export function inspectElectronSecurity({
     const mainFiles = walkFiles(root, mainDir, { match: /\.[cm]?ts$/, exclude });
     const preloadFiles = walkFiles(root, preloadDir, { match: /\.[cm]?ts$/, exclude });
     const rendererFiles = walkFiles(root, rendererDir, { match: /\.(?:[cm]?ts|vue)$/, exclude });
-    const strip = (rel: string) => stripComments(read(rel));
+    const strip = (rel: string): string => stripComments(read(rel));
     const main = mainFiles.map((rel) => [rel, strip(rel)] as [string, string]);
 
     /** Every `token(` call across the main process, with the file it is in. */
-    const sitesIn = (token: string) =>
+    const sitesIn = (token: string): (ReturnType<typeof callSites>[number] & { rel: string; code: string })[] =>
         main.flatMap(([rel, code]) => callSites(code, token).map((site) => ({ rel, code, ...site })));
-    const where = (s: { rel: string; code: string; index: number }) => `${s.rel}:${lineAt(s.code, s.index)}`;
+    const where = (s: { rel: string; code: string; index: number }): string => `${s.rel}:${lineAt(s.code, s.index)}`;
 
     // ── 1/2/3. webPreferences on every BrowserWindow ─────────────────────────
     const windows = sitesIn('new BrowserWindow(');
@@ -304,13 +299,13 @@ export function inspectElectronSecurity({
         [
             'setPermissionRequestHandler',
             'Handles a live permission request. Over file:// Electron denies everything by default and a dev server on http://localhost does not, so the two builds disagree until the policy is written down — and once one permission is granted, this handler is the entire policy.',
-            (fn: FunctionParts) =>
+            (fn: FunctionParts): boolean =>
                 fn.params[2] !== undefined && new RegExp(String.raw`\b${fn.params[2]}\(\s*false\s*\)`).test(fn.body),
         ],
         [
             'setPermissionCheckHandler',
             'Answers `navigator.permissions.query`. Without it a renderer can be told it holds a permission the request handler would refuse, and the two answers disagree.',
-            (fn: FunctionParts) => /\breturn\s+false\b/.test(fn.body) || fn.body.trim() === 'false',
+            (fn: FunctionParts): boolean => /\breturn\s+false\b/.test(fn.body) || fn.body.trim() === 'false',
         ],
     ] as const) {
         const sites = sitesIn(`${name}(`);
@@ -433,7 +428,7 @@ export function inspectElectronSecurity({
 
     // ── 12. v-html bindings ──────────────────────────────────────────────────
     /** file → bindings found */
-    const bindings = new Map();
+    const bindings = new Map<string, string[]>();
     let vHtmlCount = 0;
     for (const rel of rendererFiles.filter((f) => f.endsWith('.vue'))) {
         const source = read(rel).replace(/<!--[\s\S]*?-->/g, (c) => c.replace(/[^\n]/g, ' '));
@@ -550,12 +545,7 @@ function enclosingFunctionStart(code: string, index: number): number {
             const typed = /\)\s*:\s*[\w$.<>[\]|&\s,'"]*$/.exec(before);
             const close = typed !== null ? typed.index : before.endsWith(')') ? before.length - 1 : -1;
             if (close === -1) continue;
-            let parens = 0;
-            let k = close;
-            for (; k >= 0; k--) {
-                if (before[k] === ')') parens++;
-                else if (before[k] === '(' && --parens === 0) break;
-            }
+            const k = openingParen(before, close);
             const keyword = /([\w$]+)\s*$/.exec(before.slice(0, Math.max(0, k)))?.[1] ?? '';
             if (!['if', 'for', 'while', 'switch', 'catch', 'with'].includes(keyword)) return j + 1;
         }
@@ -599,7 +589,7 @@ function ternaryBranches(expr: string): [string, string] | null {
     const rest = parts.slice(1).join('?');
     const branches = splitTopLevel(rest, ':');
     if (branches.length !== 2) return null;
-    const restore = (s: string) => s.replaceAll('\u0001\u0001', '??').replaceAll('\u0002.', '?.');
+    const restore = (s: string): string => s.replaceAll('\u0001\u0001', '??').replaceAll('\u0002.', '?.');
     return [restore(branches[0] ?? ''), restore(branches[1] ?? '')];
 }
 
@@ -636,15 +626,8 @@ function statementEnd(text: string): number {
     let depth = 0;
     for (let j = 0; j < text.length; j++) {
         const ch = text[j];
-        if (ch === "'" || ch === '"' || ch === '`') {
-            const quote = ch;
-            for (j += 1; j < text.length && text[j] !== quote; j++) if (text[j] === '\\') j++;
-            if (quote === '`') {
-                // A template may hold `${…}` with its own backticks; re-scan it properly.
-                const start = text.lastIndexOf('`', j - 1);
-                j = templateEnd(text, start === -1 ? j : start);
-            }
-        } else if (ch === '(' || ch === '{' || ch === '[') depth++;
+        if (ch === "'" || ch === '"' || ch === '`') j = skipString(text, j);
+        else if (ch === '(' || ch === '{' || ch === '[') depth++;
         else if (ch === ')' || ch === '}' || ch === ']') {
             if (depth === 0) return j;
             depth--;
@@ -653,24 +636,14 @@ function statementEnd(text: string): number {
     return text.length;
 }
 
-/**
- * @param start Offset of the opening backtick.
- * @returns Offset of the closing backtick.
- */
-function templateEnd(text: string, start: number): number {
-    for (let j = start + 1; j < text.length; j++) {
-        if (text[j] === '\\') j++;
-        else if (text[j] === '`') return j;
-        else if (text[j] === '$' && text[j + 1] === '{') {
-            let depth = 0;
-            for (j += 1; j < text.length; j++) {
-                if (text[j] === '`') j = templateEnd(text, j);
-                else if (text[j] === '{') depth++;
-                else if (text[j] === '}' && --depth === 0) break;
-            }
-        }
+/** The offset of the `(` matching the `)` at `close`, scanning back; `-1` when it has none. */
+function openingParen(text: string, close: number): number {
+    let parens = 0;
+    for (let k = close; k >= 0; k--) {
+        parens += Number(text[k] === ')') - Number(text[k] === '(');
+        if (parens === 0) return k;
     }
-    return text.length;
+    return -1;
 }
 
 function unwrap(expr: string): string {
@@ -689,9 +662,9 @@ function unwrap(expr: string): string {
     return e;
 }
 
-const isStringLiteral = (e: string) => /^(['"])(?:\\.|(?!\1).)*\1$/s.test(e);
-const isTemplate = (e: string) => e.startsWith('`') && templateEnd(e, 0) === e.length - 1;
-const isIdentifier = (e: string) => /^[A-Za-z_$][\w$]*$/.test(e);
+const isStringLiteral = (e: string): boolean => /^(['"])(?:\\.|(?!\1).)*\1$/s.test(e);
+const isTemplate = (e: string): boolean => e.startsWith('`') && skipString(e, 0) === e.length - 1;
+const isIdentifier = (e: string): boolean => /^[A-Za-z_$][\w$]*$/.test(e);
 
 /**
  * The first piece of `expr` that is not known-safe HTML, or `null`. Safe: a string

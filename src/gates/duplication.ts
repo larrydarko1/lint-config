@@ -19,6 +19,7 @@ import path from 'node:path';
 
 import { packageBin } from './lib/bin.ts';
 import { walkFiles } from './lib/files.ts';
+import { isRecord, toRecord } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { createGateReport, plural, type GateFailure } from './lib/report.ts';
 
@@ -118,7 +119,7 @@ export function iconDrawing(source: string): string | null {
     const svg = /<svg\b([^>]*)>([\s\S]*)<\/svg>/.exec(source);
     if (svg === null) return null;
 
-    const attrs = (raw: string) =>
+    const attrs = (raw: string): string[] =>
         [...raw.matchAll(/([:@\w.-]+)(?:\s*=\s*"([^"]*)")?/g)].map(([, name = '', value]) =>
             value === undefined ? name : `${name}="${value}"`,
         );
@@ -160,7 +161,7 @@ export function exportedTypes(
 
     for (const scanRoot of scan) {
         const files = walkFiles(root, scanRoot, {
-            match: (rel) => /\.(ts|vue)$/.test(rel) && !/\.(test|spec)\.ts$|\.d\.ts$/.test(rel),
+            match: (rel): boolean => /\.(ts|vue)$/.test(rel) && !/\.(test|spec)\.ts$|\.d\.ts$/.test(rel),
             exclude: excluded,
         });
 
@@ -194,21 +195,20 @@ export function inspectDuplication(input: DuplicationInput): DuplicationInspecti
     } = input;
 
     const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => problems.push({ file, what, why });
+    const fail = (file: string | null, what: string, why: string): number => problems.push({ file, what, why });
 
-    const ceilingOf = (entry: number | Ceiling) =>
-        typeof entry === 'number' ? { limit: entry, note: undefined } : entry;
-    const rel = (file: string) => relative(root, file);
-    const loc = (f: CloneLocation) => `${rel(f.name)}:${f.start}-${f.end}`;
+    const ceilingOf = (entry: number | Ceiling): Ceiling => (typeof entry === 'number' ? { limit: entry } : entry);
+    const rel = (file: string): string => relative(root, file);
+    const loc = (f: CloneLocation): string => `${rel(f.name)}:${f.start}-${f.end}`;
 
     const clones = report.duplicates.slice().sort((a, b) => b.tokens - a.tokens);
 
     /** Record a clone under the file it starts in, so an editor can jump to it. */
-    const failClone = (clone: Clone, why: string) => {
+    const failClone = (clone: Clone, why: string): void => {
         fail(loc(clone.firstFile), `${plural(clone.tokens, 'token')} duplicated at ${loc(clone.secondFile)}`, why);
     };
 
-    const checkCeilings = (source: JscpdReport, where: string | null) => {
+    const checkCeilings = (source: JscpdReport, where: string | null): void => {
         for (const [format, entry] of Object.entries(ceilings)) {
             const stats = source.statistics.formats[format];
             if (stats === undefined) continue;
@@ -250,8 +250,8 @@ export function inspectDuplication(input: DuplicationInput): DuplicationInspecti
     }
 
     // -- 3. No block copied between scan roots, whatever the percentage ----------
-    const rootOf = (file: string) => scan.find((r) => rel(file).startsWith(`${r}/`));
-    const isPair = (c: Clone, [a, b]: [string, string]) => {
+    const rootOf = (file: string): string | undefined => scan.find((r) => rel(file).startsWith(`${r}/`));
+    const isPair = (c: Clone, [a, b]: [string, string]): boolean => {
         const files = [rel(c.firstFile.name), rel(c.secondFile.name)];
         return files.includes(a) && files.includes(b);
     };
@@ -354,7 +354,7 @@ export function checkDuplication(options: DuplicationOptions): void {
         root,
         report: full,
         perRootReports,
-        declarations: scan.length > 1 ? exportedTypes(root, scan, ignoreDirs) : new Map(),
+        declarations: scan.length > 1 ? exportedTypes(root, scan, ignoreDirs) : new Map<string, TypeDeclaration[]>(),
         icons: iconDrawings(root, scan),
         scan,
         ceilings,
@@ -364,7 +364,7 @@ export function checkDuplication(options: DuplicationOptions): void {
 
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
-    const ceilingOf = (entry: number | Ceiling) => (typeof entry === 'number' ? entry : entry.limit);
+    const ceilingOf = (entry: number | Ceiling): number => (typeof entry === 'number' ? entry : entry.limit);
 
     const percentages = Object.entries(ceilings)
         .flatMap(([format, entry]) => {
@@ -414,7 +414,37 @@ function runJscpd(root: string, paths: string[], config: string): JscpdReport {
         throw new Error(`jscpd produced no report for ${paths.join(', ')}. Run it with \`--all\` to see why.`);
     }
 
-    const parsed = JSON.parse(fs.readFileSync(reportPath, 'utf8')) as JscpdReport;
+    const parsed: unknown = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
     fs.rmSync(outDir, { recursive: true, force: true });
+    if (!isJscpdReport(parsed))
+        throw new Error("jscpd's report is not the shape this gate reads. Did a jscpd upgrade change it?");
     return parsed;
+}
+
+const isCloneLocation = (location: unknown): location is CloneLocation =>
+    isRecord(location) &&
+    typeof location['name'] === 'string' &&
+    typeof location['start'] === 'number' &&
+    typeof location['end'] === 'number';
+
+const isClone = (clone: unknown): clone is Clone =>
+    isRecord(clone) &&
+    typeof clone['format'] === 'string' &&
+    typeof clone['lines'] === 'number' &&
+    typeof clone['tokens'] === 'number' &&
+    isCloneLocation(clone['firstFile']) &&
+    isCloneLocation(clone['secondFile']);
+
+const isFormatStatistics = (format: unknown): boolean =>
+    format === undefined ||
+    (isRecord(format) && typeof format['percentageTokens'] === 'number' && typeof format['clones'] === 'number');
+
+function isJscpdReport(report: unknown): report is JscpdReport {
+    if (!isRecord(report) || !Array.isArray(report['duplicates']) || !report['duplicates'].every(isClone)) return false;
+    const statistics = toRecord(report['statistics']);
+    return (
+        isRecord(statistics['formats']) &&
+        Object.values(statistics['formats']).every(isFormatStatistics) &&
+        typeof toRecord(statistics['total'])['clones'] === 'number'
+    );
 }

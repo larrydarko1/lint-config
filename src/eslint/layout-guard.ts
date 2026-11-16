@@ -63,7 +63,7 @@ export const assertWorkspacesCovered = (rootDir: string, workspaces: FullstackWo
         }
     }
 
-    if (problems.length) throw new Error(`Workspace roles out of date:\n  - ${problems.join('\n  - ')}`);
+    if (problems.length > 0) throw new Error(`Workspace roles out of date:\n  - ${problems.join('\n  - ')}`);
 };
 
 /**
@@ -93,23 +93,29 @@ export const assertPathsExist = (rootDir: string, paths: PresetPaths, areas: rea
 
 /** package.json `workspaces`, with a trailing `/*` expanded. Null when there is no list to hold the roles to. */
 const declaredWorkspaces = (rootDir: string): string[] | null => {
-    let manifest: { workspaces?: string[] | { packages?: string[] } };
+    let manifest: unknown;
     try {
-        manifest = JSON.parse(readFileSync(path.join(rootDir, 'package.json'), 'utf8')) as typeof manifest;
+        manifest = JSON.parse(readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
     } catch {
         return null;
     }
-    const list = Array.isArray(manifest.workspaces) ? manifest.workspaces : manifest.workspaces?.packages;
+    const field: unknown =
+        typeof manifest === 'object' && manifest !== null ? Reflect.get(manifest, 'workspaces') : undefined;
+    // The object form (yarn's) keeps the list under `packages`.
+    const list: unknown =
+        typeof field === 'object' && field !== null && !Array.isArray(field) ? Reflect.get(field, 'packages') : field;
     if (!Array.isArray(list)) return null;
 
-    return list.flatMap((entry) => {
-        if (!entry.endsWith('/*')) return [entry];
-        const parent = entry.slice(0, -2);
-        if (!existsSync(path.join(rootDir, parent))) return [];
-        return readdirSync(path.join(rootDir, parent), { withFileTypes: true })
-            .filter((dirent) => dirent.isDirectory())
-            .map((dirent) => `${parent}/${dirent.name}`);
-    });
+    return list
+        .filter((entry): entry is string => typeof entry === 'string')
+        .flatMap((entry) => {
+            if (!entry.endsWith('/*')) return [entry];
+            const parent = entry.slice(0, -2);
+            if (!existsSync(path.join(rootDir, parent))) return [];
+            return readdirSync(path.join(rootDir, parent), { withFileTypes: true })
+                .filter((dirent) => dirent.isDirectory())
+                .map((dirent) => `${parent}/${dirent.name}`);
+        });
 };
 
 const hasSource = (rootDir: string, dir: string): boolean => existsSync(path.join(rootDir, dir, 'src'));

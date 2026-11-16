@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 
 export type RefactoringOptions = {
     /** Repository root. Defaults to the repo this runs in. */
@@ -54,10 +54,7 @@ const MAX_BYTES = 512 * 1024;
 export function inspectRefactoring(input: RefactoringOptions = {}): RefactoringInspection {
     const { root = REPO_ROOT, linted = DEFAULT_LINTED, skip = [], ignore = DEFAULT_IGNORE } = input;
 
-    const problems: GateFailure[] = [];
-    const fail = (file: string, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
+    const { problems, fail } = collectFailures();
 
     const lintedExtensions = new Set(linted);
     const skipNames = new Set(['package-lock.json', ...skip]);

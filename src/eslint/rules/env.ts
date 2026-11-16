@@ -1,3 +1,5 @@
+import type { Linter } from 'eslint';
+
 export const configModuleSelectors = [
     {
         selector: "MemberExpression[object.object.name='process'][object.property.name='env']",
@@ -20,7 +22,7 @@ export const noImportMetaEnv = {
 };
 
 /** @param processEnvAllowed Where `process.env` is read on purpose: config modules, tests, scripts. */
-export const envStandards = (processEnvAllowed: string[]) => [
+export const envStandards = (processEnvAllowed: string[]): Linter.Config[] => [
     {
         rules: { 'no-process-env': 'error' },
     },

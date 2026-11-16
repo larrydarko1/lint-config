@@ -84,12 +84,11 @@ export async function sensitiveValues(
     for (const [collection, fields] of Object.entries(sensitive)) {
         const projection = Object.fromEntries(fields.map((field) => [field, 1 as const]));
         const docs = await db.collection(collection).find({}, { projection }).toArray();
-        for (const doc of docs) {
-            for (const field of fields) {
-                for (const value of stringsIn(valueAt(doc, field))) {
-                    if (value.length >= minLength) values.set(value, `${collection}.${field}`);
-                }
-            }
+        const held = docs.flatMap((doc) =>
+            fields.flatMap((field) => stringsIn(valueAt(doc, field)).map((value) => ({ field, value }))),
+        );
+        for (const { field, value } of held.filter((entry) => entry.value.length >= minLength)) {
+            values.set(value, `${collection}.${field}`);
         }
     }
     return values;
@@ -145,10 +144,10 @@ export function createLeakRecorder(options: LeakRecorderOptions): LeakRecorder {
     };
 
     return {
-        watch: (source) => {
+        watch: (source): void => {
             source.on('response', record);
         },
-        drain: async () => {
+        drain: async (): Promise<string[]> => {
             await Promise.all(pending);
             const values =
                 db === undefined ? new Map<string, string>() : await sensitiveValues(db, sensitive, minValueLength);
@@ -166,7 +165,7 @@ function valueAt(doc: Record<string, unknown>, dotted: string): unknown {
     let current: unknown = doc;
     for (const part of dotted.split('.')) {
         if (current === null || typeof current !== 'object' || Array.isArray(current)) return undefined;
-        current = (current as Record<string, unknown>)[part];
+        current = Reflect.get(current, part);
     }
     return current;
 }

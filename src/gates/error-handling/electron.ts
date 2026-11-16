@@ -13,7 +13,8 @@ import path from 'node:path';
 
 import { walkFiles } from '../lib/files.ts';
 import { REPO_ROOT } from '../lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from '../lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from '../lib/report.ts';
+import { balancedClose } from '../lib/source.ts';
 import { stripComments } from '../lib/strip-comments.ts';
 import { countSwallows, findSwallowedErrors } from '../lib/swallowed-errors.ts';
 
@@ -63,11 +64,8 @@ export function inspectElectronErrorHandling(
         cleanupRequired = [],
     } = input;
 
-    const problems: GateFailure[] = [];
-    const fail = (file: string | null, what: string, why: string) => {
-        problems.push({ file, what, why });
-    };
-    const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+    const { problems, fail } = collectFailures();
+    const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
 
     const mainFiles = walkFiles(root, mainDir, { match: /\.ts$/ });
 
@@ -177,24 +175,14 @@ function callbackBody(source: string, start: number): { body: string; expression
         let depth = 0;
         for (let j = i; j < source.length; j += 1) {
             const ch = source.charAt(j);
-            if ('([{'.includes(ch)) depth += 1;
-            else if (')]}'.includes(ch)) {
-                if (depth === 0) return { body: source.slice(i, j), expression: true };
-                depth -= 1;
-            }
+            if (')]}'.includes(ch) && depth === 0) return { body: source.slice(i, j), expression: true };
+            depth += Number('([{'.includes(ch)) - Number(')]}'.includes(ch));
         }
         return { body: source.slice(i), expression: true };
     }
 
-    let depth = 0;
-    for (let j = i; j < source.length; j += 1) {
-        if (source[j] === '{') depth += 1;
-        else if (source[j] === '}') {
-            depth -= 1;
-            if (depth === 0) return { body: source.slice(i + 1, j), expression: false };
-        }
-    }
-    return { body: source.slice(i + 1), expression: false };
+    const close = balancedClose(source, i, '{', '}');
+    return { body: source.slice(i + 1, close === -1 ? source.length : close), expression: false };
 }
 
 /**
@@ -209,18 +197,8 @@ function outsideTry(body: string): string {
         const open = out.indexOf('{', at);
         if (open === -1) return out;
 
-        let depth = 0;
-        let end = out.length;
-        for (let i = open; i < out.length; i += 1) {
-            if (out[i] === '{') depth += 1;
-            else if (out[i] === '}') {
-                depth -= 1;
-                if (depth === 0) {
-                    end = i + 1;
-                    break;
-                }
-            }
-        }
+        const close = balancedClose(out, open, '{', '}');
+        const end = close === -1 ? out.length : close + 1;
 
         // Consume the trailing catch/finally blocks too, or `catch` reads as unguarded code.
         const tail = /^\s*(?:catch\s*(?:\([^)]*\))?\s*\{|finally\s*\{)/.exec(out.slice(end));
@@ -228,18 +206,8 @@ function outsideTry(body: string): string {
             out = out.slice(0, at) + out.slice(end);
             continue;
         }
-        let tailDepth = 0;
-        let tailEnd = end;
-        for (let i = end + tail[0].length - 1; i < out.length; i += 1) {
-            if (out[i] === '{') tailDepth += 1;
-            else if (out[i] === '}') {
-                tailDepth -= 1;
-                if (tailDepth === 0) {
-                    tailEnd = i + 1;
-                    break;
-                }
-            }
-        }
+        const tailClose = balancedClose(out, end + tail[0].length - 1, '{', '}');
+        const tailEnd = tailClose === -1 ? end : tailClose + 1;
         out = out.slice(0, at) + out.slice(tailEnd);
     }
 }

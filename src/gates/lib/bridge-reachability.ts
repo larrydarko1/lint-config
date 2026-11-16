@@ -21,6 +21,7 @@ import path from 'node:path';
 import ts from 'typescript';
 
 import { createProgram, findProjects, parseProject, realFile } from './programs.ts';
+import { firstDifference } from './sequence.ts';
 
 /** One leaf of the contract — a method or value the renderer can read — that nothing reads. */
 type UnusedBridgeMember = { member: string; file: string; line: number };
@@ -59,7 +60,7 @@ export function findUnusedBridgeMembers({
 }: BridgeReachabilityInput): BridgeReachability {
     const contractPath = path.join(root, contract);
     const rendererDirs = renderer.map((dir) => path.join(root, dir) + path.sep);
-    const isRendererFile = (file: string) =>
+    const isRendererFile = (file: string): boolean =>
         rendererDirs.some((dir) => file.startsWith(dir)) && !TEST_FILE.test(file) && !file.endsWith('.d.ts');
 
     /** Pooled across programs by dotted path: each program has its own nodes. */
@@ -167,7 +168,7 @@ export function findUnusedBridgeMembers({
     const unused = [...leaves]
         .filter(([member]) => !used.has(member))
         .map(([member, at]) => ({ member, ...at }))
-        .sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
+        .sort((a, b) => firstDifference(a.file.localeCompare(b.file), a.line - b.line));
     return { members: leaves.size, unused, covered };
 }
 
@@ -184,7 +185,7 @@ function escapes(node: ts.Expression): boolean {
         parent = parent.parent;
     }
     if (ts.isCallExpression(parent) || ts.isNewExpression(parent))
-        return parent.arguments?.includes(child as ts.Expression) ?? false;
+        return parent.arguments?.some((argument) => argument === child) ?? false;
     if (ts.isArrowFunction(parent)) return parent.body === child;
     if (ts.isPropertyAssignment(parent)) return parent.initializer === child;
     if (ts.isBinaryExpression(parent)) {

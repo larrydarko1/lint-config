@@ -8,7 +8,7 @@
  * every `node:` specifier.
  */
 
-export const bannedPackages = (names: string[], message: string) => ({
+export const bannedPackages = (names: string[], message: string): { regex: string; message: string } => ({
     regex: `^(?:${names.map(alternative).join('|')})$`,
     message,
 });

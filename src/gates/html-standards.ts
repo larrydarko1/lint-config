@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { REPO_ROOT } from './lib/repo-root.ts';
-import { createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 
 export type HtmlStandardsOptions = {
     root?: string;
@@ -201,17 +201,15 @@ export function entryPath(src: string, indexHtml: string): string {
 export function inspectHtmlStandards(input: HtmlStandardsInput): HtmlStandardsInspection {
     const { root, indexHtml, baseScss, require: required = [], csp = false, placeholderOrigin } = input;
 
-    const problems: GateFailure[] = [];
+    const { problems, fail } = collectFailures();
     const warnings: string[] = [];
-    const fail = (file: string, what: string, why: string): void => {
-        problems.push({ file, what, why });
-    };
     const html = fs.readFileSync(path.join(root, indexHtml), 'utf8');
 
     // ── 1. The document shell ───────────────────────────────────────────────
     for (const key of required) {
+        // A plain-JS config can name a key the type would refuse.
+        if (!Object.hasOwn(HEAD_CHECKS, key)) throw new Error(`Unknown head requirement '${key}'.`);
         const check = HEAD_CHECKS[key];
-        if (check === undefined) throw new Error(`Unknown head requirement '${key}'.`);
         if (!check.re.test(html)) fail(indexHtml, `is missing ${check.what}`, check.why);
     }
 
@@ -252,32 +250,30 @@ export function inspectHtmlStandards(input: HtmlStandardsInput): HtmlStandardsIn
     }
 
     // ── 3. The Content-Security-Policy meta tag ─────────────────────────────
-    if (csp) {
-        const match = /<meta[^>]+http-equiv="Content-Security-Policy"[^>]*content="([^"]*)"/i.exec(html);
-        if (match === null) {
+    const cspTag = csp ? /<meta[^>]+http-equiv="Content-Security-Policy"[^>]*content="([^"]*)"/i.exec(html) : null;
+    if (csp && cspTag === null) {
+        fail(
+            indexHtml,
+            'has no Content-Security-Policy meta tag',
+            'In a packaged build the renderer loads over file:// — there is no server to send a CSP header, so this tag is the entire policy.',
+        );
+    }
+    if (cspTag !== null) {
+        const policy = (cspTag[1] ?? '').replace(/\s+/g, ' ').trim();
+        for (const { what, re, why } of CSP_REQUIRED) {
+            if (!re.test(policy)) fail(indexHtml, `CSP is missing \`${what}\``, why);
+        }
+        for (const { what, re, why } of CSP_BANNED) {
+            if (re.test(policy)) fail(indexHtml, `CSP contains ${what}`, why);
+        }
+        // localhost is the dev server's HMR socket, which cannot resolve in a packaged build.
+        const remotes = [...policy.matchAll(/\b(https?|wss?):\/\/([^\s;]+)/g)];
+        for (const [origin] of remotes.filter((remote) => !LOCAL_HOST.test(remote[2] ?? ''))) {
             fail(
                 indexHtml,
-                'has no Content-Security-Policy meta tag',
-                'In a packaged build the renderer loads over file:// — there is no server to send a CSP header, so this tag is the entire policy.',
+                `CSP allows the remote origin \`${origin}\``,
+                'Nothing in this app may reach the network. Only the dev-server HMR socket on localhost is permitted here.',
             );
-        } else {
-            const policy = (match[1] ?? '').replace(/\s+/g, ' ').trim();
-            for (const { what, re, why } of CSP_REQUIRED) {
-                if (!re.test(policy)) fail(indexHtml, `CSP is missing \`${what}\``, why);
-            }
-            for (const { what, re, why } of CSP_BANNED) {
-                if (re.test(policy)) fail(indexHtml, `CSP contains ${what}`, why);
-            }
-            // localhost is the dev server's HMR socket, which cannot resolve in a packaged build.
-            for (const remote of policy.matchAll(/\b(https?|wss?):\/\/([^\s;]+)/g)) {
-                if (!LOCAL_HOST.test(remote[2] ?? '')) {
-                    fail(
-                        indexHtml,
-                        `CSP allows the remote origin \`${remote[0]}\``,
-                        'Nothing in this app may reach the network. Only the dev-server HMR socket on localhost is permitted here.',
-                    );
-                }
-            }
         }
     }
 
@@ -308,15 +304,15 @@ export function inspectHtmlStandards(input: HtmlStandardsInput): HtmlStandardsIn
                 'It is the only place every transition and animation in the app can be switched off at once (WCAG 2.3.3). Without it each declaration would have to opt out individually.',
             );
         } else {
-            for (const prop of ['animation-duration', 'transition-duration']) {
-                const forced = blocks.some(([, body = '']) => new RegExp(`${prop}:[^;]*!important`).test(body));
-                if (!forced) {
-                    fail(
-                        baseScss,
-                        `reduced-motion block does not force ${prop}`,
-                        'Guarding only `scroll-behavior` leaves every other declaration running, and without `!important` the override loses the cascade to the component-scoped rules it exists to beat.',
-                    );
-                }
+            const unforced = ['animation-duration', 'transition-duration'].filter(
+                (prop) => !blocks.some(([, body = '']) => new RegExp(`${prop}:[^;]*!important`).test(body)),
+            );
+            for (const prop of unforced) {
+                fail(
+                    baseScss,
+                    `reduced-motion block does not force ${prop}`,
+                    'Guarding only `scroll-behavior` leaves every other declaration running, and without `!important` the override loses the cascade to the component-scoped rules it exists to beat.',
+                );
             }
         }
     }

@@ -110,7 +110,7 @@ export function apiStandards(options: ApiStandardsOptions = {}): FamilyStandards
             ...testingStandards(['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}', 'e2e/**/*.spec.ts']),
             ...apiAreas(layout, { mongo, redis, ws, namedShapes: NAMED_SHAPES }),
             ...nodeRepoAreas(layout, { mongo }),
-            ...(consoleAllowed.length ? [{ files: consoleAllowed, rules: { 'no-console': 'off' } }] : []),
+            ...(consoleAllowed.length > 0 ? [{ files: consoleAllowed, rules: { 'no-console': 'off' } }] : []),
         ];
     });
 }
