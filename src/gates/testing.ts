@@ -1,7 +1,8 @@
 /**
  * The mechanically checkable half of the testing standard:
  * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
- *   1. Suites sit where `layout` says (co-located `__tests__/` or a mirrored tree).
+ *   1. Suites sit where `layout` says (co-located `__tests__/` or a mirrored tree), or
+ *      where `otherRunners` names the runner that finds them.
  *   2. A `.spec` file belongs to the E2E runner.
  *   3. E2E lives where `e2e` says, or nowhere; a Playwright config only once a spec exists.
  *   4. Coverage thresholds only rise; every exclude has a reason.
@@ -32,6 +33,12 @@ export type TestingOptions = {
     /** The config holding the coverage thresholds and excludes. */
     config: string;
     layout: TestLayout;
+    /**
+     * Suites another runner runs, glob → which runner and why: content the project ships
+     * and runs itself, such as the tests each exercise in a course comes with. They are
+     * held to suite hygiene, not to `layout`, and a glob that matches no suite fails.
+     */
+    otherRunners?: Record<string, string>;
     e2e?: E2eLayout;
     /** The floors as they stand. They may rise, never fall. */
     thresholds?: CoverageThresholds;
@@ -83,8 +90,10 @@ type TestingInput = TestingOptions & { root: string };
 
 type TestingInspection = {
     problems: GateFailure[];
-    /** `.test.ts` files found. */
+    /** `.test.ts` files found where `layout` puts them. */
     suites: number;
+    /** `.test.ts` files `otherRunners` names. */
+    otherSuites: number;
     /** `.spec.ts` / `.spec.js` files found. */
     specs: number;
     /** Files in the coverage report, when one was present. */
@@ -193,6 +202,7 @@ export function inspectTesting(input: TestingInput): TestingInspection {
         root,
         config,
         layout,
+        otherRunners = {},
         e2e = false,
         thresholds = { statements: 80, branches: 80, functions: 80, lines: 80 },
         excludes = {},
@@ -210,19 +220,31 @@ export function inspectTesting(input: TestingInput): TestingInspection {
     const files = repoFiles(root);
     const unitTests = files.filter((rel) => rel.endsWith('.test.ts'));
     const specs = files.filter((rel) => /\.spec\.[tj]s$/.test(rel));
+    const runElsewhere = (rel: string): boolean =>
+        Object.keys(otherRunners).some((glob) => path.matchesGlob(rel, glob));
+    const placed = unitTests.filter((rel) => !runElsewhere(rel));
 
     // ── 1. Placement: whichever pattern this project picked ─────────────────
     const half =
         'The standard allows either pattern but not both: half a convention is worse than either half, because now nobody knows where to look for a file that might not exist.';
 
-    for (const rel of unitTests) {
+    for (const glob of Object.keys(otherRunners)) {
+        if (!unitTests.some((rel) => path.matchesGlob(rel, glob))) {
+            fail(
+                glob,
+                '`otherRunners` names it, but it matches no suite',
+                'An entry that matches nothing exempts nothing today and whatever lands there tomorrow. Remove it from `otherRunners` in this gate.',
+            );
+        }
+    }
+    for (const rel of placed) {
         const colocated = rel.includes('/__tests__/') || rel.startsWith('__tests__/');
         if (layout.kind === 'colocated') {
             if (!colocated) {
                 fail(
                     rel,
                     'a .test.ts outside a `__tests__/` directory',
-                    `This project uses the co-located \`__tests__/\` pattern — all ${unitTests.length - 1} other suites are in one. ${half}`,
+                    `This project uses the co-located \`__tests__/\` pattern — all ${placed.length - 1} other suites are in one. ${half}`,
                 );
             }
             continue;
@@ -488,14 +510,25 @@ export function inspectTesting(input: TestingInput): TestingInspection {
         inspectServerErrors(serverErrors, e2e, specs, { read, exists, fail });
     }
 
-    return { problems, suites: unitTests.length, specs: specs.length, measured, uncovered, haveCoverage };
+    return {
+        problems,
+        suites: placed.length,
+        otherSuites: unitTests.length - placed.length,
+        specs: specs.length,
+        measured,
+        uncovered,
+        haveCoverage,
+    };
 }
 
 export function checkTesting(options: TestingOptions): void {
     const { root = REPO_ROOT, ...rest } = options;
 
     const report = createGateReport({ name: 'Testing' });
-    const { problems, suites, specs, measured, uncovered, haveCoverage } = inspectTesting({ root, ...rest });
+    const { problems, suites, otherSuites, specs, measured, uncovered, haveCoverage } = inspectTesting({
+        root,
+        ...rest,
+    });
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
     const { layout, e2e = false, thresholds, excludes = {}, domEnvironment, serverErrors, apiClient } = rest;
@@ -503,6 +536,7 @@ export function checkTesting(options: TestingOptions): void {
         layout.kind === 'colocated'
             ? 'all co-located in `__tests__/`'
             : `all under \`${layout.root}/\` mirroring \`src/\``;
+    const elsewhere = otherSuites === 0 ? '' : ` (and ${plural(otherSuites, 'suite')} another runner runs)`;
     const e2eSummary =
         e2e === false
             ? 'no E2E reintroduced'
@@ -512,7 +546,7 @@ export function checkTesting(options: TestingOptions): void {
 
     report.done({
         summary:
-            `${plural(suites, 'unit suite')} ${placement}, ${e2eSummary}, coverage thresholds at or above the ` +
+            `${plural(suites, 'unit suite')} ${placement}${elsewhere}, ${e2eSummary}, coverage thresholds at or above the ` +
             `${thresholds?.statements ?? 80}% floor, ${plural(Object.keys(excludes).length, 'coverage exclude')} all ` +
             `accounted for, no transport patched around the network mock, no \`.only\`/\`.skip\`/bare \`test()\`/` +
             `commented-out or duplicate cases, no test reading component internals${

@@ -806,6 +806,13 @@ elsewhere where a `headers` rule says `rustdoc` or `owns`; it also checks that a
 paragraph is one sentence, and that there are no section labels, `get_` getters or acronyms in
 capitals.
 
+`testing` holds every `.test.ts` to its `layout`, because Vitest finds only the suites its
+`include` names. A suite that another runner finds, such as the tests each exercise in a course
+ships with, goes in `otherRunners`, mapped to the runner and the reason:
+`otherRunners: { 'lessons/**': 'npm run lessons runs each one with node --test' }`. Those suites are
+still held to the hygiene rules (`.only`, `.skip`, commented-out cases), and a glob that matches no
+suite fails.
+
 `dead-code` takes the same list as `publicApi` in a library: `checkDeadCode({ publicApi: packageEntries() })`.
 A published package's exports are used outside the repository, so with it the gate reports neither
 an entry export that only the tests import nor a public type that only its own file names.

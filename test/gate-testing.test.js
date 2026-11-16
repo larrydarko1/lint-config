@@ -106,6 +106,29 @@ test('a mirrored project with no area list allows any area', (t) => {
     assert.deepEqual(run(root, { layout: { kind: 'mirrored', root: 'tests' } }).problems, []);
 });
 
+test('a suite another runner runs is not held to the layout', (t) => {
+    const root = repo(t, good({ 'lessons/easy/sum/sum.test.ts': SUITE }));
+    const result = run(root, { otherRunners: { 'lessons/**': 'the course runner runs each lesson with node --test' } });
+    assert.deepEqual(result.problems, []);
+    assert.equal(result.suites, 1);
+    assert.equal(result.otherSuites, 1);
+});
+
+test('a suite another runner runs is still held to suite hygiene', (t) => {
+    const root = repo(t, good({ 'lessons/sum.test.ts': "describe.only('sum', () => {});\n" }));
+    const result = run(root, { otherRunners: { 'lessons/**': 'the course runner runs them' } });
+    assert.deepEqual(whats(result), ['a parked `.only`']);
+});
+
+test('an otherRunners glob that matches no suite fails', (t) => {
+    const root = repo(t, good());
+    const result = run(root, { otherRunners: { 'lessons/**': 'the course runner runs them' } });
+    assert.deepEqual(
+        result.problems.map((p) => [p.file, p.what]),
+        [['lessons/**', '`otherRunners` names it, but it matches no suite']],
+    );
+});
+
 test('a co-located project fails a suite outside `__tests__/`', (t) => {
     const root = repo(t, {
         'vitest.config.ts': CONFIG,
