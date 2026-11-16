@@ -8,6 +8,7 @@
 import path from 'node:path';
 
 import { dependencyNames } from './json.ts';
+import { plural } from './report.ts';
 import { callArgs } from './source.ts';
 import { stripComments } from './strip-comments.ts';
 
@@ -22,14 +23,38 @@ export type ServerErrorWiring = {
     teardown: string;
 };
 
-/** Where the E2E suite lives, or `false` where there deliberately is none. */
-export type E2eLayout = false | { dir: string; config: string };
+/**
+ * Where the E2E suite lives, or `false` where there deliberately is none. `runner` is
+ * what runs it: Playwright, the default, or the VS Code test CLI for an editor
+ * extension, whose suites run inside a real editor.
+ */
+export type E2eLayout = false | { dir: string; config: string; runner?: E2eRunner };
+
+type E2eRunner = 'playwright' | 'vscode-test';
 
 type FileAccess = {
     read: (rel: string) => string;
     exists: (rel: string) => boolean;
     fail: (file: string, what: string, why: string) => void;
 };
+
+/** What each runner is called, how it finds its specs, and its config. */
+const RUNNERS: Record<E2eRunner, { name: string; finds: string; config: string }> = {
+    'playwright': {
+        name: 'Playwright',
+        finds: 'Playwright only looks under its own testDir',
+        config: 'their own Playwright config',
+    },
+    'vscode-test': {
+        name: 'VS Code test CLI',
+        finds: 'the VS Code test CLI runs only the files its config names',
+        config: 'their own `.vscode-test.mjs`',
+    },
+};
+
+/** The files and packages of every runner, so no E2E suite arrives under another runner's name. */
+const E2E_FILES = /^(?:e2e\/|playwright\.config\.|\.vscode-test\.)/;
+const E2E_PACKAGES = /^(?:@playwright\/|playwright|@vscode\/test-(?:cli|electron|web)$)/;
 
 /** A named import from Playwright itself: `import { test, expect } from '@playwright/test'`. */
 const PLAYWRIGHT_IMPORT = /import\s*\{([^}]*)\}\s*from\s*['"]@playwright\/test['"]/g;
@@ -50,14 +75,14 @@ export function inspectE2eLayout(e2e: E2eLayout, found: { files: string[]; specs
             fail(
                 rel,
                 `a .spec file outside \`${e2e.dir}/\``,
-                `Playwright specs live in \`${e2e.dir}/\`. Anywhere else, no runner picks the file up: Vitest matches \`*.test.ts\`, Playwright only looks under its own testDir — so the suite silently stops running while still looking like a test.`,
+                `${e2eRunnerName(e2e)} specs live in \`${e2e.dir}/\`. Anywhere else, no runner picks the file up: Vitest matches \`*.test.ts\`, ${RUNNERS[e2e.runner ?? 'playwright'].finds} — so the suite silently stops running while still looking like a test.`,
             );
         }
     }
 
     // ── 3. E2E lives where this project said, which may be nowhere ──────────
     if (e2e === false) {
-        for (const rel of files.filter((f) => f.startsWith('e2e/') || f.startsWith('playwright.config.'))) {
+        for (const rel of files.filter((f) => E2E_FILES.test(f))) {
             fail(
                 rel,
                 'an E2E suite appearing without discussion',
@@ -65,7 +90,7 @@ export function inspectE2eLayout(e2e: E2eLayout, found: { files: string[]; specs
             );
         }
         for (const dep of dependencyNames(JSON.parse(read('package.json')))) {
-            if (/^(@playwright\/|playwright)/.test(dep)) {
+            if (E2E_PACKAGES.test(dep)) {
                 fail(
                     'package.json',
                     `\`${dep}\` is installed`,
@@ -77,9 +102,16 @@ export function inspectE2eLayout(e2e: E2eLayout, found: { files: string[]; specs
         fail(
             e2e.config,
             'missing',
-            'E2E tests get their own Playwright config, separate from the Vitest projects. Without it the specs under `e2e/` are run by nothing.',
+            `E2E tests get ${RUNNERS[e2e.runner ?? 'playwright'].config}, separate from the Vitest projects. Without it the specs under \`${e2e.dir}/\` are run by nothing.`,
         );
     }
+}
+
+/** The E2E suite as the passing report describes it, given how many specs there are. */
+export function e2eSummary(e2e: E2eLayout, specs: number): string {
+    if (e2e === false) return 'no E2E reintroduced';
+    const spec = `${e2eRunnerName(e2e)} spec`;
+    return specs === 0 ? `no ${spec} yet` : `${plural(specs, spec)} under \`${e2e.dir}/\` with their own config`;
 }
 
 /** Rule 10: the recorder, the teardown, the config that wires them, and specs that use them. */
@@ -184,4 +216,9 @@ function recorderName(source: string): string {
     const before = source.slice(0, source.indexOf('createServerErrorRecorder('));
     const bindings = [...before.matchAll(/(\w+)\s*(?::\s*\[|:\s*async\b|=(?![=>]))/g)];
     return bindings.at(-1)?.[1] ?? '\\w+';
+}
+
+/** What runs the E2E suite, as the reports name it. */
+function e2eRunnerName(e2e: Exclude<E2eLayout, false>): string {
+    return RUNNERS[e2e.runner ?? 'playwright'].name;
 }

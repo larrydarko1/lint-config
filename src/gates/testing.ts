@@ -20,7 +20,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { inspectE2eLayout, inspectServerErrors, type E2eLayout, type ServerErrorWiring } from './lib/e2e.ts';
+import {
+    e2eSummary,
+    inspectE2eLayout,
+    inspectServerErrors,
+    type E2eLayout,
+    type ServerErrorWiring,
+} from './lib/e2e.ts';
 import { repoFiles } from './lib/files.ts';
 import { recordAt, toRecord } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
@@ -497,16 +503,9 @@ export function checkTesting(options: TestingOptions): void {
             ? 'all co-located in `__tests__/`'
             : `all under \`${layout.root}/\` mirroring \`src/\``;
     const elsewhere = otherSuites === 0 ? '' : ` (and ${plural(otherSuites, 'suite')} another runner runs)`;
-    const e2eSummary =
-        e2e === false
-            ? 'no E2E reintroduced'
-            : specs === 0
-              ? 'no Playwright spec yet'
-              : `${plural(specs, 'Playwright spec')} under \`${e2e.dir}/\` with their own config`;
-
     report.done({
         summary:
-            `${plural(suites, 'unit suite')} ${placement}${elsewhere}, ${e2eSummary}, coverage thresholds at or above the ` +
+            `${plural(suites, 'unit suite')} ${placement}${elsewhere}, ${e2eSummary(e2e, specs)}, coverage thresholds at or above the ` +
             `${thresholds?.statements ?? 80}% floor, ${plural(Object.keys(excludes).length, 'coverage exclude')} all ` +
             `accounted for, no transport patched around the network mock, no \`.only\`/\`.skip\`/bare \`test()\`/` +
             `commented-out or duplicate cases, no test reading component internals${
