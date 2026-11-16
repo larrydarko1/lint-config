@@ -22,11 +22,6 @@
       "count": 10
     }
   },
-  "src/gates/docker.ts": {
-    "max-depth": {
-      "count": 25
-    }
-  },
   "src/gates/electron-security.ts": {
     "max-depth": {
       "count": 3
@@ -99,19 +94,9 @@
       "count": 2
     }
   },
-  "src/gates/metrics.ts": {
-    "max-depth": {
-      "count": 21
-    }
-  },
   "src/gates/package-json.ts": {
     "max-depth": {
       "count": 1
-    }
-  },
-  "src/gates/pipeline.ts": {
-    "max-depth": {
-      "count": 24
     }
   },
   "src/gates/publish.ts": {

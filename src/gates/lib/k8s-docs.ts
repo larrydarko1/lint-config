@@ -26,6 +26,9 @@ export type Container = {
     readinessProbe?: Probe;
 };
 
+/** One endpoint a ServiceMonitor scrapes: a Service port by name. */
+export type ScrapeEndpoint = { port?: string; path?: string; interval?: string };
+
 export type K8sDoc = {
     kind?: string;
     metadata?: { name?: string; labels?: Labels };
@@ -33,7 +36,7 @@ export type K8sDoc = {
         /** A Service selects pods with plain labels; a ServiceMonitor wraps them in `matchLabels`. */
         selector?: Record<string, unknown> & { matchLabels?: Labels };
         clusterIP?: string;
-        endpoints?: { port?: string; path?: string; interval?: string }[];
+        endpoints?: ScrapeEndpoint[];
         ports?: K8sPort[];
         template?: { metadata?: { labels?: Labels }; spec?: { containers?: Container[] } };
         podSelector?: { matchLabels?: Labels };

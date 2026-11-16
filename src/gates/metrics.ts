@@ -24,7 +24,7 @@ import YAML from 'yaml';
 
 import { repoReader } from './lib/files.ts';
 import { isRecord } from './lib/json.ts';
-import { isK8sDoc, type Container, type K8sDoc, type Labels } from './lib/k8s-docs.ts';
+import { isK8sDoc, type Container, type K8sDoc, type Labels, type ScrapeEndpoint } from './lib/k8s-docs.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 import { stripComments } from './lib/strip-comments.ts';
@@ -147,6 +147,8 @@ const UNBOUNDED_LABELS = [
 const DEPENDENCY_CALLS = /\b(?:getDb|mongo|redis|Redis|queue|Queue|fetch|ping)\b/;
 
 /** Fixed, so the two probes cannot be pointed at one handler. */
+const EXCLUSION_ENTRY = /^\s*-\s*'?([a-z0-9-]+)'?\s*$/;
+
 const LIVENESS_PATH = '/livez';
 const READINESS_PATH = '/healthz';
 
@@ -253,6 +255,66 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
         );
     }
 
+    /** One endpoint of one ServiceMonitor, through one Service it selects, to the containers behind it. */
+    const scrapeThrough = (monitor: Resource, endpoint: ScrapeEndpoint, service: Resource): void => {
+        const ports = service.doc.spec?.ports ?? [];
+        const port = ports.find((candidate) => candidate.name === endpoint.port);
+        if (port === undefined) {
+            fail(
+                monitor.rel,
+                `ServiceMonitor \`${monitor.name}\` scrapes port \`${endpoint.port ?? ''}\`, which Service \`${service.name}\` does not declare`,
+                `A ServiceMonitor endpoint names a Service port by NAME. Both documents stay schema-valid, so renaming the port on one side leaves a target stuck at DOWN and nothing else. Service \`${service.name}\` declares: ${ports.length > 0 ? ports.map((p) => (p.name === undefined || p.name === '' ? `${String(p.port)} (unnamed)` : `\`${p.name}\` (${String(p.port)})`)).join(', ') : 'no ports'}.`,
+            );
+            return;
+        }
+
+        const podSelector = service.doc.spec?.selector;
+        if (podSelector === undefined || Object.keys(podSelector).length === 0) {
+            fail(
+                service.rel,
+                `Service \`${service.name}\` has no pod selector`,
+                'A Service without one creates no endpoints at all, so it resolves to nothing — which looks the same from outside as a workload that is merely idle.',
+            );
+            return;
+        }
+
+        const backing = deployments.filter((deployment) => matches(podSelector, podsOf(deployment)));
+        if (backing.length === 0) {
+            fail(
+                service.rel,
+                `Service \`${service.name}\` selects ${JSON.stringify(podSelector)}, which matches no Deployment's pod template`,
+                "A Service selecting nothing has no endpoints — indistinguishable from a workload that is simply idle. The selector must match `spec.template.metadata.labels`, not the Deployment's own labels, and those two are easy to edit apart.",
+            );
+            return;
+        }
+
+        const target = port.targetPort ?? port.port;
+        for (const deployment of backing) {
+            for (const container of containersOf(deployment)) {
+                const declared = (container.ports ?? []).map((p) => p.containerPort);
+                const named = (container.ports ?? []).find((p) => p.name === target);
+                if (typeof target === 'number' ? !declared.includes(target) : named === undefined) {
+                    fail(
+                        deployment.rel,
+                        `Deployment \`${deployment.name}\` container \`${container.name ?? ''}\` does not expose ${typeof target === 'number' ? `port ${target}` : `a port named \`${String(target)}\``}, which Service \`${service.name}\` targets`,
+                        `The Service forwards to a port nothing is listening on, so every scrape is refused. Declared containerPorts: ${declared.length > 0 ? declared.join(', ') : 'none'}.`,
+                    );
+                    continue;
+                }
+                scraped.push({
+                    monitor,
+                    service,
+                    deployment,
+                    container: container.name ?? '',
+                    podLabels: podsOf(deployment),
+                    port: typeof target === 'number' ? target : named?.containerPort,
+                    path: endpoint.path ?? '/metrics',
+                    interval: endpoint.interval,
+                });
+            }
+        }
+    };
+
     for (const monitor of monitors) {
         const selector = monitor.doc.spec?.selector?.matchLabels;
         if (selector === undefined) {
@@ -275,64 +337,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
         }
 
         for (const endpoint of monitor.doc.spec?.endpoints ?? []) {
-            for (const service of targets) {
-                const ports = service.doc.spec?.ports ?? [];
-                const port = ports.find((candidate) => candidate.name === endpoint.port);
-                if (port === undefined) {
-                    fail(
-                        monitor.rel,
-                        `ServiceMonitor \`${monitor.name}\` scrapes port \`${endpoint.port ?? ''}\`, which Service \`${service.name}\` does not declare`,
-                        `A ServiceMonitor endpoint names a Service port by NAME. Both documents stay schema-valid, so renaming the port on one side leaves a target stuck at DOWN and nothing else. Service \`${service.name}\` declares: ${ports.length > 0 ? ports.map((p) => (p.name === undefined || p.name === '' ? `${String(p.port)} (unnamed)` : `\`${p.name}\` (${String(p.port)})`)).join(', ') : 'no ports'}.`,
-                    );
-                    continue;
-                }
-
-                const podSelector = service.doc.spec?.selector;
-                if (podSelector === undefined || Object.keys(podSelector).length === 0) {
-                    fail(
-                        service.rel,
-                        `Service \`${service.name}\` has no pod selector`,
-                        'A Service without one creates no endpoints at all, so it resolves to nothing — which looks the same from outside as a workload that is merely idle.',
-                    );
-                    continue;
-                }
-
-                const backing = deployments.filter((deployment) => matches(podSelector, podsOf(deployment)));
-                if (backing.length === 0) {
-                    fail(
-                        service.rel,
-                        `Service \`${service.name}\` selects ${JSON.stringify(podSelector)}, which matches no Deployment's pod template`,
-                        "A Service selecting nothing has no endpoints — indistinguishable from a workload that is simply idle. The selector must match `spec.template.metadata.labels`, not the Deployment's own labels, and those two are easy to edit apart.",
-                    );
-                    continue;
-                }
-
-                const target = port.targetPort ?? port.port;
-                for (const deployment of backing) {
-                    for (const container of containersOf(deployment)) {
-                        const declared = (container.ports ?? []).map((p) => p.containerPort);
-                        const named = (container.ports ?? []).find((p) => p.name === target);
-                        if (typeof target === 'number' ? !declared.includes(target) : named === undefined) {
-                            fail(
-                                deployment.rel,
-                                `Deployment \`${deployment.name}\` container \`${container.name ?? ''}\` does not expose ${typeof target === 'number' ? `port ${target}` : `a port named \`${String(target)}\``}, which Service \`${service.name}\` targets`,
-                                `The Service forwards to a port nothing is listening on, so every scrape is refused. Declared containerPorts: ${declared.length > 0 ? declared.join(', ') : 'none'}.`,
-                            );
-                            continue;
-                        }
-                        scraped.push({
-                            monitor,
-                            service,
-                            deployment,
-                            container: container.name ?? '',
-                            podLabels: podsOf(deployment),
-                            port: typeof target === 'number' ? target : named?.containerPort,
-                            path: endpoint.path ?? '/metrics',
-                            interval: endpoint.interval,
-                        });
-                    }
-                }
-            }
+            for (const service of targets) scrapeThrough(monitor, endpoint, service);
         }
     }
 
@@ -385,37 +390,8 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
 
     // ── 6. The scrape interval equals the gauge refresh ─────────────────────
     if (gaugeRefresh !== undefined) {
-        if (!exists(gaugeRefresh.file)) {
-            fail(
-                gaugeRefresh.file,
-                'is missing',
-                'It is where the gauges are refreshed on a timer; without it this rule checks nothing and the interval below is graded against no number at all.',
-            );
-        } else {
-            const source = code(gaugeRefresh.file);
-            const timer = /setInterval\(([\s\S]*?),\s*([\d_]+)\s*\)/.exec(source);
-            if (timer === null || !new RegExp(String.raw`\b${gaugeRefresh.call}\s*\(`).test(timer[1] ?? '')) {
-                fail(
-                    gaugeRefresh.file,
-                    `does not call \`${gaugeRefresh.call}()\` on an interval`,
-                    'The gauges are then only ever whatever they were at startup, and Prometheus scrapes a constant. A queue that is backing up looks exactly like one that is empty.',
-                );
-            } else {
-                const refreshSeconds = Number((timer[2] ?? '').replace(/_/g, '')) / 1000;
-                for (const { monitor, interval } of scraped) {
-                    if (interval === undefined || !/^\d+s$/.test(interval)) continue;
-                    if (!gaugeRefresh.monitors.test(monitor.name)) continue;
-                    const scrapeSeconds = Number(interval.replace('s', ''));
-                    if (scrapeSeconds !== refreshSeconds) {
-                        fail(
-                            monitor.rel,
-                            `ServiceMonitor \`${monitor.name}\` scrapes every ${scrapeSeconds}s, but ${gaugeRefresh.file} refreshes the gauges every ${refreshSeconds}s`,
-                            'Gauges are point-in-time. Scraping slower than the refresh silently discards samples; scraping faster records the same value repeatedly. Either way a saturation graph misreports when a backlog began, and nothing errors. Keep the two numbers equal.',
-                        );
-                    }
-                }
-            }
-        }
+        const source = exists(gaugeRefresh.file) ? code(gaugeRefresh.file) : null;
+        problems.push(...gaugeRefreshProblems(gaugeRefresh, source, scraped));
     }
 
     // ── 7. Every process that registers metrics serves them ────────────────
@@ -463,58 +439,58 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
     }
 
     // ── 8-9, 12. Probe shape ────────────────────────────────────────────────
-    for (const deployment of deployments) {
-        for (const container of containersOf(deployment)) {
-            const declared = (container.ports ?? []).map((p) => p.containerPort);
+    const podContainers = deployments.flatMap((deployment) =>
+        containersOf(deployment).map((container) => ({ deployment, container })),
+    );
+    for (const { deployment, container } of podContainers) {
+        const declared = (container.ports ?? []).map((p) => p.containerPort);
 
-            if (container.livenessProbe?.exec !== undefined) {
-                fail(
-                    deployment.rel,
-                    `Deployment \`${deployment.name}\` uses an \`exec\` liveness probe: ${JSON.stringify(container.livenessProbe.exec.command)}`,
-                    'An exec probe starts a NEW process, which succeeds on its own terms and never touches the one whose health was in question — it passes for a wedged event loop. That is worse than no probe, because it reports health it cannot possibly know. Use an httpGet against the real listener. (Readiness is exempt: `redis-cli ping` genuinely exercises the real server.)',
-                );
-            }
+        if (container.livenessProbe?.exec !== undefined) {
+            fail(
+                deployment.rel,
+                `Deployment \`${deployment.name}\` uses an \`exec\` liveness probe: ${JSON.stringify(container.livenessProbe.exec.command)}`,
+                'An exec probe starts a NEW process, which succeeds on its own terms and never touches the one whose health was in question — it passes for a wedged event loop. That is worse than no probe, because it reports health it cannot possibly know. Use an httpGet against the real listener. (Readiness is exempt: `redis-cli ping` genuinely exercises the real server.)',
+            );
+        }
 
-            for (const [kind, probe] of [
-                ['liveness', container.livenessProbe],
-                ['readiness', container.readinessProbe],
-            ] as const) {
-                const port = probe?.httpGet?.port;
-                if (typeof port === 'number' && !declared.includes(port)) {
-                    fail(
-                        deployment.rel,
-                        `Deployment \`${deployment.name}\` probes ${kind} on port ${port}, which container \`${container.name ?? ''}\` does not declare`,
-                        `The probe can never succeed, so the pod is either killed on a loop (liveness) or never enters service (readiness). Declared containerPorts: ${declared.length > 0 ? declared.join(', ') : 'none'}.`,
-                    );
-                }
-            }
+        const probes = [
+            ['liveness', container.livenessProbe?.httpGet?.port],
+            ['readiness', container.readinessProbe?.httpGet?.port],
+        ] as const;
+        for (const [kind, port] of probes) {
+            if (typeof port !== 'number' || declared.includes(port)) continue;
+            fail(
+                deployment.rel,
+                `Deployment \`${deployment.name}\` probes ${kind} on port ${port}, which container \`${container.name ?? ''}\` does not declare`,
+                `The probe can never succeed, so the pod is either killed on a loop (liveness) or never enters service (readiness). Declared containerPorts: ${declared.length > 0 ? declared.join(', ') : 'none'}.`,
+            );
+        }
 
-            if (ownWorkloads !== undefined && !ownWorkloads.test(deployment.name)) continue;
+        if (ownWorkloads !== undefined && !ownWorkloads.test(deployment.name)) continue;
 
-            const live = container.livenessProbe?.httpGet?.path;
-            const ready = container.readinessProbe?.httpGet?.path;
+        const live = container.livenessProbe?.httpGet?.path;
+        const ready = container.readinessProbe?.httpGet?.path;
 
-            if (live !== undefined && live !== LIVENESS_PATH) {
-                fail(
-                    deployment.rel,
-                    `Deployment \`${deployment.name}\` probes liveness at \`${live}\``,
-                    `Liveness must hit \`${LIVENESS_PATH}\` — the dependency-free endpoint. Any other path risks carrying a dependency check, which turns a database blip into a cluster-wide restart storm: every pod fails at once, all get killed, and not one comes back faster for it.`,
-                );
-            }
-            if (ready !== undefined && ready !== READINESS_PATH) {
-                fail(
-                    deployment.rel,
-                    `Deployment \`${deployment.name}\` probes readiness at \`${ready}\``,
-                    `Readiness must hit \`${READINESS_PATH}\` — the dependency-aware one. Pointing it at ${LIVENESS_PATH} means the pod reports ready before its dependencies are up, and the first requests it is sent fail.`,
-                );
-            }
-            if (live !== undefined && live === ready) {
-                fail(
-                    deployment.rel,
-                    `Deployment \`${deployment.name}\` uses \`${live}\` for both liveness and readiness`,
-                    'They answer opposite questions and have opposite consequences — one restarts the pod, the other only pulls it from the load balancer. One endpoint cannot mean both.',
-                );
-            }
+        if (live !== undefined && live !== LIVENESS_PATH) {
+            fail(
+                deployment.rel,
+                `Deployment \`${deployment.name}\` probes liveness at \`${live}\``,
+                `Liveness must hit \`${LIVENESS_PATH}\` — the dependency-free endpoint. Any other path risks carrying a dependency check, which turns a database blip into a cluster-wide restart storm: every pod fails at once, all get killed, and not one comes back faster for it.`,
+            );
+        }
+        if (ready !== undefined && ready !== READINESS_PATH) {
+            fail(
+                deployment.rel,
+                `Deployment \`${deployment.name}\` probes readiness at \`${ready}\``,
+                `Readiness must hit \`${READINESS_PATH}\` — the dependency-aware one. Pointing it at ${LIVENESS_PATH} means the pod reports ready before its dependencies are up, and the first requests it is sent fail.`,
+            );
+        }
+        if (live !== undefined && live === ready) {
+            fail(
+                deployment.rel,
+                `Deployment \`${deployment.name}\` uses \`${live}\` for both liveness and readiness`,
+                'They answer opposite questions and have opposite consequences — one restarts the pod, the other only pulls it from the load balancer. One endpoint cannot mean both.',
+            );
         }
     }
 
@@ -611,55 +587,33 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
     }
 
     // ── 14. Queue consumers have no readiness probe ─────────────────────────
-    if (queueConsumers !== undefined) {
-        for (const deployment of deployments) {
-            if (!queueConsumers.test(deployment.name)) continue;
-            for (const container of containersOf(deployment)) {
-                if (container.readinessProbe !== undefined) {
-                    fail(
-                        deployment.rel,
-                        `Deployment \`${deployment.name}\` has a readinessProbe`,
-                        "A queue consumer PULLS its work; nothing is routed to it. Readiness gates only a pod's membership in a Service's endpoints, and the only Service here exists so Prometheus can scrape it — so a failing readiness probe would cut off the queue-depth metrics at exactly the moment a dependency blip makes you need them.",
-                    );
-                }
-            }
-        }
+    const consumers = deployments.filter((deployment) => queueConsumers?.test(deployment.name) === true);
+    for (const deployment of consumers) {
+        if (!containersOf(deployment).some((container) => container.readinessProbe !== undefined)) continue;
+        fail(
+            deployment.rel,
+            `Deployment \`${deployment.name}\` has a readinessProbe`,
+            "A queue consumer PULLS its work; nothing is routed to it. Readiness gates only a pod's membership in a Service's endpoints, and the only Service here exists so Prometheus can scrape it — so a failing readiness probe would cut off the queue-depth metrics at exactly the moment a dependency blip makes you need them.",
+        );
     }
 
     // ── 15. Every kube-linter exclusion carries a reason ────────────────────
-    if (kubeLinter !== undefined) {
-        if (!exists(kubeLinter)) {
+    if (kubeLinter !== undefined && !exists(kubeLinter)) {
+        fail(
+            kubeLinter,
+            'is missing',
+            'Nothing records which policies are waived or why, so the next person reads every exclusion as laziness.',
+        );
+    } else if (kubeLinter !== undefined) {
+        const lines = read(kubeLinter).split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            const entry = EXCLUSION_ENTRY.exec(lines[i] ?? '');
+            if (entry === null || isJustified(lines, i)) continue;
             fail(
-                kubeLinter,
-                'is missing',
-                'Nothing records which policies are waived or why, so the next person reads every exclusion as laziness.',
+                `${kubeLinter}:${i + 1}`,
+                `exclusion \`${entry[1] ?? ''}\` has no comment explaining it`,
+                'A waived policy check with no rationale is indistinguishable from one waived to make the build go green. Write down what makes it inapplicable here, so the next reader can tell whether it still is.',
             );
-        } else {
-            const lines = read(kubeLinter).split('\n');
-            for (let i = 0; i < lines.length; i++) {
-                const entry = /^\s*-\s*'?([a-z0-9-]+)'?\s*$/.exec(lines[i] ?? '');
-                if (entry === null) continue;
-
-                // One comment above a run of exclusions justifies the run.
-                let j = i - 1;
-                let justified = false;
-                while (j >= 0) {
-                    if (/^\s*#/.test(lines[j] ?? '')) {
-                        justified = true;
-                        break;
-                    }
-                    if (!/^\s*-\s*'?[a-z0-9-]+'?\s*$/.test(lines[j] ?? '')) break;
-                    j -= 1;
-                }
-
-                if (!justified) {
-                    fail(
-                        `${kubeLinter}:${i + 1}`,
-                        `exclusion \`${entry[1] ?? ''}\` has no comment explaining it`,
-                        'A waived policy check with no rationale is indistinguishable from one waived to make the build go green. Write down what makes it inapplicable here, so the next reader can tell whether it still is.',
-                    );
-                }
-            }
         }
     }
 
@@ -667,20 +621,15 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
     const unbounded = new Set([...UNBOUNDED_LABELS, ...unboundedLabels]);
     for (const { module } of metricModules) {
         if (!exists(module)) continue;
-        for (const declaration of code(module).matchAll(/labelNames:\s*\[([^\]]*)\]/g)) {
-            const labels = (declaration[1] ?? '')
-                .split(',')
-                .map((label) => label.trim().replace(/^['"`]|['"`]$/g, ''))
-                .filter(Boolean);
-            for (const label of labels) {
-                if (unbounded.has(label)) {
-                    fail(
-                        module,
-                        `metric label \`${label}\` is unbounded`,
-                        `Prometheus holds one time series per distinct label combination, in memory, forever. \`${label}\` has as many values as you have records, so this does not degrade — it takes the server down. Put the identifier in a log line, where it is queryable and costs nothing.`,
-                    );
-                }
-            }
+        const labels = [...code(module).matchAll(/labelNames:\s*\[([^\]]*)\]/g)]
+            .flatMap((declaration) => (declaration[1] ?? '').split(','))
+            .map((label) => label.trim().replace(/^['"`]|['"`]$/g, ''));
+        for (const label of labels.filter((name) => unbounded.has(name))) {
+            fail(
+                module,
+                `metric label \`${label}\` is unbounded`,
+                `Prometheus holds one time series per distinct label combination, in memory, forever. \`${label}\` has as many values as you have records, so this does not degrade — it takes the server down. Put the identifier in a log line, where it is queryable and costs nothing.`,
+            );
         }
     }
 
@@ -696,14 +645,12 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
                 'The route label is the one metric label here with an unbounded failure mode, and this rule can no longer see how it is built.',
             );
         } else {
-            for (const raw of ['req.url', 'req.path', 'req.originalUrl']) {
-                if (fn.includes(raw)) {
-                    fail(
-                        routeLabel.file,
-                        `\`${routeLabel.fn}\` uses \`${raw}\``,
-                        'That is the REQUESTED url, not the route template, so /api/videos/abc and /api/videos/def become two series. Anyone spraying random paths can then mint unbounded series until Prometheus falls over. Build it from `req.baseUrl` + `req.route.path`.',
-                    );
-                }
+            for (const raw of ['req.url', 'req.path', 'req.originalUrl'].filter((name) => fn.includes(name))) {
+                fail(
+                    routeLabel.file,
+                    `\`${routeLabel.fn}\` uses \`${raw}\``,
+                    'That is the REQUESTED url, not the route template, so /api/videos/abc and /api/videos/def become two series. Anyone spraying random paths can then mint unbounded series until Prometheus falls over. Build it from `req.baseUrl` + `req.route.path`.',
+                );
             }
             if (!fn.includes('req.baseUrl')) {
                 fail(
@@ -727,31 +674,29 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
         .filter((kind) => !CORE_KINDS.has(kind) && !KUSTOMIZE_KINDS.has(kind))
         .sort();
 
-    if (workflow !== undefined) {
-        if (!exists(workflow)) {
-            fail(
-                workflow,
-                'is missing',
-                `Nothing validates the manifests in CI, so the CRD kinds in use (${crdKinds.join(', ')}) are unchecked until apply time.`,
-            );
-        } else {
-            const source = read(workflow);
-            for (const kind of crdKinds) {
-                const pluralKind = `${kind.toLowerCase()}s`;
-                if (!source.includes(pluralKind)) {
-                    fail(
-                        workflow,
-                        `does not install the CRD for \`${kind}\``,
-                        `A server-side dry-run resolves every kind against the live API and rejects an unregistered one outright as "no matches for kind". Add the ${pluralKind} CRD to the install step.`,
-                    );
-                }
-                if (new RegExp(String.raw`-skip[^\n]*\b${kind}\b`).test(source)) {
-                    fail(
-                        workflow,
-                        `passes \`-skip ${kind}\` to kubeconform`,
-                        'A skipped kind is not schema-checked at all, so a typo in it sails through CI and only surfaces at apply time. Resolve the schema instead — `-schema-location` against the CRDs catalog validates it properly.',
-                    );
-                }
+    if (workflow !== undefined && !exists(workflow)) {
+        fail(
+            workflow,
+            'is missing',
+            `Nothing validates the manifests in CI, so the CRD kinds in use (${crdKinds.join(', ')}) are unchecked until apply time.`,
+        );
+    } else if (workflow !== undefined) {
+        const source = read(workflow);
+        for (const kind of crdKinds) {
+            const pluralKind = `${kind.toLowerCase()}s`;
+            if (!source.includes(pluralKind)) {
+                fail(
+                    workflow,
+                    `does not install the CRD for \`${kind}\``,
+                    `A server-side dry-run resolves every kind against the live API and rejects an unregistered one outright as "no matches for kind". Add the ${pluralKind} CRD to the install step.`,
+                );
+            }
+            if (new RegExp(String.raw`-skip[^\n]*\b${kind}\b`).test(source)) {
+                fail(
+                    workflow,
+                    `passes \`-skip ${kind}\` to kubeconform`,
+                    'A skipped kind is not schema-checked at all, so a typo in it sails through CI and only surfaces at apply time. Resolve the schema instead — `-schema-location` against the CRDs catalog validates it properly.',
+                );
             }
         }
     }
@@ -783,6 +728,52 @@ export function checkMetrics({ root = REPO_ROOT, ...rest }: MetricsOptions): voi
         notMachineChecked:
             'Whether a metric is worth collecting, whether the histogram buckets suit the real latency distribution, or whether an alert threshold is the right one. Nor whether Prometheus is deployed at all — this proves the chain is wired, not that anything is listening at the far end of it.',
     });
+}
+
+// One comment above a run of exclusions justifies the run.
+function isJustified(lines: string[], index: number): boolean {
+    for (let j = index - 1; j >= 0; j--) {
+        if (/^\s*#/.test(lines[j] ?? '')) return true;
+        if (!EXCLUSION_ENTRY.test(lines[j] ?? '')) return false;
+    }
+    return false;
+}
+
+function gaugeRefreshProblems(
+    refresh: NonNullable<MetricsInput['gaugeRefresh']>,
+    source: string | null,
+    scraped: ScrapeTarget[],
+): GateFailure[] {
+    const { problems, fail } = collectFailures();
+    if (source === null) {
+        fail(
+            refresh.file,
+            'is missing',
+            'It is where the gauges are refreshed on a timer; without it this rule checks nothing and the interval below is graded against no number at all.',
+        );
+        return problems;
+    }
+    const timer = /setInterval\(([\s\S]*?),\s*([\d_]+)\s*\)/.exec(source);
+    if (timer === null || !new RegExp(String.raw`\b${refresh.call}\s*\(`).test(timer[1] ?? '')) {
+        fail(
+            refresh.file,
+            `does not call \`${refresh.call}()\` on an interval`,
+            'The gauges are then only ever whatever they were at startup, and Prometheus scrapes a constant. A queue that is backing up looks exactly like one that is empty.',
+        );
+        return problems;
+    }
+    const refreshSeconds = Number((timer[2] ?? '').replace(/_/g, '')) / 1000;
+    for (const { monitor, interval } of scraped) {
+        if (interval === undefined || !/^\d+s$/.test(interval) || !refresh.monitors.test(monitor.name)) continue;
+        const scrapeSeconds = Number(interval.replace('s', ''));
+        if (scrapeSeconds === refreshSeconds) continue;
+        fail(
+            monitor.rel,
+            `ServiceMonitor \`${monitor.name}\` scrapes every ${scrapeSeconds}s, but ${refresh.file} refreshes the gauges every ${refreshSeconds}s`,
+            'Gauges are point-in-time. Scraping slower than the refresh silently discards samples; scraping faster records the same value repeatedly. Either way a saturation graph misreports when a backlog began, and nothing errors. Keep the two numbers equal.',
+        );
+    }
+    return problems;
 }
 
 /**

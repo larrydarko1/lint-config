@@ -28,6 +28,15 @@ import path from 'node:path';
 
 import YAML from 'yaml';
 
+import {
+    assignments,
+    chainOf,
+    effective,
+    parentOf,
+    parseStages,
+    type Instruction,
+    type Stage,
+} from './lib/dockerfile.ts';
 import { listAt, recordAt, stringAt, toRecord } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
@@ -66,8 +75,6 @@ type DockerInspection = {
     counts: { images: number; stages: number; nodeMajor: string | null };
 };
 
-type Instruction = { instruction: string; args: string; line: number };
-type Stage = { name: string | null; base: string; from: number; instructions: Instruction[] };
 type Dockerfile = { rel: string; stages: Stage[] };
 
 /** Bases that run unprivileged by construction, so no USER is needed. */
@@ -215,120 +222,7 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
             );
         }
 
-        for (const stage of stages) {
-            // ── 4. Base images pinned by tag ────────────────────────────────
-            if (parentOf(stages, stage) === undefined && stage.base !== 'scratch' && !stage.base.includes('@sha256:')) {
-                const lastColon = stage.base.lastIndexOf(':');
-                const tag = lastColon > stage.base.lastIndexOf('/') ? stage.base.slice(lastColon + 1) : null;
-                if (tag === null) {
-                    fail(
-                        rel,
-                        `line ${stage.from}: FROM ${stage.base} has no tag`,
-                        'An untagged reference means `:latest`, which is whatever the registry happened to point at. Pin the tag.',
-                    );
-                } else if (tag === 'latest') {
-                    fail(
-                        rel,
-                        `line ${stage.from}: FROM ${stage.base}`,
-                        '`:latest` moves under you. Two builds of the same commit can produce different images, and nothing records which one production got.',
-                    );
-                }
-            }
-
-            for (const ins of stage.instructions) {
-                // ── 5. Package lists cleaned in the same RUN ────────────────
-                if (ins.instruction === 'RUN') {
-                    if (/apt-get\s+install/.test(ins.args) && !/rm\s+-rf\s+\/var\/lib\/apt\/lists/.test(ins.args)) {
-                        fail(
-                            rel,
-                            `line ${ins.line}: apt-get install without \`rm -rf /var/lib/apt/lists/*\` in the same RUN`,
-                            'A layer can only add, so deleting the lists in a later instruction leaves ~40 MB in the image and merely hides it from `ls`. Chain the removal onto this RUN with &&.',
-                        );
-                    }
-                    if (
-                        /apk\s+add/.test(ins.args) &&
-                        !ins.args.includes('--no-cache') &&
-                        !/rm\s+-rf\s+\/var\/cache\/apk/.test(ins.args)
-                    ) {
-                        fail(
-                            rel,
-                            `line ${ins.line}: apk add without --no-cache`,
-                            'Same layer problem as apt lists. `--no-cache` is the one-word fix and needs no cleanup step.',
-                        );
-                    }
-                    // ── 14. --ignore-scripts on every install ───────────────
-                    if (/\bnpm\s+(ci|install|i)\b/.test(ins.args) && !/--ignore-scripts\b/.test(ins.args)) {
-                        fail(
-                            rel,
-                            `line ${ins.line}: npm install without --ignore-scripts`,
-                            'Lifecycle scripts are arbitrary code from every transitive dependency, run with the build’s filesystem and network. It also stops `prepare` installing husky into an image with no .git.',
-                        );
-                    }
-                }
-
-                // ── 6. Exec form, and not via a package manager ─────────────
-                if (ins.instruction === 'CMD' || ins.instruction === 'ENTRYPOINT') {
-                    if (!ins.args.startsWith('[')) {
-                        fail(
-                            rel,
-                            `line ${ins.line}: ${ins.instruction} ${ins.args} is shell form`,
-                            'Shell form runs the process under `/bin/sh -c`, which becomes PID 1 and does not forward SIGTERM to its child. Every rollout then waits out the full grace period and SIGKILLs the process mid-job. Use exec form: ["node", "dist/index.js"].',
-                        );
-                    } else if (/^\[\s*"(npm|npx|yarn|pnpm)"/.test(ins.args)) {
-                        fail(
-                            rel,
-                            `line ${ins.line}: ${ins.instruction} ${ins.args} makes a package manager PID 1`,
-                            'It does not forward SIGTERM either — the same slow rollout and killed job as shell form. Run node directly: ["node", "dist/index.js"].',
-                        );
-                    }
-                }
-
-                // ── 7. COPY, not ADD ────────────────────────────────────────
-                if (ins.instruction === 'ADD') {
-                    fail(
-                        rel,
-                        `line ${ins.line}: ADD ${ins.args}`,
-                        'ADD auto-extracts local archives and fetches remote URLs — the two behaviours that distinguish it from COPY are the two nobody wants implicitly. Use COPY, and a RUN for anything else.',
-                    );
-                }
-
-                // ── 8. No secrets in a layer ────────────────────────────────
-                if (ins.instruction === 'ENV' || ins.instruction === 'ARG') {
-                    for (const [name, value] of assignments(ins.args)) {
-                        if (SECRET_NAME.test(name) && value !== '' && !value.startsWith('$')) {
-                            fail(
-                                rel,
-                                `line ${ins.line}: ${ins.instruction} ${name}=… bakes a secret into a layer`,
-                                'Anyone who can pull the image can read it, and deleting it in a later layer does not remove it. Pass it at runtime (`docker run -e`, a k8s Secret), or use a BuildKit `--mount=type=secret` for build-time-only values.',
-                            );
-                        }
-                    }
-                }
-            }
-
-            // ── 11. Manifests before sources ────────────────────────────────
-            const installAt = stage.instructions.findIndex(
-                (i) => i.instruction === 'RUN' && /\bnpm\s+(ci|install)\b/.test(i.args),
-            );
-            if (installAt !== -1) {
-                const copies = stage.instructions.slice(0, installAt).filter((i) => i.instruction === 'COPY');
-                const wholeContext = copies.find((i) => /^(--\S+\s+)*\.[\s/]/.test(i.args));
-                if (wholeContext !== undefined) {
-                    fail(
-                        rel,
-                        `line ${wholeContext.line}: \`COPY ${wholeContext.args}\` copies the whole context before \`npm ci\``,
-                        'The install layer is then invalidated by every source edit, so a one-line change reinstalls every dependency. Copy package.json and package-lock.json first, install, then copy sources.',
-                    );
-                }
-                if (!copies.some((i) => /package(\.json|\*)/.test(i.args))) {
-                    fail(
-                        rel,
-                        `stage \`${stage.name ?? '?'}\` runs npm ci with no package.json copied first`,
-                        'Either the manifests arrive with a broad copy — which defeats layer caching — or this install is not reproducible.',
-                    );
-                }
-            }
-        }
+        for (const stage of stages) problems.push(...stageProblems(rel, stages, stage));
 
         // ── 12. NODE_ENV in a Node runtime stage ────────────────────────────
         if (/^(?:docker\.io\/)?(?:library\/)?node:/.test(lastBase)) {
@@ -359,16 +253,16 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
             'It is the single statement of which Node major this app runs on, and the one number every base image here is held to. Declare it.',
         );
     } else {
-        for (const { rel, stages } of dockerfiles) {
-            for (const stage of stages) {
-                const m = /^(?:docker\.io\/)?(?:library\/)?node:(\d+)(?:[.-]|$)/.exec(stage.base);
-                if (m !== null && m[1] !== enginesMajor) {
-                    fail(
-                        rel,
-                        `line ${stage.from}: FROM ${stage.base}, but engines.node is "${enginesRange}"`,
-                        'A Docker build never reads engines, so this drifts in total silence and only production runs the untested major. Bump the tag with the engines range, together.',
-                    );
-                }
+        for (const { rel, stage } of dockerfiles.flatMap(({ rel, stages }) =>
+            stages.map((stage) => ({ rel, stage })),
+        )) {
+            const m = /^(?:docker\.io\/)?(?:library\/)?node:(\d+)(?:[.-]|$)/.exec(stage.base);
+            if (m !== null && m[1] !== enginesMajor) {
+                fail(
+                    rel,
+                    `line ${stage.from}: FROM ${stage.base}, but engines.node is "${enginesRange}"`,
+                    'A Docker build never reads engines, so this drifts in total silence and only production runs the untested major. Bump the tag with the engines range, together.',
+                );
             }
         }
     }
@@ -409,13 +303,14 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
     } else {
         const [build] = yamlDocuments(buildWorkflow) ?? [null];
         const builds: { jobName: string; file: string; context: string | undefined }[] = [];
-        for (const [jobName, job] of Object.entries(recordAt(build, 'jobs'))) {
-            for (const step of listAt(job, 'steps')) {
-                const file = stringAt(recordAt(step, 'with'), 'file');
-                const building = stringAt(step, 'uses')?.startsWith('docker/build-push-action') === true;
-                if (building && file !== undefined && file !== '') {
-                    builds.push({ jobName, file, context: stringAt(recordAt(step, 'with'), 'context') });
-                }
+        const steps = Object.entries(recordAt(build, 'jobs')).flatMap(([jobName, job]) =>
+            listAt(job, 'steps').map((step) => ({ jobName, step })),
+        );
+        for (const { jobName, step } of steps) {
+            const file = stringAt(recordAt(step, 'with'), 'file');
+            const building = stringAt(step, 'uses')?.startsWith('docker/build-push-action') === true;
+            if (building && file !== undefined && file !== '') {
+                builds.push({ jobName, file, context: stringAt(recordAt(step, 'with'), 'context') });
             }
         }
         for (const { jobName, file, context } of builds) {
@@ -434,16 +329,13 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
                 );
             }
         }
-        if (build !== null) {
-            for (const { rel } of dockerfiles) {
-                if (!builds.some((b) => b.file === rel)) {
-                    fail(
-                        rel,
-                        `no job in ${path.basename(buildWorkflow)} builds it`,
-                        'Nothing verifies it parses, let alone that it produces a working image. It will rot until the day it is needed.',
-                    );
-                }
-            }
+        const unbuilt = build === null ? [] : dockerfiles.filter(({ rel }) => !builds.some((b) => b.file === rel));
+        for (const { rel } of unbuilt) {
+            fail(
+                rel,
+                `no job in ${path.basename(buildWorkflow)} builds it`,
+                'Nothing verifies it parses, let alone that it produces a working image. It will rot until the day it is needed.',
+            );
         }
         for (const value of Object.values(recordAt(build, 'env'))) {
             if (typeof value === 'string' && value.includes('/')) pushed.add(value.split('/').pop());
@@ -477,24 +369,13 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
                     .filter((i) => i.instruction === 'EXPOSE')
                     .flatMap((i) => i.args.split(/\s+/).map((p) => Number.parseInt(p, 10))),
             );
-            const ports = new Set<number>();
-            for (const doc of yamlDocuments(manifest) ?? []) {
-                const podSpec = recordAt(recordAt(recordAt(doc, 'spec'), 'template'), 'spec');
-                for (const container of listAt(podSpec, 'containers')) {
-                    for (const port of listAt(container, 'ports')) {
-                        const containerPort = toRecord(port)['containerPort'];
-                        if (typeof containerPort === 'number') ports.add(containerPort);
-                    }
-                }
-            }
-            for (const port of ports) {
-                if (!exposed.has(port)) {
-                    fail(
-                        rel,
-                        `${manifest} declares containerPort ${port}, which this image does not EXPOSE (${exposed.size > 0 ? [...exposed].join(', ') : 'nothing'})`,
-                        'Two files describing one port, and only a failed rollout to tell you they disagree. EXPOSE is documentation, which is exactly why it drifts.',
-                    );
-                }
+            const unexposed = containerPorts(yamlDocuments(manifest) ?? []).filter((port) => !exposed.has(port));
+            for (const port of unexposed) {
+                fail(
+                    rel,
+                    `${manifest} declares containerPort ${port}, which this image does not EXPOSE (${exposed.size > 0 ? [...exposed].join(', ') : 'nothing'})`,
+                    'Two files describing one port, and only a failed rollout to tell you they disagree. EXPOSE is documentation, which is exactly why it drifts.',
+                );
             }
         }
     }
@@ -515,30 +396,8 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
                 newTag: stringAt(entry, 'newTag'),
             }));
             const published = [...pushed].filter((name) => name !== undefined).sort();
-            for (const entry of images) {
-                if (entry.newName === undefined || entry.newName === '') continue;
-                if (!pushed.has(entry.newName.split('/').pop())) {
-                    fail(
-                        kustomization,
-                        `points \`${entry.name ?? '?'}\` at \`${entry.newName}\`, which ${path.basename(buildWorkflow)} does not push`,
-                        `It publishes: ${published.length > 0 ? published.join(', ') : 'nothing'}. Naming anything else pulls a tag that was never built — ImagePullBackOff on the cluster, and nothing red anywhere before that.`,
-                    );
-                }
-                if (/\byour-org\b|\bexample\b|<[^>]+>/.test(entry.newName)) {
-                    fail(
-                        kustomization,
-                        `\`${entry.newName}\` still contains a placeholder`,
-                        'A manifest that cannot resolve is not a template, it is a broken deploy waiting for whoever applies it by hand. Put the real registry path in.',
-                    );
-                }
-                if (entry.newTag !== undefined && MUTABLE_TAG.test(entry.newTag)) {
-                    fail(
-                        kustomization,
-                        `pins \`${entry.name ?? '?'}\` to the mutable tag \`${entry.newTag}\``,
-                        'Every deploy must be traceable to the commit CI validated, and a rollback needs an earlier tag to name — a floating tag gives you neither. Leave an unresolvable placeholder (SET_BY_CI) for `kustomize edit set image` to replace with the SHA.',
-                    );
-                }
-            }
+            const built = { pushed, published, workflow: path.basename(buildWorkflow) };
+            for (const entry of images) problems.push(...imageProblems(kustomization, entry, built));
         }
     }
 
@@ -591,92 +450,169 @@ export function checkDocker(options: DockerOptions): void {
     });
 }
 
-/**
- * The instructions of a Dockerfile, with continuation lines joined and comment
- * lines dropped — including a comment inside a continued instruction, which
- * Docker also ignores.
- */
-function parseInstructions(src: string): Instruction[] {
-    const out: Instruction[] = [];
-    const lines = src.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-        let text = lines[i] ?? '';
-        if (/^\s*(#|$)/.test(text)) continue;
-        const start = i;
-        while (/\\\s*$/.test(text) && i + 1 < lines.length) {
-            text = text.replace(/\\\s*$/, ' ');
-            i++;
-            const next = lines[i] ?? '';
-            text += /^\s*#/.test(next) ? ' \\' : next;
-        }
-        const m = /^\s*([A-Za-z]+)\s+([\s\S]*)$/.exec(text);
-        if (m !== null) {
-            out.push({ instruction: (m[1] ?? '').toUpperCase(), args: (m[2] ?? '').trim(), line: start + 1 });
+/** What is wrong with one stage: its base's tag, each instruction, and its install order. */
+function stageProblems(rel: string, stages: Stage[], stage: Stage): GateFailure[] {
+    const { problems, fail } = collectFailures();
+    // ── 4. Base images pinned by tag ────────────────────────────────
+    if (parentOf(stages, stage) === undefined && stage.base !== 'scratch' && !stage.base.includes('@sha256:')) {
+        const lastColon = stage.base.lastIndexOf(':');
+        const tag = lastColon > stage.base.lastIndexOf('/') ? stage.base.slice(lastColon + 1) : null;
+        if (tag === null) {
+            fail(
+                rel,
+                `line ${stage.from}: FROM ${stage.base} has no tag`,
+                'An untagged reference means `:latest`, which is whatever the registry happened to point at. Pin the tag.',
+            );
+        } else if (tag === 'latest') {
+            fail(
+                rel,
+                `line ${stage.from}: FROM ${stage.base}`,
+                '`:latest` moves under you. Two builds of the same commit can produce different images, and nothing records which one production got.',
+            );
         }
     }
-    return out;
+
+    problems.push(...stage.instructions.flatMap((ins) => instructionProblems(rel, ins)));
+
+    // ── 11. Manifests before sources ────────────────────────────────
+    const installAt = stage.instructions.findIndex(
+        (i) => i.instruction === 'RUN' && /\bnpm\s+(ci|install)\b/.test(i.args),
+    );
+    if (installAt !== -1) {
+        const copies = stage.instructions.slice(0, installAt).filter((i) => i.instruction === 'COPY');
+        const wholeContext = copies.find((i) => /^(--\S+\s+)*\.[\s/]/.test(i.args));
+        if (wholeContext !== undefined) {
+            fail(
+                rel,
+                `line ${wholeContext.line}: \`COPY ${wholeContext.args}\` copies the whole context before \`npm ci\``,
+                'The install layer is then invalidated by every source edit, so a one-line change reinstalls every dependency. Copy package.json and package-lock.json first, install, then copy sources.',
+            );
+        }
+        if (!copies.some((i) => /package(\.json|\*)/.test(i.args))) {
+            fail(
+                rel,
+                `stage \`${stage.name ?? '?'}\` runs npm ci with no package.json copied first`,
+                'Either the manifests arrive with a broad copy — which defeats layer caching — or this install is not reproducible.',
+            );
+        }
+    }
+    return problems;
 }
 
-/** The stages, with each FROM's flags dropped and global ARGs (before the first FROM) substituted. */
-function parseStages(src: string): Stage[] {
-    const stages: Stage[] = [];
-    const globalArgs = new Map<string, string>();
-    for (const ins of parseInstructions(src)) {
-        if (ins.instruction === 'FROM') {
-            const args = ins.args
-                .replace(/^(?:--\S+\s+)*/, '')
-                .replace(
-                    /\$\{(\w+)\}|\$(\w+)/g,
-                    (whole: string, braced?: string, bare?: string) => globalArgs.get(braced ?? bare ?? '') ?? whole,
+/** What is wrong with one instruction, on its own. */
+function instructionProblems(rel: string, ins: Instruction): GateFailure[] {
+    const { problems, fail } = collectFailures();
+    // ── 5. Package lists cleaned in the same RUN ────────────────
+    if (ins.instruction === 'RUN') {
+        if (/apt-get\s+install/.test(ins.args) && !/rm\s+-rf\s+\/var\/lib\/apt\/lists/.test(ins.args)) {
+            fail(
+                rel,
+                `line ${ins.line}: apt-get install without \`rm -rf /var/lib/apt/lists/*\` in the same RUN`,
+                'A layer can only add, so deleting the lists in a later instruction leaves ~40 MB in the image and merely hides it from `ls`. Chain the removal onto this RUN with &&.',
+            );
+        }
+        if (
+            /apk\s+add/.test(ins.args) &&
+            !ins.args.includes('--no-cache') &&
+            !/rm\s+-rf\s+\/var\/cache\/apk/.test(ins.args)
+        ) {
+            fail(
+                rel,
+                `line ${ins.line}: apk add without --no-cache`,
+                'Same layer problem as apt lists. `--no-cache` is the one-word fix and needs no cleanup step.',
+            );
+        }
+        // ── 14. --ignore-scripts on every install ───────────────
+        if (/\bnpm\s+(ci|install|i)\b/.test(ins.args) && !/--ignore-scripts\b/.test(ins.args)) {
+            fail(
+                rel,
+                `line ${ins.line}: npm install without --ignore-scripts`,
+                'Lifecycle scripts are arbitrary code from every transitive dependency, run with the build’s filesystem and network. It also stops `prepare` installing husky into an image with no .git.',
+            );
+        }
+    }
+
+    // ── 6. Exec form, and not via a package manager ─────────────
+    if (ins.instruction === 'CMD' || ins.instruction === 'ENTRYPOINT') {
+        if (!ins.args.startsWith('[')) {
+            fail(
+                rel,
+                `line ${ins.line}: ${ins.instruction} ${ins.args} is shell form`,
+                'Shell form runs the process under `/bin/sh -c`, which becomes PID 1 and does not forward SIGTERM to its child. Every rollout then waits out the full grace period and SIGKILLs the process mid-job. Use exec form: ["node", "dist/index.js"].',
+            );
+        } else if (/^\[\s*"(npm|npx|yarn|pnpm)"/.test(ins.args)) {
+            fail(
+                rel,
+                `line ${ins.line}: ${ins.instruction} ${ins.args} makes a package manager PID 1`,
+                'It does not forward SIGTERM either — the same slow rollout and killed job as shell form. Run node directly: ["node", "dist/index.js"].',
+            );
+        }
+    }
+
+    // ── 7. COPY, not ADD ────────────────────────────────────────
+    if (ins.instruction === 'ADD') {
+        fail(
+            rel,
+            `line ${ins.line}: ADD ${ins.args}`,
+            'ADD auto-extracts local archives and fetches remote URLs — the two behaviours that distinguish it from COPY are the two nobody wants implicitly. Use COPY, and a RUN for anything else.',
+        );
+    }
+
+    // ── 8. No secrets in a layer ────────────────────────────────
+    if (ins.instruction === 'ENV' || ins.instruction === 'ARG') {
+        for (const [name, value] of assignments(ins.args)) {
+            if (SECRET_NAME.test(name) && value !== '' && !value.startsWith('$')) {
+                fail(
+                    rel,
+                    `line ${ins.line}: ${ins.instruction} ${name}=… bakes a secret into a layer`,
+                    'Anyone who can pull the image can read it, and deleting it in a later layer does not remove it. Pass it at runtime (`docker run -e`, a k8s Secret), or use a BuildKit `--mount=type=secret` for build-time-only values.',
                 );
-            const m = /^(\S+)(?:\s+AS\s+(\S+))?$/i.exec(args);
-            stages.push({ name: m?.[2] ?? null, base: m?.[1] ?? args, from: ins.line, instructions: [] });
-        } else if (stages.length === 0) {
-            if (ins.instruction === 'ARG') {
-                const m = /^(\w+)=(\S+)/.exec(ins.args);
-                if (m !== null) globalArgs.set(m[1] ?? '', (m[2] ?? '').replace(/^["']|["']$/g, ''));
             }
-        } else {
-            stages.at(-1)?.instructions.push(ins);
         }
     }
-    return stages;
+
+    return problems;
 }
 
-/** A stage and every stage it is built `FROM`, root first: the chain USER, ENV and HEALTHCHECK inherit down. */
-function chainOf(stages: Stage[], stage: Stage): Stage[] {
-    const chain: Stage[] = [stage];
-    for (let parent = parentOf(stages, stage); parent !== undefined; parent = parentOf(stages, parent)) {
-        chain.unshift(parent);
+/** Every `containerPort` the pod templates in these manifests declare, once each. */
+function containerPorts(docs: unknown[]): number[] {
+    const containers = docs.flatMap((doc) =>
+        listAt(recordAt(recordAt(recordAt(doc, 'spec'), 'template'), 'spec'), 'containers'),
+    );
+    const ports = containers.flatMap((container) =>
+        listAt(container, 'ports').map((port) => toRecord(port)['containerPort']),
+    );
+    return [...new Set(ports.filter((port) => typeof port === 'number'))];
+}
+
+/** What is wrong with one `images:` entry of the kustomization, given what the build workflow pushes. */
+function imageProblems(
+    file: string,
+    entry: { name: string | undefined; newName: string | undefined; newTag: string | undefined },
+    built: { pushed: Set<string | undefined>; published: string[]; workflow: string },
+): GateFailure[] {
+    const { problems, fail } = collectFailures();
+    if (entry.newName === undefined || entry.newName === '') return [];
+    if (!built.pushed.has(entry.newName.split('/').pop())) {
+        fail(
+            file,
+            `points \`${entry.name ?? '?'}\` at \`${entry.newName}\`, which ${built.workflow} does not push`,
+            `It publishes: ${built.published.length > 0 ? built.published.join(', ') : 'nothing'}. Naming anything else pulls a tag that was never built — ImagePullBackOff on the cluster, and nothing red anywhere before that.`,
+        );
     }
-    return chain;
-}
-
-/** The earlier stage `stage` is built FROM, if any (case-insensitive). Only earlier stages count, so no loops. */
-function parentOf(stages: Stage[], stage: Stage): Stage | undefined {
-    const base = stage.base.toLowerCase();
-    return stages
-        .slice(0, stages.indexOf(stage))
-        .filter((s) => s.name?.toLowerCase() === base)
-        .at(-1);
-}
-
-/** The last instance of `instruction` in force for `stage`, inherited included. */
-function effective(stages: Stage[], stage: Stage, instruction: string): Instruction | undefined {
-    return chainOf(stages, stage)
-        .flatMap((s) => s.instructions)
-        .filter((i) => i.instruction === instruction)
-        .at(-1);
-}
-
-/** `ENV A=1 B=2` and the legacy `ENV A 1` both, as name/value pairs. */
-function assignments(args: string): [string, string][] {
-    if (!args.includes('=')) {
-        const m = /^([A-Za-z_]\w*)\s+(.+)$/.exec(args);
-        return m === null ? [] : [[m[1] ?? '', (m[2] ?? '').trim()]];
+    if (/\byour-org\b|\bexample\b|<[^>]+>/.test(entry.newName)) {
+        fail(
+            file,
+            `\`${entry.newName}\` still contains a placeholder`,
+            'A manifest that cannot resolve is not a template, it is a broken deploy waiting for whoever applies it by hand. Put the real registry path in.',
+        );
     }
-    return [...args.matchAll(/([A-Za-z_]\w*)=("[^"]*"|'[^']*'|\S+)/g)].map((m) => [
-        m[1] ?? '',
-        (m[2] ?? '').replace(/^["']|["']$/g, ''),
-    ]);
+    if (entry.newTag !== undefined && MUTABLE_TAG.test(entry.newTag)) {
+        fail(
+            file,
+            `pins \`${entry.name ?? '?'}\` to the mutable tag \`${entry.newTag}\``,
+            'Every deploy must be traceable to the commit CI validated, and a rollback needs an earlier tag to name — a floating tag gives you neither. Leave an unresolvable placeholder (SET_BY_CI) for `kustomize edit set image` to replace with the SHA.',
+        );
+    }
+    return problems;
 }
