@@ -318,8 +318,7 @@ a `@tauri-apps/plugin-*`, or touch the `__TAURI__` globals (`larry/no-tauri-outs
 bridge, where Rust's rejections arrive, `larry/no-caught-message-leak` keeps their English out of what
 it returns. The app is one package, so tests mirror `src/` in `tests/`, as in the Electron family.
 `webviewBannedImports` (Node built-ins, Electron), `loggerCallSelectors` and `errorHandlingSelectors`
-(no log-and-rethrow) are exported for the project's own blocks. The standard behind the family is `prompts/7_security/tauri.instructions.md` in
-the workflow repo. Three gates cover what ESLint cannot see: the config and the capabilities
+(no log-and-rethrow) are exported for the project's own blocks. Three gates cover what ESLint cannot see: the config and the capabilities
 (`tauri-security`), the command chain from Rust to the bridge (`tauri-commands`), and the Rust side's
 error handling (`error-handling/tauri`).
 
@@ -355,9 +354,8 @@ is CommonJS, where `import.meta` is empty, so the source reaches its own files t
 never loads `vscode`, which exists only inside the editor, so Vitest can run it from `tests/`; the
 glue in `src/vscode/` is what the E2E suite in `e2e/` runs, inside a real editor through the VS Code
 test CLI, and a spec may not import the source. A reporter or another module a tool loads by its
-default export goes in `defaultExportAllowed`. The standard behind the family is
-`prompts/7_security/vs-extension.instructions.md` in the workflow repo, and the `extension-manifest`
-gate holds package.json to the source.
+default export goes in `defaultExportAllowed`. The `extension-manifest` gate holds package.json to
+the source.
 
 ```js
 // eslint.config.js
@@ -832,8 +830,9 @@ labels after the summary and a blank `//!`, because the summary is held to one s
 
 **Rust.** `code-style` and `declaration-order` read `.rs` files too, never under `target/`. Name the
 crate's sources in `scan` or `sourceRoots` (`src-tauri/src`, and `src-tauri/build.rs`: a file is read
-as itself). `declaration-order` checks the item order of `prompts/0_standards/rust.instructions.md`
-(a type followed by its `impl`s, the tests last) and the `use` groups: std, external crates, this
+as itself). `declaration-order` checks a fixed item order (`mod`, `use`, constants, public
+types each followed by its `impl`s, public functions, then the private ones, the tests last) and the
+`use` groups: std, external crates, this
 crate through `crate::`. `--fix` leaves Rust to rustfmt. `code-style` requires `//!` on `lib.rs`, and
 elsewhere where a `headers` rule says `rustdoc` or `owns`; it also checks that a doc comment's first
 paragraph is one sentence, and that there are no section labels, `get_` getters or acronyms in

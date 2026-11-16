@@ -1,5 +1,5 @@
 /**
- * The chain a Tauri command travels, both ways, tauri.instructions.md's *Commands*:
+ * The chain a Tauri command travels, both ways:
  * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1.  One `invoke_handler`, with one `generate_handler!`: a second call replaces the first.
  *   2.  Every `#[tauri::command]` is `pub`, lives in `commands/<domain>.rs`, has a name no

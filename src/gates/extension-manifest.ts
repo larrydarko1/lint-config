@@ -57,7 +57,7 @@ const NEVER_SHIPPED = [
 ];
 
 const UNCHECKED_WHY =
-    'The standard has the rules for it (vs-extension.instructions.md), but no gate checks them yet, and an unchecked webview is a page that can run script with the extension’s reach. The gate is built against the first real one: raise it before adding this.';
+    'No gate checks it yet, and an unchecked webview is a page that can run script with the extension’s reach. The gate is built against the first real one: raise it before adding this.';
 
 /** Every problem in one extension's manifest, without printing anything. */
 export function inspectExtensionManifest(

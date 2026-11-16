@@ -1,5 +1,5 @@
 /**
- * Declaration order for Rust, rust.instructions.md's table:
+ * Declaration order for Rust:
  * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *    1. mod              — `mod` declarations
  *    2. use              — then `pub use`, in their own layer
