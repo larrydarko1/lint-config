@@ -67,7 +67,7 @@ test("init asks for the family, the distribution and a base project's runtime, a
     const root = repo(t, { 'src/index.ts': 'export {};\n' });
     const result = await ask(root, {}, [
         // The family list starts on api; base is last.
-        ['What kind of project is this?', DOWN.repeat(6) + ENTER],
+        ['What kind of project is this?', DOWN.repeat(7) + ENTER],
         ["Is the app's own source published?", DOWN + ENTER],
         ['Where does the source run?', DOWN + ENTER],
     ]);

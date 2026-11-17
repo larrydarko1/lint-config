@@ -1,7 +1,8 @@
 /**
  * The mechanically checkable half of the testing standard:
  * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
- *   1. Suites sit where `layout` says (co-located `__tests__/` or a mirrored tree).
+ *   1. Suites sit where `layout` says (co-located `__tests__/` or a mirrored tree), or
+ *      where `otherRunners` names the runner that finds them.
  *   2. A `.spec` file belongs to the E2E runner.
  *   3. E2E lives where `e2e` says, or nowhere; a Playwright config only once a spec exists.
  *   4. Coverage thresholds only rise; every exclude has a reason.
@@ -19,11 +20,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import {
+    e2eSummary,
+    inspectE2eLayout,
+    inspectServerErrors,
+    type E2eLayout,
+    type ServerErrorWiring,
+} from './lib/e2e.ts';
 import { repoFiles } from './lib/files.ts';
-import { dependencyNames, recordAt, toRecord } from './lib/json.ts';
+import { recordAt, toRecord } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
-import { callArgs, callSites, splitTopLevel } from './lib/source.ts';
+import { callSites, splitTopLevel } from './lib/source.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
 export type TestingOptions = {
@@ -31,6 +39,12 @@ export type TestingOptions = {
     /** The config holding the coverage thresholds and excludes. */
     config: string;
     layout: TestLayout;
+    /**
+     * Suites another runner runs, glob → which runner and why: content the project ships
+     * and runs itself, such as the tests each exercise in a course comes with. They are
+     * held to suite hygiene, not to `layout`, and a glob that matches no suite fails.
+     */
+    otherRunners?: Record<string, string>;
     e2e?: E2eLayout;
     /** The floors as they stand. They may rise, never fall. */
     thresholds?: CoverageThresholds;
@@ -62,20 +76,6 @@ type TestLayout =
           areas?: string[];
       };
 
-/** Where the E2E tripwire for server errors is wired. */
-type ServerErrorWiring = {
-    /**
-     * The fixtures module every spec imports `test` from. It must create the
-     * recorder with the API's `logFile`, watch the browser context, and drain it.
-     */
-    fixtures: string;
-    /** The Playwright global teardown. It must read the API's log with `logErrors`. */
-    teardown: string;
-};
-
-/** Where the E2E suite lives, or `false` where there deliberately is none. */
-type E2eLayout = false | { dir: string; config: string };
-
 type CoverageThresholds = {
     statements: number;
     branches: number;
@@ -96,8 +96,10 @@ type TestingInput = TestingOptions & { root: string };
 
 type TestingInspection = {
     problems: GateFailure[];
-    /** `.test.ts` files found. */
+    /** `.test.ts` files found where `layout` puts them. */
     suites: number;
+    /** `.test.ts` files `otherRunners` names. */
+    otherSuites: number;
     /** `.spec.ts` / `.spec.js` files found. */
     specs: number;
     /** Files in the coverage report, when one was present. */
@@ -111,12 +113,6 @@ type HygieneRule = {
     re: RegExp;
     what: string;
     why: string;
-};
-
-type FileAccess = {
-    read: (rel: string) => string;
-    exists: (rel: string) => boolean;
-    fail: (file: string, what: string, why: string) => void;
 };
 
 /** The ways a suite goes wrong while every run stays green, so none of them announce themselves. */
@@ -147,9 +143,6 @@ const PATCHED_TRANSPORT =
     /vi\.mock\(\s*['"](?:axios|node-fetch|cross-fetch)['"]|(?:global|globalThis)\.fetch\s*=|stubGlobal\(\s*['"]fetch['"]/;
 
 const VM_ACCESS = /\.vm\.[a-zA-Z_][a-zA-Z0-9_]*/;
-
-/** A named import from Playwright itself: `import { test, expect } from '@playwright/test'`. */
-const PLAYWRIGHT_IMPORT = /import\s*\{([^}]*)\}\s*from\s*['"]@playwright\/test['"]/g;
 
 /**
  * Where a suite replaces one of `client.exports`: a `vi.mock`/`vi.doMock` of the
@@ -215,6 +208,7 @@ export function inspectTesting(input: TestingInput): TestingInspection {
         root,
         config,
         layout,
+        otherRunners = {},
         e2e = false,
         thresholds = { statements: 80, branches: 80, functions: 80, lines: 80 },
         excludes = {},
@@ -232,19 +226,31 @@ export function inspectTesting(input: TestingInput): TestingInspection {
     const files = repoFiles(root);
     const unitTests = files.filter((rel) => rel.endsWith('.test.ts'));
     const specs = files.filter((rel) => /\.spec\.[tj]s$/.test(rel));
+    const runElsewhere = (rel: string): boolean =>
+        Object.keys(otherRunners).some((glob) => path.matchesGlob(rel, glob));
+    const placed = unitTests.filter((rel) => !runElsewhere(rel));
 
     // ── 1. Placement: whichever pattern this project picked ─────────────────
     const half =
         'The standard allows either pattern but not both: half a convention is worse than either half, because now nobody knows where to look for a file that might not exist.';
 
-    for (const rel of unitTests) {
+    for (const glob of Object.keys(otherRunners)) {
+        if (!unitTests.some((rel) => path.matchesGlob(rel, glob))) {
+            fail(
+                glob,
+                '`otherRunners` names it, but it matches no suite',
+                'An entry that matches nothing exempts nothing today and whatever lands there tomorrow. Remove it from `otherRunners` in this gate.',
+            );
+        }
+    }
+    for (const rel of placed) {
         const colocated = rel.includes('/__tests__/') || rel.startsWith('__tests__/');
         if (layout.kind === 'colocated') {
             if (!colocated) {
                 fail(
                     rel,
                     'a .test.ts outside a `__tests__/` directory',
-                    `This project uses the co-located \`__tests__/\` pattern — all ${unitTests.length - 1} other suites are in one. ${half}`,
+                    `This project uses the co-located \`__tests__/\` pattern — all ${placed.length - 1} other suites are in one. ${half}`,
                 );
             }
             continue;
@@ -287,48 +293,8 @@ export function inspectTesting(input: TestingInput): TestingInspection {
         }
     }
 
-    // ── 2. A `.spec` file belongs to the E2E runner ─────────────────────────
-    for (const rel of specs) {
-        if (e2e === false) {
-            fail(
-                rel,
-                'a .spec file',
-                'Every test file ends in `.test.ts`. Vitest matches that suffix and nothing else, so a `.spec` file is run by nothing at all while still reading as a test — rename it.',
-            );
-        } else if (!rel.startsWith(`${e2e.dir}/`)) {
-            fail(
-                rel,
-                `a .spec file outside \`${e2e.dir}/\``,
-                `Playwright specs live in \`${e2e.dir}/\`. Anywhere else, no runner picks the file up: Vitest matches \`*.test.ts\`, Playwright only looks under its own testDir — so the suite silently stops running while still looking like a test.`,
-            );
-        }
-    }
-
-    // ── 3. E2E lives where this project said, which may be nowhere ──────────
-    if (e2e === false) {
-        for (const rel of files.filter((f) => f.startsWith('e2e/') || f.startsWith('playwright.config.'))) {
-            fail(
-                rel,
-                'an E2E suite appearing without discussion',
-                'There is deliberately no E2E suite here. The standard asks that adding one back be raised first — so raise it, then turn `e2e` on in this gate along with the paragraph in the contributing guide.',
-            );
-        }
-        for (const dep of dependencyNames(JSON.parse(read('package.json')))) {
-            if (/^(@playwright\/|playwright)/.test(dep)) {
-                fail(
-                    'package.json',
-                    `\`${dep}\` is installed`,
-                    'The same decision arriving through the manifest instead of a config file. An E2E dependency nothing runs is a CI install cost and an unread intent.',
-                );
-            }
-        }
-    } else if (specs.length > 0 && !exists(e2e.config)) {
-        fail(
-            e2e.config,
-            'missing',
-            'E2E tests get their own Playwright config, separate from the Vitest projects. Without it the specs under `e2e/` are run by nothing.',
-        );
-    }
+    // ── 2 and 3. Where E2E lives, which may be nowhere ──────────────────────
+    inspectE2eLayout(e2e, { files, specs }, { read, exists, fail });
 
     // ── 4. The coverage config, ratcheted ───────────────────────────────────
     const configSrc = read(config);
@@ -510,14 +476,25 @@ export function inspectTesting(input: TestingInput): TestingInspection {
         inspectServerErrors(serverErrors, e2e, specs, { read, exists, fail });
     }
 
-    return { problems, suites: unitTests.length, specs: specs.length, measured, uncovered, haveCoverage };
+    return {
+        problems,
+        suites: placed.length,
+        otherSuites: unitTests.length - placed.length,
+        specs: specs.length,
+        measured,
+        uncovered,
+        haveCoverage,
+    };
 }
 
 export function checkTesting(options: TestingOptions): void {
     const { root = REPO_ROOT, ...rest } = options;
 
     const report = createGateReport({ name: 'Testing' });
-    const { problems, suites, specs, measured, uncovered, haveCoverage } = inspectTesting({ root, ...rest });
+    const { problems, suites, otherSuites, specs, measured, uncovered, haveCoverage } = inspectTesting({
+        root,
+        ...rest,
+    });
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
     const { layout, e2e = false, thresholds, excludes = {}, domEnvironment, serverErrors, apiClient } = rest;
@@ -525,16 +502,10 @@ export function checkTesting(options: TestingOptions): void {
         layout.kind === 'colocated'
             ? 'all co-located in `__tests__/`'
             : `all under \`${layout.root}/\` mirroring \`src/\``;
-    const e2eSummary =
-        e2e === false
-            ? 'no E2E reintroduced'
-            : specs === 0
-              ? 'no Playwright spec yet'
-              : `${plural(specs, 'Playwright spec')} under \`${e2e.dir}/\` with their own config`;
-
+    const elsewhere = otherSuites === 0 ? '' : ` (and ${plural(otherSuites, 'suite')} another runner runs)`;
     report.done({
         summary:
-            `${plural(suites, 'unit suite')} ${placement}, ${e2eSummary}, coverage thresholds at or above the ` +
+            `${plural(suites, 'unit suite')} ${placement}${elsewhere}, ${e2eSummary(e2e, specs)}, coverage thresholds at or above the ` +
             `${thresholds?.statements ?? 80}% floor, ${plural(Object.keys(excludes).length, 'coverage exclude')} all ` +
             `accounted for, no transport patched around the network mock, no \`.only\`/\`.skip\`/bare \`test()\`/` +
             `commented-out or duplicate cases, no test reading component internals${
@@ -552,108 +523,4 @@ export function checkTesting(options: TestingOptions): void {
             'whether a passing test asserts anything worth asserting, whether the next test to write is the ' +
             'highest-priority one, whether a component test would survive a refactor.',
     });
-}
-
-/**
- * The name the recorder is reached by: the fixture key or the variable its
- * `createServerErrorRecorder(` call sits under. Another recorder's `.watch(` —
- * the response-leak one, say — must not answer for this one.
- */
-function recorderName(source: string): string {
-    const before = source.slice(0, source.indexOf('createServerErrorRecorder('));
-    const bindings = [...before.matchAll(/(\w+)\s*(?::\s*\[|:\s*async\b|=(?![=>]))/g)];
-    return bindings.at(-1)?.[1] ?? '\\w+';
-}
-
-/** Rule 10: the recorder, the teardown, the config that wires them, and specs that use them. */
-function inspectServerErrors(wiring: ServerErrorWiring, e2e: E2eLayout, specs: string[], io: FileAccess): void {
-    const { read, exists, fail } = io;
-    const { fixtures, teardown } = wiring;
-
-    if (e2e === false) {
-        fail(
-            fixtures,
-            '`serverErrors` is stated but there is no E2E suite',
-            'The tripwire runs inside the E2E suite: it needs the real API serving the browser. State `e2e` first, or drop `serverErrors`.',
-        );
-        return;
-    }
-
-    if (!exists(fixtures)) {
-        fail(
-            fixtures,
-            'missing',
-            'It is the fixtures module every spec imports `test` from, where the recorder lives.',
-        );
-    } else {
-        const source = stripComments(read(fixtures));
-        const created = callArgs(source, 'createServerErrorRecorder(');
-        if (created.length === 0) {
-            fail(
-                fixtures,
-                'never creates a server-error recorder',
-                'A test that checks what it came to check walks straight past a 500 on the side: the page still renders, a spinner just never stops. The recorder watches every API response and fails the test that received a 5xx.',
-            );
-        }
-        if (created.length > 0 && !created.some((args) => /\blogFile\b/.test(args))) {
-            fail(
-                fixtures,
-                "creates the server-error recorder without the API's `logFile`",
-                'Without the log, a failure says that a request failed but not why. With it, the failure carries what the API logged for that request id: the error, its message and the line it came from.',
-            );
-        }
-        const name = recorderName(source);
-        for (const [method, what] of [
-            ['watch', 'never watches a browser context'],
-            ['drain', 'never drains the recorder'],
-        ] as const) {
-            if (created.length > 0 && !new RegExp(`\\b${name}\\s*\\.\\s*${method}\\s*\\(`).test(source)) {
-                fail(
-                    fixtures,
-                    `${what} for server errors`,
-                    'The recorder sees only the contexts it watches, and fails a test only when it is drained after it. Watch the context every test gets, and drain in an `auto` fixture.',
-                );
-            }
-        }
-    }
-
-    if (!exists(teardown)) {
-        fail(teardown, 'missing', 'It is where the run reads the API log for errors no test saw as a 5xx.');
-    } else if (!/\blogErrors\s*\(/.test(stripComments(read(teardown)))) {
-        fail(
-            teardown,
-            'never reads the API log with `logErrors`',
-            'Some failures never become a 5xx: a socket push its schema refused, a job that died in the background, an error logged inside a request that still answered 2xx. The teardown is the net for those — read every error-level line of the run and fail on any.',
-        );
-    }
-
-    const config = stripComments(read(e2e.config));
-    const teardownName = path.basename(teardown).replace(/\.[cm]?[jt]s$/, '');
-    if (!new RegExp(`globalTeardown\\s*:\\s*['"][^'"]*${teardownName}`).test(config)) {
-        fail(
-            e2e.config,
-            `does not run \`${teardown}\` as its globalTeardown`,
-            'A teardown nothing registers never runs, and the run passes over every error the API logged.',
-        );
-    }
-    if (!/\bLOG_FILE\b/.test(config)) {
-        fail(
-            e2e.config,
-            'does not hand the API a `LOG_FILE`',
-            'The API writes the JSON log the recorder and the teardown read only when `LOG_FILE` is set. Set it in the `webServer` env the suite boots the API with.',
-        );
-    }
-
-    for (const rel of specs.filter((spec) => spec.startsWith(`${e2e.dir}/`))) {
-        const source = stripComments(read(rel));
-        for (const match of source.matchAll(PLAYWRIGHT_IMPORT)) {
-            const names = (match[1] ?? '').split(',').map((name) => name.trim());
-            if (!names.includes('test')) continue;
-            fail(
-                `${rel}:${source.slice(0, match.index).split('\n').length}`,
-                'imports `test` from @playwright/test, not from the fixtures',
-                `Playwright's own \`test\` runs none of the project's fixtures, so this spec is watched by no tripwire: a 5xx, a leaked field, anything the \`auto\` fixtures check passes unseen. Import \`test\` from ${fixtures}.`,
-            );
-        }
-    }
 }

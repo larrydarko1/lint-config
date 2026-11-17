@@ -5,6 +5,7 @@
  * - `no-inline-svg` / `icon-component` — on every component, see icons.ts.
  * - `no-native-dialog` — on everything that runs in the Vue app, see dialogs.ts.
  * - `no-tauri-outside-bridge` — on a Tauri webview outside its bridge, see tauri.ts.
+ * - `no-sync-io` / `no-floating-disposable` — on an editor extension's source, see vs-extension.ts.
  */
 
 import { AST_NODE_TYPES, type TSESLint, type TSESTree } from '@typescript-eslint/utils';
@@ -12,6 +13,7 @@ import { AST_NODE_TYPES, type TSESLint, type TSESTree } from '@typescript-eslint
 import { dialogRules } from './dialogs.ts';
 import { iconRules } from './icons.ts';
 import { tauriRules } from './tauri.ts';
+import { vsExtensionRules } from './vs-extension.ts';
 
 type Node = TSESTree.Node;
 type Variable = TSESLint.Scope.Variable;
@@ -288,6 +290,7 @@ export const larryPlugin = {
         ...iconRules,
         ...dialogRules,
         ...tauriRules,
+        ...vsExtensionRules,
     },
 };
 

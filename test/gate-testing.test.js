@@ -106,6 +106,29 @@ test('a mirrored project with no area list allows any area', (t) => {
     assert.deepEqual(run(root, { layout: { kind: 'mirrored', root: 'tests' } }).problems, []);
 });
 
+test('a suite another runner runs is not held to the layout', (t) => {
+    const root = repo(t, good({ 'lessons/easy/sum/sum.test.ts': SUITE }));
+    const result = run(root, { otherRunners: { 'lessons/**': 'the course runner runs each lesson with node --test' } });
+    assert.deepEqual(result.problems, []);
+    assert.equal(result.suites, 1);
+    assert.equal(result.otherSuites, 1);
+});
+
+test('a suite another runner runs is still held to suite hygiene', (t) => {
+    const root = repo(t, good({ 'lessons/sum.test.ts': "describe.only('sum', () => {});\n" }));
+    const result = run(root, { otherRunners: { 'lessons/**': 'the course runner runs them' } });
+    assert.deepEqual(whats(result), ['a parked `.only`']);
+});
+
+test('an otherRunners glob that matches no suite fails', (t) => {
+    const root = repo(t, good());
+    const result = run(root, { otherRunners: { 'lessons/**': 'the course runner runs them' } });
+    assert.deepEqual(
+        result.problems.map((p) => [p.file, p.what]),
+        [['lessons/**', '`otherRunners` names it, but it matches no suite']],
+    );
+});
+
 test('a co-located project fails a suite outside `__tests__/`', (t) => {
     const root = repo(t, {
         'vitest.config.ts': CONFIG,
@@ -160,6 +183,32 @@ test('a spec with no playwright config fails', (t) => {
 test('the config is demanded by the specs, not unconditionally', (t) => {
     const root = repo(t, good());
     assert.deepEqual(run(root, { e2e: { dir: 'e2e', config: 'e2e/playwright.config.ts' } }).problems, []);
+});
+
+const HOST_E2E = { dir: 'e2e', config: '.vscode-test.mjs', runner: 'vscode-test' };
+
+test('an editor-host suite with no .vscode-test.mjs fails, naming that config', (t) => {
+    const root = repo(t, good({ 'e2e/activation.spec.ts': SUITE }));
+    const [problem] = run(root, { e2e: HOST_E2E }).problems;
+    assert.equal(problem.file, '.vscode-test.mjs');
+    assert.match(problem.why, /their own `\.vscode-test\.mjs`/);
+});
+
+test('an editor-host spec outside its directory names the VS Code test CLI', (t) => {
+    const root = repo(t, good({ 'src/activation.spec.ts': SUITE, '.vscode-test.mjs': 'export default {};\n' }));
+    const [problem] = run(root, { e2e: HOST_E2E }).problems;
+    assert.equal(problem.what, 'a .spec file outside `e2e/`');
+    assert.match(problem.why, /^VS Code test CLI specs live in `e2e\/`/);
+});
+
+test('a VS Code test config appearing where there is deliberately no E2E suite fails', (t) => {
+    const root = repo(t, good({ '.vscode-test.mjs': 'export default {};\n' }));
+    assert.deepEqual(whats(run(root)), ['an E2E suite appearing without discussion']);
+});
+
+test('a VS Code test runner dependency fails the same way, through the manifest', (t) => {
+    const root = repo(t, good({ 'package.json': '{ "devDependencies": { "@vscode/test-electron": "^2.0.0" } }' }));
+    assert.deepEqual(whats(run(root)), ['`@vscode/test-electron` is installed']);
 });
 
 // ── 4. The coverage config ──────────────────────────────────────────────────

@@ -14,7 +14,7 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 const GATES_DIR = path.join(ROOT, 'src/gates');
 /** Modules under gates/ that are building blocks for other gates, not gates themselves. */
 const HELPERS = ['import-order', 'registry', 'rust-order'];
-const ALL = ['api', 'base', 'electron', 'fullstack', 'library', 'spa', 'tauri'];
+const ALL = ['api', 'base', 'electron', 'fullstack', 'library', 'spa', 'tauri', 'vs-extension'];
 /** How the README's Family column spells a set of families. */
 const FAMILY_LABELS = {
     'all': ALL,

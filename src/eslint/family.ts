@@ -36,6 +36,10 @@ export type FamilyStandards<TPreset extends PresetName> = ((input: StandardsInpu
 
 export type AnyFamilyStandards = { [TPreset in PresetName]: FamilyStandards<TPreset> }[PresetName];
 
+/** What a family's standards function is called: `vs-extension` → `vsExtensionStandards`. */
+export const standardsName = (family: PresetName): string =>
+    `${family.replace(/-([a-z])/g, (_dash, letter: string) => letter.toUpperCase())}Standards`;
+
 export const familyStandards = <TPreset extends PresetName>(
     family: TPreset,
     roles: RoleOf<TPreset>[],
@@ -68,5 +72,7 @@ export const buildStandards = (
             return standards(resolveLayout('spa', layout));
         case 'tauri':
             return standards(resolveLayout('tauri', layout));
+        case 'vs-extension':
+            return standards(resolveLayout('vs-extension', layout));
     }
 };

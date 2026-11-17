@@ -24,7 +24,7 @@ export default defineConfig({
                 'src/gates/security-drift.ts': 933,
                 'src/gates/tauri-commands.ts': 502,
                 'src/gates/tauri-security.ts': 433,
-                'src/gates/testing.ts': 606,
+                'src/gates/testing.ts': 486,
                 'src/gates/tsconfigs.ts': 518,
                 'src/gates/ws-standards.ts': 633,
             },

@@ -21,13 +21,14 @@ const CANCELLED = 130;
 
 /** What each family is for, as the README's list puts it. */
 const FAMILY_HINTS: Record<PresetName, string> = {
-    api: 'an Express API in one package',
-    base: 'anything else, with no layout assumed',
-    electron: 'a Vue desktop app split into main, preload and renderer',
-    fullstack: 'a Vue frontend and an Express API as npm workspaces',
-    library: 'a TypeScript package published to npm',
-    spa: 'a Vue app built by Vite, with no server of its own',
-    tauri: 'a Vue app in a Tauri webview, with a Rust side',
+    'api': 'an Express API in one package',
+    'base': 'anything else, with no layout assumed',
+    'electron': 'a Vue desktop app split into main, preload and renderer',
+    'fullstack': 'a Vue frontend and an Express API as npm workspaces',
+    'library': 'a TypeScript package published to npm',
+    'spa': 'a Vue app built by Vite, with no server of its own',
+    'tauri': 'a Vue app in a Tauri webview, with a Rust side',
+    'vs-extension': 'a VS Code extension, bundled for the editor',
 };
 
 /** Base last, since it is for what no other family describes. */

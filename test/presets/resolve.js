@@ -16,6 +16,7 @@ import { larry } from '../../src/eslint/index.ts';
 import { libraryStandards } from '../../src/eslint/library/index.ts';
 import { spaStandards } from '../../src/eslint/spa/index.ts';
 import { tauriStandards } from '../../src/eslint/tauri/index.ts';
+import { vsExtensionStandards } from '../../src/eslint/vs-extension/index.ts';
 
 /** Not a real project: nothing is read from it, and every path below is relative to it. */
 const ROOT = '/tmp/lint-config-preset-snapshots';
@@ -25,7 +26,7 @@ const ROOT = '/tmp/lint-config-preset-snapshots';
  * The base preset has no defaults, so it is given an invented layout of its own.
  */
 export const PRESETS = {
-    api: {
+    'api': {
         standards: apiStandards,
         files: [
             'src/index.ts',
@@ -41,7 +42,7 @@ export const PRESETS = {
             'eslint.config.js',
         ],
     },
-    base: {
+    'base': {
         standards: baseStandards,
         paths: {
             source: ['app/**/*.ts'],
@@ -51,7 +52,7 @@ export const PRESETS = {
         },
         files: ['app/index.ts', 'app/server/routes.ts', 'spec/index.spec.ts', 'tools/release.ts', 'eslint.config.js'],
     },
-    electron: {
+    'electron': {
         standards: electronStandards,
         files: [
             'src/main/index.ts',
@@ -63,7 +64,7 @@ export const PRESETS = {
             'eslint.config.js',
         ],
     },
-    fullstack: {
+    'fullstack': {
         standards: fullstackStandards,
         files: [
             'frontend/src/App.vue',
@@ -78,11 +79,11 @@ export const PRESETS = {
             'eslint.config.js',
         ],
     },
-    library: {
+    'library': {
         standards: libraryStandards,
         files: ['src/index.ts', 'test/index.test.js', 'test/index.test.ts', 'scripts/release.ts', 'eslint.config.js'],
     },
-    spa: {
+    'spa': {
         standards: spaStandards,
         files: [
             'src/main.ts',
@@ -94,7 +95,7 @@ export const PRESETS = {
             'eslint.config.js',
         ],
     },
-    tauri: {
+    'tauri': {
         standards: tauriStandards,
         files: [
             'src/main.ts',
@@ -102,6 +103,19 @@ export const PRESETS = {
             'src/bridge/commands.ts',
             'tests/composables/useClock.test.ts',
             'vitest.setup.ts',
+            'eslint.config.js',
+        ],
+    },
+    'vs-extension': {
+        standards: vsExtensionStandards,
+        files: [
+            'src/extension.ts',
+            'src/lib/runner.ts',
+            'src/vscode/commands.ts',
+            'tests/lib/runner.test.ts',
+            'e2e/activation.spec.ts',
+            'scripts/build.ts',
+            '.vscode-test.mjs',
             'eslint.config.js',
         ],
     },

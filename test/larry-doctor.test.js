@@ -159,6 +159,14 @@ test('a base project hears when package.json looks like a kind another family is
     assert.match(typed.out, /^– larry\.config\.ts names the base family/m, 'the note names the file the project has');
     assert.match(typed.out, /set `family: 'electron'` in larry\.config\.ts/);
 
+    const extension = doctor(
+        project(t, {
+            ...base,
+            'package.json': manifest({ devDependencies: { '@types/vscode': '~1.100.0', 'vue': '^3.5.0' } }),
+        }),
+    );
+    assert.match(extension.out, /package\.json depends on @types\/vscode, as vs-extension projects do$/m);
+
     const published = doctor(project(t, { ...base, 'package.json': manifest({ exports: './dist/index.js' }) }));
     assert.match(published.out, /package\.json publishes `exports`, as library projects do$/m);
     const internal = doctor(

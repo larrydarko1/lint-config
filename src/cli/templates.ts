@@ -3,6 +3,7 @@
  * shared config with what only this project knows left to its options, and every gate
  * whose options name the project's own files skipped with what it needs.
  */
+import { standardsName } from '../eslint/family.ts';
 import type { BasePaths, PresetName } from '../eslint/presets.ts';
 import { gatesFor } from '../gates/registry.ts';
 import { SELF_NAME } from '../toolchain.ts';
@@ -65,11 +66,14 @@ export const nodeMajorFor = (family: PresetName): number => (family === 'library
 export function scaffoldFiles(scaffold: Scaffold): Record<string, string> {
     const { family } = scaffold;
     const ui = UI_FAMILIES.includes(family);
+    const extension = family === 'vs-extension';
+    /** Where the build writes: an extension's bundle goes to `out/`, as the editor's own templates have it. */
+    const build = extension ? 'out' : 'dist';
     return {
         'larry.config.ts': larryConfig(scaffold),
         'eslint.config.js': lines(
             `import { larry } from '${SELF_NAME}/eslint';`,
-            `import { ${family}Standards } from '${SELF_NAME}/eslint/${family}';`,
+            `import { ${standardsName(family)} } from '${SELF_NAME}/eslint/${family}';`,
             '',
             'export default larry({',
             `    preset: '${family}',`,
@@ -78,7 +82,7 @@ export function scaffoldFiles(scaffold: Scaffold): Record<string, string> {
                 ? ['    // Workspaces other than frontend, api, worker and packages/shared are named in `workspaces`.']
                 : []),
             ...(scaffold.basePaths === undefined ? [] : pathsOption(scaffold.basePaths)),
-            `    standards: ${family}Standards(),`,
+            `    standards: ${standardsName(family)}(),`,
             '});',
         ),
         'prettier.config.js': lines(`export { default } from '${SELF_NAME}/prettier';`),
@@ -106,13 +110,18 @@ export function scaffoldFiles(scaffold: Scaffold): Record<string, string> {
             {
                 format: ui ? ['typescript', 'vue'] : ['typescript'],
                 minTokens: 50,
-                ignore: ['**/node_modules/**', '**/dist/**'],
+                ignore: ['**/node_modules/**', `**/${build}/**`],
             },
             null,
             4,
         )}\n`,
-        '.prettierignore': lines('package-lock.json', 'dist'),
-        '.gitignore': lines('node_modules', 'dist', '.env'),
+        '.prettierignore': lines('package-lock.json', build),
+        // An extension's E2E suite downloads editors into .vscode-test/, and `vsce package` writes a .vsix.
+        '.gitignore': lines('node_modules', build, ...(extension ? ['.vscode-test', '*.vsix'] : []), '.env'),
+        // vsce ships whatever this does not leave out, so it leaves out everything and names what ships.
+        ...(extension
+            ? { '.vscodeignore': lines('**', '!package.json', '!README.md', '!LICENSE', '!out/extension.cjs') }
+            : {}),
         '.husky/pre-commit': lines('npx --no -- lint-staged'),
         '.husky/commit-msg': lines('npx --no -- commitlint --edit "$1"'),
         '.github/workflows/ci.yml': ciWorkflow(scaffold.ciScripts, scaffold.nodeMajor),
@@ -133,6 +142,10 @@ function larryConfig(scaffold: Scaffold): string {
     const configured: [string, string][] = [
         ['code-style', `{ scan: ${list(scan)} }`],
         ...(family === 'library' ? [['dead-code', '{ publicApi: packageEntries() }'] as [string, string]] : []),
+        // The editor, not an import, calls what the entry exports.
+        ...(family === 'vs-extension'
+            ? [['dead-code', "{ publicApi: ['src/extension.ts'] }"] as [string, string]]
+            : []),
         ['duplication', `{ scan: ${list(sources)}, ceilings: ${ceilings} }`],
         ['licenses', `{ distribution: '${distribution}' }`],
     ];
@@ -164,6 +177,14 @@ function knipConfig(family: PresetName): string {
             '',
             '// A library is used through the files behind its `exports`; the `!` keeps them entries under --production.',
             `export default knip({ entry: packageEntries().map((file) => \`\${file}!\`), project: ['src/**/*.ts!'] });`,
+        );
+    }
+    if (family === 'vs-extension') {
+        return lines(
+            `import { knip } from '${SELF_NAME}/knip';`,
+            '',
+            '// The editor loads the bundle built from src/extension.ts, which knip cannot trace back from `main`.',
+            "export default knip({ entry: ['src/extension.ts!'], project: ['src/**/*.ts!'] });",
         );
     }
     return lines(

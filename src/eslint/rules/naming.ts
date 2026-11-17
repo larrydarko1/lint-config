@@ -44,9 +44,9 @@ export const NAMING_CONVENTION: Linter.RuleEntry = [
         leadingUnderscore: 'allow',
         trailingUnderscore: 'forbid',
     },
-    // Escape hatch for object literals with quoted keys.
+    // Escape hatch for object literals with quoted keys, whether the value is data or a function.
     {
-        selector: 'objectLiteralProperty',
+        selector: ['objectLiteralProperty', 'objectLiteralMethod'],
         modifiers: ['requiresQuotes'],
         format: null,
     },

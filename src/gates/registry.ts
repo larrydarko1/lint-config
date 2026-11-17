@@ -30,9 +30,9 @@ export type FamilyGate<TFamily extends PresetName> = {
     [TName in GateName]: TFamily extends (typeof GATES)[TName]['families'][number] ? TName : never;
 }[GateName];
 
-const ALL = ['api', 'base', 'electron', 'fullstack', 'library', 'spa', 'tauri'] as const;
+const ALL = ['api', 'base', 'electron', 'fullstack', 'library', 'spa', 'tauri', 'vs-extension'] as const;
 /** The families whose suites run on Vitest. A library's run on `node --test`, which ESLint checks instead. */
-const VITEST = ['api', 'electron', 'fullstack', 'spa', 'tauri'] as const;
+const VITEST = ['api', 'electron', 'fullstack', 'spa', 'tauri', 'vs-extension'] as const;
 /** The families with a frontend in the repository: an `index.html`, styles and locale files. */
 const UI = ['electron', 'fullstack', 'spa', 'tauri'] as const;
 /** The families with an Express API: on its own (`api`) or as a workspace (`fullstack`). */
@@ -67,6 +67,10 @@ export const GATES = {
     'error-handling/tauri': gate(
         ['tauri'],
         async () => (await import('./error-handling/tauri.ts')).checkTauriErrorHandling,
+    ),
+    'extension-manifest': gate(
+        ['vs-extension'],
+        async () => (await import('./extension-manifest.ts')).checkExtensionManifest,
     ),
     'publish': gate(['library'], async () => (await import('./publish.ts')).checkPublish),
     'api-standards': gate(BACKEND, async () => (await import('./api-standards.ts')).checkApiStandards),

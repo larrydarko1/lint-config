@@ -109,18 +109,32 @@ export type LibraryLayout = {
     tests: string;
 };
 
+export type VsExtensionLayout = {
+    /** What esbuild bundles for the editor's extension host. */
+    src: string;
+    /** What `main` is built from: the module the editor calls `activate` on. */
+    entry: string;
+    /** The logic, free of the editor: it never imports `vscode`, so Vitest can load it. */
+    lib: string;
+    /** The glue between `lib/` and the VS Code API. */
+    vscode: string;
+    /** The unit suites, mirroring `src/`. */
+    tests: string;
+};
+
 /** Each single-package family's roles, resolved. */
 export type FamilyLayouts = {
-    api: ApiLayout;
-    electron: ElectronLayout;
-    library: LibraryLayout;
-    spa: SpaLayout;
-    tauri: TauriLayout;
+    'api': ApiLayout;
+    'electron': ElectronLayout;
+    'library': LibraryLayout;
+    'spa': SpaLayout;
+    'tauri': TauriLayout;
+    'vs-extension': VsExtensionLayout;
 };
 
 /** Every role of every single-package family. `larry({ layout })` holds the names to the preset's own. */
 export type LayoutOverrides = Partial<
-    Record<keyof ApiLayout | keyof ElectronLayout | keyof LibraryLayout | keyof SpaLayout | keyof TauriLayout, string>
+    Record<{ [TPreset in SinglePackagePreset]: keyof FamilyLayouts[TPreset] }[SinglePackagePreset], string>
 >;
 
 /**
@@ -130,13 +144,13 @@ export type LayoutOverrides = Partial<
 export type RoleOverrides = Partial<FullstackWorkspaces> & LayoutOverrides;
 
 /** Every family, `larry init`'s and larry.config.ts's as much as the ESLint preset's. */
-export const FAMILIES = ['api', 'base', 'electron', 'fullstack', 'library', 'spa', 'tauri'] as const;
+export const FAMILIES = ['api', 'base', 'electron', 'fullstack', 'library', 'spa', 'tauri', 'vs-extension'] as const;
 
 /** What a base project must name in `larry({ paths })`. */
 export const BASE_REQUIRED = ['source', 'tests', 'browser', 'node'] as const satisfies (keyof BasePaths)[];
 
 const LAYOUTS: { [TPreset in SinglePackagePreset]: (given: LayoutOverrides) => FamilyLayouts[TPreset] } = {
-    electron: (given): ElectronLayout => {
+    'electron': (given): ElectronLayout => {
         const src = dir(given.src, 'src');
         return {
             src,
@@ -147,11 +161,11 @@ const LAYOUTS: { [TPreset in SinglePackagePreset]: (given: LayoutOverrides) => F
             locales: dir(given.locales, 'assets/locales'),
         };
     },
-    spa: (given): SpaLayout => {
+    'spa': (given): SpaLayout => {
         const src = dir(given.src, 'src');
         return { src, locales: dir(given.locales, `${src}/i18n/locales`) };
     },
-    tauri: (given): TauriLayout => {
+    'tauri': (given): TauriLayout => {
         const src = dir(given.src, 'src');
         return {
             src,
@@ -160,7 +174,7 @@ const LAYOUTS: { [TPreset in SinglePackagePreset]: (given: LayoutOverrides) => F
             locales: dir(given.locales, `${src}/i18n/locales`),
         };
     },
-    api: (given): ApiLayout => {
+    'api': (given): ApiLayout => {
         const src = dir(given.src, 'src');
         const lib = dir(given.lib, `${src}/lib`);
         return {
@@ -177,12 +191,22 @@ const LAYOUTS: { [TPreset in SinglePackagePreset]: (given: LayoutOverrides) => F
             database: dir(given.database, 'db'),
         };
     },
-    library: (given): LibraryLayout => ({ src: dir(given.src, 'src'), tests: dir(given.tests, 'test') }),
+    'library': (given): LibraryLayout => ({ src: dir(given.src, 'src'), tests: dir(given.tests, 'test') }),
+    'vs-extension': (given): VsExtensionLayout => {
+        const src = dir(given.src, 'src');
+        return {
+            src,
+            entry: dir(given.entry, `${src}/extension.ts`),
+            lib: dir(given.lib, `${src}/lib`),
+            vscode: dir(given.vscode, `${src}/vscode`),
+            tests: dir(given.tests, 'tests'),
+        };
+    },
 };
 
 const PATHS: { [TPreset in SinglePackagePreset]: (layout: FamilyLayouts[TPreset]) => PresetPaths } = {
     /** Electron desktop: main / preload / renderer under one `src/`, tests in `tests/`. */
-    electron: ({ src, main, preload, renderer, tests }): PresetPaths => ({
+    'electron': ({ src, main, preload, renderer, tests }): PresetPaths => ({
         /** Shipped code. Excludes tests, which the test block relaxes separately. */
         source: [`${src}/**/*.{ts,vue}`, 'scripts/**/*.ts'],
         /** Everything a tsconfig covers, so type-aware rules can run on it. */
@@ -207,7 +231,7 @@ const PATHS: { [TPreset in SinglePackagePreset]: (layout: FamilyLayouts[TPreset]
      * A single-page app: one Vue app built by Vite, in one package, with no server of its own.
      * Tests sit in `__tests__/` beside the code they test, so they are named like it.
      */
-    spa: ({ src }): PresetPaths => ({
+    'spa': ({ src }): PresetPaths => ({
         source: [`${src}/**/*.{ts,vue}`, 'scripts/**/*.ts'],
         typedSource: [`${src}/**/*.{ts,vue}`, 'scripts/**/*.ts', 'e2e/**/*.ts'],
         tests: ['**/__tests__/**/*.ts', '**/*.test.ts', '**/*.spec.ts', '**/*.setup.ts', 'e2e/**/*.ts'],
@@ -228,7 +252,7 @@ const PATHS: { [TPreset in SinglePackagePreset]: (layout: FamilyLayouts[TPreset]
      * Everything runs in Node. Tests sit in `__tests__/` beside the code they test, and the
      * migrations in `db/` are run by Node directly.
      */
-    api: ({ src, database }): PresetPaths => ({
+    'api': ({ src, database }): PresetPaths => ({
         source: [`${src}/**/*.ts`, 'scripts/**/*.ts'],
         typedSource: [`${src}/**/*.ts`, 'scripts/**/*.ts', 'e2e/**/*.ts'],
         tests: ['**/__tests__/**/*.ts', '**/*.test.ts', '**/*.spec.ts', '**/*.setup.ts', 'e2e/**/*.ts'],
@@ -253,7 +277,7 @@ const PATHS: { [TPreset in SinglePackagePreset]: (layout: FamilyLayouts[TPreset]
      * A single package, so tests mirror `src/` in `tests/`. `src-tauri/` holds no JavaScript,
      * only Rust, the generated schemas and Cargo's `target/`, so ESLint never walks it.
      */
-    tauri: ({ src, tests }): PresetPaths => ({
+    'tauri': ({ src, tests }): PresetPaths => ({
         source: [`${src}/**/*.{ts,vue}`, 'scripts/**/*.ts'],
         typedSource: [`${src}/**/*.{ts,vue}`, `${tests}/**/*.ts`, 'vitest.setup.ts', 'scripts/**/*.ts'],
         tests: [`${tests}/**/*.ts`, 'vitest.setup.ts'],
@@ -273,7 +297,7 @@ const PATHS: { [TPreset in SinglePackagePreset]: (layout: FamilyLayouts[TPreset]
      * be plain JavaScript importing the `.ts` sources, which Node strips itself, so `test/` is
      * linted either way and type-checked where it is TypeScript.
      */
-    library: ({ src, tests }): PresetPaths => ({
+    'library': ({ src, tests }): PresetPaths => ({
         source: [`${src}/**/*.ts`, 'scripts/**/*.ts'],
         typedSource: [`${src}/**/*.ts`, `${tests}/**/*.ts`, 'scripts/**/*.ts'],
         tests: [`${tests}/**/*.{ts,js}`],
@@ -284,6 +308,21 @@ const PATHS: { [TPreset in SinglePackagePreset]: (layout: FamilyLayouts[TPreset]
         vue: [],
         // `dist/` is the build, and what `npm pack` ships; it is checked as a package, not as source.
         ignores: ['dist/', 'node_modules/', '**/.venv/', 'coverage/'],
+        configFiles: ['eslint/**/*.js', 'eslint.config.js'],
+    }),
+
+    /** A VS Code extension: `src/` bundled into `out/`, mirrored by `tests/`, and an E2E suite in `e2e/`. All Node. */
+    'vs-extension': ({ src, tests }): PresetPaths => ({
+        source: [`${src}/**/*.ts`, 'scripts/**/*.ts'],
+        typedSource: [`${src}/**/*.ts`, `${tests}/**/*.ts`, 'e2e/**/*.ts', 'scripts/**/*.ts'],
+        tests: [`${tests}/**/*.ts`, 'e2e/**/*.ts'],
+        namingIgnores: [`${tests}/**/*.ts`, 'e2e/**/*.ts'],
+        browser: [],
+        node: [`${src}/**/*.ts`, `${tests}/**/*.ts`, 'e2e/**/*.ts', 'scripts/**/*.ts', '*.config.{js,ts}', '*.mjs'],
+        nodeAndBrowser: [],
+        vue: [],
+        // `.vscode-test/` holds the editor builds the E2E suite downloads.
+        ignores: ['out/', 'node_modules/', '**/.venv/', 'coverage/', '.vscode-test/'],
         configFiles: ['eslint/**/*.js', 'eslint.config.js'],
     }),
 };
@@ -382,10 +421,11 @@ const fullstackPaths = (layout: FullstackLayout): PresetPaths => ({
 
 /** Each preset's paths with its roles at their defaults. The base preset has none. */
 export const PRESETS: Record<LaidOutPreset, PresetPaths> = {
-    api: PATHS.api(LAYOUTS.api({})),
-    electron: PATHS.electron(LAYOUTS.electron({})),
-    fullstack: fullstackPaths(fullstackLayout()),
-    library: PATHS.library(LAYOUTS.library({})),
-    spa: PATHS.spa(LAYOUTS.spa({})),
-    tauri: PATHS.tauri(LAYOUTS.tauri({})),
+    'api': PATHS.api(LAYOUTS.api({})),
+    'electron': PATHS.electron(LAYOUTS.electron({})),
+    'fullstack': fullstackPaths(fullstackLayout()),
+    'library': PATHS.library(LAYOUTS.library({})),
+    'spa': PATHS.spa(LAYOUTS.spa({})),
+    'tauri': PATHS.tauri(LAYOUTS.tauri({})),
+    'vs-extension': PATHS['vs-extension'](LAYOUTS['vs-extension']({})),
 };

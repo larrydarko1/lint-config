@@ -57,6 +57,10 @@
             "types": "./dist/eslint/tauri/index.d.ts",
             "default": "./dist/eslint/tauri/index.js"
         },
+        "./eslint/vs-extension": {
+            "types": "./dist/eslint/vs-extension/index.d.ts",
+            "default": "./dist/eslint/vs-extension/index.js"
+        },
         "./eslint/presets": {
             "types": "./dist/eslint/presets.d.ts",
             "default": "./dist/eslint/presets.js"
@@ -116,6 +120,10 @@
         "./gates/error-handling/tauri": {
             "types": "./dist/gates/error-handling/tauri.d.ts",
             "default": "./dist/gates/error-handling/tauri.js"
+        },
+        "./gates/extension-manifest": {
+            "types": "./dist/gates/extension-manifest.d.ts",
+            "default": "./dist/gates/extension-manifest.js"
         },
         "./gates/html-standards": {
             "types": "./dist/gates/html-standards.d.ts",

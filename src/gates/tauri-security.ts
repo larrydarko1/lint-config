@@ -1,6 +1,5 @@
 /**
- * The configuration a Tauri app's security is made of, tauri.instructions.md's
- * *Configuration* and *Capabilities*:
+ * The configuration a Tauri app's security is made of:
  * –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1.  `csp` is set, and no script source is wider than `'self'` — in `devCsp` too.
  *   2.  No `dangerousDisableAssetCspModification`, no `withGlobalTauri`.
