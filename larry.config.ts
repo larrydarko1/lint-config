@@ -5,6 +5,16 @@ import { packageEntries } from './src/knip.ts';
 export default defineConfig({
     family: 'library',
     gates: {
+        'audit': {
+            allowlist: [
+                {
+                    id: 'GHSA-fc5q-39xc-vjpf',
+                    package: 'picomatch',
+                    reason: 'Every release up to the latest (4.0.7) is affected, so there is nothing to upgrade to. The ReDoS needs a crafted glob pattern; this package never imports picomatch, and lint-staged, knip, stylelint and the import resolver only compile patterns from the checked repo’s own config.',
+                    expires: '2026-12-18',
+                },
+            ],
+        },
         'code-style': {
             scan: ['src', 'scripts', 'test'],
             casing: [{ files: /\.(?:ts|js)$/, style: 'kebab' }],
