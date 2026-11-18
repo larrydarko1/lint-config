@@ -7,11 +7,13 @@
  * word in locale files. Lowercase markers in code are ESLint's job.
  * Deferred work lives outside the repo, so a committed `todo.md` fails too. So does
  * Claude Code's local config: `CLAUDE.md`, `CLAUDE.local.md` and anything in `.claude/`.
+ * A project that opts in with `claudeCode` also has the local copies held to one layout.
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { inspectClaudeSetup, type ClaudeSetupInspection } from './lib/claude-setup.ts';
 import { stripMarkdownCode } from './lib/markdown.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
@@ -28,11 +30,19 @@ export type RefactoringOptions = {
     skip?: string[];
     /** Paths never read. Replaces the default build-output list. */
     ignore?: RegExp;
+    /**
+     * Hold the gitignored Claude Code setup to one layout where it exists: `CLAUDE.md`'s
+     * sections and their order, its size and dated notes, each skill's header, and no
+     * `CLAUDE.local.md`. Off by default: it suits a project whose maintainer works this way.
+     */
+    claudeCode?: boolean;
 };
 
 type RefactoringInspection = {
     problems: GateFailure[];
     counts: { scanned: number; templates: number };
+    /** What the opted-in Claude Code check read, or null when the project did not opt in. */
+    claudeSetup: ClaudeSetupInspection['read'] | null;
 };
 
 /** Kept in step by hand with the ESLint `terms` list, which is matched case-insensitively. */
@@ -57,7 +67,7 @@ const BINARY = /\.(png|jpe?g|gif|webp|svg|ico|icns|psd|woff2?|ttf|eot|mp4|webm|m
 const MAX_BYTES = 512 * 1024;
 
 export function inspectRefactoring(input: RefactoringOptions = {}): RefactoringInspection {
-    const { root = REPO_ROOT, linted = DEFAULT_LINTED, skip = [], ignore = DEFAULT_IGNORE } = input;
+    const { root = REPO_ROOT, linted = DEFAULT_LINTED, skip = [], ignore = DEFAULT_IGNORE, claudeCode = false } = input;
 
     const { problems, fail } = collectFailures();
 
@@ -129,12 +139,20 @@ export function inspectRefactoring(input: RefactoringOptions = {}): RefactoringI
         });
     }
 
-    return { problems, counts: { scanned, templates } };
+    // ── 3. The local Claude Code setup, for a project that opted in ────────────
+    let claudeSetup: ClaudeSetupInspection['read'] | null = null;
+    if (claudeCode) {
+        const setup = inspectClaudeSetup(root, new Date());
+        problems.push(...setup.problems);
+        claudeSetup = setup.read;
+    }
+
+    return { problems, counts: { scanned, templates }, claudeSetup };
 }
 
 export function checkRefactoring(options: RefactoringOptions = {}): void {
     const report = createGateReport({ name: 'Refactoring' });
-    const { problems, counts } = inspectRefactoring(options);
+    const { problems, counts, claudeSetup } = inspectRefactoring(options);
 
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
@@ -146,10 +164,18 @@ export function checkRefactoring(options: RefactoringOptions = {}): void {
         .join(' or ');
 
     report.done({
-        summary: `Refactoring OK — ${covered}; no todo.md and no Claude Code config in the repo.`,
+        summary: `Refactoring OK — ${covered}; no todo.md and no Claude Code config in the repo.${claudeSetupSummary(claudeSetup)}`,
         notMachineChecked:
             'whether a change was in scope, whether a drive-by belonged in its own commit, whether a file was split by concern or by line count, and whether something deferred should have been fixed on the spot.',
     });
+}
+
+function claudeSetupSummary(read: ClaudeSetupInspection['read'] | null): string {
+    if (read === null) return '';
+    const skills = read.skills > 0 ? `; ${plural(read.skills, 'skill')} checked` : '';
+    return read.claudeMd
+        ? ` The local CLAUDE.md follows the layout${skills}.`
+        : ` No local CLAUDE.md here to check (it never reaches CI)${skills}.`;
 }
 
 /** An SFC's outermost `<template>` block (the one at column 0), with the line it starts on. */

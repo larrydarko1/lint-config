@@ -315,6 +315,238 @@ test('only the names Claude Code loads are refused, not files that mention Claud
     assert.equal(result.failed, false);
 });
 
+// ── The local Claude Code setup, for a project that opts in ──────────────────
+
+/** A date `days` before today, as the gate reads it. */
+const daysAgo = (days) => {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+const INTRO = '# Fixture\n\nA fixture project, for the gate tests.\n';
+
+/** A CLAUDE.md with these `[heading, body]` sections under the title. */
+const claudeMd = (sections, intro = INTRO) =>
+    `${intro}${sections.map(([heading, body = '- A real line.']) => `\n## ${heading}\n\n${body}\n`).join('')}`;
+
+const LOCAL = { '.gitignore': 'CLAUDE.md\nCLAUDE.local.md\n.claude/\n' };
+
+/** The setup in `local` sits beside a repo that ignores it, and the gate is opted in. */
+const runLocal = (t, local) => run(t, LOCAL, { claudeCode: true }, local);
+
+const FULL_LAYOUT = [
+    ['Commands'],
+    ['Git'],
+    ["Things the code doesn't tell you"],
+    ['Charting'],
+    ['Releases'],
+    ["Decided, don't reopen"],
+    [`Open, as of ${daysAgo(3)}`],
+];
+
+const SKILL =
+    '---\nname: deploy\ndescription: Ships the site. Use when asked to deploy.\nargument-hint: <target, e.g. "staging">\n---\n\n1. Run the build.\n';
+
+test('every section, in order, with topic sections in their slot, passes and says so', (t) => {
+    const result = runLocal(t, { 'CLAUDE.md': claudeMd(FULL_LAYOUT), '.claude/skills/deploy/SKILL.md': SKILL });
+    assert.equal(result.failed, false, result.err);
+    assert.match(result.out, /The local CLAUDE\.md follows the layout; 1 skill checked\./);
+});
+
+test('every section is optional', (t) => {
+    const result = runLocal(t, { 'CLAUDE.md': INTRO });
+    assert.equal(result.failed, false, result.err);
+});
+
+test('the layout is not checked unless the project opts in', (t) => {
+    const result = run(t, LOCAL, {}, { 'CLAUDE.md': claudeMd([["Decided, don't reopen"], ['Git']]) });
+    assert.equal(result.failed, false);
+    assert.doesNotMatch(result.out, /layout/);
+});
+
+test('with no local CLAUDE.md, as in CI, it passes and says nothing was read', (t) => {
+    const result = runLocal(t, {});
+    assert.equal(result.failed, false);
+    assert.match(result.out, /No local CLAUDE\.md here to check \(it never reaches CI\)\./);
+});
+
+test('a standard section out of order fails, naming the one it follows', (t) => {
+    const result = runLocal(t, { 'CLAUDE.md': claudeMd([["Decided, don't reopen"], ['Git']]) });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /`## Git` comes after `## Decided, don't reopen`/);
+});
+
+test('a topic section before "Things the code doesn\'t tell you" fails', (t) => {
+    const result = runLocal(t, { 'CLAUDE.md': claudeMd([['Naming'], ["Things the code doesn't tell you"]]) });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /`## Things the code doesn't tell you` comes after `## Naming`/);
+});
+
+test('a topic section after "Decided, don\'t reopen" fails', (t) => {
+    const result = runLocal(t, { 'CLAUDE.md': claudeMd([["Decided, don't reopen"], ['Consumer gotchas']]) });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /`## Consumer gotchas` comes after `## Decided, don't reopen`/);
+});
+
+test('a standard section spelled another way fails, naming the spelling', (t) => {
+    const result = runLocal(t, {
+        'CLAUDE.md': claudeMd([
+            ["Product decisions (settled, don't reopen)"],
+            [`Current state (${daysAgo(1)})`],
+            ['Open'],
+            ['Git hooks'],
+        ]),
+    });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /`## Product decisions \(settled, don't reopen\)` looks like `## Decided, don't reopen`/);
+    assert.match(result.err, /`## Current state \([\d-]+\)` looks like `## Open, as of YYYY-MM-DD`/);
+    assert.match(result.err, /`## Open` looks like `## Open, as of YYYY-MM-DD`/);
+    assert.match(result.err, /`## Git hooks` looks like `## Git`/);
+});
+
+test('a curly apostrophe is a different spelling', (t) => {
+    const result = runLocal(t, { 'CLAUDE.md': claudeMd([['Decided, don’t reopen']]) });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /looks like `## Decided, don't reopen`/);
+});
+
+test('a standard section twice fails', (t) => {
+    const result = runLocal(t, {
+        'CLAUDE.md': claudeMd([[`Open, as of ${daysAgo(9)}`], [`Open, as of ${daysAgo(1)}`]]),
+    });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /a second `## Open, as of/);
+});
+
+test('open work dated over 31 days ago fails; 31 days passes', (t) => {
+    const stale = runLocal(t, { 'CLAUDE.md': claudeMd([[`Open, as of ${daysAgo(32)}`]]) });
+    assert.equal(stale.failed, true);
+    assert.match(stale.err, /last checked 32 days ago/);
+
+    const monthly = runLocal(t, { 'CLAUDE.md': claudeMd([[`Open, as of ${daysAgo(31)}`]]) });
+    assert.equal(monthly.failed, false, monthly.err);
+});
+
+test('an open-work date in the future or not on the calendar fails', (t) => {
+    const result = runLocal(t, {
+        'CLAUDE.md': claudeMd([["Decided, don't reopen"], [`Open, as of ${daysAgo(-2)}`]]),
+    });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /is in the future/);
+
+    const impossible = runLocal(t, { 'CLAUDE.md': claudeMd([['Open, as of 2026-02-30']]) });
+    assert.equal(impossible.failed, true);
+    assert.match(impossible.err, /2026-02-30 is not a date/);
+
+    const unfilled = runLocal(t, { 'CLAUDE.md': claudeMd([['Open, as of YYYY-MM-DD']]) });
+    assert.equal(unfilled.failed, true);
+    assert.match(unfilled.err, /YYYY-MM-DD is not a date/);
+    assert.doesNotMatch(unfilled.err, /looks like/);
+});
+
+test('an empty section fails', (t) => {
+    const result = runLocal(t, { 'CLAUDE.md': claudeMd([['Commands', ''], ['Git']]) });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /`## Commands` is empty/);
+    assert.doesNotMatch(result.err, /`## Git` is empty/);
+});
+
+test('200 lines fails; 199 passes', (t) => {
+    const body = (lines) => Array.from({ length: lines }, (_, i) => `- Line ${i}.`).join('\n');
+    // The title, a blank, the intro, a blank, the heading, a blank: six lines before the body.
+    const over = runLocal(t, { 'CLAUDE.md': claudeMd([['Commands', body(194)]]) });
+    assert.equal(over.failed, true);
+    assert.match(over.err, /200 lines, at or over the 200-line budget/);
+
+    const under = runLocal(t, { 'CLAUDE.md': claudeMd([['Commands', body(193)]]) });
+    assert.equal(under.failed, false, under.err);
+});
+
+test('a missing title, a missing paragraph and a second title each fail', (t) => {
+    const untitled = runLocal(t, { 'CLAUDE.md': claudeMd([['Git']], 'A fixture project.\n') });
+    assert.equal(untitled.failed, true);
+    assert.match(untitled.err, /does not open with a `# <project name>` title/);
+
+    const bare = runLocal(t, { 'CLAUDE.md': claudeMd([['Git']], '# Fixture\n') });
+    assert.equal(bare.failed, true);
+    assert.match(bare.err, /no paragraph under the title/);
+
+    const twice = runLocal(t, { 'CLAUDE.md': `${INTRO}\n# Another\n\nText.\n` });
+    assert.equal(twice.failed, true);
+    assert.match(twice.err, /CLAUDE\.md:5[\s\S]*a second `#` title/);
+});
+
+test('an unfilled template line fails, also when it spans two lines', (t) => {
+    const result = runLocal(t, {
+        'CLAUDE.md': claudeMd([
+            ['Commands', '- `npm run dev`: <what it starts>'],
+            ["Things the code doesn't tell you", '<Only what Claude cannot learn,\none bullet each.>'],
+        ]),
+    });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /unfilled template line: <what it starts>/);
+    assert.match(result.err, /unfilled template line: <Only what Claude cannot learn, one bullet each\.>/);
+});
+
+test('angle brackets in code, an autolink and a comparison are not placeholders', (t) => {
+    const result = runLocal(t, {
+        'CLAUDE.md': claudeMd([
+            [
+                'Commands',
+                '- `git rm --cached <a path>` untracks it.\n- Docs: <https://example.test/docs>.\n- Pin below 6.1 (a < b, b > a).\n\n```sh\ncp <the template> ./CLAUDE.md\n```',
+            ],
+        ]),
+    });
+    assert.equal(result.failed, false, result.err);
+});
+
+test('a heading inside fenced code is not a section', (t) => {
+    // Read as a section, this `## Git` would come after `## Decided, don't reopen`.
+    const result = runLocal(t, {
+        'CLAUDE.md': claudeMd([["Decided, don't reopen", '- A real line.\n\n```md\n## Git\n```']]),
+    });
+    assert.equal(result.failed, false, result.err);
+});
+
+test('an @ import of a missing file fails; an existing one, a package name and an email do not', (t) => {
+    const result = runLocal(t, {
+        'CLAUDE.md': claudeMd([
+            [
+                'Commands',
+                '- See @docs/setup.md and @./docs/gone.md.\n- Uses @larrydarko/lint-config and @types/node.\n- Mail fixture@example.test.',
+            ],
+        ]),
+        'docs/setup.md': '# Setup\n',
+    });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /`@\.\/docs\/gone\.md` imports a file that does not exist/);
+    assert.doesNotMatch(result.err, /setup\.md|lint-config|types\/node|example\.test/);
+});
+
+test('a CLAUDE.local.md fails when opted in', (t) => {
+    const result = runLocal(t, { 'CLAUDE.md': INTRO, 'CLAUDE.local.md': '- local\n' });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /CLAUDE\.local\.md[\s\S]*a second file of instructions/);
+});
+
+test('a skill needs a SKILL.md whose header names its folder and describes it', (t) => {
+    const result = runLocal(t, {
+        '.claude/skills/empty/notes.md': '# Notes\n',
+        '.claude/skills/renamed/SKILL.md': SKILL,
+        '.claude/skills/vague/SKILL.md': '---\nname: vague\n---\n\n1. Do it.\n',
+        '.claude/skills/bare/SKILL.md': '1. Do it.\n',
+        '.claude/skills/template/SKILL.md': '---\nname: template\ndescription: <What it does, in one sentence.>\n---\n',
+    });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /\.claude\/skills\/empty[\s\S]*a skill folder with no SKILL\.md/);
+    assert.match(result.err, /`name` is `deploy`, not the folder's name, `renamed`/);
+    assert.match(result.err, /\.claude\/skills\/vague\/SKILL\.md[\s\S]*no `description`/);
+    assert.match(result.err, /\.claude\/skills\/bare\/SKILL\.md[\s\S]*no `---` header/);
+    assert.match(result.err, /\.claude\/skills\/template\/SKILL\.md:3[\s\S]*unfilled template line/);
+});
+
 // ── Files that are not text ──────────────────────────────────────────────────
 
 test('a binary file is not read as text', (t) => {

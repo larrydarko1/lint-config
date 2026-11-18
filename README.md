@@ -703,7 +703,7 @@ its source roots, its services, and exceptions it has approved, each with a stat
 | `licenses`                 | all                      | every production dependency's licence suits an `open` or `closed` app              |
 | `package-json`             | all                      | manifest fields, version ranges, and the toolchain rule below                      |
 | `pipeline`                 | all                      | every gate runs in CI; timeouts, permissions, SHA-pinned actions, …                |
-| `refactoring`              | all                      | no deferral markers left in code; no todo.md or Claude Code config committed       |
+| `refactoring`              | all                      | no deferral markers; no todo.md or Claude Code config committed; its local layout  |
 | `scss-standards`           | all with a UI            | the entry, Vite injection, theme parity, self-hosted fonts                         |
 | `secrets`                  | all                      | no keys, tokens, env files or keystores in anything git would commit               |
 | `testing`                  | all but base and library | suite layout, `.only`/`.skip`, coverage ratchet, E2E server-error wiring           |
@@ -846,6 +846,23 @@ still held to the hygiene rules (`.only`, `.skip`, commented-out cases), and a g
 suite fails. `e2e` names the E2E suite's folder and config, and its runner: Playwright by default,
 or `runner: 'vscode-test'` for an editor extension, whose specs run inside a real editor through
 the VS Code test CLI and its `.vscode-test.mjs`.
+
+`refactoring` refuses Claude Code's config (`CLAUDE.md`, `CLAUDE.local.md`, `.claude/`) in
+anything git would commit. With `claudeCode: true` it also holds the gitignored copies to one
+layout where they exist. Those files never reach CI, so this part runs only on the machine that has
+them, and a pass in CI says so. It is off by default because it suits a project whose maintainer
+works this way:
+
+- `CLAUDE.md` is under 200 lines and opens with `# <project name>` and a paragraph.
+- Its `##` sections come in this order, each optional and at most once: `Commands`, `Git`,
+  `Things the code doesn't tell you`, the repo's own topic sections, `Decided, don't reopen`,
+  `Open, as of YYYY-MM-DD`. A heading that reads like a standard one but is spelled differently
+  (`Current state (2026-11-13)`, `Product decisions (settled, don't reopen)`) fails.
+- The `Open, as of` date is a real date, not in the future and at most 31 days old.
+- No section is empty, no `<placeholder>` is left unfilled, and every `@path` import exists.
+- Each `.claude/skills/<name>/SKILL.md` has a `---` header whose `name` is the folder's and that
+  has a `description`.
+- There is no `CLAUDE.local.md`: its lines go in `CLAUDE.md`, so each rule has one place.
 
 `dead-code` takes the same list as `publicApi` in a library: `checkDeadCode({ publicApi: packageEntries() })`.
 A published package's exports are used outside the repository, so with it the gate reports neither
