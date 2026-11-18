@@ -62,6 +62,7 @@ export default defineConfig({
                     "typescript-eslint supports TypeScript below 6.1, so a minor bump would install one it doesn't.",
             },
         },
+        'refactoring': { claudeCode: true },
         'secrets': {
             allowlist: [
                 {
