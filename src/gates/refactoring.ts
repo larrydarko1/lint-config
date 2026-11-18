@@ -12,6 +12,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { stripMarkdownCode } from './lib/markdown.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
 
@@ -149,13 +150,6 @@ export function checkRefactoring(options: RefactoringOptions = {}): void {
         notMachineChecked:
             'whether a change was in scope, whether a drive-by belonged in its own commit, whether a file was split by concern or by line count, and whether something deferred should have been fixed on the spot.',
     });
-}
-
-/** Blank out fenced blocks and inline code spans (a backticked marker is named, not used), keeping line numbers. */
-function stripMarkdownCode(source: string): string {
-    return source
-        .replace(/^```[\s\S]*?^```/gm, (block) => block.replace(/[^\n]/g, ' '))
-        .replace(/`[^`\n]*`/g, (span) => ' '.repeat(span.length));
 }
 
 /** An SFC's outermost `<template>` block (the one at column 0), with the line it starts on. */
