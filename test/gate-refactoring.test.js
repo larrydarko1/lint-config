@@ -255,7 +255,64 @@ test('a new todo.md fails before its first commit', (t) => {
 test('a gitignored todo.md is local, so it passes', (t) => {
     const result = run(t, { '.gitignore': 'todo.md\n' }, {}, { 'todo.md': '- [ ] TODO: finish the worker\n' });
     assert.equal(result.failed, false);
-    assert.match(result.out, /no todo\.md in the repo/);
+    assert.match(result.out, /no todo\.md and no Claude Code config in the repo/);
+});
+
+// ── No Claude Code config in the repo ────────────────────────────────────────
+
+test('a committed CLAUDE.md fails, and says how to untrack it without deleting it', (t) => {
+    const result = run(t, { 'CLAUDE.md': '# Fixture\n\n- TODO: note for later\n' });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /CLAUDE\.md/);
+    assert.match(result.err, /Claude Code config committed to the repo/);
+    assert.match(result.err, /git rm --cached/);
+    assert.doesNotMatch(result.err, /marker —/);
+});
+
+test('CLAUDE.local.md and a CLAUDE.md in a subfolder fail too', (t) => {
+    const result = run(t, { 'CLAUDE.local.md': '- local\n', 'packages/api/CLAUDE.md': '# Api\n' });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /CLAUDE\.local\.md/);
+    assert.match(result.err, /packages\/api\/CLAUDE\.md/);
+});
+
+test('anything under .claude/ fails, at any depth', (t) => {
+    const result = run(t, {
+        '.claude/settings.json': '{}\n',
+        'web/.claude/skills/deploy/SKILL.md': '# Deploy\n',
+    });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /\.claude\/settings\.json/);
+    assert.match(result.err, /web\/\.claude\/skills\/deploy\/SKILL\.md/);
+});
+
+test('a new CLAUDE.md fails before its first commit', (t) => {
+    const result = run(t, { 'README.md': '# Fixture\n' }, {}, { 'CLAUDE.md': '# Fixture\n' });
+    assert.equal(result.failed, true);
+    assert.match(result.err, /CLAUDE\.md/);
+});
+
+test('Claude Code config kept out of git passes, by .gitignore or .git/info/exclude', (t) => {
+    const ignored = run(
+        t,
+        { '.gitignore': 'CLAUDE.md\n.claude/\n' },
+        {},
+        { 'CLAUDE.md': '# Fixture\n', '.claude/settings.json': '{}\n' },
+    );
+    assert.equal(ignored.failed, false);
+
+    const excluded = run(
+        t,
+        { 'README.md': '# Fixture\n' },
+        {},
+        { '.git/info/exclude': 'CLAUDE.local.md\n', 'CLAUDE.local.md': '- local\n' },
+    );
+    assert.equal(excluded.failed, false);
+});
+
+test('only the names Claude Code loads are refused, not files that mention Claude', (t) => {
+    const result = run(t, { 'docs/claude-code.md': '# Using Claude Code\n', 'claude/notes.md': '# Notes\n' });
+    assert.equal(result.failed, false);
 });
 
 // ── Files that are not text ──────────────────────────────────────────────────

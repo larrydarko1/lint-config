@@ -5,7 +5,8 @@
  * `linted`, ESLint has the `<script>` half and this gate reads the `<template>` half.
  * The match is case-sensitive on purpose: `todo` is an ordinary Spanish and Portuguese
  * word in locale files. Lowercase markers in code are ESLint's job.
- * Deferred work lives outside the repo, so a committed `todo.md` fails too.
+ * Deferred work lives outside the repo, so a committed `todo.md` fails too. So does
+ * Claude Code's local config: `CLAUDE.md`, `CLAUDE.local.md` and anything in `.claude/`.
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -39,6 +40,9 @@ const MARKERS = /\b(TODO|FIXME|FIX ME|HACK|XXX|TBD|WIP)\b/;
 /** Any casing: `TODO.md` goes stale exactly like `todo.md`. */
 const TRACKER = /^todo\.md$/i;
 
+/** Exact names: Claude Code loads `CLAUDE.md`, not a doc that happens to mention Claude. */
+const CLAUDE_CONFIG = /(^|\/)(CLAUDE(\.local)?\.md$|\.claude\/)/;
+
 /** Extensions ESLint parses in a default setup, so this gate leaves them alone. */
 const DEFAULT_LINTED = ['.ts', '.tsx', '.vue', '.js', '.mjs', '.cjs'];
 
@@ -71,12 +75,20 @@ export function inspectRefactoring(input: RefactoringOptions = {}): RefactoringI
     let templates = 0;
 
     for (const rel of repoFiles) {
-        // ── 1. No tracker file in the repo ──────────────────────────────────────
+        // ── 1. No tracker file or Claude Code config in the repo ───────────────
         if (TRACKER.test(path.basename(rel)) && !ignore.test(rel)) {
             fail(
                 rel,
                 'a deferred-work list committed to the repo',
                 'A list kept next to the code goes stale the first time an item is fixed without editing it, and nothing tells the reader which lines are still true. Move the items to your planner (or a GitHub issue on a team) and delete the file. A gitignored copy is local and not checked.',
+            );
+            continue;
+        }
+        if (CLAUDE_CONFIG.test(rel) && !ignore.test(rel)) {
+            fail(
+                rel,
+                'Claude Code config committed to the repo',
+                'Instructions, permissions and notes for Claude are local configuration for one machine, and a reader of the repo cannot tell which lines are still true. Keep the file out of git: add it to `.git/info/exclude` or `.gitignore`. If it is already committed, `git rm --cached <path>` untracks it without deleting it; older commits keep their copy.',
             );
             continue;
         }
@@ -133,7 +145,7 @@ export function checkRefactoring(options: RefactoringOptions = {}): void {
         .join(' or ');
 
     report.done({
-        summary: `Refactoring OK — ${covered}; no todo.md in the repo.`,
+        summary: `Refactoring OK — ${covered}; no todo.md and no Claude Code config in the repo.`,
         notMachineChecked:
             'whether a change was in scope, whether a drive-by belonged in its own commit, whether a file was split by concern or by line count, and whether something deferred should have been fixed on the spot.',
     });

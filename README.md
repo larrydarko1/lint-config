@@ -703,7 +703,7 @@ its source roots, its services, and exceptions it has approved, each with a stat
 | `licenses`                 | all                      | every production dependency's licence suits an `open` or `closed` app              |
 | `package-json`             | all                      | manifest fields, version ranges, and the toolchain rule below                      |
 | `pipeline`                 | all                      | every gate runs in CI; timeouts, permissions, SHA-pinned actions, …                |
-| `refactoring`              | all                      | no deferral markers left in code, no todo.md committed                             |
+| `refactoring`              | all                      | no deferral markers left in code; no todo.md or Claude Code config committed       |
 | `scss-standards`           | all with a UI            | the entry, Vite injection, theme parity, self-hosted fonts                         |
 | `secrets`                  | all                      | no keys, tokens, env files or keystores in anything git would commit               |
 | `testing`                  | all but base and library | suite layout, `.only`/`.skip`, coverage ratchet, E2E server-error wiring           |
