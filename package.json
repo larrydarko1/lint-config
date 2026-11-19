@@ -73,6 +73,10 @@
             "types": "./dist/gates/audit.d.ts",
             "default": "./dist/gates/audit.js"
         },
+        "./gates/changelog": {
+            "types": "./dist/gates/changelog.d.ts",
+            "default": "./dist/gates/changelog.js"
+        },
         "./gates/code-style": {
             "types": "./dist/gates/code-style.d.ts",
             "default": "./dist/gates/code-style.js"

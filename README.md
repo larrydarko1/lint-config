@@ -70,8 +70,8 @@ that skips the questions. In CI or a pipe nothing is asked: a missing option is 
 it is above. Stopping at a question writes nothing and exits 130.
 
 `larry init` writes what the sections below describe: each tool's config file, the git hooks,
-`larry.config.ts`, a CI workflow that `pipeline` accepts, `.jscpd.json`, `.prettierignore` and a
-`.gitignore`. It adds the `prepare`, `lint`, `format:check`, `check` and `ci:check` scripts, and
+`larry.config.ts`, a CI workflow that `pipeline` accepts, `.jscpd.json`, `.prettierignore`, a
+`.gitignore` and a `CHANGELOG.md` with only `[Unreleased]`. It adds the `prepare`, `lint`, `format:check`, `check` and `ci:check` scripts, and
 `engines.node`. `ci:check` and the workflow also run `typecheck` and `test` when the project has
 those scripts. A file or script that already exists is left as it is, so running init again only
 fills in what is missing, and it is safe in a project that is partly set up. It never sets
@@ -115,6 +115,10 @@ npm i -D @larrydarko/lint-config
 npx larry upgrade --dry-run   # lists what it would change
 npx larry upgrade             # changes it; read the diff, then run `npm run ci:check`
 ```
+
+Then follow the release's **Upgrading** steps in [CHANGELOG.md](CHANGELOG.md), for every release
+you skipped: they cover what `larry upgrade` can't do for you, such as fixing code a new rule
+refuses.
 
 `larry upgrade` rewrites what an older release set up into what this one reads. Each step looks
 for the old shape itself rather than going by version numbers, so it works however many releases
@@ -698,6 +702,7 @@ its source roots, its services, and exceptions it has approved, each with a stat
 | Gate                       | Family                   | Checks                                                                             |
 | -------------------------- | ------------------------ | ---------------------------------------------------------------------------------- |
 | `audit`                    | all                      | `npm audit`, with a reviewed allowlist that expires                                |
+| `changelog`                | all                      | CHANGELOG.md in the Keep a Changelog shape: `[Unreleased]` first, dated releases   |
 | `code-style`               | all                      | file names and length, headers, SFC block order, stale baselines; Rust headers     |
 | `contrast`                 | all with a UI            | every text token clears AA on every background, in every theme; no dimmed text     |
 | `dead-code`                | all                      | unused code and dependencies, undeclared imports, import cycles (knip)             |
@@ -868,6 +873,15 @@ works this way:
 - Each `.claude/skills/<name>/SKILL.md` has a `---` header whose `name` is the folder's and that
   has a `description`.
 - There is no `CLAUDE.local.md`: its lines go in `CLAUDE.md`, so each rule has one place.
+
+`changelog` reads `CHANGELOG.md` at the repo root. It opens with `# Changelog` and an intro that
+links [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), then `## [Unreleased]`, once, then
+one `## [version] - YYYY-MM-DD` per release: the version without a `v` (a dated one such as
+`2026.10.2` is fine), a real day that isn't after today, no version twice, newest first. A
+heading inside a fenced code block is quoted, not read. `larry init` writes one with only
+`[Unreleased]`. A changelog under another name (`changelog.md`, `CHANGES.md`) is told to move.
+What goes in each section is for its reader; the shape is what lets a bump move `[Unreleased]`
+under the new version without anyone re-reading the file.
 
 `dead-code` takes the same list as `publicApi` in a library: `checkDeadCode({ publicApi: packageEntries() })`.
 A published package's exports are used outside the repository, so with it the gate reports neither

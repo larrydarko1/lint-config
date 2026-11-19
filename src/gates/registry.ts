@@ -41,6 +41,7 @@ const BACKEND = ['api', 'fullstack'] as const;
 /** Keyed by the gate's export path under `gates/`. */
 export const GATES = {
     'audit': gate(ALL, async () => (await import('./audit.ts')).checkAudit),
+    'changelog': gate(ALL, async () => (await import('./changelog.ts')).checkChangelog),
     'code-style': gate(ALL, async () => (await import('./code-style.ts')).checkCodeStyle),
     'contrast': gate(UI, async () => (await import('./contrast.ts')).checkContrast),
     'dead-code': gate(ALL, async () => (await import('./dead-code.ts')).checkDeadCode),

@@ -122,6 +122,15 @@ export function scaffoldFiles(scaffold: Scaffold): Record<string, string> {
         ...(extension
             ? { '.vscodeignore': lines('**', '!package.json', '!README.md', '!LICENSE', '!out/extension.cjs') }
             : {}),
+        'CHANGELOG.md': lines(
+            '# Changelog',
+            '',
+            'All notable changes to this project are documented here.',
+            '',
+            'The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).',
+            '',
+            '## [Unreleased]',
+        ),
         '.husky/pre-commit': lines('npx --no -- lint-staged'),
         '.husky/commit-msg': lines('npx --no -- commitlint --edit "$1"'),
         '.github/workflows/ci.yml': ciWorkflow(scaffold.ciScripts, scaffold.nodeMajor),

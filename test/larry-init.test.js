@@ -12,6 +12,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { FAMILIES } from '../src/eslint/presets.ts';
+import { inspectChangelog } from '../src/gates/changelog.ts';
 
 const REPO = path.resolve(import.meta.dirname, '..');
 const LARRY = path.join(REPO, 'src/cli/larry.ts');
@@ -126,6 +127,7 @@ test('a fresh spa gets every config file, the hooks, CI and the scripts, and say
         '.jscpd.json',
         '.prettierignore',
         '.gitignore',
+        'CHANGELOG.md',
         '.husky/pre-commit',
         '.husky/commit-msg',
         '.github/workflows/ci.yml',
@@ -134,6 +136,11 @@ test('a fresh spa gets every config file, the hooks, CI and the scripts, and say
         assert.match(result.out, new RegExp(`^\\+ ${file.replaceAll('.', '\\.')}$`, 'm'));
     }
     assert.equal(fs.statSync(path.join(root, '.husky/pre-commit')).mode & 0o111, 0o111, 'hooks are executable');
+    assert.deepEqual(
+        inspectChangelog({ root }),
+        { problems: [], releases: 0 },
+        'the changelog it writes passes its gate',
+    );
 
     const config = read(root, 'larry.config.ts');
     assert.match(config, /family: 'spa'/);
