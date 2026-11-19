@@ -221,9 +221,9 @@ export default larry({
 - which globals apply where
 - the strict type-aware rules
 - naming, return types and test relaxations
-- Prettier compatibility, then braces on any body that sits on its own line (`curly: 'multi-line'`).
-  The brace rule comes after Prettier, which switches `curly` off, so `overrides` can't switch it
-  off either
+- Prettier compatibility, then braces on every body except a `return`, `throw`, `break` or
+  `continue` written on the line of its `if` (`larry/curly-exit-only`, which `--fix` applies). It
+  comes last, so `overrides` can't switch it off
 
 `preset` chooses a family's folder layout, and `layout` (or `workspaces`, in the full-stack
 family) moves any of its roles (see below).

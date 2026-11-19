@@ -351,9 +351,6 @@
     "constructor-super": [
         { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
     ],
-    "curly": [
-        { "files": "*", "entry": ["error","multi-line"] }
-    ],
     "eqeqeq": [
         { "files": "*", "entry": ["error","always",{"null":"ignore"}] }
     ],
@@ -362,6 +359,9 @@
     ],
     "getter-return": [
         { "files": [".vscode-test.mjs","eslint.config.js"], "entry": ["error",{"allowImplicit":false}] }
+    ],
+    "larry/curly-exit-only": [
+        { "files": "*", "entry": "error" }
     ],
     "larry/no-floating-disposable": [
         { "files": ["src/extension.ts","src/lib/runner.ts","src/vscode/commands.ts"], "entry": "error" }
