@@ -1,7 +1,7 @@
 /**
  * The commit hook. What is worth testing is the order on script files: a rule
- * whose verdict depends on layout (`curly` on a body Prettier moved to its own
- * line) only sees the committed layout when Prettier runs before ESLint.
+ * whose verdict depends on layout (`larry/curly-inline` measures a line against
+ * Prettier's width) only sees the committed layout when Prettier runs before ESLint.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

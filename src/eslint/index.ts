@@ -395,10 +395,10 @@ export function larry(options: LarryOptions): Linter.Config[] {
             rules: { '@typescript-eslint/naming-convention': 'off' },
         },
 
-        prettier, // It switches off the formatting rules that conflict, so only `curly` may follow it.
+        prettier, // It switches off the formatting rules that conflict.
 
-        // Prettier turns `curly` off. A body on its own line needs braces; one beside its condition may go without.
-        { rules: { curly: ['error', 'multi-line'] } },
+        // Last, so `overrides` can't switch it off. Core `curly` can't measure a line against Prettier's width.
+        { rules: { 'larry/curly-inline': 'error' } },
     ];
 }
 
