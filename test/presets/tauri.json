@@ -425,6 +425,9 @@
     "constructor-super": [
         { "files": ["eslint.config.js"], "entry": "error" }
     ],
+    "curly": [
+        { "files": "*", "entry": ["error","multi-line"] }
+    ],
     "eqeqeq": [
         { "files": "*", "entry": ["error","always",{"null":"ignore"}] }
     ],
@@ -433,9 +436,6 @@
     ],
     "getter-return": [
         { "files": ["eslint.config.js"], "entry": ["error",{"allowImplicit":false}] }
-    ],
-    "larry/curly-exit-only": [
-        { "files": "*", "entry": "error" }
     ],
     "larry/no-caught-message-leak": [
         { "files": ["src/bridge/commands.ts"], "entry": ["error",{}] }

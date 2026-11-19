@@ -341,6 +341,9 @@
     "constructor-super": [
         { "files": ["eslint.config.js"], "entry": "error" }
     ],
+    "curly": [
+        { "files": "*", "entry": ["error","multi-line"] }
+    ],
     "eqeqeq": [
         { "files": "*", "entry": ["error","always",{"null":"ignore"}] }
     ],
@@ -349,9 +352,6 @@
     ],
     "getter-return": [
         { "files": ["eslint.config.js"], "entry": ["error",{"allowImplicit":false}] }
-    ],
-    "larry/curly-exit-only": [
-        { "files": "*", "entry": "error" }
     ],
     "max-depth": [
         { "files": ["app/index.ts","app/server/routes.ts"], "entry": ["error",3] },

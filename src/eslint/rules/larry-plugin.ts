@@ -6,12 +6,10 @@
  * - `no-native-dialog` — on everything that runs in the Vue app, see dialogs.ts.
  * - `no-tauri-outside-bridge` — on a Tauri webview outside its bridge, see tauri.ts.
  * - `no-sync-io` / `no-floating-disposable` — on an editor extension's source, see vs-extension.ts.
- * - `curly-exit-only` — on everything, after Prettier, see curly-exit-only.ts.
  */
 
 import { AST_NODE_TYPES, type TSESLint, type TSESTree } from '@typescript-eslint/utils';
 
-import { curlyRules } from './curly-exit-only.ts';
 import { dialogRules } from './dialogs.ts';
 import { iconRules } from './icons.ts';
 import { tauriRules } from './tauri.ts';
@@ -304,7 +302,6 @@ export const larryPlugin = {
         ...dialogRules,
         ...tauriRules,
         ...vsExtensionRules,
-        ...curlyRules,
     },
 };
 

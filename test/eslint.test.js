@@ -236,13 +236,11 @@ test('a disable comment must name its rule and say why', async () => {
     );
 });
 
-test('only a one-line exit goes without braces, even when a project override switches the rule off', async () => {
-    const braceLines = async (config, code) => {
+test('a body on its own line needs braces, even when a project override switches the rule off', async () => {
+    const curlyLines = async (config, code) => {
         const eslint = new ESLint({ overrideConfigFile: true, baseConfig: config, cwd: ROOT });
         const [result] = await eslint.lintText(code, { filePath: `${ROOT}/thing.js` });
-        return result.messages
-            .filter((message) => message.ruleId === 'larry/curly-exit-only')
-            .map((message) => message.line);
+        return result.messages.filter((message) => message.ruleId === 'curly').map((message) => message.line);
     };
     const code = [
         'export function pick(a, b) {',
@@ -250,18 +248,17 @@ test('only a one-line exit goes without braces, even when a project override swi
         '    for (const item of b) console.log(item);',
         '    if (b)',
         '        return 2;',
-        '    if (a) console.log(a);',
-        '    while (a) a -= 1;',
+        '    else',
+        '        console.log(b);',
+        '    while (a)',
+        '        a -= 1;',
         '    return 3;',
         '}',
         '',
     ].join('\n');
 
-    assert.deepEqual(await braceLines(base(), code), [3, 5, 6, 7]);
-    assert.deepEqual(
-        await braceLines(base({ overrides: [{ rules: { 'larry/curly-exit-only': 'off' } }] }), code),
-        [3, 5, 6, 7],
-    );
+    assert.deepEqual(await curlyLines(base(), code), [5, 7, 9]);
+    assert.deepEqual(await curlyLines(base({ overrides: [{ rules: { curly: 'off' } }] }), code), [5, 7, 9]);
 });
 
 test('a cast in a Vue template is an error, since the typed cast rule only reads <script>', async () => {

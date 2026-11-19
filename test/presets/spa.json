@@ -434,6 +434,9 @@
     "constructor-super": [
         { "files": ["src/i18n/locales/en.json","eslint.config.js"], "entry": "error" }
     ],
+    "curly": [
+        { "files": "*", "entry": ["error","multi-line"] }
+    ],
     "eqeqeq": [
         { "files": "*", "entry": ["error","always",{"null":"ignore"}] }
     ],
@@ -442,9 +445,6 @@
     ],
     "getter-return": [
         { "files": ["src/i18n/locales/en.json","eslint.config.js"], "entry": ["error",{"allowImplicit":false}] }
-    ],
-    "larry/curly-exit-only": [
-        { "files": "*", "entry": "error" }
     ],
     "larry/no-inline-svg": [
         { "files": ["src/App.vue"], "entry": "error" }
