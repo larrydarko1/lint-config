@@ -211,6 +211,7 @@ test('each gate script that only calls its gate moves into a new larry.config.ts
     const order = [...config.matchAll(/^ {8}'([\w/-]+)':/gm)].map((match) => match[1]);
     assert.deepEqual(order, [
         'audit',
+        'changelog',
         'code-style',
         'contrast',
         'dead-code',
@@ -233,7 +234,10 @@ test('each gate script that only calls its gate moves into a new larry.config.ts
         result.out,
         /^- scripts\/checks\/check-testing\.ts stays: line 3 does more than import a gate and call it\. Move its options into larry\.config\.ts by hand/m,
     );
-    assert.match(result.out, /^- larry\.config\.ts skips 12 gates no script ran before: audit, dead-code, /m);
+    assert.match(
+        result.out,
+        /^- larry\.config\.ts skips 13 gates no script ran before: audit, changelog, dead-code, /m,
+    );
     assert.deepEqual(fs.readdirSync(path.join(root, 'scripts/checks')), ['check-testing.ts']);
 
     const { scripts } = JSON.parse(read(root, 'package.json'));

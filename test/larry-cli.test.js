@@ -142,7 +142,7 @@ test('a whole run runs every gate of the family, prints why each skipped one is 
     assert.match(result.out, /── licenses\n✓ Licences clean/);
     assert.match(result.out, /── secrets\n✓ No secrets/);
     assert.match(result.out, /── audit\n– skipped: audit reads tools this suite does not set up/);
-    assert.match(result.out, /✓ larry check: 2 gates passed\. 10 gates skipped: audit, /);
+    assert.match(result.out, /✓ larry check: 2 gates passed\. 11 gates skipped: audit, changelog, /);
 });
 
 test('NEGATIVE: one failing gate fails the run, and the gates after it still run', (t) => {

@@ -8,10 +8,23 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
 
 ## [Unreleased]
 
+### Upgrading
+
+1. If the project has no `CHANGELOG.md`, add one: `# Changelog`, a line saying the format is based
+   on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), then `## [Unreleased]`. Rename one
+   kept under another name (`changelog.md`, `CHANGES.md`) with `git mv`.
+2. Give every release its own `## [version] - YYYY-MM-DD` heading, newest first. A heading that
+   groups several versions (`## 1.4.0 – 1.4.9 - …`) becomes one for the last of them, with the
+   range said in the text under it.
+
 ### Added
 
 - This changelog, with the steps to upgrade to each release that breaks something. The README's
   upgrade section points to it.
+- **Breaking:** the `changelog` gate, in every family. `CHANGELOG.md` opens with `# Changelog` and
+  an intro naming Keep a Changelog, then `## [Unreleased]`, then one `## [version] - YYYY-MM-DD`
+  per release: a real date that isn't after today, no version twice, newest first. `larry init`
+  writes one.
 
 ## [0.2.0] - 2026-11-19
 
