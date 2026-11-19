@@ -105,8 +105,9 @@ function syncReads(
             const name = propertyName(parent);
             return name?.endsWith('Sync') === true ? [[parent, name]] : [];
         }
-        if (parent.type !== AST_NODE_TYPES.VariableDeclarator || parent.id.type !== AST_NODE_TYPES.ObjectPattern)
+        if (parent.type !== AST_NODE_TYPES.VariableDeclarator || parent.id.type !== AST_NODE_TYPES.ObjectPattern) {
             return [];
+        }
         return parent.id.properties.flatMap((property): [TSESTree.Node, string][] => {
             if (property.type !== AST_NODE_TYPES.Property || property.key.type !== AST_NODE_TYPES.Identifier) return [];
             return property.key.name.endsWith('Sync') ? [[property, property.key.name]] : [];

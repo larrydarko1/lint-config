@@ -6,10 +6,12 @@
  * - `no-native-dialog` — on everything that runs in the Vue app, see dialogs.ts.
  * - `no-tauri-outside-bridge` — on a Tauri webview outside its bridge, see tauri.ts.
  * - `no-sync-io` / `no-floating-disposable` — on an editor extension's source, see vs-extension.ts.
+ * - `curly-inline` — on everything, after Prettier, see curly-inline.ts.
  */
 
 import { AST_NODE_TYPES, type TSESLint, type TSESTree } from '@typescript-eslint/utils';
 
+import { curlyRules } from './curly-inline.ts';
 import { dialogRules } from './dialogs.ts';
 import { iconRules } from './icons.ts';
 import { tauriRules } from './tauri.ts';
@@ -123,8 +125,9 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
                     parent.property.type === AST_NODE_TYPES.Identifier
                 ) {
                     const name = parent.property.name;
-                    if (name === 'message' || name === 'stack') followMessage(parent);
-                    else if (name === 'toString' && parent.parent.type === AST_NODE_TYPES.CallExpression) {
+                    if (name === 'message' || name === 'stack') {
+                        followMessage(parent);
+                    } else if (name === 'toString' && parent.parent.type === AST_NODE_TYPES.CallExpression) {
                         followMessage(parent.parent);
                     }
                 } else if (
@@ -269,15 +272,17 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
                 if (
                     node.callee.type !== AST_NODE_TYPES.MemberExpression ||
                     node.callee.property.type !== AST_NODE_TYPES.Identifier
-                )
+                ) {
                     return;
+                }
                 if (node.callee.property.name !== 'catch') return;
                 const handler = node.arguments[0];
                 if (
                     handler?.type !== AST_NODE_TYPES.ArrowFunctionExpression &&
                     handler?.type !== AST_NODE_TYPES.FunctionExpression
-                )
+                ) {
                     return;
+                }
                 fromParam(handler.params[0], handler);
             },
         };
@@ -291,6 +296,7 @@ export const larryPlugin = {
         ...dialogRules,
         ...tauriRules,
         ...vsExtensionRules,
+        ...curlyRules,
     },
 };
 
@@ -305,8 +311,9 @@ const calleeName = (callee: Node): string => {
 
 function isLoggerCall(call: TSESTree.CallExpression): boolean {
     const callee = call.callee;
-    if (callee.type !== AST_NODE_TYPES.MemberExpression || callee.property.type !== AST_NODE_TYPES.Identifier)
+    if (callee.type !== AST_NODE_TYPES.MemberExpression || callee.property.type !== AST_NODE_TYPES.Identifier) {
         return false;
+    }
     if (!LOG_LEVEL.test(callee.property.name)) return false;
     const owner = callee.object;
     if (owner.type === AST_NODE_TYPES.Identifier) return LOGGER_NAME.test(owner.name);

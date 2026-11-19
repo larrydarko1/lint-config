@@ -178,7 +178,8 @@ function swallowReason(source: string, start: number, end: number): string {
             .join('\n')
             .matchAll(/\/\/(.*)|\/\*([\s\S]*?)\*\//g),
     ].map((m) => m[1] ?? m[2] ?? '');
-    for (let k = first - 1; k >= 0 && /^\s*\/\/(?![/!])/.test(lines[k] ?? ''); k--)
+    for (let k = first - 1; k >= 0 && /^\s*\/\/(?![/!])/.test(lines[k] ?? ''); k--) {
         said.unshift((lines[k] ?? '').replace(/^\s*\/\//, ''));
+    }
     return said.join(' ').replace(/\s+/g, ' ').trim();
 }

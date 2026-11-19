@@ -236,6 +236,32 @@ test('a disable comment must name its rule and say why', async () => {
     );
 });
 
+test('a one-statement body goes inline when it fits, even when a project override switches the rule off', async () => {
+    const curlyLines = async (config, code) => {
+        const eslint = new ESLint({ overrideConfigFile: true, baseConfig: config, cwd: ROOT });
+        const [result] = await eslint.lintText(code, { filePath: `${ROOT}/thing.js` });
+        return result.messages
+            .filter((message) => message.ruleId === 'larry/curly-inline')
+            .map((message) => message.line);
+    };
+    const code = [
+        'export function pick(a, b) {',
+        '    if (a) return 1;',
+        '    for (const item of b) {',
+        '        console.log(item);',
+        '    }',
+        '    if (b)',
+        `        console.log('${'x'.repeat(110)}');`,
+        '    while (a) a -= 1;',
+        '    return 3;',
+        '}',
+        '',
+    ].join('\n');
+
+    assert.deepEqual(await curlyLines(base(), code), [3, 7]);
+    assert.deepEqual(await curlyLines(base({ overrides: [{ rules: { 'larry/curly-inline': 'off' } }] }), code), [3, 7]);
+});
+
 test('a cast in a Vue template is an error, since the typed cast rule only reads <script>', async () => {
     const config = [
         ...vuePlugin.configs['flat/recommended'],

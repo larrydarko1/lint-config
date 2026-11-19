@@ -151,12 +151,13 @@ export function inspectTauriCommands(input: TauriCommandsInput): TauriCommandsIn
         [...file.lexed.code.matchAll(/\.invoke_handler\s*\(/g)].map((m) => ({ file, index: m.index })),
     );
     if (handlers.length > 1) {
-        for (const h of handlers.slice(1))
+        for (const h of handlers.slice(1)) {
             fail(
                 where(h.file, h.index),
                 'calls `invoke_handler` a second time',
                 'Each call replaces the last, so the commands registered first stop existing — with no error, until the webview calls one.',
             );
+        }
     }
     for (const file of rust) {
         for (const m of file.lexed.code.matchAll(/\bgenerate_handler!\s*\[/g)) {
@@ -176,20 +177,22 @@ export function inspectTauriCommands(input: TauriCommandsInput): TauriCommandsIn
         );
     }
     for (const c of commands) {
-        if (!registered.has(c.name))
+        if (!registered.has(c.name)) {
             fail(
                 located(c),
                 `command \`${c.name}\` is not in \`generate_handler!\``,
                 'It compiles, and the webview’s `invoke` rejects. Register it, or delete it.',
             );
+        }
     }
     for (const [name, at] of registered) {
-        if (!byName.has(name))
+        if (!byName.has(name)) {
             fail(
                 at,
                 `\`generate_handler!\` registers \`${name}\`, which is no \`#[tauri::command]\` here`,
                 'This gate reads commands from the crate’s `src/`. A command from a dependency belongs to a plugin, with its own permissions.',
             );
+        }
     }
 
     // ── 4. build.rs lists them ───────────────────────────────────────────────
@@ -211,27 +214,32 @@ export function inspectTauriCommands(input: TauriCommandsInput): TauriCommandsIn
         }
     }
     if (manifest === null) {
-        if (commands.length > 0)
+        if (commands.length > 0) {
             fail(
                 buildRel,
                 'does not list the app’s commands (`AppManifest::new().commands(COMMANDS)`)',
                 'Without the list, every registered command is open to every window. With it, each becomes an `allow-<name>` permission a capability has to grant.',
             );
+        }
     } else {
-        for (const name of manifest)
-            if (!registered.has(name))
+        for (const name of manifest) {
+            if (!registered.has(name)) {
                 fail(
                     buildRel,
                     `lists \`${name}\`, which is not registered`,
                     'It would become a permission for a command that does not exist. Drop it.',
                 );
-        for (const name of registered.keys())
-            if (!manifest.includes(name))
+            }
+        }
+        for (const name of registered.keys()) {
+            if (!manifest.includes(name)) {
                 fail(
                     buildRel,
                     `does not list \`${name}\``,
                     'An unlisted command has no permission, so no capability can grant it and the webview’s call is refused.',
                 );
+            }
+        }
     }
 
     // ── 5. Capabilities grant them ───────────────────────────────────────────
@@ -261,22 +269,24 @@ export function inspectTauriCommands(input: TauriCommandsInput): TauriCommandsIn
         for (const m of text.matchAll(/"((?:allow|deny)-[a-z0-9-]+)"/g)) granted.set(m[1] ?? '', rel);
     }
     for (const name of registered.keys()) {
-        if (!granted.has(`allow-${kebab(name)}`))
+        if (!granted.has(`allow-${kebab(name)}`)) {
             fail(
                 capabilitiesDir,
                 `no capability grants \`allow-${kebab(name)}\``,
                 `Without it every window’s \`invoke('${name}')\` is refused. Grant it in the capability of the window that calls it.`,
             );
+        }
     }
     for (const [id, rel] of granted) {
         const m = /^(allow|deny)-(.+)$/.exec(id);
         if (m === null || defined.has(id)) continue;
-        if (![...registered.keys()].some((name) => kebab(name) === m[2]))
+        if (![...registered.keys()].some((name) => kebab(name) === m[2])) {
             fail(
                 rel,
                 `grants \`${id}\`, which names no registered command`,
                 'A stale grant for a command that was renamed or removed. Drop it, or rename it with the command.',
             );
+        }
     }
 
     // ── 6. The bridge calls them ─────────────────────────────────────────────
@@ -284,12 +294,13 @@ export function inspectTauriCommands(input: TauriCommandsInput): TauriCommandsIn
         rel,
         code: stripComments(read(rel)),
     }));
-    if (bridge.length === 0)
+    if (bridge.length === 0) {
         fail(
             bridgeDir,
             'holds no TypeScript',
             'This gate reads every `invoke` and `listen` from the bridge. Point `bridgeDir` at it.',
         );
+    }
     const invoked = new Set<string>();
     for (const { rel, code } of bridge) {
         for (const call of tsCalls(code, 'invoke')) {
@@ -305,21 +316,23 @@ export function inspectTauriCommands(input: TauriCommandsInput): TauriCommandsIn
             }
             if (call.name.startsWith('plugin:')) continue;
             invoked.add(call.name);
-            if (!registered.has(call.name))
+            if (!registered.has(call.name)) {
                 fail(
                     at,
                     `invokes \`${call.name}\`, which Rust does not register`,
                     'The call rejects at runtime. Match the command’s snake_case name exactly, or add the command.',
                 );
+            }
         }
     }
     for (const name of registered.keys()) {
-        if (!invoked.has(name))
+        if (!invoked.has(name)) {
             fail(
                 registered.get(name) ?? null,
                 `\`${name}\` is registered and the bridge never invokes it`,
                 'A command the webview cannot reach is surface with no caller. Delete it, or add its function to the bridge.',
             );
+        }
     }
 
     // ── 7. Events, both ways ─────────────────────────────────────────────────
@@ -361,18 +374,20 @@ export function inspectTauriCommands(input: TauriCommandsInput): TauriCommandsIn
             }
             counts.events++;
             emitted.set(value, at);
-            if (!constant.public)
+            if (!constant.public) {
                 fail(
                     constant.at,
                     `event constant \`${name}\` is not \`pub\``,
                     'It names a contract with the webview. `pub` says so, and lets a second emitter reuse it instead of retyping it.',
                 );
-            if (!EVENT_NAME.test(value))
+            }
+            if (!EVENT_NAME.test(value)) {
                 fail(
                     constant.at,
                     `event \`${value}\` is not \`domain:action\` in lowerCamelCase`,
                     'The same shape as an IPC channel (`file:opened`), so the domain groups the events and the action says what happened.',
                 );
+            }
         }
     }
     const listened = new Set<string>();
@@ -392,31 +407,34 @@ export function inspectTauriCommands(input: TauriCommandsInput): TauriCommandsIn
         }
         if (name.startsWith('tauri://')) continue;
         listened.add(name);
-        if (!emitted.has(name))
+        if (!emitted.has(name)) {
             fail(
                 at,
                 `listens for \`${name}\`, which Rust never emits`,
                 'The handler never runs. Match Rust’s constant exactly, or delete the subscription.',
             );
+        }
     }
     for (const [name, at] of emitted) {
-        if (!listened.has(name))
+        if (!listened.has(name)) {
             fail(
                 at,
                 `emits \`${name}\`, which the bridge never listens for`,
                 'Nothing in the webview receives it. Add a subscribe function to the bridge’s events module, or stop emitting it.',
             );
+        }
     }
 
     // ── 8. Error codes reach ERROR_CODES ─────────────────────────────────────
     const usesResult = commands.some((c) => resultError(c.item.head) !== null);
     if (!exists(errorFile)) {
-        if (usesResult)
+        if (usesResult) {
             fail(
                 errorFile,
                 'does not exist',
                 'Commands that fail return the app’s `Error`, which lives here. Point `errorFile` at it.',
             );
+        }
     } else {
         const source = read(errorFile);
         const lexed = lexRust(source);

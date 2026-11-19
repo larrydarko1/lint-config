@@ -67,8 +67,9 @@ function dialogCalled(context: Context, callee: TSESTree.Node): Dialog | null {
     if (callee.type === AST_NODE_TYPES.Identifier) {
         return isDialog(callee.name) && isGlobal(context, callee, callee.name) ? callee.name : null;
     }
-    if (callee.type !== AST_NODE_TYPES.MemberExpression || callee.object.type !== AST_NODE_TYPES.Identifier)
+    if (callee.type !== AST_NODE_TYPES.MemberExpression || callee.object.type !== AST_NODE_TYPES.Identifier) {
         return null;
+    }
     if (!OWNERS.has(callee.object.name) || !isGlobal(context, callee.object, callee.object.name)) return null;
     const name = propertyName(callee);
     return isDialog(name) ? name : null;

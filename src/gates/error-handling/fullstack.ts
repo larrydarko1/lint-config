@@ -396,8 +396,9 @@ export function inspectFullstackErrorHandling(
                     read(rel)
                         .slice(Math.max(0, m.index - 400), m.index)
                         .includes('eslint-disable')
-                )
+                ) {
                     continue;
+                }
                 fail(
                     `${rel}:${lineOf(src, m.index)}`,
                     `emits \`${m[1]}\` directly`,
@@ -559,8 +560,9 @@ function callArguments(src: string, open: number): string[] | null {
     const args: string[] = [];
     for (let i = open; i < src.length; i += 1) {
         const ch = src[i];
-        if (ch === '(' || ch === '[' || ch === '{') depth += 1;
-        else if (ch === ')' || ch === ']' || ch === '}') {
+        if (ch === '(' || ch === '[' || ch === '{') {
+            depth += 1;
+        } else if (ch === ')' || ch === ']' || ch === '}') {
             depth -= 1;
             if (depth === 0) {
                 args.push(src.slice(start, i));

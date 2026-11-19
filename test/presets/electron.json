@@ -434,6 +434,9 @@
     "getter-return": [
         { "files": ["eslint.config.js"], "entry": ["error",{"allowImplicit":false}] }
     ],
+    "larry/curly-inline": [
+        { "files": "*", "entry": "error" }
+    ],
     "larry/no-caught-message-leak": [
         { "files": ["src/main/index.ts","src/preload/index.ts"], "entry": ["error",{}] }
     ],

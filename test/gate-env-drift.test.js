@@ -86,7 +86,9 @@ const good = (overrides = {}) => {
         'api/.env.example': EXAMPLE,
         ...overrides,
     };
-    for (const [key, value] of Object.entries(files)) if (value === null) delete files[key];
+    for (const [key, value] of Object.entries(files)) {
+        if (value === null) delete files[key];
+    }
     return files;
 };
 

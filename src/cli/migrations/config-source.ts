@@ -30,8 +30,9 @@ export function parseConfig(file: string, text: string): ConfigSource {
     if (config !== undefined && ts.isCallExpression(config) && config.arguments[0] !== undefined) {
         config = unwrap(config.arguments[0]);
     }
-    if (config === undefined || !ts.isObjectLiteralExpression(config))
+    if (config === undefined || !ts.isObjectLiteralExpression(config)) {
         return { source, gates: null, family: undefined };
+    }
     const gates = valueOf(config, 'gates');
     const family = valueOf(config, 'family');
     return {
@@ -59,8 +60,9 @@ export function importsOf(source: ts.SourceFile): Map<string, Binding> {
     const bindings = new Map<string, Binding>();
     for (const statement of source.statements) {
         if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
-        for (const binding of bindingsOf(statement, statement.moduleSpecifier.text))
+        for (const binding of bindingsOf(statement, statement.moduleSpecifier.text)) {
             bindings.set(binding.local, binding);
+        }
     }
     return bindings;
 }

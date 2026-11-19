@@ -444,6 +444,9 @@
     "getter-return": [
         { "files": ["db/migrations/001-init.js","eslint.config.js"], "entry": ["error",{"allowImplicit":false}] }
     ],
+    "larry/curly-inline": [
+        { "files": "*", "entry": "error" }
+    ],
     "larry/no-caught-message-leak": [
         { "files": ["api/src/routes/users.ts","api/src/lib/config.ts","worker/src/index.ts"], "entry": ["error",{}] }
     ],

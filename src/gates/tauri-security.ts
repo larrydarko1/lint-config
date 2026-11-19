@@ -142,13 +142,15 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
             return;
         }
         for (const extra of ['script-src-elem', 'script-src-attr']) {
-            for (const source of policy.get(extra) ?? [])
-                if (!SAFE_SCRIPT_SOURCE.test(source))
+            for (const source of policy.get(extra) ?? []) {
+                if (!SAFE_SCRIPT_SOURCE.test(source)) {
                     fail(
                         rel,
                         `\`${key}\` allows \`${source}\` in \`${extra}\``,
                         'The same rule as `script-src`: scripts come from the bundle and nowhere else.',
                     );
+                }
+            }
         }
         for (const source of sources) {
             if (SAFE_SCRIPT_SOURCE.test(source)) continue;
@@ -166,12 +168,13 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
     const checkFlags = (rel: string, data: TauriConfig): void => {
         const a = data.app ?? {};
         const sec = a.security ?? {};
-        if (rel !== configRel && sec.csp === null)
+        if (rel !== configRel && sec.csp === null) {
             fail(
                 rel,
                 'sets `app.security.csp` to `null`',
                 'A platform file merges over the base config, so this removes the policy on that platform alone — where nobody is looking.',
             );
+        }
         checkScripts(rel, 'csp', sec.csp);
         checkScripts(rel, 'devCsp', sec.devCsp);
         if (
@@ -203,18 +206,20 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
             const scope = isObject(asset.scope)
                 ? strings((asset.scope as { allow?: unknown }).allow)
                 : strings(asset.scope);
-            if (scope.length === 0)
+            if (scope.length === 0) {
                 fail(
                     rel,
                     '`assetProtocol` is enabled with no `scope`',
                     'The asset protocol serves files by URL to any script in the webview. Name the directories it may serve, such as `$APPDATA/thumbnails/**`.',
                 );
-            for (const entry of scope.filter(isWideScope))
+            }
+            for (const entry of scope.filter(isWideScope)) {
                 fail(
                     rel,
                     `\`assetProtocol.scope\` includes \`${entry}\``,
                     'That serves the whole disk, or the whole home directory, to any script in the webview. Name the directories the app displays files from.',
                 );
+            }
         }
     };
     checkFlags(configRel, config);
@@ -243,12 +248,13 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
     for (const name of onDisk) {
         const rel = `${capabilitiesDir}/${name}`;
         if (!name.endsWith('.json')) {
-            if (/\.(?:json5|toml)$/.test(name))
+            if (/\.(?:json5|toml)$/.test(name)) {
                 fail(
                     rel,
                     'is not JSON',
                     'This gate reads capabilities as JSON. One it cannot read is one whose grants nobody checks — write it as `.json`.',
                 );
+            }
             continue;
         }
         const data = readJson(rel);
@@ -445,13 +451,14 @@ function directives(csp: unknown): Map<string, string[]> {
             if (name !== undefined && name !== '') out.set(name.toLowerCase(), sources);
         }
     } else if (isObject(csp)) {
-        for (const [name, value] of Object.entries(csp))
+        for (const [name, value] of Object.entries(csp)) {
             out.set(
                 name.toLowerCase(),
                 strings(value)
                     .flatMap((v) => v.split(/\s+/))
                     .filter(Boolean),
             );
+        }
     }
     return out;
 }

@@ -416,8 +416,9 @@ function runJscpd(root: string, paths: string[], config: string): JscpdReport {
 
     const parsed: unknown = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
     fs.rmSync(outDir, { recursive: true, force: true });
-    if (!isJscpdReport(parsed))
+    if (!isJscpdReport(parsed)) {
         throw new Error("jscpd's report is not the shape this gate reads. Did a jscpd upgrade change it?");
+    }
     return parsed;
 }
 

@@ -339,7 +339,9 @@ export function checkEnvDrift({ root = REPO_ROOT, ...rest }: EnvDriftOptions): v
     });
 
     // After the report; warnings never set an exit code.
-    if (report.count === 0) for (const warning of warnings) console.warn(`\n⚠ ${warning}`);
+    if (report.count === 0) {
+        for (const warning of warnings) console.warn(`\n⚠ ${warning}`);
+    }
 }
 
 /** UPPER_SNAKE object keys: a Zod schema's env fields, declared as `KEY:` at the start of a line. */

@@ -664,8 +664,9 @@ function tryCatchPairs(source: string): { attempt: string; recovery: string }[] 
         const open = match.index + match[0].length - 1;
         let depth = 0;
         for (let j = open; j < source.length; j++) {
-            if (source[j] === '{') depth++;
-            else if (source[j] === '}' && --depth === 0) {
+            if (source[j] === '{') {
+                depth++;
+            } else if (source[j] === '}' && --depth === 0) {
                 const rest = source.slice(j + 1);
                 // Only a catch that immediately follows belongs to this try.
                 const recovery = /^\s*catch\b/.test(rest) ? braceBlock(rest, /catch\s*(?:\([^)]*\))?\s*\{/) : '';

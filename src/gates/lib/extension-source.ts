@@ -63,8 +63,9 @@ export function exportedNames(rel: string, text: string): string[] {
             ? (ts.getModifiers(statement) ?? []).some((mod) => mod.kind === ts.SyntaxKind.ExportKeyword)
             : false;
         if (!exported) return [];
-        if (ts.isVariableStatement(statement))
+        if (ts.isVariableStatement(statement)) {
             return statement.declarationList.declarations.map((d) => d.name.getText());
+        }
         const named =
             ts.isFunctionDeclaration(statement) ||
             ts.isClassDeclaration(statement) ||
@@ -113,7 +114,9 @@ function readFile(file: ts.SourceFile, found: ExtensionSource): void {
                 call,
             }));
         if (ids.length === 0 || ids.some(({ id }) => id === undefined)) found.unread.push({ name: helper, at: site });
-        for (const { id, call } of ids) if (id !== undefined) found[kind].push({ name: id, at: at(call) });
+        for (const { id, call } of ids) {
+            if (id !== undefined) found[kind].push({ name: id, at: at(call) });
+        }
     }
 }
 

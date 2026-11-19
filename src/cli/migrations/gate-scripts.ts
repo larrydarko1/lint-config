@@ -336,8 +336,11 @@ function rewireWorkflow(workflow: string, removed: string[], runLarry: string, r
             continue;
         }
         let [from, to] = [start, end];
-        if (blank(from - 1)) while (blank(from - 1)) from--;
-        else while (to < lines.length && blank(to)) to++;
+        if (blank(from - 1)) {
+            while (blank(from - 1)) from--;
+        } else {
+            while (to < lines.length && blank(to)) to++;
+        }
         lines.splice(from, to - from);
     }
     return lines.join('\n');

@@ -443,6 +443,9 @@
     "getter-return": [
         { "files": ["src/i18n/locales/en.json","eslint.config.js"], "entry": ["error",{"allowImplicit":false}] }
     ],
+    "larry/curly-inline": [
+        { "files": "*", "entry": "error" }
+    ],
     "larry/no-inline-svg": [
         { "files": ["src/App.vue"], "entry": "error" }
     ],

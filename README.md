@@ -221,7 +221,10 @@ export default larry({
 - which globals apply where
 - the strict type-aware rules
 - naming, return types and test relaxations
-- Prettier compatibility, applied last
+- Prettier compatibility, then one brace style (`larry/curly-inline`, which `--fix` applies): a body
+  that is one plain statement goes beside its `if` or loop without braces when the line fits in
+  Prettier's width, and every other body gets braces. The branches of one `if` match. It comes
+  last, so `overrides` can't switch it off
 
 `preset` chooses a family's folder layout, and `layout` (or `workspaces`, in the full-stack
 family) moves any of its roles (see below).
@@ -610,8 +613,10 @@ some projects follow and others do not.
 | `bodyMaxLineLength` | `400`    | longest allowed body line                                            |
 | `rules`             | `{}`     | extra commitlint rules, merged last                                  |
 
-**lint-staged.** It runs ESLint and Prettier on staged `.ts` and `.vue` files, and Prettier on
-`.scss`, `.json` and `.md` files. Pass `stylelint: true` to also run Stylelint on `.scss` and `.vue`
+**lint-staged.** It runs Prettier, `eslint --fix`, then Prettier again on staged `.ts` and `.vue`
+files, and Prettier on `.scss`, `.json` and `.md` files. ESLint runs on Prettier's layout because
+the brace rule measures the line Prettier laid out, so with ESLint first a commit could pass the
+hook and fail CI. Pass `stylelint: true` to also run Stylelint on `.scss` and `.vue`
 files, and `tasks` to add more glob → command entries.
 
 ## CI gates

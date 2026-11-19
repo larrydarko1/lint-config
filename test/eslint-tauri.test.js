@@ -96,8 +96,9 @@ test('the Tauri preset never walks src-tauri/, and lints the tool configs as Nod
         'src-tauri/target/debug/build/x.js',
         'src-tauri/gen/schemas/desktop-schema.json',
         'dist/assets/index.js',
-    ])
+    ]) {
         assert.equal(await eslint.isPathIgnored(`${ROOT}/${file}`), true, file);
+    }
     const vite = await eslint.calculateConfigForFile(`${ROOT}/vite.config.ts`);
     assert.ok('process' in vite.languageOptions.globals);
     const app = await eslint.calculateConfigForFile(`${ROOT}/src/main.ts`);
@@ -127,10 +128,12 @@ const bans = (patterns, specifier) =>
 
 test('the webview bans Node and Electron, not a local module of the same name', () => {
     const { patterns } = tauri.webviewBannedImports;
-    for (const specifier of ['node:fs', 'fs/promises', 'path', 'child_process', 'electron', 'electron-log/renderer'])
+    for (const specifier of ['node:fs', 'fs/promises', 'path', 'child_process', 'electron', 'electron-log/renderer']) {
         assert.ok(bans(patterns, specifier), `${specifier} should be banned`);
-    for (const specifier of ['@/utils/path', './fs', '@/bridge/files', 'pathe'])
+    }
+    for (const specifier of ['@/utils/path', './fs', '@/bridge/files', 'pathe']) {
         assert.ok(!bans(patterns, specifier), `${specifier} should be allowed`);
+    }
 });
 
 test('a bridge wrapper logs a failure or returns it, never logs and rethrows', () => {

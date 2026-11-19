@@ -322,8 +322,9 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
 
     // ── 5. helmet's three fixed headers ──────────────────────────────────────
     const fixedMissing = [];
-    if (!/frameguard:\s*\{\s*action:\s*['"]deny['"]/.test(entrySource))
+    if (!/frameguard:\s*\{\s*action:\s*['"]deny['"]/.test(entrySource)) {
         fixedMissing.push("frameguard: { action: 'deny' }");
+    }
     if (!/noSniff:\s*true/.test(entrySource)) fixedMissing.push('noSniff: true');
     if (!/referrerPolicy:\s*\{\s*policy:\s*['"](?:strict-origin-when-cross-origin|no-referrer)['"]/.test(entrySource)) {
         fixedMissing.push('referrerPolicy: strict-origin-when-cross-origin | no-referrer');
@@ -503,8 +504,9 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     ].filter((shape) => !shape.re.test(sanitizerSource));
 
     if (keyShapes.length > 0) {
-        for (const shape of keyShapes)
+        for (const shape of keyShapes) {
             fail(auth.sanitizer.file, `no longer strips keys by ${shape.what}`, `${shape.why}.`);
+        }
     }
 
     // Stripping alone answers the probe with a 2xx: refusing is what tells it no, and logs it

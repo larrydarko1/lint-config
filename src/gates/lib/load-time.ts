@@ -127,7 +127,9 @@ export function readThroughCalls(
         seen.add(r);
         const body = runs.get(r);
         if (body === undefined) continue;
-        for (const name of body.reads) if (!it.decls.includes(name)) it.refs.add(name);
+        for (const name of body.reads) {
+            if (!it.decls.includes(name)) it.refs.add(name);
+        }
         queue.push(...body.calls);
     }
 }

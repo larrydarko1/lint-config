@@ -436,7 +436,9 @@ export async function readFile(path: string): Promise<CommandResult<string>> {
 
 const tauri = (overrides = {}) => {
     const files = { ...TAURI, ...overrides };
-    for (const [rel, body] of Object.entries(files)) if (body === null) delete files[rel];
+    for (const [rel, body] of Object.entries(files)) {
+        if (body === null) delete files[rel];
+    }
     return capture(() => checkTauriErrorHandling({ root: project(files) }));
 };
 

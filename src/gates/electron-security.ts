@@ -533,8 +533,9 @@ function enclosingFunctionStart(code: string, index: number): number {
     let depth = 0;
     for (let j = index - 1; j >= 0; j--) {
         const ch = code[j];
-        if (ch === '}') depth++;
-        else if (ch === '{') {
+        if (ch === '}') {
+            depth++;
+        } else if (ch === '{') {
             if (depth > 0) {
                 depth--;
                 continue;
@@ -626,12 +627,16 @@ function statementEnd(text: string): number {
     let depth = 0;
     for (let j = 0; j < text.length; j++) {
         const ch = text[j];
-        if (ch === "'" || ch === '"' || ch === '`') j = skipString(text, j);
-        else if (ch === '(' || ch === '{' || ch === '[') depth++;
-        else if (ch === ')' || ch === '}' || ch === ']') {
+        if (ch === "'" || ch === '"' || ch === '`') {
+            j = skipString(text, j);
+        } else if (ch === '(' || ch === '{' || ch === '[') {
+            depth++;
+        } else if (ch === ')' || ch === '}' || ch === ']') {
             if (depth === 0) return j;
             depth--;
-        } else if (ch === ';' && depth === 0) return j;
+        } else if (ch === ';' && depth === 0) {
+            return j;
+        }
     }
     return text.length;
 }

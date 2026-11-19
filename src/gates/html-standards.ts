@@ -350,5 +350,7 @@ export function checkHtmlStandards(options: HtmlStandardsOptions): void {
     });
 
     // Only after a pass, so it does not bury the failures.
-    if (report.count === 0) for (const warning of warnings) console.warn(`\n⚠ ${warning}`);
+    if (report.count === 0) {
+        for (const warning of warnings) console.warn(`\n⚠ ${warning}`);
+    }
 }

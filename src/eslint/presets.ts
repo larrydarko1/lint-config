@@ -335,8 +335,9 @@ export const resolveLayout = <TPreset extends SinglePackagePreset>(
     preset: TPreset,
     given: LayoutOverrides = {},
 ): FamilyLayouts[TPreset] => {
-    if (!Object.hasOwn(LAYOUTS, preset))
+    if (!Object.hasOwn(LAYOUTS, preset)) {
         throw new Error(`No layout for preset '${preset}'. Expected one of: ${Object.keys(LAYOUTS).join(', ')}.`);
+    }
     const resolve = LAYOUTS[preset];
     const roles = Object.keys(resolve({}));
     const unknown = Object.keys(given).filter((role) => !roles.includes(role));
@@ -360,8 +361,9 @@ export const resolvePaths = (
     overrides: Partial<PresetPaths> = {},
     roles: RoleOverrides = {},
 ): PresetPaths => {
-    if (!isFamily(preset))
+    if (!isFamily(preset)) {
         throw new Error(`Unknown preset '${String(preset)}'. Expected one of: ${FAMILIES.join(', ')}.`);
+    }
     if (preset === 'base') return basePaths(overrides, roles);
     const base = preset === 'fullstack' ? fullstackPaths(fullstackLayout(roles)) : singlePackagePaths(preset, roles);
     return { ...base, ...overrides };
@@ -379,8 +381,9 @@ const pathsFor = <TPreset extends SinglePackagePreset>(preset: TPreset, layout: 
     PATHS[preset](layout);
 
 const basePaths = (given: Partial<PresetPaths>, roles: RoleOverrides): PresetPaths => {
-    if (Object.keys(roles).length > 0)
+    if (Object.keys(roles).length > 0) {
         throw new Error('The base preset has no roles to move: name its globs in larry({ paths }).');
+    }
     const missing = BASE_REQUIRED.filter((area) => given[area] === undefined);
     if (missing.length > 0) {
         throw new Error(

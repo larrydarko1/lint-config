@@ -101,11 +101,14 @@ export function propertyValue(source: string, key: string): string | null {
     let depth = 0;
     for (let j = start; j < source.length; j++) {
         const ch = source[j];
-        if (ch === '(' || ch === '{' || ch === '[') depth++;
-        else if (ch === ')' || ch === '}' || ch === ']') {
+        if (ch === '(' || ch === '{' || ch === '[') {
+            depth++;
+        } else if (ch === ')' || ch === '}' || ch === ']') {
             if (depth === 0) return source.slice(start, j);
             depth--;
-        } else if (ch === ',' && depth === 0) return source.slice(start, j);
+        } else if (ch === ',' && depth === 0) {
+            return source.slice(start, j);
+        }
     }
     return source.slice(start);
 }
@@ -134,9 +137,11 @@ export function splitTopLevel(text: string, separator: string): string[] {
             j++;
             continue;
         }
-        if (ch === '(' || ch === '{' || ch === '[' || ch === '<') depth++;
-        else if (ch === ')' || ch === '}' || ch === ']' || ch === '>') depth = Math.max(0, depth - 1);
-        else if (ch === separator && depth === 0) {
+        if (ch === '(' || ch === '{' || ch === '[' || ch === '<') {
+            depth++;
+        } else if (ch === ')' || ch === '}' || ch === ']' || ch === '>') {
+            depth = Math.max(0, depth - 1);
+        } else if (ch === separator && depth === 0) {
             parts.push(text.slice(from, j));
             from = j + 1;
         }
@@ -177,15 +182,20 @@ export function functionParts(text: string): FunctionParts | null {
         if (ch === '=' && text[j + 1] === '>') {
             if (angle === 0) break;
             j++;
-        } else if (ch === '<') angle++;
-        else if (ch === '>') angle = Math.max(0, angle - 1);
-        else if (ch === '(' || ch === '[') j = matching(text, j);
-        else if (ch === '{') {
+        } else if (ch === '<') {
+            angle++;
+        } else if (ch === '>') {
+            angle = Math.max(0, angle - 1);
+        } else if (ch === '(' || ch === '[') {
+            j = matching(text, j);
+        } else if (ch === '{') {
             const before = text.slice(cursor, j).trimEnd();
             const inType = angle > 0 || /[:|&,<]$/.test(before);
             if (!inType) break;
             j = matching(text, j);
-        } else if (ch === ';') return null;
+        } else if (ch === ';') {
+            return null;
+        }
         if (j === -1) return null;
     }
     if (j >= text.length) return null;
@@ -328,12 +338,16 @@ function expressionAt(text: string, start: number): string {
     let depth = 0;
     for (let j = start; j < text.length; j++) {
         const ch = text[j];
-        if (ch === "'" || ch === '"' || ch === '`') j = skipString(text, j);
-        else if (ch === '(' || ch === '{' || ch === '[') depth++;
-        else if (ch === ')' || ch === '}' || ch === ']') {
+        if (ch === "'" || ch === '"' || ch === '`') {
+            j = skipString(text, j);
+        } else if (ch === '(' || ch === '{' || ch === '[') {
+            depth++;
+        } else if (ch === ')' || ch === '}' || ch === ']') {
             if (depth === 0) return text.slice(start, j).trim();
             depth--;
-        } else if ((ch === ',' || ch === ';') && depth === 0) return text.slice(start, j).trim();
+        } else if ((ch === ',' || ch === ';') && depth === 0) {
+            return text.slice(start, j).trim();
+        }
     }
     return text.slice(start).trim();
 }

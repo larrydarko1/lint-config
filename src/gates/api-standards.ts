@@ -714,14 +714,10 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
     }
 
     // ── 11. One API contract ────────────────────────────────────────────────
-    if (contract !== undefined) {
-        inspectContract(contract, { routeFiles, read, code, exists, fail, apiClient, root });
-    }
+    if (contract !== undefined) inspectContract(contract, { routeFiles, read, code, exists, fail, apiClient, root });
 
     // ── 12. One job contract ────────────────────────────────────────────────
-    if (jobs !== undefined) {
-        inspectJobs(jobs, { routeFiles, read, code, exists, fail, apiClient, root });
-    }
+    if (jobs !== undefined) inspectJobs(jobs, { routeFiles, read, code, exists, fail, apiClient, root });
 
     const routes = routeFiles.reduce((total, rel) => total + [...code(rel).matchAll(ROUTE_DECLARATION)].length, 0);
 
@@ -1250,8 +1246,11 @@ function tomlCode(source: string): string {
                 if (quote === null) {
                     if (ch === '#') return line.slice(0, i);
                     if (ch === '"' || ch === "'") quote = ch;
-                } else if (ch === '\\' && quote === '"') i++;
-                else if (ch === quote) quote = null;
+                } else if (ch === '\\' && quote === '"') {
+                    i++;
+                } else if (ch === quote) {
+                    quote = null;
+                }
             }
             return line;
         })

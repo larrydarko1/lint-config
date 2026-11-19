@@ -188,8 +188,9 @@ export function closingBracket(code: string, open: number): number {
     let depth = 0;
     for (let j = open; j < code.length; j++) {
         const ch = code[j];
-        if (ch === '(' || ch === '[' || ch === '{') depth++;
-        else if (ch === ')' || ch === ']' || ch === '}') {
+        if (ch === '(' || ch === '[' || ch === '{') {
+            depth++;
+        } else if (ch === ')' || ch === ']' || ch === '}') {
             depth--;
             if (depth === 0) return j;
             if (depth < 0) return -1;
@@ -205,10 +206,16 @@ export function splitRustList(text: string): string[] {
     let from = 0;
     for (let j = 0; j < text.length; j++) {
         const ch = text[j];
-        if (ch === '(' || ch === '[' || ch === '{' || (ch === '<' && text[j - 1] !== '<')) depth++;
-        else if (ch === ')' || ch === ']' || ch === '}' || (ch === '>' && text[j - 1] !== '-' && text[j - 1] !== '='))
+        if (ch === '(' || ch === '[' || ch === '{' || (ch === '<' && text[j - 1] !== '<')) {
+            depth++;
+        } else if (
+            ch === ')' ||
+            ch === ']' ||
+            ch === '}' ||
+            (ch === '>' && text[j - 1] !== '-' && text[j - 1] !== '=')
+        ) {
             depth--;
-        else if (ch === ',' && depth === 0) {
+        } else if (ch === ',' && depth === 0) {
             parts.push(text.slice(from, j).trim());
             from = j + 1;
         }
@@ -284,16 +291,20 @@ export function rustItems(source: string, lexed: RustLex = lexRust(source)): Rus
 
         let name: string;
         let trait: string | undefined;
-        if (kind === 'impl') ({ name, trait } = implTarget(head.slice((m?.[1] ?? '').length + (m?.[2] ?? '').length)));
-        else if (kind === 'use')
+        if (kind === 'impl') {
+            ({ name, trait } = implTarget(head.slice((m?.[1] ?? '').length + (m?.[2] ?? '').length)));
+        } else if (kind === 'use') {
             name = head
                 .replace(/^(?:pub\S*\s+)?use\s+/, '')
                 .replace(/;$/, '')
                 .replace(/\s+/g, ' ');
-        else if (kind === 'macro') name = macro?.[1] ?? '';
-        else if (kind === 'extern-block' || kind === 'unknown')
+        } else if (kind === 'macro') {
+            name = macro?.[1] ?? '';
+        } else if (kind === 'extern-block' || kind === 'unknown') {
             name = (code.slice(keywordStart).split('\n')[0] ?? '').trim().slice(0, 40);
-        else name = declaredName(afterKeyword);
+        } else {
+            name = declaredName(afterKeyword);
+        }
 
         items.push({
             kind,
@@ -337,8 +348,9 @@ export function rustDocBlocks(source: string, lexed: RustLex = lexRust(source)):
             continue;
         }
         const line = trimmed.slice(3).replace(/^ /, '');
-        if (current?.kind === kind) current.lines.push(line);
-        else {
+        if (current?.kind === kind) {
+            current.lines.push(line);
+        } else {
             current = { kind, line: index + 1, lines: [line] };
             blocks.push(current);
         }
@@ -432,8 +444,9 @@ function skipGenerics(text: string): string {
     if (!text.startsWith('<')) return text;
     let depth = 0;
     for (let j = 0; j < text.length; j++) {
-        if (text[j] === '<') depth++;
-        else if (text[j] === '>' && text[j - 1] !== '-' && text[j - 1] !== '=' && --depth === 0) {
+        if (text[j] === '<') {
+            depth++;
+        } else if (text[j] === '>' && text[j - 1] !== '-' && text[j - 1] !== '=' && --depth === 0) {
             return text.slice(j + 1);
         }
     }
@@ -447,9 +460,11 @@ function implTarget(head: string): { name: string; trait?: string } {
     let depth = 0;
     let forAt = -1;
     for (let j = 0; j < signature.length; j++) {
-        if (signature[j] === '<') depth++;
-        else if (signature[j] === '>' && signature[j - 1] !== '-') depth--;
-        else if (depth === 0 && /\sfor\s/.test(signature.slice(j - 1, j + 4)) && signature.startsWith('for', j)) {
+        if (signature[j] === '<') {
+            depth++;
+        } else if (signature[j] === '>' && signature[j - 1] !== '-') {
+            depth--;
+        } else if (depth === 0 && /\sfor\s/.test(signature.slice(j - 1, j + 4)) && signature.startsWith('for', j)) {
             forAt = j;
             break;
         }

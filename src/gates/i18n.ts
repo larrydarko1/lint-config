@@ -102,9 +102,7 @@ export function inspectI18n(options: I18nGateOptions): I18nGateResult {
         .filter((f) => f.endsWith('.json'))
         .map((f) => f.replace(/\.json$/, ''));
 
-    if (!locales.includes(reference)) {
-        return fatal(`Reference locale "${reference}.json" not found in ${localeDir}`);
-    }
+    if (!locales.includes(reference)) return fatal(`Reference locale "${reference}.json" not found in ${localeDir}`);
 
     const flat: Record<string, Record<string, string>> = {};
     for (const loc of locales) {
@@ -130,8 +128,9 @@ export function inspectI18n(options: I18nGateOptions): I18nGateResult {
     // ── 1–3. Cross-locale value-shape parity against the reference locale ────────
     for (const loc of locales.filter((l) => l !== reference)) {
         const cur = flat[loc] ?? {};
-        for (const [key, refVal] of Object.entries(ref))
+        for (const [key, refVal] of Object.entries(ref)) {
             errors.push(...shapeMismatches(loc, key, refVal, cur, reference));
+        }
     }
 
     // ── 4. createI18n options ───────────────────────────────────────────────────
@@ -188,9 +187,7 @@ function flatten(root: unknown): Record<string, string> {
                 visit(v, `${prefix}[${i}]`);
             });
         } else if (node !== null && typeof node === 'object') {
-            for (const [k, v] of Object.entries(node)) {
-                visit(v, prefix === '' ? k : `${prefix}.${k}`);
-            }
+            for (const [k, v] of Object.entries(node)) visit(v, prefix === '' ? k : `${prefix}.${k}`);
         } else if (typeof node === 'string') {
             out[prefix] = node;
         }
@@ -242,14 +239,10 @@ function shapeMismatches(
     const errors: string[] = [];
     const rp = pluralSegments(refVal);
     const cp = pluralSegments(curVal);
-    if (rp !== cp) {
-        errors.push(`[${loc}] ${key}: ${cp} plural segment(s) ≠ ${reference} ${rp} — "${curVal}"`);
-    }
+    if (rp !== cp) errors.push(`[${loc}] ${key}: ${cp} plural segment(s) ≠ ${reference} ${rp} — "${curVal}"`);
 
     const rph = placeholders(refVal).join(',');
     const cph = placeholders(curVal).join(',');
-    if (rph !== cph) {
-        errors.push(`[${loc}] ${key}: placeholders [${cph}] ≠ ${reference} [${rph}]`);
-    }
+    if (rph !== cph) errors.push(`[${loc}] ${key}: placeholders [${cph}] ≠ ${reference} [${rph}]`);
     return errors;
 }

@@ -65,8 +65,9 @@ export async function init(root: string, options: InitOptions): Promise<InitResu
         ...(test === undefined || test.includes(NPM_PLACEHOLDER_TEST) ? [] : ['test']),
         'check',
     ];
-    if (family === 'base' && runtime === null)
+    if (family === 'base' && runtime === null) {
         throw new Error('the base family needs a runtime: where its source runs.');
+    }
     const { scan, sources } = sourceFolders(root, family, manifest);
     const engines = isRecord(manifest['engines']) ? manifest['engines'] : {};
     // CI installs the floor engines.node declares, which `pipeline` holds it to.
@@ -113,9 +114,7 @@ export async function init(root: string, options: InitOptions): Promise<InitResu
         updated = withField(updated, 'engines', { ...engines, node: `>=${nodeMajor}` });
         result.added.push('engines.node');
     }
-    if (updated !== manifest) {
-        fs.writeFileSync(manifestPath, await prettify('package.json', JSON.stringify(updated)));
-    }
+    if (updated !== manifest) fs.writeFileSync(manifestPath, await prettify('package.json', JSON.stringify(updated)));
 
     result.next.push(...nextSteps(root, family, manifest, result));
     return result;

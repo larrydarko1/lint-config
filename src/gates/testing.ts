@@ -472,9 +472,7 @@ export function inspectTesting(input: TestingInput): TestingInspection {
     }
 
     // ── 10. A server error fails the E2E run ────────────────────────────────
-    if (serverErrors !== undefined) {
-        inspectServerErrors(serverErrors, e2e, specs, { read, exists, fail });
-    }
+    if (serverErrors !== undefined) inspectServerErrors(serverErrors, e2e, specs, { read, exists, fail });
 
     return {
         problems,

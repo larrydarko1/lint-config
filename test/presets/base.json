@@ -350,6 +350,9 @@
     "getter-return": [
         { "files": ["eslint.config.js"], "entry": ["error",{"allowImplicit":false}] }
     ],
+    "larry/curly-inline": [
+        { "files": "*", "entry": "error" }
+    ],
     "max-depth": [
         { "files": ["app/index.ts","app/server/routes.ts"], "entry": ["error",3] },
         { "files": ["spec/index.spec.ts"], "entry": ["error",4] }
