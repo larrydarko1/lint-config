@@ -14,7 +14,8 @@ export function lintStaged(options: LintStagedOptions = {}): Record<string, stri
     const { stylelint = false, tasks = {} } = options;
 
     return {
-        '*.{ts,vue}': ['eslint --fix', 'prettier --write'],
+        // Prettier first, so ESLint judges the lines as they will be committed; again after, to lay out what ESLint fixed.
+        '*.{ts,vue}': ['prettier --write', 'eslint --fix', 'prettier --write'],
         ...(stylelint ? { '*.{scss,vue}': ['stylelint --fix'] } : {}),
         '*.{scss,json,md}': ['prettier --write'],
         ...tasks,

@@ -610,8 +610,10 @@ some projects follow and others do not.
 | `bodyMaxLineLength` | `400`    | longest allowed body line                                            |
 | `rules`             | `{}`     | extra commitlint rules, merged last                                  |
 
-**lint-staged.** It runs ESLint and Prettier on staged `.ts` and `.vue` files, and Prettier on
-`.scss`, `.json` and `.md` files. Pass `stylelint: true` to also run Stylelint on `.scss` and `.vue`
+**lint-staged.** It runs Prettier, `eslint --fix`, then Prettier again on staged `.ts` and `.vue`
+files, and Prettier on `.scss`, `.json` and `.md` files. ESLint runs on Prettier's layout because
+some rules depend on it: a body Prettier moves to its own line needs braces, so with ESLint first a
+commit could pass the hook and fail CI. Pass `stylelint: true` to also run Stylelint on `.scss` and `.vue`
 files, and `tasks` to add more glob → command entries.
 
 ## CI gates
