@@ -3,3 +3,7 @@ node_modules
 .eslint-snapshots/
 dist/
 todo.md
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+.env
