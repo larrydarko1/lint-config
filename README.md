@@ -116,6 +116,10 @@ npx larry upgrade --dry-run   # lists what it would change
 npx larry upgrade             # changes it; read the diff, then run `npm run ci:check`
 ```
 
+Then follow the release's **Upgrading** steps in [CHANGELOG.md](CHANGELOG.md), for every release
+you skipped: they cover what `larry upgrade` can't do for you, such as fixing code a new rule
+refuses.
+
 `larry upgrade` rewrites what an older release set up into what this one reads. Each step looks
 for the old shape itself rather than going by version numbers, so it works however many releases
 a project skipped, and running it again changes nothing. Nothing is written unless every step
