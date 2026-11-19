@@ -351,6 +351,9 @@
     "constructor-super": [
         { "files": [".vscode-test.mjs","eslint.config.js"], "entry": "error" }
     ],
+    "curly": [
+        { "files": "*", "entry": ["error","multi-line"] }
+    ],
     "eqeqeq": [
         { "files": "*", "entry": ["error","always",{"null":"ignore"}] }
     ],

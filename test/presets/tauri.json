@@ -425,6 +425,9 @@
     "constructor-super": [
         { "files": ["eslint.config.js"], "entry": "error" }
     ],
+    "curly": [
+        { "files": "*", "entry": ["error","multi-line"] }
+    ],
     "eqeqeq": [
         { "files": "*", "entry": ["error","always",{"null":"ignore"}] }
     ],

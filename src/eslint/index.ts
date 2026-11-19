@@ -393,7 +393,10 @@ export function larry(options: LarryOptions): Linter.Config[] {
             rules: { '@typescript-eslint/naming-convention': 'off' },
         },
 
-        prettier, // Prettier last — it switches off the formatting rules that conflict.
+        prettier, // It switches off the formatting rules that conflict, so only `curly` may follow it.
+
+        // Prettier turns `curly` off. A body on its own line needs braces; one beside its condition may go without.
+        { rules: { curly: ['error', 'multi-line'] } },
     ];
 }
 
