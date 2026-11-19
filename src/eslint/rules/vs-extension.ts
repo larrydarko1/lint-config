@@ -39,14 +39,10 @@ const noSyncIo: TSESLint.RuleModule<'blocking'> = {
                 for (const specifier of node.specifiers) {
                     if (specifier.type === AST_NODE_TYPES.ImportSpecifier) {
                         const name = nameOf(specifier.imported);
-                        if (name.endsWith('Sync')) {
-                            report(specifier, name);
-                        }
+                        if (name.endsWith('Sync')) report(specifier, name);
                         continue;
                     }
-                    for (const [site, name] of syncReads(context, specifier)) {
-                        report(site, name);
-                    }
+                    for (const [site, name] of syncReads(context, specifier)) report(site, name);
                 }
             },
         };
@@ -122,9 +118,7 @@ function syncReads(
 /** Whether the call's object chain starts at a binding imported from `vscode`, not at a name that happens to read so. */
 function isVscodeApi(context: Context, callee: TSESTree.MemberExpression): boolean {
     let root: TSESTree.Expression = callee.object;
-    while (root.type === AST_NODE_TYPES.MemberExpression) {
-        root = root.object;
-    }
+    while (root.type === AST_NODE_TYPES.MemberExpression) root = root.object;
     if (root.type !== AST_NODE_TYPES.Identifier) return false;
     let scope: TSESLint.Scope.Scope | null = context.sourceCode.getScope(callee);
     while (scope !== null) {

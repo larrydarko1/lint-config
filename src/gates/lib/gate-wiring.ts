@@ -64,9 +64,7 @@ export function inspectGateWiring(input: GateWiringInput): GateWiring {
             'It is the one command that runs every gate locally. Without it each gate has to be remembered individually, which is the same as not having them.',
         );
     }
-    if (ciRuns === null) {
-        fail(ciWorkflow, 'missing', 'Nothing runs the gates on push, so all of them are advisory.');
-    }
+    if (ciRuns === null) fail(ciWorkflow, 'missing', 'Nothing runs the gates on push, so all of them are advisory.');
 
     for (const gate of gateScripts) {
         const entry = Object.entries(scripts).find(([, cmd]) => String(cmd).includes(gate));

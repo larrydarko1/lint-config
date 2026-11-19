@@ -149,14 +149,9 @@ async function runInChild(terminal: Terminal, name: GateName, position: string):
     }
 
     stdout.write(`${heading(name, stdout)}\n`);
-    for (const [stream, chunk] of output) {
-        stream.write(chunk);
-    }
-    if (failure !== undefined) {
-        stopped(name, failure, stderr);
-    } else if (child.signalCode !== null) {
-        stderr.write(`✗ ${name} was stopped by ${child.signalCode}.\n`);
-    }
+    for (const [stream, chunk] of output) stream.write(chunk);
+    if (failure !== undefined) stopped(name, failure, stderr);
+    else if (child.signalCode !== null) stderr.write(`✗ ${name} was stopped by ${child.signalCode}.\n`);
     return failure === undefined && child.exitCode === 0;
 }
 

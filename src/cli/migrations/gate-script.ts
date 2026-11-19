@@ -140,9 +140,7 @@ function uses(node: ts.Node, test: (node: ts.Node) => boolean): boolean {
 
 /** The name of every identifier in `node`. */
 function identifiersIn(node: ts.Node, names = new Set<string>()): Set<string> {
-    if (ts.isIdentifier(node)) {
-        names.add(node.text);
-    }
+    if (ts.isIdentifier(node)) names.add(node.text);
     ts.forEachChild(node, (child) => {
         identifiersIn(child, names);
     });

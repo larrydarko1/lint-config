@@ -392,9 +392,7 @@ test('exportedTypes skips tests, declaration files and build output', () => {
     write('api/src/dist/bundle.ts', 'export type Built = { id: string };\n');
 
     const found = exportedTypes(tmp, ['api/src']);
-    for (const name of ['Fixture', 'Mocked', 'Ambient', 'Built']) {
-        assert.equal(found.has(name), false, name);
-    }
+    for (const name of ['Fixture', 'Mocked', 'Ambient', 'Built']) assert.equal(found.has(name), false, name);
 });
 
 test('exportedTypes reads an SFC, where a type in <script setup> is just as exported', () => {

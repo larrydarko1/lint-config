@@ -155,9 +155,7 @@ export function lexRust(source: string): RustLex {
 
         if (ch === '"') {
             let j = i + 1;
-            while (j < source.length && source[j] !== '"') {
-                j += source[j] === '\\' ? 2 : 1;
-            }
+            while (j < source.length && source[j] !== '"') j += source[j] === '\\' ? 2 : 1;
             const stop = Math.min(j + 1, source.length);
             out.push('"', blank(source.slice(i + 1, stop - 1)), stop - 1 > i ? '"' : '');
             const prefix = /[bc]/.test(source.charAt(i - 1)) && !continuesWord(source, i - 1);
@@ -237,9 +235,7 @@ export function rustItems(source: string, lexed: RustLex = lexRust(source)): Rus
 
     const skipSpace = (from: number): number => {
         let j = from;
-        while (j < code.length && /\s|;/.test(code.charAt(j))) {
-            j++;
-        }
+        while (j < code.length && /\s|;/.test(code.charAt(j))) j++;
         return j;
     };
 
@@ -274,9 +270,7 @@ export function rustItems(source: string, lexed: RustLex = lexRust(source)): Rus
             if (close === -1) break;
             attributes.push(source.slice(i, close + 1));
             i = close + 1;
-            while (i < code.length && /\s/.test(code.charAt(i))) {
-                i++;
-            }
+            while (i < code.length && /\s/.test(code.charAt(i))) i++;
         }
 
         const keywordStart = i;
@@ -285,17 +279,11 @@ export function rustItems(source: string, lexed: RustLex = lexRust(source)): Rus
         const macro = m === null ? /^((?:::)?[A-Za-z_][\w]*(?:::[A-Za-z_][\w]*)*)\s*!/.exec(rest) : null;
         const keyword = m?.[3]?.replace(/\s+/g, ' ') ?? '';
         let kind: RustItemKind = 'unknown';
-        if (keyword === 'extern crate') {
-            kind = 'extern-crate';
-        } else if (keyword.startsWith('macro_rules')) {
-            kind = 'macro-rules';
-        } else if (isOwnKind(keyword)) {
-            kind = keyword;
-        } else if (macro !== null) {
-            kind = 'macro';
-        } else if (/^(?:unsafe\s+)?extern\s+"[^"]*"\s*\{/.test(rest)) {
-            kind = 'extern-block';
-        }
+        if (keyword === 'extern crate') kind = 'extern-crate';
+        else if (keyword.startsWith('macro_rules')) kind = 'macro-rules';
+        else if (isOwnKind(keyword)) kind = keyword;
+        else if (macro !== null) kind = 'macro';
+        else if (/^(?:unsafe\s+)?extern\s+"[^"]*"\s*\{/.test(rest)) kind = 'extern-block';
 
         const { end, body } = itemEnd(code, keywordStart, BLOCK_KINDS.has(kind));
         const head = code.slice(keywordStart, body === null ? end : body.start - 1).trim();
@@ -423,13 +411,9 @@ const continuesWord = (source: string, i: number): boolean => i > 0 && IDENT_CHA
 function charLiteralEnd(source: string, i: number): number {
     if (source[i + 1] === '\\') {
         let j = i + 2;
-        if (source[j] === 'u' && source[j + 1] === '{') {
-            j = source.indexOf('}', j) + 1;
-        } else if (source[j] === 'x') {
-            j += 3;
-        } else {
-            j += 1;
-        }
+        if (source[j] === 'u' && source[j + 1] === '{') j = source.indexOf('}', j) + 1;
+        else if (source[j] === 'x') j += 3;
+        else j += 1;
         return source[j] === "'" ? j + 1 : -1;
     }
     const point = source.codePointAt(i + 1);
@@ -449,11 +433,8 @@ function itemEnd(code: string, from: number, block: boolean): { end: number; bod
             if (close === -1) return { end: code.length, body: { start: j + 1, end: code.length } };
             return { end: close + 1, body: { start: j + 1, end: close } };
         }
-        if (ch === '(' || ch === '[' || ch === '{') {
-            depth++;
-        } else if (ch === ')' || ch === ']' || ch === '}') {
-            depth--;
-        }
+        if (ch === '(' || ch === '[' || ch === '{') depth++;
+        else if (ch === ')' || ch === ']' || ch === '}') depth--;
     }
     return { end: code.length, body: null };
 }

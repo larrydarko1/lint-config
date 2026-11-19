@@ -780,9 +780,7 @@ export async function checkDbDrift({ root = REPO_ROOT, ...rest }: DbDriftOptions
     const report = createGateReport({ name: 'Database drift' });
     const { problems, warnings, collections, indexes, migrations } = await inspectDbDrift({ root, ...rest });
 
-    for (const { file, what, why } of problems) {
-        report.fail(file, what, why);
-    }
+    for (const { file, what, why } of problems) report.fail(file, what, why);
 
     report.done({
         summary:
@@ -794,9 +792,7 @@ export async function checkDbDrift({ root = REPO_ROOT, ...rest }: DbDriftOptions
     });
 
     if (report.count === 0) {
-        for (const warning of warnings) {
-            console.warn(`\n⚠ ${warning}`);
-        }
+        for (const warning of warnings) console.warn(`\n⚠ ${warning}`);
     }
 }
 

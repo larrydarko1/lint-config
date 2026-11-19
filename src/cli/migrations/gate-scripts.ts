@@ -95,12 +95,8 @@ export async function moveGateScripts(tree: Tree): Promise<string[]> {
             stays.set(file, { reason: reason ?? '', gate });
             continue;
         }
-        for (const binding of parsed.bindings) {
-            taken.set(binding.local, binding);
-        }
-        for (const name of parsed.declared) {
-            declared.add(name);
-        }
+        for (const binding of parsed.bindings) taken.set(binding.local, binding);
+        for (const name of parsed.declared) declared.add(name);
         moved.push(parsed);
     }
 
@@ -128,9 +124,7 @@ export async function moveGateScripts(tree: Tree): Promise<string[]> {
         const skipped = gates.properties.find((property) => propertyName(property) === gate);
         if (skipped !== undefined && ts.isPropertyAssignment(skipped)) {
             const start = skipped.getStart();
-            if (comments !== '') {
-                edits.push({ start, end: start, text: comments });
-            }
+            if (comments !== '') edits.push({ start, end: start, text: comments });
             edits.push({ start: skipped.initializer.getStart(), end: skipped.initializer.end, text: options ?? '{}' });
         } else {
             entries.push([gate, `${comments}'${gate}': ${options ?? '{}'},`]);
@@ -179,13 +173,9 @@ export async function moveGateScripts(tree: Tree): Promise<string[]> {
         if (removed.includes(name)) continue;
         rewired[name] = typeof command === 'string' ? rechain(command, removed, runLarry, runsLarry) : command;
     }
-    if (addCheck) {
-        rewired['check'] = 'larry check';
-    }
+    if (addCheck) rewired['check'] = 'larry check';
     const ciCheck = rewired['ci:check'];
-    if (typeof ciCheck === 'string' && !runsLarry(ciCheck)) {
-        rewired['ci:check'] = `${ciCheck} && ${runLarry}`;
-    }
+    if (typeof ciCheck === 'string' && !runsLarry(ciCheck)) rewired['ci:check'] = `${ciCheck} && ${runLarry}`;
     if (typeof ciCheck !== 'string') {
         notes.push(`package.json has no \`ci:check\`: add one that runs \`${runLarry}\` with the other checks.`);
     }
@@ -201,14 +191,10 @@ export async function moveGateScripts(tree: Tree): Promise<string[]> {
                 `${CI_WORKFLOW} still runs ${left.map((name) => `\`npm run ${name}\``).join(', ')} inside a longer step. Those scripts are gone: remove them from it.`,
             );
         }
-        if (!runsLarry(text)) {
-            notes.push(`${CI_WORKFLOW} does not run \`${runLarry}\`: give it a step that does.`);
-        }
+        if (!runsLarry(text)) notes.push(`${CI_WORKFLOW} does not run \`${runLarry}\`: give it a step that does.`);
     }
 
-    for (const file of movedFiles) {
-        tree.remove(file);
-    }
+    for (const file of movedFiles) tree.remove(file);
     return notes;
 }
 
@@ -333,12 +319,8 @@ function rewireWorkflow(workflow: string, removed: string[], runLarry: string, r
         }
         const dash = indent(lines[start] ?? '');
         let end = start + 1;
-        while (end < lines.length && ((lines[end] ?? '').trim() === '' || indent(lines[end] ?? '') > dash)) {
-            end++;
-        }
-        while (end > start + 1 && (lines[end - 1] ?? '').trim() === '') {
-            end--;
-        }
+        while (end < lines.length && ((lines[end] ?? '').trim() === '' || indent(lines[end] ?? '') > dash)) end++;
+        while (end > start + 1 && (lines[end - 1] ?? '').trim() === '') end--;
         spans.push({ start, end, dash, run: own });
     });
 
@@ -355,13 +337,9 @@ function rewireWorkflow(workflow: string, removed: string[], runLarry: string, r
         }
         let [from, to] = [start, end];
         if (blank(from - 1)) {
-            while (blank(from - 1)) {
-                from--;
-            }
+            while (blank(from - 1)) from--;
         } else {
-            while (to < lines.length && blank(to)) {
-                to++;
-            }
+            while (to < lines.length && blank(to)) to++;
         }
         lines.splice(from, to - from);
     }

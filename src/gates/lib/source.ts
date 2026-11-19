@@ -84,9 +84,8 @@ export function braceBlock(source: string, opener: RegExp): string {
 
     let depth = 0;
     for (let j = open; j < source.length; j++) {
-        if (source[j] === '{') {
-            depth++;
-        } else if (source[j] === '}' && --depth === 0) return source.slice(open + 1, j);
+        if (source[j] === '{') depth++;
+        else if (source[j] === '}' && --depth === 0) return source.slice(open + 1, j);
     }
     return '';
 }
@@ -107,7 +106,9 @@ export function propertyValue(source: string, key: string): string | null {
         } else if (ch === ')' || ch === '}' || ch === ']') {
             if (depth === 0) return source.slice(start, j);
             depth--;
-        } else if (ch === ',' && depth === 0) return source.slice(start, j);
+        } else if (ch === ',' && depth === 0) {
+            return source.slice(start, j);
+        }
     }
     return source.slice(start);
 }
@@ -192,7 +193,9 @@ export function functionParts(text: string): FunctionParts | null {
             const inType = angle > 0 || /[:|&,<]$/.test(before);
             if (!inType) break;
             j = matching(text, j);
-        } else if (ch === ';') return null;
+        } else if (ch === ';') {
+            return null;
+        }
         if (j === -1) return null;
     }
     if (j >= text.length) return null;
@@ -200,9 +203,7 @@ export function functionParts(text: string): FunctionParts | null {
     let bodyStart = j;
     if (text[j] === '=') {
         bodyStart = j + 2;
-        while (/\s/.test(text[bodyStart] ?? '')) {
-            bodyStart++;
-        }
+        while (/\s/.test(text[bodyStart] ?? '')) bodyStart++;
     }
     let body;
     if (text[bodyStart] === '{') {
@@ -296,12 +297,9 @@ export function skipString(text: string, start: number): number {
     const quote = text[start];
     for (let j = start + 1; j < text.length; j++) {
         const ch = text[j];
-        if (ch === '\\') {
-            j++;
-        } else if (ch === quote) return j;
-        else if (quote === '`' && ch === '$' && text[j + 1] === '{') {
-            j = interpolationEnd(text, j + 1);
-        }
+        if (ch === '\\') j++;
+        else if (ch === quote) return j;
+        else if (quote === '`' && ch === '$' && text[j + 1] === '{') j = interpolationEnd(text, j + 1);
     }
     return text.length;
 }
@@ -310,11 +308,9 @@ export function skipString(text: string, start: number): number {
 function interpolationEnd(text: string, open: number): number {
     let depth = 0;
     for (let j = open; j < text.length; j++) {
-        if (text[j] === '`' || text[j] === "'" || text[j] === '"') {
-            j = skipString(text, j);
-        } else if (text[j] === '{') {
-            depth++;
-        } else if (text[j] === '}' && --depth === 0) return j;
+        if (text[j] === '`' || text[j] === "'" || text[j] === '"') j = skipString(text, j);
+        else if (text[j] === '{') depth++;
+        else if (text[j] === '}' && --depth === 0) return j;
     }
     return text.length;
 }
@@ -327,11 +323,9 @@ function matching(text: string, open: number): number {
     let depth = 0;
     for (let j = open; j < text.length; j++) {
         const ch = text[j];
-        if (ch === "'" || ch === '"' || ch === '`') {
-            j = skipString(text, j);
-        } else if (ch === '(' || ch === '{' || ch === '[') {
-            depth++;
-        } else if ((ch === ')' || ch === '}' || ch === ']') && --depth === 0) return j;
+        if (ch === "'" || ch === '"' || ch === '`') j = skipString(text, j);
+        else if (ch === '(' || ch === '{' || ch === '[') depth++;
+        else if ((ch === ')' || ch === '}' || ch === ']') && --depth === 0) return j;
     }
     return -1;
 }
@@ -351,7 +345,9 @@ function expressionAt(text: string, start: number): string {
         } else if (ch === ')' || ch === '}' || ch === ']') {
             if (depth === 0) return text.slice(start, j).trim();
             depth--;
-        } else if ((ch === ',' || ch === ';') && depth === 0) return text.slice(start, j).trim();
+        } else if ((ch === ',' || ch === ';') && depth === 0) {
+            return text.slice(start, j).trim();
+        }
     }
     return text.slice(start).trim();
 }

@@ -513,9 +513,7 @@ export function checkElectronSecurity({ root = REPO_ROOT, ...rest }: ElectronSec
     const report = createGateReport({ name: 'Electron security' });
     const { problems, counts } = inspectElectronSecurity({ root, ...rest });
 
-    for (const { file, what, why } of problems) {
-        report.fail(file, what, why);
-    }
+    for (const { file, what, why } of problems) report.fail(file, what, why);
 
     report.done({
         summary:
@@ -571,9 +569,8 @@ function interpolations(template: string): string[] {
         let depth = 0;
         const start = j + 2;
         for (j += 1; j < template.length; j++) {
-            if (template[j] === '{') {
-                depth++;
-            } else if (template[j] === '}' && --depth === 0) break;
+            if (template[j] === '{') depth++;
+            else if (template[j] === '}' && --depth === 0) break;
         }
         found.push(template.slice(start, j).trim());
     }
@@ -609,9 +606,7 @@ function boundValue(code: string, name: string, index: number, constOnly: boolea
     );
     let last = -1;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(code)) !== null && m.index < index) {
-        last = m.index + m[0].length;
-    }
+    while ((m = re.exec(code)) !== null && m.index < index) last = m.index + m[0].length;
     if (last === -1) {
         // Declared after the use is still a declaration when it is a module-level const.
         re.lastIndex = 0;
@@ -639,7 +634,9 @@ function statementEnd(text: string): number {
         } else if (ch === ')' || ch === '}' || ch === ']') {
             if (depth === 0) return j;
             depth--;
-        } else if (ch === ';' && depth === 0) return j;
+        } else if (ch === ';' && depth === 0) {
+            return j;
+        }
     }
     return text.length;
 }
@@ -661,11 +658,8 @@ function unwrap(expr: string): string {
         let depth = 0;
         let balanced = true;
         for (const ch of inner) {
-            if (ch === '(') {
-                depth++;
-            } else if (ch === ')' && --depth < 0) {
-                balanced = false;
-            }
+            if (ch === '(') depth++;
+            else if (ch === ')' && --depth < 0) balanced = false;
         }
         if (!balanced) break;
         e = inner.trim();

@@ -75,9 +75,7 @@ export function countSwallows(options: SwallowScanOptions): number {
     for (const rel of files) {
         const src = fs.readFileSync(path.join(root, rel), 'utf8');
         for (const match of src.matchAll(EMPTY_CATCH)) {
-            if (stripComments(match[1] ?? '').trim() === '') {
-                total += 1;
-            }
+            if (stripComments(match[1] ?? '').trim() === '') total += 1;
         }
     }
     return total;

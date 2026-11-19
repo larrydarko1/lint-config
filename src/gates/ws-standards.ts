@@ -637,9 +637,7 @@ export function checkWsStandards(options: WsStandardsOptions): void {
     const report = createGateReport({ name: 'WebSocket standards' });
     const { problems, counts } = inspectWsStandards(options);
 
-    for (const { file, what, why } of problems) {
-        report.fail(file, what, why);
-    }
+    for (const { file, what, why } of problems) report.fail(file, what, why);
 
     const adapter =
         options.redisAdapter?.mode === 'forbidden'

@@ -208,9 +208,7 @@ export function checkLicenses(options: LicensesOptions): void {
     const report = createGateReport({ name: 'Licences' });
 
     const { problems, packages, waived, copyleft } = inspectLicenses({ ...options, root });
-    for (const { file, what, why } of problems) {
-        report.fail(file, what, why);
-    }
+    for (const { file, what, why } of problems) report.fail(file, what, why);
 
     const tree = includeDev ? 'installed' : 'production';
     const app = distribution === 'open' ? 'an open-source app' : 'a closed-source app';
@@ -336,9 +334,7 @@ function classify(license: string, accepted: Set<string>): Verdict {
         }
         if (token === undefined || /^(AND|OR|WITH|\))$/i.test(token)) return null;
         // An exception (`WITH LLVM-exception`) only ever adds a permission, so the base decides.
-        if (peek() === 'WITH') {
-            at += 2;
-        }
+        if (peek() === 'WITH') at += 2;
         return { kind: kindOf(token, accepted), ids: [token] };
     };
     const join = (operator: string, next: () => Verdict | null, pick: 'best' | 'worst') => (): Verdict | null => {

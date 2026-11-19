@@ -92,9 +92,7 @@ export function findUnusedBridgeMembers({
         const rememberObject = (type: ts.Type, at: string): void => {
             objectPaths.set(type, at);
             const typeDeclaration = type.getSymbol()?.declarations?.[0];
-            if (typeDeclaration !== undefined) {
-                objectPaths.set(typeDeclaration, at);
-            }
+            if (typeDeclaration !== undefined) objectPaths.set(typeDeclaration, at);
         };
         const walk = (type: ts.Type, prefix: string, depth: number): void => {
             for (const property of type.getProperties()) {
@@ -128,9 +126,7 @@ export function findUnusedBridgeMembers({
         const markSymbol = (property: ts.Symbol | undefined): void => {
             for (const d of property?.declarations ?? []) {
                 const member = memberPaths.get(d);
-                if (member !== undefined) {
-                    used.add(member);
-                }
+                if (member !== undefined) used.add(member);
             }
         };
         /** Everything under `prefix` counts: an object holding it went where the checker cannot follow. */
@@ -140,9 +136,7 @@ export function findUnusedBridgeMembers({
                 (type.getSymbol()?.declarations ?? []).map((d) => objectPaths.get(d)).find((p) => p !== undefined);
             if (prefix === undefined) return;
             for (const member of memberPaths.values()) {
-                if (prefix === '' || member === prefix || member.startsWith(`${prefix}.`)) {
-                    used.add(member);
-                }
+                if (prefix === '' || member === prefix || member.startsWith(`${prefix}.`)) used.add(member);
             }
         };
 
@@ -165,9 +159,7 @@ export function findUnusedBridgeMembers({
                         }
                     }
                 }
-                if (ts.isExpression(node) && escapes(node)) {
-                    markSubtree(checker.getTypeAtLocation(node));
-                }
+                if (ts.isExpression(node) && escapes(node)) markSubtree(checker.getTypeAtLocation(node));
                 ts.forEachChild(node, visit);
             };
             visit(sourceFile);

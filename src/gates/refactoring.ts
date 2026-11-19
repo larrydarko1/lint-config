@@ -154,9 +154,7 @@ export function checkRefactoring(options: RefactoringOptions = {}): void {
     const report = createGateReport({ name: 'Refactoring' });
     const { problems, counts, claudeSetup } = inspectRefactoring(options);
 
-    for (const { file, what, why } of problems) {
-        report.fail(file, what, why);
-    }
+    for (const { file, what, why } of problems) report.fail(file, what, why);
 
     const covered = [
         `no deferral markers in ${plural(counts.scanned, 'unlinted file')}`,

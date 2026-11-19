@@ -124,9 +124,7 @@ export function describe(line: LogLine): string {
     const msg = typeof line['msg'] === 'string' ? line['msg'] : '';
     const rest = Object.fromEntries(Object.entries(line).filter(([key]) => !ROUTINE_FIELDS.has(key)));
     const err = rest['err'];
-    if (isRecord(err)) {
-        rest['err'] = errorSummary(err);
-    }
+    if (isRecord(err)) rest['err'] = errorSummary(err);
     const fields = Object.keys(rest).length === 0 ? '' : ` ${JSON.stringify(rest)}`;
     return `${level}: ${msg}${fields}`;
 }

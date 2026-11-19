@@ -19,9 +19,7 @@ const tree = (t, files, { git = true } = {}) => {
         fs.mkdirSync(path.join(root, path.dirname(rel)), { recursive: true });
         fs.writeFileSync(path.join(root, rel), body);
     }
-    if (git) {
-        execFileSync('git', ['init', '-q'], { cwd: root });
-    }
+    if (git) execFileSync('git', ['init', '-q'], { cwd: root });
     return root;
 };
 
@@ -89,9 +87,7 @@ const good = (overrides = {}) => {
         ...overrides,
     };
     for (const [key, value] of Object.entries(files)) {
-        if (value === null) {
-            delete files[key];
-        }
+        if (value === null) delete files[key];
     }
     return files;
 };

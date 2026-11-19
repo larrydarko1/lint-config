@@ -50,9 +50,7 @@ export function loadTimeRefs(stmt: ts.Statement, eager = false): Set<string> {
             const p = n.parent;
             const isPropName =
                 (ts.isPropertyAccessExpression(p) && p.name === n) || (ts.isPropertyAssignment(p) && p.name === n);
-            if (!isPropName && !isTypePos(n)) {
-                out.add(n.text);
-            }
+            if (!isPropName && !isTypePos(n)) out.add(n.text);
         }
         ts.forEachChild(n, visit);
     };
@@ -60,17 +58,13 @@ export function loadTimeRefs(stmt: ts.Statement, eager = false): Set<string> {
     if (ts.isFunctionDeclaration(stmt) || ts.isClassDeclaration(stmt)) {
         // A class body's heritage clause evaluates at load; methods do not.
         if (ts.isClassDeclaration(stmt) && stmt.heritageClauses !== undefined) {
-            for (const h of stmt.heritageClauses) {
-                ts.forEachChild(h, visit);
-            }
+            for (const h of stmt.heritageClauses) ts.forEachChild(h, visit);
         }
         return out;
     }
     ts.forEachChild(stmt, visit);
     // A declaration does not reference itself: the binding name is not a read.
-    for (const d of declaredNames(stmt)) {
-        out.delete(d);
-    }
+    for (const d of declaredNames(stmt)) out.delete(d);
     return out;
 }
 
@@ -88,15 +82,11 @@ export function bodyRefs(stmt: ts.Statement): Set<string> {
     const out = new Set<string>();
     const visit = (n: ts.Node): void => {
         if (isInnerFunction(n)) return;
-        if (ts.isIdentifier(n) && !(ts.isPropertyAccessExpression(n.parent) && n.parent.name === n)) {
-            out.add(n.text);
-        }
+        if (ts.isIdentifier(n) && !(ts.isPropertyAccessExpression(n.parent) && n.parent.name === n)) out.add(n.text);
         ts.forEachChild(n, visit);
     };
     ts.forEachChild(callable, visit);
-    for (const d of declaredNames(stmt)) {
-        out.delete(d);
-    }
+    for (const d of declaredNames(stmt)) out.delete(d);
     return out;
 }
 
@@ -138,9 +128,7 @@ export function readThroughCalls(
         const body = runs.get(r);
         if (body === undefined) continue;
         for (const name of body.reads) {
-            if (!it.decls.includes(name)) {
-                it.refs.add(name);
-            }
+            if (!it.decls.includes(name)) it.refs.add(name);
         }
         queue.push(...body.calls);
     }
@@ -149,26 +137,18 @@ export function readThroughCalls(
 function collectCalls(nodes: readonly ts.Node[], skip: (n: ts.Node) => boolean): Set<string> {
     const out = new Set<string>();
     const add = (n: ts.Node | undefined): void => {
-        if (n !== undefined && ts.isIdentifier(n)) {
-            out.add(n.text);
-        }
+        if (n !== undefined && ts.isIdentifier(n)) out.add(n.text);
     };
     const visit = (n: ts.Node): void => {
         if (skip(n)) return;
         if (ts.isCallExpression(n) || ts.isNewExpression(n)) {
             add(n.expression);
-            for (const argument of n.arguments ?? []) {
-                add(argument);
-            }
+            for (const argument of n.arguments ?? []) add(argument);
         }
-        if (ts.isTaggedTemplateExpression(n)) {
-            add(n.tag);
-        }
+        if (ts.isTaggedTemplateExpression(n)) add(n.tag);
         ts.forEachChild(n, visit);
     };
-    for (const node of nodes) {
-        ts.forEachChild(node, visit);
-    }
+    for (const node of nodes) ts.forEachChild(node, visit);
     return out;
 }
 

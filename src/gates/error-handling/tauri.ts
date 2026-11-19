@@ -141,9 +141,7 @@ export function inspectTauriErrorHandling(input: TauriErrorHandlingOptions = {})
         );
     }
     const scanned = { root, files: walkFiles(root, webviewDir, { match: /\.(ts|vue)$/ }) };
-    for (const { file, what, why } of findSwallowedErrors(scanned)) {
-        fail(file, what, why);
-    }
+    for (const { file, what, why } of findSwallowedErrors(scanned)) fail(file, what, why);
     const swallows = countSwallows(scanned) + rustSwallowSites.length;
 
     return { problems, counts: { fallible, swallows } };
@@ -153,9 +151,7 @@ export function checkTauriErrorHandling(options: TauriErrorHandlingOptions = {})
     const report = createGateReport({ name: 'Error handling' });
     const { problems, counts } = inspectTauriErrorHandling(options);
 
-    for (const { file, what, why } of problems) {
-        report.fail(file, what, why);
-    }
+    for (const { file, what, why } of problems) report.fail(file, what, why);
 
     report.done({
         summary:

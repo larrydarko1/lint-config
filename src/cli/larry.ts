@@ -206,19 +206,11 @@ async function initPlainly(root: string, options: InitOptions): Promise<number> 
         fail(message(error));
         return 2;
     }
-    for (const file of result.written) {
-        console.log(`+ ${file}`);
-    }
-    for (const field of result.added) {
-        console.log(`+ package.json ${field}`);
-    }
-    for (const file of result.kept) {
-        console.log(`= ${file} (exists, left as it is)`);
-    }
+    for (const file of result.written) console.log(`+ ${file}`);
+    for (const field of result.added) console.log(`+ package.json ${field}`);
+    for (const file of result.kept) console.log(`= ${file} (exists, left as it is)`);
     console.log(`\n✓ larry init: ${options.family}, ${plural(result.written.length, 'file')} written.\n\nNext:`);
-    for (const step of result.next) {
-        console.log(`- ${step}`);
-    }
+    for (const step of result.next) console.log(`- ${step}`);
     return 0;
 }
 
@@ -235,9 +227,7 @@ async function doctor(args: string[]): Promise<number> {
     const symbol = { ok: styleText('green', '✓'), problem: styleText('red', '✗'), note: styleText('yellow', '–') };
     for (const { status, what, fix } of found) {
         console.log(`${symbol[status]} ${commands(what)}`);
-        if (fix !== undefined) {
-            console.log(`  ${commands(fix)}`);
-        }
+        if (fix !== undefined) console.log(`  ${commands(fix)}`);
     }
     const problems = found.filter(({ status }) => status === 'problem').length;
     console.log(
@@ -270,12 +260,8 @@ async function upgradeProject(args: string[]): Promise<number> {
     const symbol = { added: styleText('green', '+'), changed: styleText('blue', '~'), removed: styleText('red', '-') };
     for (const { title, changed, notes } of steps) {
         console.log(`\n${styleText('dim', '──')} ${styleText('bold', title)}`);
-        for (const { file, how } of changed) {
-            console.log(`${symbol[how]} ${file}`);
-        }
-        for (const note of notes) {
-            console.log(`${styleText('yellow', '-')} ${commands(note)}`);
-        }
+        for (const { file, how } of changed) console.log(`${symbol[how]} ${file}`);
+        for (const note of notes) console.log(`${styleText('yellow', '-')} ${commands(note)}`);
     }
     const files = new Set(steps.flatMap(({ changed }) => changed.map(({ file }) => file))).size;
     // A blank line parts the summary from the steps above it, when there are any.

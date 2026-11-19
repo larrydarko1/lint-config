@@ -40,9 +40,7 @@ const run = (locales, opts = {}) => {
             const body = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
             writeFileSync(path.join(root, 'locales', `${name}.json`), body);
         }
-        if (config !== null) {
-            writeFileSync(path.join(root, 'i18n.ts'), config);
-        }
+        if (config !== null) writeFileSync(path.join(root, 'i18n.ts'), config);
         return inspectI18n({ root, localeDir: 'locales', configFile: 'i18n.ts', configNotes, customLocales });
     } finally {
         rmSync(root, { recursive: true, force: true });

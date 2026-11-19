@@ -51,18 +51,14 @@ test('every gate exports an inspect function beside its check', () => {
 
 test('every gate has a package export', () => {
     const { exports } = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-    for (const name of gateModules) {
-        assert.ok(exports[`./gates/${name}`], `./gates/${name} is not exported`);
-    }
+    for (const name of gateModules) assert.ok(exports[`./gates/${name}`], `./gates/${name} is not exported`);
 });
 
 test('every family runs at least the gates every family runs', () => {
     const shared = Object.keys(GATES).filter((name) => GATES[name].families.length === ALL.length);
     for (const family of ALL) {
         const runs = gatesFor(family);
-        for (const name of shared) {
-            assert.ok(runs.includes(name), `${family} does not run ${name}`);
-        }
+        for (const name of shared) assert.ok(runs.includes(name), `${family} does not run ${name}`);
     }
 });
 

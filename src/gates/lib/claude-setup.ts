@@ -81,14 +81,10 @@ export function inspectClaudeSetup(root: string, today: Date): ClaudeSetupInspec
 
     const claudeMd = path.join(root, 'CLAUDE.md');
     const hasClaudeMd = fs.existsSync(claudeMd);
-    if (hasClaudeMd) {
-        problems.push(...listClaudeMdProblems(fs.readFileSync(claudeMd, 'utf8'), root, today));
-    }
+    if (hasClaudeMd) problems.push(...listClaudeMdProblems(fs.readFileSync(claudeMd, 'utf8'), root, today));
 
     const skills = listSkillFolders(root);
-    for (const skill of skills) {
-        problems.push(...listSkillProblems(root, skill));
-    }
+    for (const skill of skills) problems.push(...listSkillProblems(root, skill));
 
     return { problems, read: { claudeMd: hasClaudeMd, skills: skills.length } };
 }
@@ -151,9 +147,7 @@ function listClaudeMdProblems(source: string, root: string, today: Date): GateFa
         } else if (slot.standard !== null && seen.has(slot.standard)) {
             fail(heading.line, `a second \`## ${heading.title}\``, `Merge it into the first one. ${ORDER_WHY}`);
         }
-        if (slot.standard !== null) {
-            seen.add(slot.standard);
-        }
+        if (slot.standard !== null) seen.add(slot.standard);
 
         if (slot.index < reached) {
             fail(heading.line, `\`## ${heading.title}\` comes after \`## ${reachedTitle}\``, ORDER_WHY);

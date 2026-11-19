@@ -69,9 +69,7 @@ const DEFAULT_MIN_VALUE_LENGTH = 8;
 export function sensitiveKeys(sensitive: SensitiveFields): Map<string, string> {
     const keys = new Map<string, string>();
     for (const [collection, fields] of Object.entries(sensitive)) {
-        for (const field of fields) {
-            keys.set(field.split('.').at(-1) ?? field, `${collection}.${field}`);
-        }
+        for (const field of fields) keys.set(field.split('.').at(-1) ?? field, `${collection}.${field}`);
     }
     return keys;
 }

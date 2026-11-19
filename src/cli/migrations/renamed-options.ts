@@ -44,8 +44,6 @@ export async function renameOptions(
                 : { start: old.name.getStart(), end: old.name.end, text: asKey(to) },
         );
     }
-    if (edits.length > 0) {
-        tree.write(file, await prettify(file, applyEdits(text, edits)));
-    }
+    if (edits.length > 0) tree.write(file, await prettify(file, applyEdits(text, edits)));
     return notes;
 }

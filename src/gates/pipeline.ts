@@ -148,11 +148,8 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
             parked.push(rel);
             continue;
         }
-        if (isWorkflowDoc(doc)) {
-            workflows.push({ rel, src, doc });
-        } else {
-            fail(rel, `is not a workflow GitHub can run: ${workflowShapeProblem(doc) ?? ''}`, SHAPE_WHY);
-        }
+        if (isWorkflowDoc(doc)) workflows.push({ rel, src, doc });
+        else fail(rel, `is not a workflow GitHub can run: ${workflowShapeProblem(doc) ?? ''}`, SHAPE_WHY);
     }
 
     const actionsDirPath = path.join(root, ACTIONS_DIR);
@@ -172,11 +169,8 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
         try {
             const doc: unknown = YAML.parse(src);
             if (!isRecord(doc)) continue;
-            if (isWorkflowDoc(doc)) {
-                actions.push({ rel, src, doc });
-            } else {
-                fail(rel, `is not an action GitHub can run: ${workflowShapeProblem(doc) ?? ''}`, SHAPE_WHY);
-            }
+            if (isWorkflowDoc(doc)) actions.push({ rel, src, doc });
+            else fail(rel, `is not an action GitHub can run: ${workflowShapeProblem(doc) ?? ''}`, SHAPE_WHY);
         } catch (err) {
             fail(
                 rel,
@@ -304,14 +298,10 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
         if (key === undefined) return values;
 
         const listed = matrix[key];
-        if (Array.isArray(listed)) {
-            values.push(...listed.filter((v) => typeof v === 'string'));
-        }
+        if (Array.isArray(listed)) values.push(...listed.filter((v) => typeof v === 'string'));
         for (const entry of Array.isArray(matrix.include) ? matrix.include : []) {
             const value = isRecord(entry) ? entry[key] : undefined;
-            if (typeof value === 'string') {
-                values.push(value);
-            }
+            if (typeof value === 'string') values.push(value);
         }
         return values;
     };
@@ -588,9 +578,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
         const names = new Set(Object.keys(recordAt(pkg, 'scripts')));
         wsScripts.set(path.basename(ws), names);
         const name = stringAt(pkg, 'name');
-        if (name !== undefined && name !== '') {
-            wsScripts.set(name, names);
-        }
+        if (name !== undefined && name !== '') wsScripts.set(name, names);
     }
 
     for (const { rel, name, step } of sourceSteps) {
@@ -640,9 +628,7 @@ export function inspectPipeline(input: PipelineOptions = {}): PipelineInspection
         /** Every `node-version:` a workflow or composite action asks setup-node for. */
         const nodeVersions = new Map<string, number>();
         for (const { rel, src } of [...workflows, ...actions]) {
-            for (const m of src.matchAll(/node-version:\s*'?"?(\d+)/g)) {
-                nodeVersions.set(rel, Number(m[1]));
-            }
+            for (const m of src.matchAll(/node-version:\s*'?"?(\d+)/g)) nodeVersions.set(rel, Number(m[1]));
         }
 
         if (nodeVersions.size === 0) {
@@ -708,9 +694,7 @@ export function checkPipeline(options: PipelineOptions = {}): void {
     const report = createGateReport({ name: 'Pipeline' });
     const { problems, counts } = inspectPipeline(options);
 
-    for (const { file, what, why } of problems) {
-        report.fail(file, what, why);
-    }
+    for (const { file, what, why } of problems) report.fail(file, what, why);
 
     const images = counts.imagePushes > 0 ? ' every pushed image tagged by commit with a cache scope of its own,' : '';
     const queued = counts.releases > 0 ? ' every release workflow one queue that never cancels,' : '';

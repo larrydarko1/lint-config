@@ -216,9 +216,7 @@ export function inspectCodeStyle(input: CodeStyleInput): CodeStyleInspection {
         if (rule === undefined) continue;
         const { problem, why } = HEADER_RULE[rule.require];
         const what = problem(read(rel));
-        if (what !== null) {
-            fail(rel, what, why);
-        }
+        if (what !== null) fail(rel, what, why);
     }
 
     // ── 6/7. SFC block order and block attributes ───────────────────────────
@@ -416,9 +414,7 @@ export function checkCodeStyle(options: CodeStyleOptions): void {
     const report = createGateReport({ name: 'Code style' });
 
     const { problems, files, rustFiles, baselined } = inspectCodeStyle({ root, ...rest });
-    for (const { file, what, why } of problems) {
-        report.fail(file, what, why);
-    }
+    for (const { file, what, why } of problems) report.fail(file, what, why);
 
     const cap = rest.lineCap ?? 400;
     report.done({

@@ -21,14 +21,10 @@ const tree = (t, files) => {
 const manifest = (fields) => {
     const out = {};
     for (const key of CANONICAL_ORDER) {
-        if (Object.hasOwn(fields, key)) {
-            out[key] = fields[key];
-        }
+        if (Object.hasOwn(fields, key)) out[key] = fields[key];
     }
     for (const key of Object.keys(fields)) {
-        if (!Object.hasOwn(out, key)) {
-            out[key] = fields[key];
-        }
+        if (!Object.hasOwn(out, key)) out[key] = fields[key];
     }
     return out;
 };

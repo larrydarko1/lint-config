@@ -79,9 +79,7 @@ export async function diagnose(root: string, running: string): Promise<Diagnosis
     const config = await diagnoseConfig(root);
     const { family } = config;
     found.push(...config.diagnoses);
-    if (config.family === 'base') {
-        found.push(diagnoseFamilyFit(manifest, config.file));
-    }
+    if (config.family === 'base') found.push(diagnoseFamilyFit(manifest, config.file));
     if (manifest['name'] === SELF_NAME) {
         return [
             ...found,

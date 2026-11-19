@@ -32,9 +32,7 @@ const noNativeDialog: TSESLint.RuleModule<Dialog> = {
         return {
             CallExpression(node): void {
                 const dialog = dialogCalled(context, node.callee);
-                if (dialog !== null) {
-                    context.report({ node, messageId: dialog });
-                }
+                if (dialog !== null) context.report({ node, messageId: dialog });
             },
         };
     },

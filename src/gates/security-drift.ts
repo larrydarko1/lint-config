@@ -166,16 +166,11 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
             if (!exists(rel)) return;
             for (const dirent of fs.readdirSync(abs(rel), { withFileTypes: true })) {
                 const child = `${rel}/${dirent.name}`;
-                if (dirent.isDirectory()) {
-                    visit(child);
-                } else if (match.test(child) && !/(^|\/)__tests__\/|\.(?:test|spec)\.[jt]s$/.test(child)) {
-                    out.push(child);
-                }
+                if (dirent.isDirectory()) visit(child);
+                else if (match.test(child) && !/(^|\/)__tests__\/|\.(?:test|spec)\.[jt]s$/.test(child)) out.push(child);
             }
         };
-        for (const dir of dirs) {
-            visit(dir);
-        }
+        for (const dir of dirs) visit(dir);
         return out.sort();
     };
 
@@ -219,9 +214,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
         }
         const source = read(anchor.file);
         for (const landmark of anchor.contains) {
-            if (!source.includes(landmark)) {
-                brokenAnchors.push(`${anchor.file} — missing landmark \`${landmark}\``);
-            }
+            if (!source.includes(landmark)) brokenAnchors.push(`${anchor.file} — missing landmark \`${landmark}\``);
         }
     }
 
@@ -332,9 +325,7 @@ export function inspectSecurityDrift(input: SecurityDriftInput): SecurityDriftIn
     if (!/frameguard:\s*\{\s*action:\s*['"]deny['"]/.test(entrySource)) {
         fixedMissing.push("frameguard: { action: 'deny' }");
     }
-    if (!/noSniff:\s*true/.test(entrySource)) {
-        fixedMissing.push('noSniff: true');
-    }
+    if (!/noSniff:\s*true/.test(entrySource)) fixedMissing.push('noSniff: true');
     if (!/referrerPolicy:\s*\{\s*policy:\s*['"](?:strict-origin-when-cross-origin|no-referrer)['"]/.test(entrySource)) {
         fixedMissing.push('referrerPolicy: strict-origin-when-cross-origin | no-referrer');
     }
@@ -938,9 +929,7 @@ export function checkSecurityDrift({ root = REPO_ROOT, ...rest }: SecurityDriftO
     const report = createGateReport({ name: 'Security drift' });
     const { problems, counts } = inspectSecurityDrift({ root, ...rest });
 
-    for (const { file, what, why } of problems) {
-        report.fail(file, what, why);
-    }
+    for (const { file, what, why } of problems) report.fail(file, what, why);
 
     report.done({
         summary:

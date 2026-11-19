@@ -65,9 +65,7 @@ export function findLocalOnlyTypes(root: string, projects: string[] = findProjec
                     for (const declaration of symbol?.declarations ?? []) {
                         if (!isTypeDeclaration(declaration)) continue;
                         const declaredIn = realFile(declaration.getSourceFile().fileName);
-                        if (declaredIn !== file) {
-                            used.add(key(declaredIn, declaration.name.text));
-                        }
+                        if (declaredIn !== file) used.add(key(declaredIn, declaration.name.text));
                     }
                 }
                 ts.forEachChild(node, visit);

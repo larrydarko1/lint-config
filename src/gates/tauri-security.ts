@@ -227,9 +227,7 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
         const rel = `${tauriDir}/${name}`;
         if (!fs.existsSync(path.join(root, rel))) continue;
         const data = readJson(rel);
-        if (data !== null) {
-            checkFlags(rel, data);
-        }
+        if (data !== null) checkFlags(rel, data);
     }
 
     // ── 7. One version ───────────────────────────────────────────────────────
@@ -260,9 +258,7 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
             continue;
         }
         const data = readJson(rel);
-        if (data !== null) {
-            capabilities.push({ file: rel, data });
-        }
+        if (data !== null) capabilities.push({ file: rel, data });
     }
 
     const listed = Array.isArray(security.capabilities) ? security.capabilities : null;
@@ -414,9 +410,7 @@ export function inspectTauriSecurity({ root, tauriDir = 'src-tauri' }: TauriSecu
 export function checkTauriSecurity({ root = REPO_ROOT, ...rest }: TauriSecurityOptions = {}): void {
     const report = createGateReport({ name: 'Tauri security' });
     const { problems, counts } = inspectTauriSecurity({ root, ...rest });
-    for (const { file, what, why } of problems) {
-        report.fail(file, what, why);
-    }
+    for (const { file, what, why } of problems) report.fail(file, what, why);
 
     report.done({
         summary:
@@ -454,9 +448,7 @@ function directives(csp: unknown): Map<string, string[]> {
     if (typeof csp === 'string') {
         for (const part of csp.split(';')) {
             const [name, ...sources] = part.trim().split(/\s+/);
-            if (name !== undefined && name !== '') {
-                out.set(name.toLowerCase(), sources);
-            }
+            if (name !== undefined && name !== '') out.set(name.toLowerCase(), sources);
         }
     } else if (isObject(csp)) {
         for (const [name, value] of Object.entries(csp)) {

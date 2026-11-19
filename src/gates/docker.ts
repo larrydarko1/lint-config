@@ -222,9 +222,7 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
             );
         }
 
-        for (const stage of stages) {
-            problems.push(...stageProblems(rel, stages, stage));
-        }
+        for (const stage of stages) problems.push(...stageProblems(rel, stages, stage));
 
         // ── 12. NODE_ENV in a Node runtime stage ────────────────────────────
         if (/^(?:docker\.io\/)?(?:library\/)?node:/.test(lastBase)) {
@@ -340,9 +338,7 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
             );
         }
         for (const value of Object.values(recordAt(build, 'env'))) {
-            if (typeof value === 'string' && value.includes('/')) {
-                pushed.add(value.split('/').pop());
-            }
+            if (typeof value === 'string' && value.includes('/')) pushed.add(value.split('/').pop());
         }
     }
 
@@ -401,9 +397,7 @@ export function inspectDocker(input: DockerOptions): DockerInspection {
             }));
             const published = [...pushed].filter((name) => name !== undefined).sort();
             const built = { pushed, published, workflow: path.basename(buildWorkflow) };
-            for (const entry of images) {
-                problems.push(...imageProblems(kustomization, entry, built));
-            }
+            for (const entry of images) problems.push(...imageProblems(kustomization, entry, built));
         }
     }
 
@@ -443,9 +437,7 @@ export function checkDocker(options: DockerOptions): void {
     const report = createGateReport({ name: 'Docker' });
     const { problems, counts } = inspectDocker(options);
 
-    for (const { file, what, why } of problems) {
-        report.fail(file, what, why);
-    }
+    for (const { file, what, why } of problems) report.fail(file, what, why);
 
     report.done({
         summary:

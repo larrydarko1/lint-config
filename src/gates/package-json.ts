@@ -224,9 +224,7 @@ export function inspectPackageJson({
         );
         for (const dependency of ranges) {
             const problem = rangeProblem(dependency, { tildeAllowed, exactFields });
-            if (problem !== null) {
-                fail(file, ...problem);
-            }
+            if (problem !== null) fail(file, ...problem);
         }
 
         // ── 3. Field order ──────────────────────────────────────────────────
@@ -348,9 +346,7 @@ export function inspectPackageJson({
         (deps) => deps !== undefined && Object.hasOwn(deps, SELF_NAME),
     );
 
-    if (dependsOnSelf) {
-        problems.push(...inspectToolchainInstall(root, manifests, provided));
-    }
+    if (dependsOnSelf) problems.push(...inspectToolchainInstall(root, manifests, provided));
 
     return { problems, manifests: manifests.map((m) => m.file) };
 }
@@ -360,9 +356,7 @@ export function checkPackageJson({ root = REPO_ROOT, ...rest }: PackageJsonOptio
     const report = createGateReport({ name: 'package.json' });
     const { problems, manifests } = inspectPackageJson({ root, ...rest });
 
-    for (const { file, what, why } of problems) {
-        report.fail(file, what, why);
-    }
+    for (const { file, what, why } of problems) report.fail(file, what, why);
 
     report.done({
         summary: `${manifests.length} manifest(s): required metadata, semver ranges, canonical field order, the lint toolchain${fs.existsSync(path.join(root, rest.electronViteConfig ?? 'electron.vite.config.ts')) ? ', Electron entry point and packaging' : ''}.`,

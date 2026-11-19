@@ -140,9 +140,7 @@ const good = (overrides = {}) => {
         ...overrides,
     };
     for (const [key, value] of Object.entries(files)) {
-        if (value === null) {
-            delete files[key];
-        }
+        if (value === null) delete files[key];
     }
     // The checksum has to follow the migration it records, or every case that
     // edits the migration would trip the immutability rule instead of its own.

@@ -210,9 +210,7 @@ export function inspectHtmlStandards(input: HtmlStandardsInput): HtmlStandardsIn
         // A plain-JS config can name a key the type would refuse.
         if (!Object.hasOwn(HEAD_CHECKS, key)) throw new Error(`Unknown head requirement '${key}'.`);
         const check = HEAD_CHECKS[key];
-        if (!check.re.test(html)) {
-            fail(indexHtml, `is missing ${check.what}`, check.why);
-        }
+        if (!check.re.test(html)) fail(indexHtml, `is missing ${check.what}`, check.why);
     }
 
     // Blocking zoom fails WCAG 1.4.4.
@@ -263,14 +261,10 @@ export function inspectHtmlStandards(input: HtmlStandardsInput): HtmlStandardsIn
     if (cspTag !== null) {
         const policy = (cspTag[1] ?? '').replace(/\s+/g, ' ').trim();
         for (const { what, re, why } of CSP_REQUIRED) {
-            if (!re.test(policy)) {
-                fail(indexHtml, `CSP is missing \`${what}\``, why);
-            }
+            if (!re.test(policy)) fail(indexHtml, `CSP is missing \`${what}\``, why);
         }
         for (const { what, re, why } of CSP_BANNED) {
-            if (re.test(policy)) {
-                fail(indexHtml, `CSP contains ${what}`, why);
-            }
+            if (re.test(policy)) fail(indexHtml, `CSP contains ${what}`, why);
         }
         // localhost is the dev server's HMR socket, which cannot resolve in a packaged build.
         const remotes = [...policy.matchAll(/\b(https?|wss?):\/\/([^\s;]+)/g)];
@@ -343,9 +337,7 @@ export function checkHtmlStandards(options: HtmlStandardsOptions): void {
 
     const report = createGateReport({ name: 'HTML standards' });
     const { problems, warnings, required } = inspectHtmlStandards({ root, ...rest });
-    for (const { file, what, why } of problems) {
-        report.fail(file, what, why);
-    }
+    for (const { file, what, why } of problems) report.fail(file, what, why);
 
     report.done({
         summary:
@@ -359,8 +351,6 @@ export function checkHtmlStandards(options: HtmlStandardsOptions): void {
 
     // Only after a pass, so it does not bury the failures.
     if (report.count === 0) {
-        for (const warning of warnings) {
-            console.warn(`\n⚠ ${warning}`);
-        }
+        for (const warning of warnings) console.warn(`\n⚠ ${warning}`);
     }
 }

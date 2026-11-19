@@ -22,9 +22,7 @@ export function parseStages(src: string): Stage[] {
         } else if (stages.length === 0) {
             // An ARG before the first FROM is global: a FROM line may name it.
             const m = ins.instruction === 'ARG' ? /^(\w+)=(\S+)/.exec(ins.args) : null;
-            if (m !== null) {
-                globalArgs.set(m[1] ?? '', (m[2] ?? '').replace(/^["']|["']$/g, ''));
-            }
+            if (m !== null) globalArgs.set(m[1] ?? '', (m[2] ?? '').replace(/^["']|["']$/g, ''));
         } else {
             stages.at(-1)?.instructions.push(ins);
         }

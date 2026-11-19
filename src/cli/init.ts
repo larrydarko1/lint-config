@@ -114,9 +114,7 @@ export async function init(root: string, options: InitOptions): Promise<InitResu
         updated = withField(updated, 'engines', { ...engines, node: `>=${nodeMajor}` });
         result.added.push('engines.node');
     }
-    if (updated !== manifest) {
-        fs.writeFileSync(manifestPath, await prettify('package.json', JSON.stringify(updated)));
-    }
+    if (updated !== manifest) fs.writeFileSync(manifestPath, await prettify('package.json', JSON.stringify(updated)));
 
     result.next.push(...nextSteps(root, family, manifest, result));
     return result;

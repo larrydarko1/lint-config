@@ -134,9 +134,7 @@ export function inspectElectronErrorHandling(
 
     // ── 5. A swallowed failure states its reason ─────────────────────────────
     const scanned = { root, files: [...mainFiles, ...walkFiles(root, rendererDir, { match: /\.(ts|vue)$/ })] };
-    for (const { file, what, why } of findSwallowedErrors(scanned)) {
-        fail(file, what, why);
-    }
+    for (const { file, what, why } of findSwallowedErrors(scanned)) fail(file, what, why);
     const swallows = countSwallows(scanned);
 
     return { problems, counts: { handlers: handlerCount, swallows } };
@@ -147,9 +145,7 @@ export function checkElectronErrorHandling(options: ElectronErrorHandlingOptions
     const report = createGateReport({ name: 'Error handling' });
     const { problems, counts } = inspectElectronErrorHandling(options);
 
-    for (const { file, what, why } of problems) {
-        report.fail(file, what, why);
-    }
+    for (const { file, what, why } of problems) report.fail(file, what, why);
 
     report.done({
         summary:
@@ -172,9 +168,7 @@ function callbackBody(source: string, start: number): { body: string; expression
     if (arrow === -1) return { body: '', expression: false };
 
     let i = arrow + 2;
-    while (i < source.length && /\s/.test(source.charAt(i))) {
-        i += 1;
-    }
+    while (i < source.length && /\s/.test(source.charAt(i))) i += 1;
 
     if (source[i] !== '{') {
         // Concise body: up to the comma or paren that closes the handle() call.

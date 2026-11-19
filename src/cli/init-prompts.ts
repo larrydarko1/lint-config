@@ -118,9 +118,7 @@ export async function initInteractively(
         ...result.added.map((field) => `${styleText('green', '+')} package.json ${field}`),
         ...result.kept.map((file) => styleText('dim', `= ${file} (exists, left as it is)`)),
     ];
-    if (changes.length > 0) {
-        log.message(changes, io);
-    }
+    if (changes.length > 0) log.message(changes, io);
     note(result.next.join('\n\n'), 'Next', io);
 
     const asked = given.family === undefined || given.distribution === undefined || runtime !== given.runtime;

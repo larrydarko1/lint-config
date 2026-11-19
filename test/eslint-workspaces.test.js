@@ -101,9 +101,7 @@ const repo = (t, workspaces, withSource) => {
     const root = mkdtempSync(path.join(tmpdir(), 'lint-config-workspaces-'));
     t.after(() => rmSync(root, { recursive: true, force: true }));
     writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces }));
-    for (const dir of withSource) {
-        mkdirSync(path.join(root, dir, 'src'), { recursive: true });
-    }
+    for (const dir of withSource) mkdirSync(path.join(root, dir, 'src'), { recursive: true });
     return root;
 };
 

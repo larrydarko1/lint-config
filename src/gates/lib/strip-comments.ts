@@ -27,9 +27,7 @@ export function stripComments(source: string): string {
         } else if (ch === "'" || ch === '"' || ch === '`') {
             const start = i;
             i += 1;
-            while (i < source.length && source[i] !== ch) {
-                i += source[i] === '\\' ? 2 : 1;
-            }
+            while (i < source.length && source[i] !== ch) i += source[i] === '\\' ? 2 : 1;
             i += 1;
             out += source.slice(start, i);
         } else {
