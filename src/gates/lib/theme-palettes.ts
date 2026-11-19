@@ -162,8 +162,12 @@ export function readPalettes({
                 .map((sel) => /\[data-theme=['"]([a-z0-9-]+)['"]\]|#app\.([a-z0-9-]+)/.exec(sel.trim()))
                 .map((named) => (named === null ? null : (named[1] ?? named[2] ?? '')));
             // A selector naming no theme is `:root`, the fallback layer.
-            if (names.includes(null)) fallback = tokens;
-            for (const name of names.filter((named) => named !== null)) palettes.set(name, tokens);
+            if (names.includes(null)) {
+                fallback = tokens;
+            }
+            for (const name of names.filter((named) => named !== null)) {
+                palettes.set(name, tokens);
+            }
         }
         if (fallback === undefined) {
             fail(

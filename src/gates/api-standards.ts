@@ -321,7 +321,9 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
                 let route = documentedPath;
                 if (mount !== null && route.startsWith(mount)) {
                     route = route.slice(mount.length);
-                    if (route === '') route = '/';
+                    if (route === '') {
+                        route = '/';
+                    }
                 }
                 return `${verb} ${route}`;
             }),
@@ -658,7 +660,9 @@ export function inspectApiStandards(input: ApiStandardsOptions): ApiStandardsIns
                     'Parsing is the part that matters: a Zod object drops every field it does not declare, so a response can only carry what its schema lists. A helper that just calls `res.json()` checks nothing.',
                 );
             }
-            if (devFlag !== undefined) inspectLoudDrops(helper, source, devFlag, fail);
+            if (devFlag !== undefined) {
+                inspectLoudDrops(helper, source, devFlag, fail);
+            }
         }
 
         for (const rel of routeFiles) {
@@ -735,7 +739,9 @@ export function checkApiStandards(options: ApiStandardsOptions): void {
     const report = createGateReport({ name: 'REST API standards' });
     const { problems, counts } = inspectApiStandards(options);
 
-    for (const { file, what, why } of problems) report.fail(file, what, why);
+    for (const { file, what, why } of problems) {
+        report.fail(file, what, why);
+    }
 
     const contract =
         options.contract === undefined
@@ -787,9 +793,13 @@ const lastArgument = (args: string): string => {
     let start = 0;
     for (let i = 0; i < args.length; i++) {
         const ch = args[i];
-        if (ch === '(' || ch === '{' || ch === '[') depth++;
-        else if (ch === ')' || ch === '}' || ch === ']') depth--;
-        else if (ch === ',' && depth === 0) start = i + 1;
+        if (ch === '(' || ch === '{' || ch === '[') {
+            depth++;
+        } else if (ch === ')' || ch === '}' || ch === ']') {
+            depth--;
+        } else if (ch === ',' && depth === 0) {
+            start = i + 1;
+        }
     }
     return args.slice(start).trim();
 };
@@ -942,9 +952,15 @@ function inspectContract(contract: ContractOptions, ctx: ContractContext): void 
         }
     }
 
-    if (coverage !== undefined) inspectContractCoverage(coverage, testChecks, ctx);
-    if (fuzz !== undefined) inspectContractFuzz(fuzz, file, listed, ctx);
-    if (handlers !== undefined) inspectContractHandlers(handlers, file, mounts, ctx);
+    if (coverage !== undefined) {
+        inspectContractCoverage(coverage, testChecks, ctx);
+    }
+    if (fuzz !== undefined) {
+        inspectContractFuzz(fuzz, file, listed, ctx);
+    }
+    if (handlers !== undefined) {
+        inspectContractHandlers(handlers, file, mounts, ctx);
+    }
 }
 
 /** Each contract entry's properties as source text: `{ body: 'loginBody', response: 'z.union([…])' }`. */
@@ -964,8 +980,11 @@ function objectProperties(inside: string): Map<string, string> {
     const properties = new Map<string, string>();
     for (const part of splitTopLevel(inside, ',')) {
         const pair = /^([A-Za-z_$][\w$]*)\s*:\s*([\s\S]+)$/.exec(part);
-        if (pair !== null) properties.set(pair[1] ?? '', compact(pair[2] ?? ''));
-        else properties.set(part.startsWith('...') ? part.replace(/\s+/g, '') : part, part);
+        if (pair !== null) {
+            properties.set(pair[1] ?? '', compact(pair[2] ?? ''));
+        } else {
+            properties.set(part.startsWith('...') ? part.replace(/\s+/g, '') : part, part);
+        }
     }
     return properties;
 }
@@ -982,7 +1001,9 @@ function uploadFields(source: string): Map<string, string> {
     for (const args of callArgs(source, '.fields(')) {
         for (const entry of args.match(/\{[^{}]*\}/g) ?? []) {
             const name = /\bname\s*:\s*['"]([^'"]+)['"]/.exec(entry)?.[1];
-            if (name !== undefined) fields.set(name, /\bmaxCount\s*:\s*1\b/.test(entry) ? 'one' : 'many');
+            if (name !== undefined) {
+                fields.set(name, /\bmaxCount\s*:\s*1\b/.test(entry) ? 'one' : 'many');
+            }
         }
     }
     return fields;
@@ -1019,8 +1040,11 @@ function inspectContractHandlers(
             const name = text.trim().replace(/^\.\.\./, '');
             if (text.trim().startsWith('{')) {
                 for (const [prop, value] of objectProperties(braceBlock(text, /^\s*/))) {
-                    if (prop.startsWith('...')) collect(prop, seen);
-                    else handed.set(prop, value);
+                    if (prop.startsWith('...')) {
+                        collect(prop, seen);
+                    } else {
+                        handed.set(prop, value);
+                    }
                 }
                 return;
             }
@@ -1033,10 +1057,14 @@ function inspectContractHandlers(
                 return;
             }
             const match = declared.exec(home);
-            if (match !== null) collect(`{${braceBlock(home.slice(match.index), declared)}}`, seen);
+            if (match !== null) {
+                collect(`{${braceBlock(home.slice(match.index), declared)}}`, seen);
+            }
         };
         const validated = callArgs(call, `${validate}(`)[0];
-        if (validated !== undefined) collect(splitTopLevel(validated, ',')[0] ?? '', new Set());
+        if (validated !== undefined) {
+            collect(splitTopLevel(validated, ',')[0] ?? '', new Set());
+        }
         if (unreadable.length > 0) {
             fail(
                 at,
@@ -1249,9 +1277,14 @@ function tomlCode(source: string): string {
                 const ch = line[i];
                 if (quote === null) {
                     if (ch === '#') return line.slice(0, i);
-                    if (ch === '"' || ch === "'") quote = ch;
-                } else if (ch === '\\' && quote === '"') i++;
-                else if (ch === quote) quote = null;
+                    if (ch === '"' || ch === "'") {
+                        quote = ch;
+                    }
+                } else if (ch === '\\' && quote === '"') {
+                    i++;
+                } else if (ch === quote) {
+                    quote = null;
+                }
             }
             return line;
         })

@@ -96,7 +96,9 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
             if (variable === null || seen.has(variable)) return;
             seen.add(variable);
             for (const ref of variable.references) {
-                if (ref.isRead()) followMessage(ref.identifier);
+                if (ref.isRead()) {
+                    followMessage(ref.identifier);
+                }
             }
         }
 
@@ -123,8 +125,9 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
                     parent.property.type === AST_NODE_TYPES.Identifier
                 ) {
                     const name = parent.property.name;
-                    if (name === 'message' || name === 'stack') followMessage(parent);
-                    else if (name === 'toString' && parent.parent.type === AST_NODE_TYPES.CallExpression) {
+                    if (name === 'message' || name === 'stack') {
+                        followMessage(parent);
+                    } else if (name === 'toString' && parent.parent.type === AST_NODE_TYPES.CallExpression) {
                         followMessage(parent.parent);
                     }
                 } else if (
@@ -137,7 +140,9 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
                     followMessage(parent);
                 } else if (parent.type === AST_NODE_TYPES.VariableDeclarator && parent.init === outer) {
                     // `const e = err` — an alias is the same error under another name.
-                    for (const alias of context.sourceCode.getDeclaredVariables(parent)) followError(alias);
+                    for (const alias of context.sourceCode.getDeclaredVariables(parent)) {
+                        followError(alias);
+                    }
                 }
             }
         }
@@ -215,7 +220,9 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
                     }
                     case AST_NODE_TYPES.VariableDeclarator:
                         if (parent.init !== child) return;
-                        for (const variable of context.sourceCode.getDeclaredVariables(parent)) followText(variable);
+                        for (const variable of context.sourceCode.getDeclaredVariables(parent)) {
+                            followText(variable);
+                        }
                         return;
                     case AST_NODE_TYPES.AssignmentExpression:
                         if (parent.right !== child) return;
@@ -229,7 +236,9 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
                         report(start, 'a return value');
                         return;
                     case AST_NODE_TYPES.ArrowFunctionExpression:
-                        if (parent.body === child) report(start, 'a return value');
+                        if (parent.body === child) {
+                            report(start, 'a return value');
+                        }
                         return;
                     case AST_NODE_TYPES.YieldExpression:
                         report(start, 'a yielded value');

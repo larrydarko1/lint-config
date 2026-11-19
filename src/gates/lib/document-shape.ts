@@ -53,7 +53,9 @@ export function collectionShapeProblems(
         required: type.fields.filter((field) => !field.optional && field.name !== '_id').map((field) => field.name),
     };
     const documented = documentedFields(sources.doc, collection);
-    if (documented !== null) problems.push(...tableProblems(sources.architecture, collection, shape, documented));
+    if (documented !== null) {
+        problems.push(...tableProblems(sources.architecture, collection, shape, documented));
+    }
     return [...problems, ...examples.flatMap(({ rel, source }) => exampleProblems(rel, source, shape))];
 }
 
@@ -130,7 +132,9 @@ function typeFields(
     for (let i = opener.index + opener[0].length; i < source.length && depth > 0; i++) {
         const ch = source[i];
         if (ch === '{') {
-            if (depth === 1) top += ch;
+            if (depth === 1) {
+                top += ch;
+            }
             depth++;
         } else if (ch === '}') {
             depth--;

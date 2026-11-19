@@ -29,8 +29,11 @@ export function createTree(root: string): Tree {
     const read = (file: string): string | undefined =>
         changes.has(file) ? (changes.get(file) ?? undefined) : onDisk(file);
     const set = (file: string, content: string | null): void => {
-        if ((onDisk(file) ?? null) === content) changes.delete(file);
-        else changes.set(file, content);
+        if ((onDisk(file) ?? null) === content) {
+            changes.delete(file);
+        } else {
+            changes.set(file, content);
+        }
     };
 
     return {
@@ -45,8 +48,11 @@ export function createTree(root: string): Tree {
             const names = new Set(fs.existsSync(full) ? fs.readdirSync(full) : []);
             for (const [file, content] of changes) {
                 if (path.posix.dirname(file) !== dir) continue;
-                if (content === null) names.delete(path.posix.basename(file));
-                else names.add(path.posix.basename(file));
+                if (content === null) {
+                    names.delete(path.posix.basename(file));
+                } else {
+                    names.add(path.posix.basename(file));
+                }
             }
             return [...names].sort();
         },
@@ -66,6 +72,8 @@ export function commitTree(root: string, tree: Tree): void {
         }
         fs.rmSync(full);
         const dir = path.dirname(full);
-        if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
+        if (fs.readdirSync(dir).length === 0) {
+            fs.rmdirSync(dir);
+        }
     }
 }

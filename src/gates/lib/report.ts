@@ -105,7 +105,9 @@ export function createGateReport(options: GateReportOptions): GateReport {
             }
 
             console.log(`✓ ${summary}`);
-            for (const warning of warnings) console.log(`  ! ${warning}`);
+            for (const warning of warnings) {
+                console.log(`  ! ${warning}`);
+            }
             if (notMachineChecked !== undefined) {
                 console.log(`\nNot machine-checked: ${notMachineChecked}`);
             }

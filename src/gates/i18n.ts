@@ -165,7 +165,9 @@ export function checkI18n(options: I18nGateOptions): void {
 
     if (errors.length > 0) {
         console.error(`✗ i18n check failed — ${errors.length} problem(s):\n`);
-        for (const e of errors) console.error(`  ${e}`);
+        for (const e of errors) {
+            console.error(`  ${e}`);
+        }
         console.error(
             `\nLocales checked: ${locales.join(', ')} (${keyCount} keys, ${options.reference ?? 'en'} = reference)`,
         );

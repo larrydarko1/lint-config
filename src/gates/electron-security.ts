@@ -513,7 +513,9 @@ export function checkElectronSecurity({ root = REPO_ROOT, ...rest }: ElectronSec
     const report = createGateReport({ name: 'Electron security' });
     const { problems, counts } = inspectElectronSecurity({ root, ...rest });
 
-    for (const { file, what, why } of problems) report.fail(file, what, why);
+    for (const { file, what, why } of problems) {
+        report.fail(file, what, why);
+    }
 
     report.done({
         summary:
@@ -533,8 +535,9 @@ function enclosingFunctionStart(code: string, index: number): number {
     let depth = 0;
     for (let j = index - 1; j >= 0; j--) {
         const ch = code[j];
-        if (ch === '}') depth++;
-        else if (ch === '{') {
+        if (ch === '}') {
+            depth++;
+        } else if (ch === '{') {
             if (depth > 0) {
                 depth--;
                 continue;
@@ -568,8 +571,9 @@ function interpolations(template: string): string[] {
         let depth = 0;
         const start = j + 2;
         for (j += 1; j < template.length; j++) {
-            if (template[j] === '{') depth++;
-            else if (template[j] === '}' && --depth === 0) break;
+            if (template[j] === '{') {
+                depth++;
+            } else if (template[j] === '}' && --depth === 0) break;
         }
         found.push(template.slice(start, j).trim());
     }
@@ -605,7 +609,9 @@ function boundValue(code: string, name: string, index: number, constOnly: boolea
     );
     let last = -1;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(code)) !== null && m.index < index) last = m.index + m[0].length;
+    while ((m = re.exec(code)) !== null && m.index < index) {
+        last = m.index + m[0].length;
+    }
     if (last === -1) {
         // Declared after the use is still a declaration when it is a module-level const.
         re.lastIndex = 0;
@@ -626,9 +632,11 @@ function statementEnd(text: string): number {
     let depth = 0;
     for (let j = 0; j < text.length; j++) {
         const ch = text[j];
-        if (ch === "'" || ch === '"' || ch === '`') j = skipString(text, j);
-        else if (ch === '(' || ch === '{' || ch === '[') depth++;
-        else if (ch === ')' || ch === '}' || ch === ']') {
+        if (ch === "'" || ch === '"' || ch === '`') {
+            j = skipString(text, j);
+        } else if (ch === '(' || ch === '{' || ch === '[') {
+            depth++;
+        } else if (ch === ')' || ch === '}' || ch === ']') {
             if (depth === 0) return j;
             depth--;
         } else if (ch === ';' && depth === 0) return j;
@@ -653,8 +661,11 @@ function unwrap(expr: string): string {
         let depth = 0;
         let balanced = true;
         for (const ch of inner) {
-            if (ch === '(') depth++;
-            else if (ch === ')' && --depth < 0) balanced = false;
+            if (ch === '(') {
+                depth++;
+            } else if (ch === ')' && --depth < 0) {
+                balanced = false;
+            }
         }
         if (!balanced) break;
         e = inner.trim();

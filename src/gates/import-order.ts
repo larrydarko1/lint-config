@@ -99,7 +99,9 @@ export function createImportOrder(options: ImportOrderOptions = {}): ImportOrder
             if (items.length > 0) {
                 const comments = ts.getLeadingCommentRanges(code, stmt.getFullStart()) ?? [];
                 const first = comments.find((c) => !/\n\s*\n/.test(code.slice(c.end, start)));
-                if (first !== undefined) start = first.pos;
+                if (first !== undefined) {
+                    start = first.pos;
+                }
             }
             if (!ts.isStringLiteral(stmt.moduleSpecifier)) continue;
             const spec = stmt.moduleSpecifier.text;
@@ -119,8 +121,11 @@ export function createImportOrder(options: ImportOrderOptions = {}): ImportOrder
     const segments = (items: ImportItem[]): ImportItem[][] => {
         const out: ImportItem[][] = [[]];
         for (const item of items) {
-            if (item.sideEffect) out.push([]);
-            else out[out.length - 1]?.push(item);
+            if (item.sideEffect) {
+                out.push([]);
+            } else {
+                out[out.length - 1]?.push(item);
+            }
         }
         return out.filter((seg) => seg.length > 0);
     };
@@ -206,7 +211,9 @@ export function createImportOrder(options: ImportOrderOptions = {}): ImportOrder
         if (script === null) return null;
         const res = analyzeImports(script.code, rel.endsWith('.vue') ? `${rel}.ts` : rel);
         const lineOffset = script.source.slice(0, script.offset).split('\n').length - 1;
-        for (const problem of res.problems) problem.line += lineOffset;
+        for (const problem of res.problems) {
+            problem.line += lineOffset;
+        }
         return res;
     };
 

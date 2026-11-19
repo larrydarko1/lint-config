@@ -266,8 +266,12 @@ test('a package ban covers the package and its subpaths, not a local module of t
         [fullstack.noStoreLibraryPatterns, ['pinia', 'vuex/dist/vuex'], ['@/composables/pinia']],
     ];
     for (const [patterns, banned, allowed] of cases) {
-        for (const specifier of banned) assert.ok(bans(patterns, specifier), `${specifier} should be banned`);
-        for (const specifier of allowed) assert.ok(!bans(patterns, specifier), `${specifier} should be allowed`);
+        for (const specifier of banned) {
+            assert.ok(bans(patterns, specifier), `${specifier} should be banned`);
+        }
+        for (const specifier of allowed) {
+            assert.ok(!bans(patterns, specifier), `${specifier} should be allowed`);
+        }
     }
 });
 
@@ -290,7 +294,9 @@ test('the API family exports the full-stack backend selectors, not copies of the
         'wsEventNameSelectors',
         'wsGatewayBannedImports',
     ];
-    for (const name of shared) assert.equal(api[name], fullstack[name], name);
+    for (const name of shared) {
+        assert.equal(api[name], fullstack[name], name);
+    }
     // Same rules, with the messages pointed at a single package's files.
     for (const name of ['apiSourceSelectors', 'dbApiWorkerSelectors', 'dbDbTsSelectors']) {
         assert.deepEqual(

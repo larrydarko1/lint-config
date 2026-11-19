@@ -129,7 +129,9 @@ export function inspectScssStandards({
             'It is what Vite prepends to every SFC style block; without it every `$`-token reference in the app is an undefined-variable error.',
         ],
     ] as const) {
-        if (!exists(rel)) fail(rel, `does not exist, but is this project's ${role}`, why);
+        if (!exists(rel)) {
+            fail(rel, `does not exist, but is this project's ${role}`, why);
+        }
     }
 
     const entrySrc = exists(entryPath) ? read(entryPath) : '';
@@ -228,7 +230,9 @@ export function inspectScssStandards({
         return undefined;
     };
 
-    if (exists(injectedPath)) walkInjected(injectedPath);
+    if (exists(injectedPath)) {
+        walkInjected(injectedPath);
+    }
 
     // ── 5. The Vite injection ───────────────────────────────────────────────
     for (const viteConfig of viteConfigs) {
@@ -356,7 +360,9 @@ export function inspectScssStandards({
     const unresolved = new Map<string, string>();
     for (const rel of declared.size > 0 ? styleFiles : []) {
         for (const [, token = ''] of stripComments(read(rel)).matchAll(/var\(\s*--([a-z0-9-]+)/gi)) {
-            if (!declared.has(token) && !unresolved.has(token)) unresolved.set(token, rel);
+            if (!declared.has(token) && !unresolved.has(token)) {
+                unresolved.set(token, rel);
+            }
         }
     }
     for (const [token, rel] of unresolved) {
@@ -438,8 +444,11 @@ export function inspectScssStandards({
         if (!exists(dir)) return out;
         for (const item of fs.readdirSync(abs(dir), { withFileTypes: true })) {
             const rel = `${dir}/${item.name}`;
-            if (item.isDirectory()) walk(rel, test, out);
-            else if (test(item.name)) out.push(rel);
+            if (item.isDirectory()) {
+                walk(rel, test, out);
+            } else if (test(item.name)) {
+                out.push(rel);
+            }
         }
         return out;
     }
@@ -450,7 +459,9 @@ export function checkScssStandards({ root = REPO_ROOT, ...rest }: ScssStandardsO
     const report = createGateReport({ name: 'SCSS architecture' });
     const { problems, styleFiles, palettes, tokenCount } = inspectScssStandards({ root, ...rest });
 
-    for (const { file, what, why } of problems) report.fail(file, what, why);
+    for (const { file, what, why } of problems) {
+        report.fail(file, what, why);
+    }
 
     report.done({
         summary: `entry and injection intact with nothing emitting from the injected module, ${palettes.length} palettes agreeing on ${tokenCount} tokens, ${styleFiles.length} style files with no Sass maths on a token, no @extend in an SFC and no remote font.`,
@@ -479,7 +490,9 @@ function emittingHeads(source: string): string[] {
             const suppressed = stack.includes(true);
             const declaresOnly = INERT_AT_RULES.test(trimmed) || trimmed.startsWith('%');
             // A declaration never reaches a `{`: `head` resets at every `;`.
-            if (!suppressed && !declaresOnly && trimmed !== '') heads.push(trimmed.replace(/\s+/g, ' '));
+            if (!suppressed && !declaresOnly && trimmed !== '') {
+                heads.push(trimmed.replace(/\s+/g, ' '));
+            }
             stack.push(suppressed || declaresOnly);
             head = '';
         } else if (ch === '}') {

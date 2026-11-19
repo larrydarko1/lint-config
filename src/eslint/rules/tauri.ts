@@ -37,18 +37,24 @@ const noTauriOutsideBridge: TSESLint.RuleModule<MessageId> = {
             // `window.__TAURI__`, `globalThis['__TAURI_INTERNALS__']`
             'MemberExpression'(node): void {
                 const name = propertyName(node);
-                if (name?.startsWith(TAURI_GLOBAL) === true) reportGlobal(node, name);
+                if (name?.startsWith(TAURI_GLOBAL) === true) {
+                    reportGlobal(node, name);
+                }
             },
             // `'__TAURI__' in window`
             'BinaryExpression'(node): void {
                 const name = node.operator === 'in' ? stringValue(node.left) : null;
-                if (name?.startsWith(TAURI_GLOBAL) === true) reportGlobal(node, name);
+                if (name?.startsWith(TAURI_GLOBAL) === true) {
+                    reportGlobal(node, name);
+                }
             },
             // A bare `__TAURI__.core.invoke(…)`: a global nothing in the module declares.
             'Program:exit'(program): void {
                 for (const reference of context.sourceCode.getScope(program).through) {
                     const { identifier } = reference;
-                    if (identifier.name.startsWith(TAURI_GLOBAL)) reportGlobal(identifier, identifier.name);
+                    if (identifier.name.startsWith(TAURI_GLOBAL)) {
+                        reportGlobal(identifier, identifier.name);
+                    }
                 }
             },
         };

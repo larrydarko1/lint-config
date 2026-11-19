@@ -228,7 +228,9 @@ export function inspectDuplication(input: DuplicationInput): DuplicationInspecti
                 .filter((d) => d.format === format)
                 .sort((a, b) => b.tokens - a.tokens)
                 .slice(0, 5);
-            for (const clone of worst) failClone(clone, 'One of the largest copies behind the number above.');
+            for (const clone of worst) {
+                failClone(clone, 'One of the largest copies behind the number above.');
+            }
         }
     };
 
@@ -236,7 +238,9 @@ export function inspectDuplication(input: DuplicationInput): DuplicationInspecti
     checkCeilings(report, null);
     for (const scanRoot of scan) {
         const perRoot = perRootReports[scanRoot];
-        if (perRoot !== undefined) checkCeilings(perRoot, scanRoot);
+        if (perRoot !== undefined) {
+            checkCeilings(perRoot, scanRoot);
+        }
     }
 
     // -- 2. No single clone over the cap -----------------------------------------
@@ -342,7 +346,9 @@ export function checkDuplication(options: DuplicationOptions): void {
     try {
         full = runJscpd(root, scan, config);
         if (perRoot) {
-            for (const scanRoot of scan) perRootReports[scanRoot] = runJscpd(root, [scanRoot], config);
+            for (const scanRoot of scan) {
+                perRootReports[scanRoot] = runJscpd(root, [scanRoot], config);
+            }
         }
     } catch (error) {
         console.error(`✗ Duplication check failed — ${error instanceof Error ? error.message : String(error)}`);
@@ -362,7 +368,9 @@ export function checkDuplication(options: DuplicationOptions): void {
         crossCloneAllowed,
     });
 
-    for (const { file, what, why } of problems) report.fail(file, what, why);
+    for (const { file, what, why } of problems) {
+        report.fail(file, what, why);
+    }
 
     const ceilingOf = (entry: number | Ceiling): number => (typeof entry === 'number' ? entry : entry.limit);
 

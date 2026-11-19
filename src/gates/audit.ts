@@ -162,7 +162,9 @@ export function checkAudit(options: AuditOptions = {}): void {
     }
 
     const { problems, waived } = inspectAudit({ report: parsed, auditError, allowlist, failSeverities, today });
-    for (const { file, what, why } of problems) report.fail(file, what, why);
+    for (const { file, what, why } of problems) {
+        report.fail(file, what, why);
+    }
 
     const severities = failSeverities.join('/');
     report.done({

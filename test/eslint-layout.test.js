@@ -158,7 +158,9 @@ const project = (t, paths) => {
     const root = mkdtempSync(path.join(tmpdir(), 'lint-config-layout-'));
     t.after(() => rmSync(root, { recursive: true, force: true }));
     writeFileSync(path.join(root, 'package.json'), '{}');
-    for (const dir of paths) mkdirSync(path.join(root, dir), { recursive: true });
+    for (const dir of paths) {
+        mkdirSync(path.join(root, dir), { recursive: true });
+    }
     return root;
 };
 

@@ -326,7 +326,9 @@ export function checkEnvDrift({ root = REPO_ROOT, ...rest }: EnvDriftOptions): v
     const report = createGateReport({ name: 'Env drift' });
     const { problems, warnings, services } = inspectEnvDrift({ root, ...rest });
 
-    for (const { file, what, why } of problems) report.fail(file, what, why);
+    for (const { file, what, why } of problems) {
+        report.fail(file, what, why);
+    }
 
     const keys = services.reduce((total, service) => total + service.keys, 0);
     report.done({
@@ -339,7 +341,11 @@ export function checkEnvDrift({ root = REPO_ROOT, ...rest }: EnvDriftOptions): v
     });
 
     // After the report; warnings never set an exit code.
-    if (report.count === 0) for (const warning of warnings) console.warn(`\n⚠ ${warning}`);
+    if (report.count === 0) {
+        for (const warning of warnings) {
+            console.warn(`\n⚠ ${warning}`);
+        }
+    }
 }
 
 /** UPPER_SNAKE object keys: a Zod schema's env fields, declared as `KEY:` at the start of a line. */
@@ -363,9 +369,13 @@ function sharedFragments(source: string): Record<string, Set<string>> {
 function configKeys(source: string, fragments: Record<string, Set<string>>, ignored: Set<string>): Set<string> {
     const keys = schemaFieldKeys(source);
     for (const [, name = ''] of source.matchAll(/\.\.\.(\w+)/g)) {
-        for (const key of fragments[name] ?? []) keys.add(key);
+        for (const key of fragments[name] ?? []) {
+            keys.add(key);
+        }
     }
-    for (const key of ignored) keys.delete(key);
+    for (const key of ignored) {
+        keys.delete(key);
+    }
     return keys;
 }
 
@@ -384,7 +394,9 @@ function dotenvKeys(
         const isComment = line.startsWith('#');
         if (isComment && !commentedCounts) continue;
         const key = /^([A-Z0-9_]+)=/.exec(isComment ? line.replace(/^#\s*/, '') : line)?.[1];
-        if (key !== undefined && !ignored.has(key)) keys.add(key);
+        if (key !== undefined && !ignored.has(key)) {
+            keys.add(key);
+        }
     }
     return keys;
 }

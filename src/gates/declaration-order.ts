@@ -171,7 +171,9 @@ export function analyzeFile(rel: string, root: string, profile: Profile = profil
         code = block.content;
     }
     const res = analyze(code, rel.endsWith('.vue') ? `${rel}.ts` : rel, profile);
-    for (const m of res.misplaced) m.line += lineOffset;
+    for (const m of res.misplaced) {
+        m.line += lineOffset;
+    }
     return res;
 }
 
@@ -224,7 +226,9 @@ export function inspectDeclarationOrder(input: DeclarationOrderInput): Declarati
     let importsChecked = 0;
     let filesFixed = 0;
     for (const rel of [...files, ...testFiles]) {
-        if (fix && fixImportsInFile(rel, root)) filesFixed++;
+        if (fix && fixImportsInFile(rel, root)) {
+            filesFixed++;
+        }
         const result = checkImportsInFile(rel, root);
         if (result === null) continue;
         importsChecked += result.count;
@@ -295,7 +299,9 @@ export function checkDeclarationOrder(options: DeclarationOrderOptions): void {
         return;
     }
 
-    if (fix) console.log(`Import order: rewrote ${counts.importsFixed} file(s).`);
+    if (fix) {
+        console.log(`Import order: rewrote ${counts.importsFixed} file(s).`);
+    }
 
     if (failures.length > 0) {
         const total = failures.reduce((n, f) => n + f.misplaced.length, 0);
@@ -364,16 +370,22 @@ function isConstantInit(n: ts.Node | undefined): boolean {
 function rootIdentifier(n: ts.Node | undefined): string | null {
     let e = n;
     while (e !== undefined) {
-        if (ts.isAsExpression(e) || ts.isParenthesizedExpression(e)) e = e.expression;
-        else if (ts.isCallExpression(e) || ts.isPropertyAccessExpression(e)) e = e.expression;
-        else break;
+        if (ts.isAsExpression(e) || ts.isParenthesizedExpression(e)) {
+            e = e.expression;
+        } else if (ts.isCallExpression(e) || ts.isPropertyAccessExpression(e)) {
+            e = e.expression;
+        } else {
+            break;
+        }
     }
     return e !== undefined && ts.isIdentifier(e) ? e.text : null;
 }
 
 function callName(n: ts.Node | undefined): string | null {
     let e = n;
-    if (e !== undefined && ts.isAsExpression(e)) e = e.expression;
+    if (e !== undefined && ts.isAsExpression(e)) {
+        e = e.expression;
+    }
     if (e !== undefined && ts.isCallExpression(e)) {
         if (ts.isIdentifier(e.expression)) return e.expression.text;
         if (ts.isPropertyAccessExpression(e.expression)) return e.expression.name.text;
@@ -512,16 +524,26 @@ function analyze(code: string, filename: string, profile: Profile = PRODUCTION_P
     const declaredBy = new Map<string, Item>();
     for (const it of items) {
         if (it.hoisted || it.typeOnly) continue;
-        for (const d of it.decls) if (!declaredBy.has(d)) declaredBy.set(d, it);
+        for (const d of it.decls) {
+            if (!declaredBy.has(d)) {
+                declaredBy.set(d, it);
+            }
+        }
     }
 
     // A call at load time runs the callee's body at load time too, hoisted or not:
     // `const ROOT = find()` reads everything `find` reads, and what that calls, and so on.
     const runs = new Map<string, { reads: Set<string>; calls: Set<string> }>();
     for (const it of items) {
-        for (const d of it.decls) if (it.bodyRefs.size > 0) runs.set(d, { reads: it.bodyRefs, calls: it.bodyCalls });
+        for (const d of it.decls) {
+            if (it.bodyRefs.size > 0) {
+                runs.set(d, { reads: it.bodyRefs, calls: it.bodyCalls });
+            }
+        }
     }
-    for (const it of items) readThroughCalls(it, runs);
+    for (const it of items) {
+        readThroughCalls(it, runs);
+    }
 
     // Every item is put in both maps here, so `edges` cannot miss.
     const deps = new Map<Item, Set<Item>>(items.map((it) => [it, new Set()]));
@@ -555,7 +577,9 @@ function analyze(code: string, filename: string, profile: Profile = PRODUCTION_P
         for (const d of edges(dependents, next)) {
             const left = (indegree.get(d) ?? 0) - 1;
             indegree.set(d, left);
-            if (left === 0) ready.push(d);
+            if (left === 0) {
+                ready.push(d);
+            }
         }
     }
     // A cycle cannot be ordered; leave the module alone rather than guess.

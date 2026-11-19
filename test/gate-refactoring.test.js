@@ -48,7 +48,9 @@ const project = (t, files, extra = {}) => {
     };
     const git = (...args) => execFileSync('git', args, { cwd: root, stdio: 'ignore' });
 
-    for (const [rel, body] of Object.entries(files)) put(rel, body);
+    for (const [rel, body] of Object.entries(files)) {
+        put(rel, body);
+    }
 
     git('init', '-q');
     git('config', 'user.email', 'fixture@example.test');
@@ -56,7 +58,9 @@ const project = (t, files, extra = {}) => {
     git('add', '-A');
     git('commit', '-qm', 'fixture');
 
-    for (const [rel, body] of Object.entries(extra)) put(rel, body);
+    for (const [rel, body] of Object.entries(extra)) {
+        put(rel, body);
+    }
 
     return root;
 };

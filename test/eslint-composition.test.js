@@ -138,7 +138,9 @@ test('a suite keeps the naming and export selectors of the code it tests, in eve
     for (const [config, files] of suites) {
         for (const file of files) {
             const { selectors } = await bansOf(config, file);
-            for (const selector of expected) assert.ok(selectors.includes(selector), `${file}: ${selector}`);
+            for (const selector of expected) {
+                assert.ok(selectors.includes(selector), `${file}: ${selector}`);
+            }
         }
     }
 });

@@ -780,7 +780,9 @@ export async function checkDbDrift({ root = REPO_ROOT, ...rest }: DbDriftOptions
     const report = createGateReport({ name: 'Database drift' });
     const { problems, warnings, collections, indexes, migrations } = await inspectDbDrift({ root, ...rest });
 
-    for (const { file, what, why } of problems) report.fail(file, what, why);
+    for (const { file, what, why } of problems) {
+        report.fail(file, what, why);
+    }
 
     report.done({
         summary:
@@ -791,7 +793,11 @@ export async function checkDbDrift({ root = REPO_ROOT, ...rest }: DbDriftOptions
             'Whether an index is the RIGHT index for the queries that run, whether a migration is genuinely idempotent against real data, whether a `why` is true, and whether the restore actually works — only running one proves that.',
     });
 
-    if (report.count === 0) for (const warning of warnings) console.warn(`\n⚠ ${warning}`);
+    if (report.count === 0) {
+        for (const warning of warnings) {
+            console.warn(`\n⚠ ${warning}`);
+        }
+    }
 }
 
 /** `Users` → `users`, `HashDatabase` → `hash-database`, `AssetInfo` → `asset-info`. */

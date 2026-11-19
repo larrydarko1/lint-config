@@ -60,7 +60,9 @@ export function analyzeRust(source: string): { misplaced: RustMisplaced[]; count
 
     const typeAt = new Map<string, { i: number; cat: string }>();
     for (const e of checked) {
-        if (TYPE_KINDS.has(e.item.kind) && !typeAt.has(e.item.name)) typeAt.set(e.item.name, e);
+        if (TYPE_KINDS.has(e.item.kind) && !typeAt.has(e.item.name)) {
+            typeAt.set(e.item.name, e);
+        }
     }
 
     const keyed = checked.map((e) => {

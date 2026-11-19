@@ -44,9 +44,13 @@ export async function upgrade(root: string, write: boolean): Promise<UpgradeStep
         const changed = [...tree.changes()]
             .filter(([file, content]) => before.get(file) !== content)
             .map(([file, content]) => ({ file, how: howChanged(tree, file, content) }));
-        if (changed.length > 0 || notes.length > 0) steps.push({ title, changed, notes });
+        if (changed.length > 0 || notes.length > 0) {
+            steps.push({ title, changed, notes });
+        }
     }
-    if (write) commitTree(root, tree);
+    if (write) {
+        commitTree(root, tree);
+    }
     return steps;
 }
 

@@ -49,13 +49,18 @@ export function walkFiles(root: string, dirs: string | string[], options: WalkOp
 
     const keep = (rel: string): void => {
         if (match !== undefined && !matches(match, rel)) return;
-        if (exclude === undefined || !matches(exclude, rel)) out.push(rel);
+        if (exclude === undefined || !matches(exclude, rel)) {
+            out.push(rel);
+        }
     };
     const visit = (rel: string): void => {
         for (const entry of fs.readdirSync(path.join(root, rel), { withFileTypes: true })) {
             const child = `${rel}/${entry.name}`;
-            if (entry.isDirectory()) visit(child);
-            else keep(child);
+            if (entry.isDirectory()) {
+                visit(child);
+            } else {
+                keep(child);
+            }
         }
     };
 
@@ -63,8 +68,11 @@ export function walkFiles(root: string, dirs: string | string[], options: WalkOp
         const absolute = path.join(root, dir);
         if (!fs.existsSync(absolute)) continue;
         // A file named as a root is read on its own: `src-tauri/build.rs` without `src-tauri/target/`.
-        if (fs.statSync(absolute).isDirectory()) visit(dir);
-        else keep(dir);
+        if (fs.statSync(absolute).isDirectory()) {
+            visit(dir);
+        } else {
+            keep(dir);
+        }
     }
     return out.sort();
 }

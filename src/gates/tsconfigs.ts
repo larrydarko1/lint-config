@@ -393,8 +393,11 @@ export function inspectTsconfigs({
         for (const entry of fs.readdirSync(path.join(root, rel), { withFileTypes: true })) {
             if (ignored.has(entry.name) || entry.name.startsWith('.')) continue;
             const child = rel === '.' ? entry.name : `${rel}/${entry.name}`;
-            if (entry.isDirectory()) listConfigs(child, out);
-            else if (/^tsconfig(\..+)?\.json$/.test(entry.name)) out.push(child);
+            if (entry.isDirectory()) {
+                listConfigs(child, out);
+            } else if (/^tsconfig(\..+)?\.json$/.test(entry.name)) {
+                out.push(child);
+            }
         }
         return out;
     }
@@ -405,8 +408,11 @@ export function inspectTsconfigs({
         let data: TsconfigJson = {};
         try {
             const json: unknown = JSON.parse(stripComments(raw));
-            if (isTsconfigJson(json)) data = json;
-            else fail(rel, 'is not a tsconfig tsc can read', TSCONFIG_SHAPE_WHY);
+            if (isTsconfigJson(json)) {
+                data = json;
+            } else {
+                fail(rel, 'is not a tsconfig tsc can read', TSCONFIG_SHAPE_WHY);
+            }
         } catch (e) {
             fail(
                 rel,
@@ -428,7 +434,9 @@ export function inspectTsconfigs({
             if (parent === null) continue; // an unresolvable parent is tsc's complaint
             try {
                 const json: unknown = JSON.parse(stripComments(read(parent)));
-                if (isTsconfigJson(json)) inherited = { ...inherited, ...effective(parent, json, seen) };
+                if (isTsconfigJson(json)) {
+                    inherited = { ...inherited, ...effective(parent, json, seen) };
+                }
             } catch {
                 continue;
             }
@@ -519,7 +527,9 @@ export function inspectTsconfigs({
                 const rels = (named.length > 0 ? named : ['tsconfig.json']).map((specifier) =>
                     toConfigPath(specifier, dir),
                 );
-                for (const rel of building ? rels : []) addWithReferences(rel, reached);
+                for (const rel of building ? rels : []) {
+                    addWithReferences(rel, reached);
+                }
                 for (const rel of building ? [] : rels) {
                     reached.add(rel);
                     pointed.add(rel);
@@ -562,7 +572,9 @@ export function checkTsconfigs({ root = REPO_ROOT, ...rest }: TsconfigsOptions =
     const report = createGateReport({ name: 'tsconfigs' });
     const { problems, projects, flagCount } = inspectTsconfigs({ root, ...rest });
 
-    for (const { file, what, why } of problems) report.fail(file, what, why);
+    for (const { file, what, why } of problems) {
+        report.fail(file, what, why);
+    }
 
     report.done({
         summary: `${projects.length} projects, each extending the base last, ${flagCount} checking flags owned by the base and nothing environmental, every override explained, every target matched to its lib, every project scoping its own \`types\` and reached by a compiler.`,

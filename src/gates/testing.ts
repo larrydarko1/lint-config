@@ -164,13 +164,17 @@ export function replacedClient(
         for (const name of client.exports) {
             // No factory automocks every export; otherwise `name: …`, or the shorthand `{ name }` / `{ …, name }`.
             const own = new RegExp(`(?:^|[^\\w$.])${name}\\s*(?::|,|\\})`);
-            if (factory === '' || own.test(factory)) found.push({ line: lineOf(site.index), name });
+            if (factory === '' || own.test(factory)) {
+                found.push({ line: lineOf(site.index), name });
+            }
         }
     }
     for (const site of callSites(source, 'vi.spyOn(')) {
         const [, method = ''] = splitTopLevel(site.args, ',').map((arg) => arg.trim());
         const name = client.exports.find((candidate) => new RegExp(`^['"\`]${candidate}['"\`]$`).test(method));
-        if (name !== undefined) found.push({ line: lineOf(site.index), name });
+        if (name !== undefined) {
+            found.push({ line: lineOf(site.index), name });
+        }
     }
     return found.sort((a, b) => a.line - b.line);
 }
@@ -193,10 +197,15 @@ export function duplicateTitles(source: string): { title: string; count: number 
         }
 
         for (const ch of line) {
-            if (ch === '{' || ch === '(') depth++;
-            else if (ch === '}' || ch === ')') depth--;
+            if (ch === '{' || ch === '(') {
+                depth++;
+            } else if (ch === '}' || ch === ')') {
+                depth--;
+            }
         }
-        while (stack.length > 0 && depth <= (stack.at(-1)?.depth ?? -Infinity)) stack.pop();
+        while (stack.length > 0 && depth <= (stack.at(-1)?.depth ?? -Infinity)) {
+            stack.pop();
+        }
     }
 
     return [...seen].filter(([, count]) => count > 1).map(([title, count]) => ({ title, count }));
@@ -404,9 +413,13 @@ export function inspectTesting(input: TestingInput): TestingInspection {
 
         source.split('\n').forEach((line, i) => {
             for (const { re, what, why } of HYGIENE) {
-                if (re.test(line)) fail(`${rel}:${i + 1}`, what, why);
+                if (re.test(line)) {
+                    fail(`${rel}:${i + 1}`, what, why);
+                }
             }
-            if (VM_ACCESS.test(line)) vmHits.push(`${rel}:${i + 1}`);
+            if (VM_ACCESS.test(line)) {
+                vmHits.push(`${rel}:${i + 1}`);
+            }
         });
 
         for (const { title, count } of duplicateTitles(source)) {
@@ -495,7 +508,9 @@ export function checkTesting(options: TestingOptions): void {
         root,
         ...rest,
     });
-    for (const { file, what, why } of problems) report.fail(file, what, why);
+    for (const { file, what, why } of problems) {
+        report.fail(file, what, why);
+    }
 
     const { layout, e2e = false, thresholds, excludes = {}, domEnvironment, serverErrors, apiClient } = rest;
     const placement =

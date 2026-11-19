@@ -225,7 +225,9 @@ export function checkSecrets(options: SecretsOptions = {}): void {
     const report = createGateReport({ name: 'Secrets' });
 
     const { problems, files, waived, skipped } = inspectSecrets({ root, allowlist });
-    for (const { file, what, why } of problems) report.fail(file, what, why);
+    for (const { file, what, why } of problems) {
+        report.fail(file, what, why);
+    }
 
     const waivedNote = waived > 0 ? `, ${plural(waived, 'reviewed false positive')}` : '';
     const skippedNote = skipped > 0 ? ` (${plural(skipped, 'binary or oversized file')} not read)` : '';
@@ -273,7 +275,9 @@ function looksRandom(value: string): boolean {
     if (PLACEHOLDER.test(value) || /^[A-Z0-9_]+$/.test(value) || /^\$[a-z0-9-]+\$/.test(value)) return false;
     if (!/[A-Za-z]/.test(value) || !/\d/.test(value)) return false;
     const counts = new Map<string, number>();
-    for (const char of value) counts.set(char, (counts.get(char) ?? 0) + 1);
+    for (const char of value) {
+        counts.set(char, (counts.get(char) ?? 0) + 1);
+    }
     let entropy = 0;
     for (const count of counts.values()) {
         const p = count / value.length;

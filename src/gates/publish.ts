@@ -121,7 +121,9 @@ export function inspectPublish(input: PublishOptions = {}): PublishInspection {
         const unpacked = new Set<string>();
         for (const [field, target, subpath] of namedFiles(pkg, entries)) {
             const file = path.posix.normalize(target);
-            if (!shipped.has(file) && subpath !== null) unpacked.add(subpath);
+            if (!shipped.has(file) && subpath !== null) {
+                unpacked.add(subpath);
+            }
             if (!shipped.has(file)) {
                 fail(
                     'package.json',
@@ -204,7 +206,9 @@ export function checkPublish(options: PublishOptions = {}): void {
     }
 
     const { problems, counts } = inspection;
-    for (const { file, what, why } of problems) report.fail(file, what, why);
+    for (const { file, what, why } of problems) {
+        report.fail(file, what, why);
+    }
 
     const skipped = counts.patterns > 0 ? ` ${plural(counts.patterns, 'subpath pattern')} not loaded.` : '';
     report.done({

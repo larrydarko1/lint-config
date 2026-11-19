@@ -84,8 +84,9 @@ export function braceBlock(source: string, opener: RegExp): string {
 
     let depth = 0;
     for (let j = open; j < source.length; j++) {
-        if (source[j] === '{') depth++;
-        else if (source[j] === '}' && --depth === 0) return source.slice(open + 1, j);
+        if (source[j] === '{') {
+            depth++;
+        } else if (source[j] === '}' && --depth === 0) return source.slice(open + 1, j);
     }
     return '';
 }
@@ -101,8 +102,9 @@ export function propertyValue(source: string, key: string): string | null {
     let depth = 0;
     for (let j = start; j < source.length; j++) {
         const ch = source[j];
-        if (ch === '(' || ch === '{' || ch === '[') depth++;
-        else if (ch === ')' || ch === '}' || ch === ']') {
+        if (ch === '(' || ch === '{' || ch === '[') {
+            depth++;
+        } else if (ch === ')' || ch === '}' || ch === ']') {
             if (depth === 0) return source.slice(start, j);
             depth--;
         } else if (ch === ',' && depth === 0) return source.slice(start, j);
@@ -134,9 +136,11 @@ export function splitTopLevel(text: string, separator: string): string[] {
             j++;
             continue;
         }
-        if (ch === '(' || ch === '{' || ch === '[' || ch === '<') depth++;
-        else if (ch === ')' || ch === '}' || ch === ']' || ch === '>') depth = Math.max(0, depth - 1);
-        else if (ch === separator && depth === 0) {
+        if (ch === '(' || ch === '{' || ch === '[' || ch === '<') {
+            depth++;
+        } else if (ch === ')' || ch === '}' || ch === ']' || ch === '>') {
+            depth = Math.max(0, depth - 1);
+        } else if (ch === separator && depth === 0) {
             parts.push(text.slice(from, j));
             from = j + 1;
         }
@@ -177,10 +181,13 @@ export function functionParts(text: string): FunctionParts | null {
         if (ch === '=' && text[j + 1] === '>') {
             if (angle === 0) break;
             j++;
-        } else if (ch === '<') angle++;
-        else if (ch === '>') angle = Math.max(0, angle - 1);
-        else if (ch === '(' || ch === '[') j = matching(text, j);
-        else if (ch === '{') {
+        } else if (ch === '<') {
+            angle++;
+        } else if (ch === '>') {
+            angle = Math.max(0, angle - 1);
+        } else if (ch === '(' || ch === '[') {
+            j = matching(text, j);
+        } else if (ch === '{') {
             const before = text.slice(cursor, j).trimEnd();
             const inType = angle > 0 || /[:|&,<]$/.test(before);
             if (!inType) break;
@@ -193,7 +200,9 @@ export function functionParts(text: string): FunctionParts | null {
     let bodyStart = j;
     if (text[j] === '=') {
         bodyStart = j + 2;
-        while (/\s/.test(text[bodyStart] ?? '')) bodyStart++;
+        while (/\s/.test(text[bodyStart] ?? '')) {
+            bodyStart++;
+        }
     }
     let body;
     if (text[bodyStart] === '{') {
@@ -287,9 +296,12 @@ export function skipString(text: string, start: number): number {
     const quote = text[start];
     for (let j = start + 1; j < text.length; j++) {
         const ch = text[j];
-        if (ch === '\\') j++;
-        else if (ch === quote) return j;
-        else if (quote === '`' && ch === '$' && text[j + 1] === '{') j = interpolationEnd(text, j + 1);
+        if (ch === '\\') {
+            j++;
+        } else if (ch === quote) return j;
+        else if (quote === '`' && ch === '$' && text[j + 1] === '{') {
+            j = interpolationEnd(text, j + 1);
+        }
     }
     return text.length;
 }
@@ -298,9 +310,11 @@ export function skipString(text: string, start: number): number {
 function interpolationEnd(text: string, open: number): number {
     let depth = 0;
     for (let j = open; j < text.length; j++) {
-        if (text[j] === '`' || text[j] === "'" || text[j] === '"') j = skipString(text, j);
-        else if (text[j] === '{') depth++;
-        else if (text[j] === '}' && --depth === 0) return j;
+        if (text[j] === '`' || text[j] === "'" || text[j] === '"') {
+            j = skipString(text, j);
+        } else if (text[j] === '{') {
+            depth++;
+        } else if (text[j] === '}' && --depth === 0) return j;
     }
     return text.length;
 }
@@ -313,9 +327,11 @@ function matching(text: string, open: number): number {
     let depth = 0;
     for (let j = open; j < text.length; j++) {
         const ch = text[j];
-        if (ch === "'" || ch === '"' || ch === '`') j = skipString(text, j);
-        else if (ch === '(' || ch === '{' || ch === '[') depth++;
-        else if ((ch === ')' || ch === '}' || ch === ']') && --depth === 0) return j;
+        if (ch === "'" || ch === '"' || ch === '`') {
+            j = skipString(text, j);
+        } else if (ch === '(' || ch === '{' || ch === '[') {
+            depth++;
+        } else if ((ch === ')' || ch === '}' || ch === ']') && --depth === 0) return j;
     }
     return -1;
 }
@@ -328,9 +344,11 @@ function expressionAt(text: string, start: number): string {
     let depth = 0;
     for (let j = start; j < text.length; j++) {
         const ch = text[j];
-        if (ch === "'" || ch === '"' || ch === '`') j = skipString(text, j);
-        else if (ch === '(' || ch === '{' || ch === '[') depth++;
-        else if (ch === ')' || ch === '}' || ch === ']') {
+        if (ch === "'" || ch === '"' || ch === '`') {
+            j = skipString(text, j);
+        } else if (ch === '(' || ch === '{' || ch === '[') {
+            depth++;
+        } else if (ch === ')' || ch === '}' || ch === ']') {
             if (depth === 0) return text.slice(start, j).trim();
             depth--;
         } else if ((ch === ',' || ch === ';') && depth === 0) return text.slice(start, j).trim();

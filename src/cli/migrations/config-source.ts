@@ -73,7 +73,9 @@ export function bindingsOf(declaration: ts.ImportDeclaration, module: string): B
     if (clause === undefined) return [];
     const typeOnly = isTypeOnly(clause);
     const bindings: Binding[] = [];
-    if (clause.name !== undefined) bindings.push({ local: clause.name.text, imported: 'default', module, typeOnly });
+    if (clause.name !== undefined) {
+        bindings.push({ local: clause.name.text, imported: 'default', module, typeOnly });
+    }
     const named = clause.namedBindings;
     if (named !== undefined && ts.isNamespaceImport(named)) {
         bindings.push({ local: named.name.text, imported: '*', module, typeOnly });
@@ -135,8 +137,12 @@ export function importEdits(source: ts.SourceFile, bindings: Binding[]): Edit[] 
     const others = ordered.filter(([module]) => group(module) > 0).map(([, text]) => text);
     const first = declarations[0]?.getStart() ?? 0;
     const after = declarations.at(-1)?.end ?? 0;
-    if (builtins.length > 0) edits.push({ start: first, end: first, text: `${builtins.join('\n')}\n\n` });
-    if (others.length > 0) edits.push({ start: after, end: after, text: `\n${others.join('\n')}\n` });
+    if (builtins.length > 0) {
+        edits.push({ start: first, end: first, text: `${builtins.join('\n')}\n\n` });
+    }
+    if (others.length > 0) {
+        edits.push({ start: after, end: after, text: `\n${others.join('\n')}\n` });
+    }
     return edits;
 }
 

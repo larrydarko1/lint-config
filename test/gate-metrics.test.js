@@ -218,7 +218,11 @@ test('an unparseable manifest is reported before anything else is graded', (t) =
 
 test('an empty manifest directory fails rather than passing vacuously', (t) => {
     const files = good();
-    for (const key of Object.keys(files)) if (key.startsWith('k8s/')) delete files[key];
+    for (const key of Object.keys(files)) {
+        if (key.startsWith('k8s/')) {
+            delete files[key];
+        }
+    }
     const root = tree(t, files);
     assert.deepEqual(whats(root), ['contains no manifests']);
 });

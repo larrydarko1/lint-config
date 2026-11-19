@@ -144,9 +144,11 @@ export function larry(options: LarryOptions): Linter.Config[] {
     // First, so an unknown preset or role is reported before the guard reads the disk for it.
     const paths = resolvePaths(preset, pathOverrides, { ...workspaces, ...layout });
 
-    if (preset === 'fullstack') assertWorkspacesCovered(rootDir, fullstackLayout(workspaces).workspaces);
-    else if (preset === 'base') assertPathsExist(rootDir, paths, BASE_REQUIRED);
-    else {
+    if (preset === 'fullstack') {
+        assertWorkspacesCovered(rootDir, fullstackLayout(workspaces).workspaces);
+    } else if (preset === 'base') {
+        assertPathsExist(rootDir, paths, BASE_REQUIRED);
+    } else {
         assertLayoutExists(rootDir, preset, resolveLayout(preset, layout), {
             read: typeof standards === 'function' ? standards.roles : [],
             named: Object.keys(layout),

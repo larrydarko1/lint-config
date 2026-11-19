@@ -29,8 +29,11 @@ export function findProjects(root: string): string[] {
         for (const entry of fs.readdirSync(path.join(root, rel), { withFileTypes: true })) {
             if (entry.name.startsWith('.') || SKIPPED_DIRS.has(entry.name)) continue;
             const child = rel === '' ? entry.name : `${rel}/${entry.name}`;
-            if (entry.isDirectory()) walk(child);
-            else if (/^tsconfig(\..+)?\.json$/.test(entry.name)) configs.push(child);
+            if (entry.isDirectory()) {
+                walk(child);
+            } else if (/^tsconfig(\..+)?\.json$/.test(entry.name)) {
+                configs.push(child);
+            }
         }
     };
     walk('');
@@ -40,7 +43,9 @@ export function findProjects(root: string): string[] {
         const read = ts.readConfigFile(path.join(root, rel), (f) => ts.sys.readFile(f));
         const config: unknown = read.config;
         // Unparseable: the tsconfigs gate reports it; here it simply checks nothing.
-        if (read.error === undefined && isTsconfigJson(config)) data.set(rel, config);
+        if (read.error === undefined && isTsconfigJson(config)) {
+            data.set(rel, config);
+        }
     }
 
     const extended = new Set<string>();

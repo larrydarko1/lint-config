@@ -119,7 +119,9 @@ export function inspectIpcStandards({
         const source = code.get(rel) ?? '';
         // `webContents.ipc` is the per-window handler registry, as reachable as ipcMain.
         const receivers = new Set(['ipcMain', 'webContents.ipc']);
-        for (const m of source.matchAll(receiverPattern)) receivers.add(m[1] ?? '');
+        for (const m of source.matchAll(receiverPattern)) {
+            receivers.add(m[1] ?? '');
+        }
 
         for (const m of source.matchAll(REGISTRATION)) {
             const [, receiver = '', , channel = ''] = m;
@@ -459,7 +461,9 @@ export function checkIpcStandards({ root = REPO_ROOT, ...rest }: IpcStandardsOpt
     const report = createGateReport({ name: 'IPC standards' });
     const { problems, counts } = inspectIpcStandards({ root, ...rest });
 
-    for (const { file, what, why } of problems) report.fail(file, what, why);
+    for (const { file, what, why } of problems) {
+        report.fail(file, what, why);
+    }
 
     report.done({
         summary:

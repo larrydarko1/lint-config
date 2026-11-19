@@ -337,7 +337,9 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
         }
 
         for (const endpoint of monitor.doc.spec?.endpoints ?? []) {
-            for (const service of targets) scrapeThrough(monitor, endpoint, service);
+            for (const service of targets) {
+                scrapeThrough(monitor, endpoint, service);
+            }
         }
     }
 
@@ -717,7 +719,9 @@ export function checkMetrics({ root = REPO_ROOT, ...rest }: MetricsOptions): voi
     const report = createGateReport({ name: 'Metrics' });
     const { problems, counts } = inspectMetrics({ root, ...rest });
 
-    for (const { file, what, why } of problems) report.fail(file, what, why);
+    for (const { file, what, why } of problems) {
+        report.fail(file, what, why);
+    }
 
     report.done({
         summary:

@@ -44,7 +44,9 @@ const UNCHECKED = new Set([
 /** @param files Each source file's path from the repository root, and its text. */
 export function readExtensionSource(files: { rel: string; text: string }[]): ExtensionSource {
     const found: ExtensionSource = { commands: [], views: [], settings: [], unread: [], unchecked: [] };
-    for (const { rel, text } of files) readFile(ts.createSourceFile(rel, text, ts.ScriptTarget.ES2024, true), found);
+    for (const { rel, text } of files) {
+        readFile(ts.createSourceFile(rel, text, ts.ScriptTarget.ES2024, true), found);
+    }
     return found;
 }
 
@@ -84,7 +86,9 @@ function readFile(file: ts.SourceFile, found: ExtensionSource): void {
     const calls: ts.CallExpression[] = [];
 
     const visit = (node: ts.Node): void => {
-        if (ts.isCallExpression(node)) calls.push(node);
+        if (ts.isCallExpression(node)) {
+            calls.push(node);
+        }
         ts.forEachChild(node, visit);
     };
     visit(file);
@@ -97,13 +101,23 @@ function readFile(file: ts.SourceFile, found: ExtensionSource): void {
         if (kind !== undefined && first !== undefined) {
             const literal = stringOf(first);
             const hop = literal === undefined ? parameterHop(first) : null;
-            if (literal !== undefined) found[kind].push({ name: literal, at: at(call) });
-            else if (hop === null) found.unread.push({ name: method, at: at(call) });
-            else hops.push({ ...hop, kind, site: at(call) });
+            if (literal !== undefined) {
+                found[kind].push({ name: literal, at: at(call) });
+            } else if (hop === null) {
+                found.unread.push({ name: method, at: at(call) });
+            } else {
+                hops.push({ ...hop, kind, site: at(call) });
+            }
         }
-        if (UNCHECKED.has(method)) found.unchecked.push({ name: method, at: at(call) });
-        if (isL10nCall(call)) found.unchecked.push({ name: 'l10n.t', at: at(call) });
-        if (method === 'get') readSetting(call, file, at, found);
+        if (UNCHECKED.has(method)) {
+            found.unchecked.push({ name: method, at: at(call) });
+        }
+        if (isL10nCall(call)) {
+            found.unchecked.push({ name: 'l10n.t', at: at(call) });
+        }
+        if (method === 'get') {
+            readSetting(call, file, at, found);
+        }
     }
 
     for (const { helper, index, kind, site } of hops) {
@@ -113,8 +127,14 @@ function readFile(file: ts.SourceFile, found: ExtensionSource): void {
                 id: call.arguments[index] === undefined ? undefined : stringOf(call.arguments[index]),
                 call,
             }));
-        if (ids.length === 0 || ids.some(({ id }) => id === undefined)) found.unread.push({ name: helper, at: site });
-        for (const { id, call } of ids) if (id !== undefined) found[kind].push({ name: id, at: at(call) });
+        if (ids.length === 0 || ids.some(({ id }) => id === undefined)) {
+            found.unread.push({ name: helper, at: site });
+        }
+        for (const { id, call } of ids) {
+            if (id !== undefined) {
+                found[kind].push({ name: id, at: at(call) });
+            }
+        }
     }
 }
 
@@ -161,7 +181,9 @@ function configurationSection(object: ts.Expression, file: ts.SourceFile): strin
 function findConst(file: ts.SourceFile, name: string): ts.VariableDeclaration | undefined {
     let match: ts.VariableDeclaration | undefined;
     const visit = (node: ts.Node): void => {
-        if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name) match = node;
+        if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name) {
+            match = node;
+        }
         ts.forEachChild(node, visit);
     };
     visit(file);

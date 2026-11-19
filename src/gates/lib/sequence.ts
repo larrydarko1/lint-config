@@ -31,8 +31,11 @@ export function inPlace(actual: number[], ideal: number[]): Set<number> {
             keep.add(ax);
             x++;
             y++;
-        } else if (at(x + 1, y) >= at(x, y + 1)) x++;
-        else y++;
+        } else if (at(x + 1, y) >= at(x, y + 1)) {
+            x++;
+        } else {
+            y++;
+        }
     }
     return keep;
 }

@@ -280,7 +280,9 @@ export function inspectExtensionManifest(
     for (const site of [...source.unchecked, ...nls.map((name) => ({ name, at: name }))]) {
         fail(site.at, `uses ${site.name}, which no gate checks yet`, UNCHECKED_WHY);
     }
-    if ('l10n' in manifest) fail(MANIFEST, 'names an `l10n` bundle, which no gate checks yet', UNCHECKED_WHY);
+    if ('l10n' in manifest) {
+        fail(MANIFEST, 'names an `l10n` bundle, which no gate checks yet', UNCHECKED_WHY);
+    }
 
     return {
         problems,
@@ -296,7 +298,9 @@ export function checkExtensionManifest(options: ExtensionManifestOptions = {}): 
     const { root = REPO_ROOT, ...rest } = options;
     const report = createGateReport({ name: 'Extension manifest' });
     const { problems, counts } = inspectExtensionManifest({ root, ...rest });
-    for (const { file, what, why } of problems) report.fail(file, what, why);
+    for (const { file, what, why } of problems) {
+        report.fail(file, what, why);
+    }
     report.done({
         summary: `Extension manifest OK — ${plural(counts.commands, 'command')}, ${plural(counts.views, 'view')} and ${plural(counts.settings, 'setting')}, each in its namespace and matched in the source; activation, workspace trust and the package declared.`,
         notMachineChecked:
@@ -422,6 +426,8 @@ const camelCase = (name: string): string =>
 function compareFloors(left: string, right: string): number {
     const floor = (range: string): number[] => (/(\d+)\.(\d+)\.(\d+)/.exec(range) ?? []).slice(1).map(Number);
     const [a, b] = [floor(left), floor(right)];
-    for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) - (b[i] ?? 0);
+    for (let i = 0; i < 3; i++) {
+        if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) - (b[i] ?? 0);
+    }
     return 0;
 }

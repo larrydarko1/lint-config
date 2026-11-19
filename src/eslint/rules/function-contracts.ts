@@ -178,7 +178,9 @@ const nameContract: TSESLint.RuleModule<
             },
             'AwaitExpression'(): void {
                 const top = stack.at(-1);
-                if (top !== undefined) top.hasAwait = true;
+                if (top !== undefined) {
+                    top.hasAwait = true;
+                }
             },
             ':function:exit': check,
         };

@@ -151,7 +151,9 @@ export function checkContrast(options: ContrastOptions): void {
 
     const report = createGateReport({ name: 'Contrast' });
     const { problems, pairs, palettes, swept } = inspectContrast({ root, ...rest });
-    for (const { file, what, why } of problems) report.fail(file, what, why);
+    for (const { file, what, why } of problems) {
+        report.fail(file, what, why);
+    }
 
     const worst = pairs.reduce<Pair | undefined>(
         (low, pair) => (low === undefined || pair.ratio < low.ratio ? pair : low),
@@ -227,7 +229,9 @@ function readPaletteColours(root: string, themes: ThemeSource): Map<string, Pale
                     (m[2] ?? '').trim(),
                 ]),
             );
-            if (colours.size > 0) palettes.set(name.replace(/^theme-/, ''), colours);
+            if (colours.size > 0) {
+                palettes.set(name.replace(/^theme-/, ''), colours);
+            }
         }
     }
     return palettes;

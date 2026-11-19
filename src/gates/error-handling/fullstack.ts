@@ -511,10 +511,14 @@ export function inspectFullstackErrorHandling(
 
     // ── 9. A server-side swallow states its reason ───────────────────────────
     const scanned = { root, files: [...apiFiles, ...serviceFiles] };
-    for (const { file, what, why } of findSwallowedErrors(scanned)) fail(file, what, why);
+    for (const { file, what, why } of findSwallowedErrors(scanned)) {
+        fail(file, what, why);
+    }
 
     const byStatus = new Map<number, number>();
-    for (const t of throws) byStatus.set(t.status, (byStatus.get(t.status) ?? 0) + 1);
+    for (const t of throws) {
+        byStatus.set(t.status, (byStatus.get(t.status) ?? 0) + 1);
+    }
     const thrownCodes = new Set(throws.map((t) => t.errorCode).filter((c) => c !== null));
 
     return {
@@ -534,7 +538,9 @@ export function checkFullstackErrorHandling(options: FullstackErrorHandlingOptio
     const report = createGateReport({ name: 'Error handling' });
     const { problems, counts } = inspectFullstackErrorHandling(options);
 
-    for (const { file, what, why } of problems) report.fail(file, what, why);
+    for (const { file, what, why } of problems) {
+        report.fail(file, what, why);
+    }
 
     const spread = counts.byStatus.map(([s, n]) => `${s}×${n}`).join(' ');
     report.done({
@@ -560,8 +566,9 @@ function callArguments(src: string, open: number): string[] | null {
     const args: string[] = [];
     for (let i = open; i < src.length; i += 1) {
         const ch = src[i];
-        if (ch === '(' || ch === '[' || ch === '{') depth += 1;
-        else if (ch === ')' || ch === ']' || ch === '}') {
+        if (ch === '(' || ch === '[' || ch === '{') {
+            depth += 1;
+        } else if (ch === ')' || ch === ']' || ch === '}') {
             depth -= 1;
             if (depth === 0) {
                 args.push(src.slice(start, i));
@@ -572,7 +579,9 @@ function callArguments(src: string, open: number): string[] | null {
             start = i + 1;
         } else if (ch === "'" || ch === '"' || ch === '`') {
             i += 1;
-            while (i < src.length && src[i] !== ch) i += src[i] === '\\' ? 2 : 1;
+            while (i < src.length && src[i] !== ch) {
+                i += src[i] === '\\' ? 2 : 1;
+            }
         }
     }
     return null;

@@ -198,7 +198,9 @@ export function inspectDeadCode(
         .filter((hit) => !alreadyReported.has(identity(hit)) && !isLarryConfig(hit));
     found[TEST_ONLY.key] = testOnly;
 
-    for (const hit of testOnly) alreadyReported.add(identity(hit));
+    for (const hit of testOnly) {
+        alreadyReported.add(identity(hit));
+    }
     found[LOCAL_ONLY_TYPES.key] = localOnlyTypes().filter(
         (hit) => !alreadyReported.has(identity(hit)) && !isPublic(hit),
     );
@@ -307,7 +309,9 @@ export function checkDeadCode(options: DeadCodeOptions = {}): void {
         return;
     }
 
-    for (const { what, why } of deadCodeProblems(found, budgets, checksDir)) report.fail(null, what, why);
+    for (const { what, why } of deadCodeProblems(found, budgets, checksDir)) {
+        report.fail(null, what, why);
+    }
 
     report.done({
         summary: deadCodeSummary(found, budgets),
