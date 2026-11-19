@@ -154,8 +154,9 @@ export function findUnusedBridgeMembers({
                         markSubtree(parentType);
                     } else {
                         const key = node.propertyName ?? node.name;
-                        if (ts.isIdentifier(key) || ts.isStringLiteral(key))
+                        if (ts.isIdentifier(key) || ts.isStringLiteral(key)) {
                             markSymbol(parentType.getProperty(key.text));
+                        }
                     }
                 }
                 if (ts.isExpression(node) && escapes(node)) markSubtree(checker.getTypeAtLocation(node));
@@ -184,8 +185,9 @@ function escapes(node: ts.Expression): boolean {
         child = parent;
         parent = parent.parent;
     }
-    if (ts.isCallExpression(parent) || ts.isNewExpression(parent))
+    if (ts.isCallExpression(parent) || ts.isNewExpression(parent)) {
         return parent.arguments?.some((argument) => argument === child) ?? false;
+    }
     if (ts.isArrowFunction(parent)) return parent.body === child;
     if (ts.isPropertyAssignment(parent)) return parent.initializer === child;
     if (ts.isBinaryExpression(parent)) {

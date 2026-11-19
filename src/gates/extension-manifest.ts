@@ -74,12 +74,13 @@ export function inspectExtensionManifest(
 
     // ── 1. Identity ─────────────────────────────────────────────────────────
     const engine = stringAt(recordAt(manifest, 'engines'), 'vscode');
-    if (stringAt(manifest, 'publisher') === undefined)
+    if (stringAt(manifest, 'publisher') === undefined) {
         fail(
             MANIFEST,
             'has no `publisher`',
             'vsce refuses to package without one, and the editor names the extension `<publisher>.<name>`.',
         );
+    }
     if (engine === undefined) {
         fail(
             MANIFEST,
@@ -110,12 +111,13 @@ export function inspectExtensionManifest(
         fail(entry, 'missing', 'It is what `main` is built from, the module the editor calls `activate` on.');
     } else {
         const exported = exportedNames(entry, fs.readFileSync(path.join(root, entry), 'utf8'));
-        if (!exported.includes('activate'))
+        if (!exported.includes('activate')) {
             fail(
                 entry,
                 'does not export `activate`',
                 'The editor calls `activate` when an activation event fires; without it the extension never starts.',
             );
+        }
         for (const name of exported.filter((exportName) => !HOST_EXPORTS.has(exportName))) {
             fail(
                 entry,
@@ -156,37 +158,41 @@ export function inspectExtensionManifest(
     drift(fail, 'command', contributed.commands, source.commands, 'registerCommand');
     drift(fail, 'view', contributed.views, source.views, 'registerTreeDataProvider');
     for (const [container] of Object.entries(recordAt(contributes, 'views'))) {
-        if (!BUILT_IN_CONTAINERS.has(container) && !contributed.containers.includes(container))
+        if (!BUILT_IN_CONTAINERS.has(container) && !contributed.containers.includes(container)) {
             fail(
                 MANIFEST,
                 `views sit in \`${container}\`, which no \`viewsContainers\` entry contributes`,
                 'The editor drops views whose container does not exist.',
             );
+        }
     }
     for (const [where, id] of commandReferences(contributes)) {
-        if (!contributed.commands.includes(id))
+        if (!contributed.commands.includes(id)) {
             fail(
                 MANIFEST,
                 `${where} names \`${id}\`, which is not a contributed command`,
                 'The editor shows the entry and does nothing when it is used. Contribute the command, or remove the entry.',
             );
+        }
     }
     for (const view of listAt(contributes, 'viewsWelcome').flatMap((welcome) => stringAt(welcome, 'view') ?? [])) {
-        if (!contributed.views.includes(view))
+        if (!contributed.views.includes(view)) {
             fail(
                 MANIFEST,
                 `a welcome names view \`${view}\`, which is not contributed`,
                 'A welcome for a view that does not exist is never shown.',
             );
+        }
     }
 
     const read = new Set(source.settings.map((setting) => setting.name));
-    for (const key of [...contributed.settings.keys()].filter((name) => !read.has(name)))
+    for (const key of [...contributed.settings.keys()].filter((name) => !read.has(name))) {
         fail(
             MANIFEST,
             `setting \`${key}\` is read nowhere`,
             'A setting nothing reads changes nothing when the person changes it. Read it, or remove it.',
         );
+    }
     for (const { name, at, fallback } of source.settings) {
         if (!contributed.settings.has(name)) {
             fail(
@@ -213,21 +219,22 @@ export function inspectExtensionManifest(
     // ── 6. Activation ───────────────────────────────────────────────────────
     for (const event of listAt(manifest, 'activationEvents').filter((value) => typeof value === 'string')) {
         const [kind = '', id = ''] = event.split(':');
-        if (event === '*')
+        if (event === '*') {
             fail(
                 MANIFEST,
                 'activates on `*`',
                 'The extension starts with every window, before the person asks for anything, and slows every startup. Name the events that need it.',
             );
-        else if (
+        } else if (
             (kind === 'onCommand' && contributed.commands.includes(id)) ||
             (kind === 'onView' && contributed.views.includes(id))
-        )
+        ) {
             fail(
                 MANIFEST,
                 `lists \`${event}\``,
                 'The editor activates on a contributed command or view by itself, so the line repeats the contribution and outlives it when one is removed.',
             );
+        }
     }
 
     // ── 7. Workspace trust and virtual workspaces ───────────────────────────
@@ -248,20 +255,22 @@ export function inspectExtensionManifest(
         );
     }
     for (const key of isRecord(trust) ? listAt(trust, 'restrictedConfigurations') : []) {
-        if (typeof key !== 'string' || !contributed.settings.has(key))
+        if (typeof key !== 'string' || !contributed.settings.has(key)) {
             fail(
                 MANIFEST,
                 `restricts \`${String(key)}\`, which is not a declared setting`,
                 'A restriction on a setting the extension does not have protects nothing.',
             );
+        }
     }
     const virtual = capabilities['virtualWorkspaces'];
-    if (typeof virtual !== 'boolean' && !(isRecord(virtual) && 'supported' in virtual))
+    if (typeof virtual !== 'boolean' && !(isRecord(virtual) && 'supported' in virtual)) {
         fail(
             MANIFEST,
             '`capabilities.virtualWorkspaces` is not declared',
             'In a folder that is not on disk (a GitHub repository opened in the browser) the editor otherwise guesses. Declare it.',
         );
+    }
 
     // ── 8. The package ──────────────────────────────────────────────────────
     packageProblems(root, manifest, main, fail);
@@ -390,18 +399,20 @@ function packageProblems(
     const ships = (rel: string): boolean =>
         shipped.some((pattern) => path.matchesGlob(rel, pattern.replace(/\/$/, '/**')));
     const bundle = main?.replace(/^\.\//, '');
-    if (bundle !== undefined && !ships(bundle))
+    if (bundle !== undefined && !ships(bundle)) {
         fail(
             where,
             `does not ship \`main\` (${bundle})`,
             'The package installs, and the editor finds nothing to load.',
         );
-    for (const rel of NEVER_SHIPPED.filter(ships))
+    }
+    for (const rel of NEVER_SHIPPED.filter(ships)) {
         fail(
             where,
             `ships \`${rel.split('/')[0] ?? rel}/\``,
             'The bundle already holds the code the editor runs; the rest is weight, and source the person did not need.',
         );
+    }
 }
 
 const camelCase = (name: string): string =>

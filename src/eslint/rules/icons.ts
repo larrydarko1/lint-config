@@ -81,12 +81,14 @@ const iconComponent: Rule.RuleModule = {
                     return;
                 }
 
-                if (staticAttribute(svg, 'aria-hidden')?.value?.value !== 'true')
+                if (staticAttribute(svg, 'aria-hidden')?.value?.value !== 'true') {
                     context.report({ loc: svg.startTag.loc, messageId: 'ariaHidden' });
+                }
 
                 const visit = (node: VElement): void => {
-                    if (staticAttribute(node, 'id') !== undefined)
+                    if (staticAttribute(node, 'id') !== undefined) {
                         context.report({ loc: node.startTag.loc, messageId: 'fixedId' });
+                    }
                     node.children.filter(isElement).forEach(visit);
                 };
                 visit(svg);

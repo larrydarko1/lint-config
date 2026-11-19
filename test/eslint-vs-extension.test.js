@@ -171,8 +171,9 @@ test('the reporter a test runner loads may be a default export when the project 
 
 test('the preset never walks the build or the editors the E2E suite downloads', async () => {
     const eslint = new ESLint({ overrideConfigFile: true, baseConfig: config(), cwd: ROOT });
-    for (const file of ['out/extension.cjs', '.vscode-test/vscode-darwin-1.100.0/x.js', 'coverage/x.js'])
+    for (const file of ['out/extension.cjs', '.vscode-test/vscode-darwin-1.100.0/x.js', 'coverage/x.js']) {
         assert.equal(await eslint.isPathIgnored(`${ROOT}/${file}`), true, file);
+    }
     const app = await eslint.calculateConfigForFile(`${ROOT}/src/extension.ts`);
     assert.ok('process' in app.languageOptions.globals);
     assert.ok(!('document' in app.languageOptions.globals));

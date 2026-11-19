@@ -381,8 +381,9 @@ function rangeProblem(
             'Patch-only is a deliberate decision. Add it to `tildeAllowed` with the reason, or use `^`.',
         ];
     }
-    if (tildeReason !== undefined)
+    if (tildeReason !== undefined) {
         return [`${field}.${name} is "${range}" — it is on the \`~\` allowlist`, tildeReason];
+    }
 
     const exactReason = allowed.exactFields[field];
     if (exactReason !== undefined) {

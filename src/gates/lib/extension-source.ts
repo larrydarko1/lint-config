@@ -63,8 +63,9 @@ export function exportedNames(rel: string, text: string): string[] {
             ? (ts.getModifiers(statement) ?? []).some((mod) => mod.kind === ts.SyntaxKind.ExportKeyword)
             : false;
         if (!exported) return [];
-        if (ts.isVariableStatement(statement))
+        if (ts.isVariableStatement(statement)) {
             return statement.declarationList.declarations.map((d) => d.name.getText());
+        }
         const named =
             ts.isFunctionDeclaration(statement) ||
             ts.isClassDeclaration(statement) ||

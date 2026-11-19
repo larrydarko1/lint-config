@@ -84,11 +84,12 @@ test('a service holds its database client in its lib/db.ts, as the api does, and
     for (const service of ['worker', 'ingestor']) {
         const dbModule = (await bansOf(config, `${service}/src/lib/db.ts`)).selectors;
         assert.ok(!dbModule.includes(client) && dbModule.includes(createIndex), `${service}/src/lib/db.ts`);
-        for (const file of ['index.ts', 'jobs/transcode.ts'])
+        for (const file of ['index.ts', 'jobs/transcode.ts']) {
             assert.ok(
                 (await bansOf(config, `${service}/src/${file}`)).selectors.includes(client),
                 `${service}/src/${file}`,
             );
+        }
         const source = await bansOf(config, `${service}/src/jobs/transcode.ts`);
         assert.ok(source.selectors.includes(fullstack.outboundCallSelectors[0].selector), 'outbound timeouts');
         assert.ok(!source.selectors.includes(fullstack.apiRoutesOnlySelectors[0].selector), 'no HTTP rules');
@@ -110,8 +111,9 @@ test('the full-stack selectors a project composes are the ones the family resolv
         }
     }
     const workerDb = (await resolve(fullstackConfig(), 'worker/src/lib/db.ts'))['no-restricted-syntax'].slice(1);
-    for (const entry of fullstack.dbWorkerIndexSelectors)
+    for (const entry of fullstack.dbWorkerIndexSelectors) {
         assert.ok(workerDb.some((found) => found.message === entry.message));
+    }
 });
 
 test('a suite keeps the naming and export selectors of the code it tests, in every family', async () => {
@@ -133,9 +135,10 @@ test('a suite keeps the naming and export selectors of the code it tests, in eve
             ],
         ],
     ];
-    for (const [config, files] of suites)
+    for (const [config, files] of suites) {
         for (const file of files) {
             const { selectors } = await bansOf(config, file);
             for (const selector of expected) assert.ok(selectors.includes(selector), `${file}: ${selector}`);
         }
+    }
 });

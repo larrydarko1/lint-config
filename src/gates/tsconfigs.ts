@@ -453,8 +453,9 @@ export function inspectTsconfigs({
         const lines = raw.split('\n');
         const at = lines.findIndex((line) => new RegExp(`^\\s*"${flag}"\\s*:`).test(line));
         if (at === -1) return false;
-        if (/\/\/|\/\*/.test((lines[at] ?? '').replace(new RegExp(`^\\s*"${flag}"\\s*:.*?(?=//|/\\*|$)`), '')))
+        if (/\/\/|\/\*/.test((lines[at] ?? '').replace(new RegExp(`^\\s*"${flag}"\\s*:.*?(?=//|/\\*|$)`), ''))) {
             return true;
+        }
 
         for (let i = at - 1; i >= 0; i--) {
             const above = (lines[i] ?? '').trim();
@@ -463,8 +464,9 @@ export function inspectTsconfigs({
             if (
                 /^\/\*.*\*\/$/.test(above) &&
                 sections.includes(above.replace(/^\/\*\s*|\s*\*\/$/g, '').split(' — ')[0] ?? '')
-            )
+            ) {
                 continue;
+            }
             return above.startsWith('//') || above.startsWith('*') || above.endsWith('*/');
         }
         return false;

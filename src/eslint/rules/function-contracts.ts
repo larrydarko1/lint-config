@@ -329,8 +329,9 @@ const noDbAwaitInLoop: TSESLint.RuleModule<'dbInLoop'> = {
                         context.report({ node, messageId: 'dbInLoop' });
                         return;
                     }
-                    if (current.type.includes('Function') || current.type === AST_NODE_TYPES.ArrowFunctionExpression)
+                    if (current.type.includes('Function') || current.type === AST_NODE_TYPES.ArrowFunctionExpression) {
                         return;
+                    }
                 }
             },
         };
@@ -360,8 +361,9 @@ const isPredicate = (t: TypeNode): t is TSESTree.TSTypePredicate => t.type === A
 function isBooleanType(type: TypeNode): boolean {
     if (type.type === AST_NODE_TYPES.TSBooleanKeyword) return true;
     // `true | false`, and the literal-typed booleans a narrowed helper returns.
-    if (type.type === AST_NODE_TYPES.TSLiteralType)
+    if (type.type === AST_NODE_TYPES.TSLiteralType) {
         return type.literal.type === AST_NODE_TYPES.Literal && typeof type.literal.value === 'boolean';
+    }
     if (type.type === AST_NODE_TYPES.TSUnionType) return type.types.every(isBooleanType);
     return false;
 }
@@ -390,8 +392,9 @@ const unionMembers = (type: TypeNode): TypeNode[] => (type.type === AST_NODE_TYP
 function functionName(node: FunctionNode): string | null {
     if (node.id?.type === AST_NODE_TYPES.Identifier) return node.id.name;
     const parent = node.parent;
-    if (parent.type === AST_NODE_TYPES.VariableDeclarator && parent.id.type === AST_NODE_TYPES.Identifier)
+    if (parent.type === AST_NODE_TYPES.VariableDeclarator && parent.id.type === AST_NODE_TYPES.Identifier) {
         return parent.id.name;
+    }
     const keyed =
         parent.type === AST_NODE_TYPES.Property ||
         parent.type === AST_NODE_TYPES.MethodDefinition ||

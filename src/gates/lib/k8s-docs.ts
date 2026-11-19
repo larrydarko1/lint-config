@@ -53,8 +53,9 @@ export function isK8sDoc(doc: unknown): doc is K8sDoc {
             metadata,
             (value) => isRecord(value) && isOptional(value['name'], isString) && isOptional(value['labels'], isLabels),
         )
-    )
+    ) {
         return false;
+    }
     return isOptional(spec, isSpec);
 }
 

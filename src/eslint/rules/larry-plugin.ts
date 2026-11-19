@@ -269,15 +269,17 @@ const noCaughtMessageLeak: TSESLint.RuleModule<'messageLeak', [CaughtMessageOpti
                 if (
                     node.callee.type !== AST_NODE_TYPES.MemberExpression ||
                     node.callee.property.type !== AST_NODE_TYPES.Identifier
-                )
+                ) {
                     return;
+                }
                 if (node.callee.property.name !== 'catch') return;
                 const handler = node.arguments[0];
                 if (
                     handler?.type !== AST_NODE_TYPES.ArrowFunctionExpression &&
                     handler?.type !== AST_NODE_TYPES.FunctionExpression
-                )
+                ) {
                     return;
+                }
                 fromParam(handler.params[0], handler);
             },
         };
@@ -305,8 +307,9 @@ const calleeName = (callee: Node): string => {
 
 function isLoggerCall(call: TSESTree.CallExpression): boolean {
     const callee = call.callee;
-    if (callee.type !== AST_NODE_TYPES.MemberExpression || callee.property.type !== AST_NODE_TYPES.Identifier)
+    if (callee.type !== AST_NODE_TYPES.MemberExpression || callee.property.type !== AST_NODE_TYPES.Identifier) {
         return false;
+    }
     if (!LOG_LEVEL.test(callee.property.name)) return false;
     const owner = callee.object;
     if (owner.type === AST_NODE_TYPES.Identifier) return LOGGER_NAME.test(owner.name);

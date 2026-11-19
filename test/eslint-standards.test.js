@@ -64,8 +64,9 @@ test('every family exports the same shared selectors, not copies of them', () =>
         'configModuleSelectors',
         'noSingleLetterDeclaration',
         'tsSourceSelectors',
-    ])
+    ]) {
         assert.equal(library[name], fullstack[name], name);
+    }
 });
 
 test('the shared rules reach each family’s own frontend', async () => {
@@ -101,11 +102,12 @@ test('the globally registered router and i18n components are not undefined compo
         'vue/no-undef-components',
     );
     assert.equal(severity, 2);
-    for (const name of ['RouterView', 'router-link', 'i18n-t'])
+    for (const name of ['RouterView', 'router-link', 'i18n-t']) {
         assert.ok(
             ignorePatterns.some((pattern) => new RegExp(pattern).test(name)),
             name,
         );
+    }
     assert.ok(!ignorePatterns.some((pattern) => new RegExp(pattern).test('MediaCard')));
 });
 
@@ -296,8 +298,9 @@ test('the API family exports the full-stack backend selectors, not copies of the
             fullstack[name].map((entry) => entry.selector),
             name,
         );
-        for (const { message } of api[name])
+        for (const { message } of api[name]) {
             assert.doesNotMatch(message, /api\/src|packages\/shared|shared package/, name);
+        }
     }
 });
 
@@ -321,8 +324,9 @@ test('every API area resolves its whole list, since the last matching block repl
     assert.ok(has(routes.selectors, api.dbApiWorkerSelectors), 'the Mongo rules');
     assert.ok(has(routes.selectors, api.loggerCallSelectors), 'the logger rules');
     assert.ok(has(routes.selectors, [api.noDirectErrorResponse]), 'errors go through AppError');
-    for (const name of ['bcrypt', 'mongoose', 'express-rate-limit', 'lru-cache', 'compression'])
+    for (const name of ['bcrypt', 'mongoose', 'express-rate-limit', 'lru-cache', 'compression']) {
         assert.ok(routes.imports.includes(name), name);
+    }
 
     const gateway = await restrictionsOf(apiConfig(), 'src/gateway/socket.ts');
     assert.ok(has(gateway.selectors, api.wsGatewaySelectors) && has(gateway.selectors, api.apiSourceSelectors));
@@ -440,8 +444,9 @@ test('a library neither prints nor exits, except where a file says printing is i
 test('a library reads process.env only in tests, scripts, tool configs and the files it names', async () => {
     const rule = 'no-process-env';
     assert.equal(await severityOf(libraryConfig(), 'src/index.ts', rule), 2);
-    for (const file of ['test/index.test.js', 'scripts/release.ts', 'eslint.config.js'])
+    for (const file of ['test/index.test.js', 'scripts/release.ts', 'eslint.config.js']) {
         assert.equal(await severityOf(libraryConfig(), file, rule), 0, file);
+    }
     const child = libraryConfig({ env: { processEnvAllowed: ['src/spawn.ts'] } });
     assert.equal(await severityOf(child, 'src/spawn.ts', rule), 0);
 });

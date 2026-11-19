@@ -341,13 +341,15 @@ function isConstantInit(n: ts.Node | undefined): boolean {
         n.kind === ts.SyntaxKind.TrueKeyword ||
         n.kind === ts.SyntaxKind.FalseKeyword ||
         n.kind === ts.SyntaxKind.NullKeyword
-    )
+    ) {
         return true;
+    }
     if (ts.isNoSubstitutionTemplateLiteral(n) || ts.isRegularExpressionLiteral(n)) return true;
     if (ts.isPrefixUnaryExpression(n)) return isConstantInit(n.operand);
     if (ts.isArrayLiteralExpression(n)) return n.elements.every(isConstantInit);
-    if (ts.isObjectLiteralExpression(n))
+    if (ts.isObjectLiteralExpression(n)) {
         return n.properties.every((p) => ts.isPropertyAssignment(p) && isConstantInit(p.initializer));
+    }
     if (
         ts.isNewExpression(n) &&
         ts.isIdentifier(n.expression) &&
@@ -397,8 +399,12 @@ function classify(stmt: ts.Statement): string {
         if (decls.some((d) => isFnLike(d.initializer))) return exported ? 'exported-fns' : 'private-fns';
         const isConst = (stmt.declarationList.flags & ts.NodeFlags.Const) !== 0;
         // A Zod schema sits beside its `z.infer` type.
-        if (isConst && decls.some((d) => rootIdentifier(d.initializer) === 'z' || d.name.getText().endsWith('Schema')))
+        if (
+            isConst &&
+            decls.some((d) => rootIdentifier(d.initializer) === 'z' || d.name.getText().endsWith('Schema'))
+        ) {
             return 'types';
+        }
         if (!isConst) return 'state';
         // A reactive container or an explicit mutable holder is state whatever it is named.
         const REACTIVE = new Set([
@@ -463,8 +469,9 @@ function nameOf(s: ts.Statement, sf: ts.SourceFile): string {
         ts.isInterfaceDeclaration(s) ||
         ts.isTypeAliasDeclaration(s) ||
         ts.isEnumDeclaration(s)
-    )
+    ) {
         return s.name?.text ?? '';
+    }
     if (ts.isVariableStatement(s)) return s.declarationList.declarations.map((d) => d.name.getText(sf)).join(', ');
     if (ts.isImportDeclaration(s)) return s.moduleSpecifier.getText(sf).replace(/['"]/g, '');
     return (s.getText(sf).split('\n')[0] ?? '').slice(0, 40);

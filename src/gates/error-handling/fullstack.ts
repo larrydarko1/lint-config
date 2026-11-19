@@ -396,8 +396,9 @@ export function inspectFullstackErrorHandling(
                     read(rel)
                         .slice(Math.max(0, m.index - 400), m.index)
                         .includes('eslint-disable')
-                )
+                ) {
                     continue;
+                }
                 fail(
                     `${rel}:${lineOf(src, m.index)}`,
                     `emits \`${m[1]}\` directly`,

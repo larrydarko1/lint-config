@@ -65,8 +65,9 @@ export async function init(root: string, options: InitOptions): Promise<InitResu
         ...(test === undefined || test.includes(NPM_PLACEHOLDER_TEST) ? [] : ['test']),
         'check',
     ];
-    if (family === 'base' && runtime === null)
+    if (family === 'base' && runtime === null) {
         throw new Error('the base family needs a runtime: where its source runs.');
+    }
     const { scan, sources } = sourceFolders(root, family, manifest);
     const engines = isRecord(manifest['engines']) ? manifest['engines'] : {};
     // CI installs the floor engines.node declares, which `pipeline` holds it to.

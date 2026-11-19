@@ -130,8 +130,9 @@ export function inspectI18n(options: I18nGateOptions): I18nGateResult {
     // ── 1–3. Cross-locale value-shape parity against the reference locale ────────
     for (const loc of locales.filter((l) => l !== reference)) {
         const cur = flat[loc] ?? {};
-        for (const [key, refVal] of Object.entries(ref))
+        for (const [key, refVal] of Object.entries(ref)) {
             errors.push(...shapeMismatches(loc, key, refVal, cur, reference));
+        }
     }
 
     // ── 4. createI18n options ───────────────────────────────────────────────────

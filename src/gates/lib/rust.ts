@@ -206,9 +206,9 @@ export function splitRustList(text: string): string[] {
     for (let j = 0; j < text.length; j++) {
         const ch = text[j];
         if (ch === '(' || ch === '[' || ch === '{' || (ch === '<' && text[j - 1] !== '<')) depth++;
-        else if (ch === ')' || ch === ']' || ch === '}' || (ch === '>' && text[j - 1] !== '-' && text[j - 1] !== '='))
+        else if (ch === ')' || ch === ']' || ch === '}' || (ch === '>' && text[j - 1] !== '-' && text[j - 1] !== '=')) {
             depth--;
-        else if (ch === ',' && depth === 0) {
+        } else if (ch === ',' && depth === 0) {
             parts.push(text.slice(from, j).trim());
             from = j + 1;
         }
@@ -285,15 +285,15 @@ export function rustItems(source: string, lexed: RustLex = lexRust(source)): Rus
         let name: string;
         let trait: string | undefined;
         if (kind === 'impl') ({ name, trait } = implTarget(head.slice((m?.[1] ?? '').length + (m?.[2] ?? '').length)));
-        else if (kind === 'use')
+        else if (kind === 'use') {
             name = head
                 .replace(/^(?:pub\S*\s+)?use\s+/, '')
                 .replace(/;$/, '')
                 .replace(/\s+/g, ' ');
-        else if (kind === 'macro') name = macro?.[1] ?? '';
-        else if (kind === 'extern-block' || kind === 'unknown')
+        } else if (kind === 'macro') name = macro?.[1] ?? '';
+        else if (kind === 'extern-block' || kind === 'unknown') {
             name = (code.slice(keywordStart).split('\n')[0] ?? '').trim().slice(0, 40);
-        else name = declaredName(afterKeyword);
+        } else name = declaredName(afterKeyword);
 
         items.push({
             kind,

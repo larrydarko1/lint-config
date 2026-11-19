@@ -105,8 +105,9 @@ export function larry(options: LarryOptions): Linter.Config[] {
     // The `as Linter.Config` casts: third-party preset types disagree with ESLint's under
     // exactOptionalPropertyTypes. ESLint validates every block at load.
 
-    if (!hasRootDir(options))
+    if (!hasRootDir(options)) {
         throw new Error('larry({ rootDir }) is required — pass `import.meta.dirname` from the project.');
+    }
 
     const {
         preset,
@@ -123,29 +124,34 @@ export function larry(options: LarryOptions): Linter.Config[] {
         overrides = [],
     } = options;
 
-    if (preset !== 'fullstack' && Object.keys(workspaces).length > 0)
+    if (preset !== 'fullstack' && Object.keys(workspaces).length > 0) {
         throw new Error(`larry({ workspaces }) is for the full-stack preset; '${preset}' has no workspaces.`);
-    if (preset === 'fullstack' && Object.keys(layout).length > 0)
+    }
+    if (preset === 'fullstack' && Object.keys(layout).length > 0) {
         throw new Error(
             "larry({ layout }) is for the single-package presets; the full-stack preset's roles are `workspaces`.",
         );
-    if (preset === 'base' && Object.keys(layout).length > 0)
+    }
+    if (preset === 'base' && Object.keys(layout).length > 0) {
         throw new Error(
             "larry({ layout }) moves a family's roles; the base preset has none, so name its globs in `paths`.",
         );
-    if (typeof standards === 'function' && standards.family !== preset)
+    }
+    if (typeof standards === 'function' && standards.family !== preset) {
         throw new Error(`${standardsName(standards.family)}() needs preset: '${standards.family}', not '${preset}'.`);
+    }
 
     // First, so an unknown preset or role is reported before the guard reads the disk for it.
     const paths = resolvePaths(preset, pathOverrides, { ...workspaces, ...layout });
 
     if (preset === 'fullstack') assertWorkspacesCovered(rootDir, fullstackLayout(workspaces).workspaces);
     else if (preset === 'base') assertPathsExist(rootDir, paths, BASE_REQUIRED);
-    else
+    else {
         assertLayoutExists(rootDir, preset, resolveLayout(preset, layout), {
             read: typeof standards === 'function' ? standards.roles : [],
             named: Object.keys(layout),
         });
+    }
 
     const standardBlocks =
         typeof standards === 'function' ? buildStandards(standards, { workspaces, layout, paths }) : standards;
