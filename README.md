@@ -658,8 +658,9 @@ export default defineConfig({
 one's report under its name. A gate left out of `gates` runs with its defaults. One that the
 project does not run is skipped with `{ skip: '<reason>' }`, and the reason prints on every run.
 The run exits 1 if any gate fails, and the gates after a failing one still run. A mistake in the
-config, such as a misspelt gate, a gate the family does not run, or a skip with no reason, exits 2
-before any gate runs.
+config, such as a misspelt gate, a gate the family does not run, a skip with no reason, or an
+option the gate does not take (one a release removed, or a misspelt one), exits 2 before any gate
+runs. Only an option's name is checked, not what's nested inside its value.
 
 At a terminal, a spinner shows the gate that is running, how far through the run it is and how
 long it has taken. Each gate runs in a process of its own there, so the spinner keeps turning
@@ -1384,10 +1385,15 @@ family's standards at their defaults. `npm test` compares them, so a change to a
 moves a rule in one family fails and names the rule and the files. When the change is meant,
 re-record the snapshots, read their diff, and commit them with it.
 
-**Renaming a gate option.** Rename it in the gate's options type and add the rename to
-`RENAMED_OPTIONS` in `src/cli/renames.ts`, with the release that makes it. There is no grace
-version: from that release `larry check` stops on the old name and points at `larry upgrade`, which
-makes the rename in `larry.config.ts`. Never remove an entry, since a project may skip releases. A
+**Adding or removing a gate option.** Change the gate's options type and its list in
+`OPTION_NAMES` in `src/cli/options.ts`, which `larry check` uses to refuse any option a gate
+doesn't take. `npm run typecheck` fails until the list matches the type, and names the option that
+differs.
+
+**Renaming a gate option.** Rename it in the gate's options type and in `OPTION_NAMES`, and add
+the rename to `RENAMED_OPTIONS` in `src/cli/renames.ts`, with the release that makes it. There is
+no grace version: from that release `larry check` stops on the old name and points at `larry
+upgrade`, which makes the rename in `larry.config.ts`. Never remove an entry, since a project may skip releases. A
 change that a rename can't express needs a migration of its own in `src/cli/migrations/`, listed in
 `src/cli/upgrade.ts`.
 

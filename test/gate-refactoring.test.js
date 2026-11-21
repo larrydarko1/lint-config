@@ -130,7 +130,7 @@ test('package-lock.json is never read, whatever a dependency called itself', (t)
 test('extra skipped basenames are honoured', (t) => {
     const files = { 'scripts/generated.yml': '# TODO: regenerate\n' };
     assert.equal(run(t, files).failed, true);
-    assert.equal(run(t, files, { skip: ['generated.yml'] }).failed, false);
+    assert.equal(run(t, files, { skipFiles: ['generated.yml'] }).failed, false);
 });
 
 // ── Case sensitivity ─────────────────────────────────────────────────────────
