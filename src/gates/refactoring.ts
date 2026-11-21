@@ -27,7 +27,7 @@ export type RefactoringOptions = {
      */
     linted?: string[];
     /** Extra basenames never read, on top of `package-lock.json`. */
-    skip?: string[];
+    skipFiles?: string[];
     /** Paths never read. Replaces the default build-output list. */
     ignore?: RegExp;
     /**
@@ -67,12 +67,18 @@ const BINARY = /\.(png|jpe?g|gif|webp|svg|ico|icns|psd|woff2?|ttf|eot|mp4|webm|m
 const MAX_BYTES = 512 * 1024;
 
 export function inspectRefactoring(input: RefactoringOptions = {}): RefactoringInspection {
-    const { root = REPO_ROOT, linted = DEFAULT_LINTED, skip = [], ignore = DEFAULT_IGNORE, claudeCode = false } = input;
+    const {
+        root = REPO_ROOT,
+        linted = DEFAULT_LINTED,
+        skipFiles = [],
+        ignore = DEFAULT_IGNORE,
+        claudeCode = false,
+    } = input;
 
     const { problems, fail } = collectFailures();
 
     const lintedExtensions = new Set(linted);
-    const skipNames = new Set(['package-lock.json', ...skip]);
+    const skipNames = new Set(['package-lock.json', ...skipFiles]);
 
     /** Tracked and untracked-but-not-ignored, so a new file is checked before its first commit. */
     const repoFiles = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {

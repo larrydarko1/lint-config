@@ -19,6 +19,13 @@ type Unlisted<TLists extends OptionLists> = {
         : { unlisted: Exclude<OptionName<TName>, TLists[TName][number]> };
 };
 
+/** larry.config.ts reads `skip` as skipping the gate, so an option of that name could never be set. */
+type NoSkipOption = {
+    [TName in GateName]: 'skip' extends OptionName<TName>
+        ? { renameSkip: 'larry.config.ts reads `skip` as skipping the gate' }
+        : unknown;
+};
+
 /** Every gate's options. A name the gate does not take is a type error, and so is one left out. */
 const OPTION_NAMES = everyOption({
     'audit': ['allowlist', 'failSeverities', 'omit', 'today'],
@@ -50,7 +57,7 @@ const OPTION_NAMES = everyOption({
         'workspaceRequired',
     ],
     'pipeline': ['checksDir', 'ciWorkflow'],
-    'refactoring': ['claudeCode', 'ignore', 'linted', 'skip'],
+    'refactoring': ['claudeCode', 'ignore', 'linted', 'skipFiles'],
     'scss-standards': [
         'componentLocalVars',
         'emitters',
@@ -242,6 +249,9 @@ export function unknownOptionProblems(
         .filter((name) => !known.includes(name) && !renamed.has(name))
         .map((name) => {
             if (name === 'root') return `"${gate}".root can't be set: a gate runs on the folder larry.config.ts is in.`;
+            if (name === 'skip') {
+                return `"${gate}".skip skips the gate, and takes the reason: { skip: 'why this project does not run it' }.`;
+            }
             if (name === 'versioning') {
                 return `"${gate}".versioning can't be set: the family numbers its releases, or a base config's top-level \`versioning\`.`;
             }
@@ -250,6 +260,6 @@ export function unknownOptionProblems(
 }
 
 /** Returns the lists as given. A function so the compiler can name the options a list leaves out. */
-function everyOption<const TLists extends OptionLists>(lists: TLists & Unlisted<TLists>): TLists {
+function everyOption<const TLists extends OptionLists>(lists: TLists & Unlisted<TLists> & NoSkipOption): TLists {
     return lists;
 }

@@ -15,7 +15,10 @@ export type RenamedOption = {
 };
 
 /** Every rename ever made, oldest first. */
-export const RENAMED_OPTIONS: readonly RenamedOption[] = [];
+export const RENAMED_OPTIONS: readonly RenamedOption[] = [
+    // As `skip`, larry.config.ts took it for skipping the gate, so it could not be set there.
+    { gate: 'refactoring', from: 'skip', to: 'skipFiles', since: '0.3.0' },
+];
 
 /**
  * @param gate The gate the options are for.

@@ -148,10 +148,13 @@ test('an option the gate does not take stops the run, and names what it takes', 
     assert.equal(result.out, '');
 });
 
-test('each option name gets one problem: a rename keeps its own, and root and versioning say why', () => {
+test('each option name gets one problem: a rename keeps its own, and root, skip and versioning say why', () => {
     const renames = [{ gate: 'refactoring', from: 'markers', to: 'linted', since: '9.1.0' }];
     assert.deepEqual(unknownOptionProblems('refactoring', { linted: [], markers: [], tracker: 'todo.md' }, renames), [
-        '"refactoring" has no option `tracker`: it was removed, or is misspelt. "refactoring" takes `claudeCode`, `ignore`, `linted`, `skip`.',
+        '"refactoring" has no option `tracker`: it was removed, or is misspelt. "refactoring" takes `claudeCode`, `ignore`, `linted`, `skipFiles`.',
+    ]);
+    assert.deepEqual(unknownOptionProblems('audit', { skip: true }), [
+        '"audit".skip skips the gate, and takes the reason: { skip: \'why this project does not run it\' }.',
     ]);
     assert.deepEqual(unknownOptionProblems('publish', { strict: true }), [
         '"publish" has no option `strict`: it was removed, or is misspelt. "publish" takes no options.',
@@ -161,6 +164,24 @@ test('each option name gets one problem: a rename keeps its own, and root and ve
         '"changelog".versioning can\'t be set: the family numbers its releases, or a base config\'s top-level `versioning`.',
     ]);
     assert.deepEqual(unknownOptionProblems('secrets', { allowlist: [] }), []);
+});
+
+test("refactoring's files to leave unread are set from the config, and `skip` is their old name", (t) => {
+    const files = { 'scripts/generated.yml': '# TODO: regenerate\n' };
+    const withRefactoring = (options) => configFile({ ...LIBRARY, gates: { ...LIBRARY.gates, refactoring: options } });
+
+    assert.equal(larry(repo(t, { ...withRefactoring({}), ...files }), 'check', 'refactoring').code, 1);
+    const skipped = larry(
+        repo(t, { ...withRefactoring({ skipFiles: ['generated.yml'] }), ...files }),
+        'check',
+        'refactoring',
+    );
+    assert.equal(skipped.code, 0, skipped.out);
+
+    const old = larry(repo(t, { ...withRefactoring({ skip: ['generated.yml'] }), ...files }), 'check');
+    assert.equal(old.code, 2);
+    assert.match(old.err, /"refactoring"\.skip is called `skipFiles` since 0\.3\.0\. `npx larry upgrade` renames it\./);
+    assert.doesNotMatch(old.err, /skipped without a reason/);
 });
 
 test("the loaded config carries the family's scheme, or the one a base project names", async (t) => {

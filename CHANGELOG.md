@@ -28,6 +28,8 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
 6. Run `npx larry check`. If it names an option a gate does not take, remove that line from
    `larry.config.ts`, or fix its spelling. Before, such an option was ignored without a word, so
    the gate ran on its default.
+7. Rename `refactoring`'s `skip` option to `skipFiles`: `npx larry upgrade` does it in
+   `larry.config.ts`, and a script that calls `checkRefactoring` itself renames it by hand.
 
 ### Added
 
@@ -51,6 +53,12 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
 - **Breaking:** `larry check` refuses a gate option the gate does not take, such as one a release
   removed (`refactoring`'s `tracker`) or a misspelt one, and lists the options it does take. It
   used to pass the option to the gate, which never read it.
+
+### Fixed
+
+- **Breaking:** `refactoring`'s extra file names to leave unread can be set in `larry.config.ts`.
+  The option is called `skipFiles` now: as `skip`, the config took it for skipping the gate, and
+  refused it as a skip with no reason.
 
 ## [0.2.0] - 2026-11-19
 

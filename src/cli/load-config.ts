@@ -93,10 +93,11 @@ function validateConfig(config: unknown, file: string): Omit<LoadedConfig, 'file
             problems.push(`"${name}" is not a gate ${family} projects run, so its options would never be read.`);
         } else if (!isRecord(value)) {
             problems.push(`"${name}" must be the gate's options, or { skip: 'why this project does not run it' }.`);
-        } else if (!('skip' in value)) {
+        } else if (typeof value['skip'] !== 'string') {
+            // Only a reason skips the gate: any other `skip` is an option, named wrong or renamed.
             options.set(name, value);
             problems.push(...renamedOptionProblems(name, value), ...unknownOptionProblems(name, value));
-        } else if (typeof value['skip'] !== 'string' || value['skip'].trim() === '') {
+        } else if (value['skip'].trim() === '') {
             problems.push(`"${name}" is skipped without a reason. Say why this project does not run it.`);
         } else if (Object.keys(value).length > 1) {
             problems.push(`"${name}" is skipped and given options. Keep one or the other.`);
