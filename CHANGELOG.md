@@ -25,6 +25,9 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
    if someone can stay on an old copy, `versioning: 'calver'` if everyone gets the latest.
 5. A script that calls `checkChangelog` or `checkPackageJson` itself passes the scheme:
    `checkChangelog({ versioning: 'semver' })`.
+6. Run `npx larry check`. If it names an option a gate does not take, remove that line from
+   `larry.config.ts`, or fix its spelling. Before, such an option was ignored without a word, so
+   the gate ran on its default.
 
 ### Added
 
@@ -45,6 +48,9 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
   fails too.
 - `larry init base` takes `--versioning semver` or `calver`, and asks for it at a terminal. The
   changelog init writes names the project's scheme.
+- **Breaking:** `larry check` refuses a gate option the gate does not take, such as one a release
+  removed (`refactoring`'s `tracker`) or a misspelt one, and lists the options it does take. It
+  used to pass the option to the gate, which never read it.
 
 ## [0.2.0] - 2026-11-19
 

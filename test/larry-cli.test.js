@@ -15,6 +15,7 @@ import { pathToFileURL } from 'node:url';
 
 import { runGates, summarise } from '../src/cli/check.ts';
 import { loadConfig } from '../src/cli/load-config.ts';
+import { unknownOptionProblems } from '../src/cli/options.ts';
 import { gatesFor } from '../src/gates/registry.ts';
 
 const LARRY = path.resolve(import.meta.dirname, '../src/cli/larry.ts');
@@ -134,6 +135,32 @@ test('a base config names its versioning, and no other family may', (t) => {
     assert.equal(fixed.code, 2);
     assert.match(fixed.err, /versioning is for the base family\. A library project's releases are numbered by semver/);
     assert.equal(fixed.out, '');
+});
+
+test('an option the gate does not take stops the run, and names what it takes', (t) => {
+    const stale = { ...LIBRARY, gates: { ...LIBRARY.gates, secrets: { allowlist: [], scanDirs: ['src'] } } };
+    const result = larry(repo(t, configFile(stale)), 'check');
+    assert.equal(result.code, 2);
+    assert.match(
+        result.err,
+        /"secrets" has no option `scanDirs`: it was removed, or is misspelt\. "secrets" takes `allowlist`\./,
+    );
+    assert.equal(result.out, '');
+});
+
+test('each option name gets one problem: a rename keeps its own, and root and versioning say why', () => {
+    const renames = [{ gate: 'refactoring', from: 'markers', to: 'linted', since: '9.1.0' }];
+    assert.deepEqual(unknownOptionProblems('refactoring', { linted: [], markers: [], tracker: 'todo.md' }, renames), [
+        '"refactoring" has no option `tracker`: it was removed, or is misspelt. "refactoring" takes `claudeCode`, `ignore`, `linted`, `skip`.',
+    ]);
+    assert.deepEqual(unknownOptionProblems('publish', { strict: true }), [
+        '"publish" has no option `strict`: it was removed, or is misspelt. "publish" takes no options.',
+    ]);
+    assert.deepEqual(unknownOptionProblems('changelog', { root: '.', versioning: 'semver' }), [
+        '"changelog".root can\'t be set: a gate runs on the folder larry.config.ts is in.',
+        '"changelog".versioning can\'t be set: the family numbers its releases, or a base config\'s top-level `versioning`.',
+    ]);
+    assert.deepEqual(unknownOptionProblems('secrets', { allowlist: [] }), []);
 });
 
 test("the loaded config carries the family's scheme, or the one a base project names", async (t) => {
