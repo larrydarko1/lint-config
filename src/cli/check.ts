@@ -83,7 +83,8 @@ export async function runGate(config: LoadedConfig, name: GateName): Promise<boo
     try {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the config's gate names were checked against the registry; its options are typed in the editor, and a gate given the wrong ones fails as it would from a script.
         const check = (await GATES[name].load()) as AnyCheck;
-        await check(config.options.get(name) ?? {});
+        const options = config.options.get(name) ?? {};
+        await check(GATES[name].versioned ? { ...options, versioning: config.versioning } : options);
     } catch (error) {
         stopped(name, error);
         process.exitCode = 1;

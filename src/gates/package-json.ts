@@ -2,7 +2,8 @@
  * package.json across the root and every workspace manifest:
  * ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *   1. Required metadata. The root carries identity and toolchain facts; workspaces
- *      are private and inherit engines and packageManager.
+ *      are private and inherit engines and packageManager. The root's version is in the
+ *      project's scheme, and a calendar-versioned project's workspaces share it.
  *   2. `^` ranges, with `~` only for allowlisted packages (each with a reason).
  *   3. Field order, per CANONICAL_ORDER. An unknown field fails, so the order stays total.
  *   4–6. Electron packaging (`main`, `build.files`, `os`), only where the shapes exist.
@@ -17,10 +18,13 @@ import { isRecord } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, type GateFailure } from './lib/report.ts';
 import { inspectToolchainInstall } from './lib/toolchain-install.ts';
+import { CALVER_VERSION, SCHEMES, SEMVER_VERSION, UNRELEASED_VERSION, type Versioning } from './lib/versioning.ts';
 
 export type PackageJsonOptions = {
     /** Defaults to the repo root resolved from the process cwd. */
     root?: string;
+    /** How releases are numbered. `larry check` gives the family's, or the one a base project names. */
+    versioning: Versioning;
     /** Fields the root manifest owes: the project's identity and its toolchain facts. */
     rootRequired?: string[];
     /** Fields a workspace manifest owes. Toolchain facts are inherited from the root, so they are not here. */
@@ -152,15 +156,13 @@ export const CANONICAL_ORDER: string[] = [
 /** Ranges that are not a version at all — a workspace link, a tarball, a git URL. */
 const NOT_A_RANGE = /^(?:workspace:|file:|link:|npm:|git\+|https?:|github:|\*$)/;
 
-/** `1.2.3`, optionally with a prerelease tag. What a release workflow can order. */
-const SEMVER = /^\d+\.\d+\.\d+(?:-[\w.]+)?$/;
-
 /** An `os` entry and the electron-builder target block that would produce it. */
 const OS_TO_TARGET: Record<string, string> = { darwin: 'mac', linux: 'linux', win32: 'win' };
 
 /** Inspect every manifest in the repo without printing. */
 export function inspectPackageJson({
     root,
+    versioning,
     rootRequired = [],
     workspaceRequired = [],
     canonicalOrder = CANONICAL_ORDER,
@@ -210,11 +212,15 @@ export function inspectPackageJson({
             );
         }
 
-        if (isRoot && typeof pkg.version === 'string' && !SEMVER.test(pkg.version)) {
+        if (isRoot && typeof pkg.version === 'string') {
+            const problem = versionProblem(pkg.version, versioning);
+            if (problem !== null) fail(file, ...problem);
+        }
+        if (versioning === 'calver' && !isRoot && pkg.version !== undefined && pkg.version !== rootPkg.version) {
             fail(
                 file,
-                `\`version\` ("${pkg.version}") is not semver`,
-                'The release workflow reads it to build the tag and the installer filenames; a non-semver value produces a tag nobody can order.',
+                `\`version\` (${JSON.stringify(pkg.version)}) is not the root's (${JSON.stringify(rootPkg.version)})`,
+                'A deployed project ships as one release, so one number names all of it. The bump commit sets it in every package.json.',
             );
         }
 
@@ -352,17 +358,34 @@ export function inspectPackageJson({
 }
 
 /** Run the gate and print. */
-export function checkPackageJson({ root = REPO_ROOT, ...rest }: PackageJsonOptions = {}): void {
+export function checkPackageJson({ root = REPO_ROOT, ...rest }: PackageJsonOptions): void {
     const report = createGateReport({ name: 'package.json' });
     const { problems, manifests } = inspectPackageJson({ root, ...rest });
 
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
     report.done({
-        summary: `${manifests.length} manifest(s): required metadata, semver ranges, canonical field order, the lint toolchain${fs.existsSync(path.join(root, rest.electronViteConfig ?? 'electron.vite.config.ts')) ? ', Electron entry point and packaging' : ''}.`,
+        summary: `${manifests.length} manifest(s): required metadata, a ${rest.versioning} version, semver ranges, canonical field order, the lint toolchain${fs.existsSync(path.join(root, rest.electronViteConfig ?? 'electron.vite.config.ts')) ? ', Electron entry point and packaging' : ''}.`,
         notMachineChecked:
             'Dependency CATEGORY grouping — JSON has no comments, so the groups the standard asks for cannot be read back out of the file. Review that by hand.',
     });
+}
+
+/** What is wrong with the root's version under the project's scheme, as `[what, why]`, or null. */
+function versionProblem(version: string, versioning: Versioning): [string, string] | null {
+    const { name, shape } = SCHEMES[versioning];
+    if (versioning === 'semver') {
+        if (SEMVER_VERSION.test(version)) return null;
+        return [
+            `\`version\` ("${version}") is not semver`,
+            `This project's releases are numbered by ${name}: ${shape}. The release workflow builds the tag and the installer filenames from it, and a version outside the scheme makes a tag nobody can order.`,
+        ];
+    }
+    if (version === UNRELEASED_VERSION || CALVER_VERSION.test(version)) return null;
+    return [
+        `\`version\` ("${version}") is not a calendar version`,
+        `This project's releases are numbered by ${name}: ${shape}, or \`${UNRELEASED_VERSION}\` until the first release. The release workflow builds the tag from it.`,
+    ];
 }
 
 /** What is wrong with one dependency's range, as `[what, why]`, or null when nothing is. */
@@ -387,7 +410,7 @@ function rangeProblem(
 
     const exactReason = allowed.exactFields[field];
     if (exactReason !== undefined) {
-        if (SEMVER.test(range)) return null;
+        if (SEMVER_VERSION.test(range)) return null;
         return [`${field}.${name} is "${range}", in a field pinned exactly`, exactReason];
     }
     if (range.startsWith('^')) return null;

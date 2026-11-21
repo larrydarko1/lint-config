@@ -9,12 +9,18 @@ import { cancel, intro, isCancel, log, note, outro, select, spinner, type Common
 
 import { FAMILIES, type PresetName } from '../eslint/presets.ts';
 import { plural } from '../gates/lib/report.ts';
+import type { Versioning } from '../gates/lib/versioning.ts';
 import { familyFit } from './family-fit.ts';
 import { init, readManifest } from './init.ts';
 import type { Distribution, Runtime } from './templates.ts';
 
 /** What the command line said. Each one left out is asked for. */
-type Given = { family: PresetName | undefined; distribution: Distribution | undefined; runtime: Runtime | undefined };
+type Given = {
+    family: PresetName | undefined;
+    distribution: Distribution | undefined;
+    runtime: Runtime | undefined;
+    versioning: Versioning | undefined;
+};
 
 /** The exit code when the person stops at a question: the shell's for Ctrl+C. */
 const CANCELLED = 130;
@@ -59,7 +65,7 @@ export async function initInteractively(
         return 2;
     }
 
-    let { family, distribution, runtime } = given;
+    let { family, distribution, runtime, versioning } = given;
     if (family === undefined) {
         const fit = familyFit(manifest);
         const answer = await select<PresetName>({
@@ -100,12 +106,32 @@ export async function initInteractively(
         if (isCancel(answer)) return stopped();
         runtime = answer;
     }
+    if (family === 'base' && versioning === undefined) {
+        const answer = await select<Versioning>({
+            message: 'Can someone stay on an old release?',
+            options: [
+                {
+                    value: 'semver',
+                    label: 'semver',
+                    hint: 'yes, it is installed or pinned: 1.4.2, and a major bump warns them',
+                },
+                {
+                    value: 'calver',
+                    label: 'calver',
+                    hint: 'no, everyone gets the latest: 2026.11.0, the month it shipped',
+                },
+            ],
+            ...io,
+        });
+        if (isCancel(answer)) return stopped();
+        versioning = answer;
+    }
 
     const writing = spinner(io);
     writing.start('Writing the config files');
     let result;
     try {
-        result = await init(root, { family, distribution, runtime: runtime ?? null });
+        result = await init(root, { family, distribution, runtime: runtime ?? null, versioning: versioning ?? null });
     } catch (error) {
         writing.error(reason(error));
         cancel('larry init stopped.', io);
@@ -121,8 +147,12 @@ export async function initInteractively(
     if (changes.length > 0) log.message(changes, io);
     note(result.next.join('\n\n'), 'Next', io);
 
-    const asked = given.family === undefined || given.distribution === undefined || runtime !== given.runtime;
-    const command = `npx larry init ${family} --distribution ${distribution}${runtime === undefined ? '' : ` --runtime ${runtime}`}`;
+    const asked =
+        given.family === undefined ||
+        given.distribution === undefined ||
+        runtime !== given.runtime ||
+        versioning !== given.versioning;
+    const command = `npx larry init ${family} --distribution ${distribution}${runtime === undefined ? '' : ` --runtime ${runtime}`}${versioning === undefined ? '' : ` --versioning ${versioning}`}`;
     outro(asked ? `Done. To skip the questions next time: ${styleText('cyan', command)}` : 'Done.', io);
     return 0;
 }

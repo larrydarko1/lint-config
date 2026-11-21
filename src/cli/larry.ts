@@ -16,6 +16,7 @@ import { styleText } from 'node:util';
 import { FAMILIES, isFamily } from '../eslint/presets.ts';
 import { findRepoRoot } from '../gates/lib/repo-root.ts';
 import { plural } from '../gates/lib/report.ts';
+import { FAMILY_VERSIONING, VERSIONINGS, isVersioning } from '../gates/lib/versioning.ts';
 import { gatesFor } from '../gates/registry.ts';
 import { SELF_VERSION } from '../toolchain.ts';
 import { runGates, summarise } from './check.ts';
@@ -24,7 +25,8 @@ import { loadConfig } from './load-config.ts';
 import type { Distribution, Runtime } from './templates.ts';
 
 const USAGE = `Usage: larry check [gate…] [--fix] [--all]
-       larry init <family> --distribution <open|closed> [--runtime <node|browser|both>]
+       larry init <family> --distribution <open|closed>
+                  [--runtime <node|browser|both>] [--versioning <semver|calver>]
        larry doctor
        larry upgrade [--dry-run]
 
@@ -42,6 +44,8 @@ const USAGE = `Usage: larry check [gate…] [--fix] [--all]
     --distribution   open if the app's source is published, closed if not (the licenses gate).
     --runtime        base only, and required there: where the source runs. The base family
                      assumes no layout, so its eslint.config.js names the folders init finds.
+    --versioning     base only, and required there: semver if someone can stay on an old copy,
+                     calver if everyone gets the latest. Every other family's is fixed.
 
   larry doctor             Check Node, the install, the git hooks and the config files.
 
@@ -55,13 +59,15 @@ const USAGE = `Usage: larry check [gate…] [--fix] [--all]
 /** The flags a gate reads from the command line itself. */
 const GATE_FLAGS = new Set(['--fix', '--all']);
 
-const INIT_FLAGS = ['--distribution', '--runtime'];
+const INIT_FLAGS = ['--distribution', '--runtime', '--versioning'];
 
 const NEEDS_DISTRIBUTION =
     "init needs --distribution open or --distribution closed: whether this app's own source is published. The licenses gate allows copyleft dependencies only in an open one.";
 
 const NEEDS_RUNTIME =
     'the base family needs --runtime node, --runtime browser or --runtime both: where its source runs, which no file says.';
+
+const NEEDS_VERSIONING = `the base family needs ${VERSIONINGS.map((v) => `--versioning ${v}`).join(' or ')}: semver if someone can stay on an old copy (an installed app, a package), calver if everyone gets the latest (a website, a service).`;
 
 /** The package folder this CLI runs from: \`src/cli\` and \`dist/cli\` are both two levels down. */
 const RUNNING = path.resolve(import.meta.dirname, '../..');
@@ -180,19 +186,29 @@ async function initProject(args: string[]): Promise<number> {
         );
     }
     if (runtime !== undefined && !isRuntime(runtime)) return usage(NEEDS_RUNTIME);
+    const versioning = flagValue(flags, '--versioning');
+    if (versioning !== undefined && named !== 'base') {
+        return usage(
+            named === undefined
+                ? `--versioning is for the base family: name it, as in \`larry init base --versioning ${versioning}\`.`
+                : `--versioning is for the base family; the ${named} family's releases are numbered by ${FAMILY_VERSIONING[named]}.`,
+        );
+    }
+    if (versioning !== undefined && !isVersioning(versioning)) return usage(NEEDS_VERSIONING);
 
     if (interactive()) {
         const root = repoRoot();
         if (root === null) return 2;
         const { initInteractively } = await import('./init-prompts.ts');
-        return initInteractively(root, { family: named, distribution, runtime });
+        return initInteractively(root, { family: named, distribution, runtime, versioning });
     }
     if (named === undefined) return usage(`init needs a family. It is one of ${FAMILIES.join(', ')}.`);
     if (distribution === undefined) return usage(NEEDS_DISTRIBUTION);
     if (named === 'base' && runtime === undefined) return usage(NEEDS_RUNTIME);
+    if (named === 'base' && versioning === undefined) return usage(NEEDS_VERSIONING);
     const root = repoRoot();
     if (root === null) return 2;
-    return initPlainly(root, { family: named, distribution, runtime: runtime ?? null });
+    return initPlainly(root, { family: named, distribution, runtime: runtime ?? null, versioning: versioning ?? null });
 }
 
 /** `larry init` with every option given and no terminal to ask at: what it wrote, one line each. */

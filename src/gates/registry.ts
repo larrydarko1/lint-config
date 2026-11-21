@@ -7,6 +7,7 @@
  * and running one gate should not load the rest.
  */
 import type { PresetName } from '../eslint/presets.ts';
+import type { Versioning } from './lib/versioning.ts';
 
 /** A gate's `check*` function, which prints its report and sets the exit code. */
 type Check<TOptions> = (options: TOptions) => void | Promise<void>;
@@ -16,7 +17,12 @@ type GateEntry<TFamilies extends readonly PresetName[], TOptions> = {
     families: TFamilies;
     /** Loads the gate's `check*` function. */
     load: () => Promise<Check<TOptions>>;
+    /** Whether `larry check` gives it the project's release scheme as `versioning`, beside its own options. */
+    versioned: boolean;
 };
+
+/** A gate whose options take `versioning` says so, or `larry check` would never give it one. */
+type VersionedFlag<TOptions> = TOptions extends { versioning: Versioning } ? [{ versioned: true }] : [];
 
 export type GateName = keyof typeof GATES;
 
@@ -41,7 +47,7 @@ const BACKEND = ['api', 'fullstack'] as const;
 /** Keyed by the gate's export path under `gates/`. */
 export const GATES = {
     'audit': gate(ALL, async () => (await import('./audit.ts')).checkAudit),
-    'changelog': gate(ALL, async () => (await import('./changelog.ts')).checkChangelog),
+    'changelog': gate(ALL, async () => (await import('./changelog.ts')).checkChangelog, { versioned: true }),
     'code-style': gate(ALL, async () => (await import('./code-style.ts')).checkCodeStyle),
     'contrast': gate(UI, async () => (await import('./contrast.ts')).checkContrast),
     'dead-code': gate(ALL, async () => (await import('./dead-code.ts')).checkDeadCode),
@@ -50,7 +56,7 @@ export const GATES = {
     'html-standards': gate(UI, async () => (await import('./html-standards.ts')).checkHtmlStandards),
     'i18n': gate(UI, async () => (await import('./i18n.ts')).checkI18n),
     'licenses': gate(ALL, async () => (await import('./licenses.ts')).checkLicenses),
-    'package-json': gate(ALL, async () => (await import('./package-json.ts')).checkPackageJson),
+    'package-json': gate(ALL, async () => (await import('./package-json.ts')).checkPackageJson, { versioned: true }),
     'pipeline': gate(ALL, async () => (await import('./pipeline.ts')).checkPipeline),
     'refactoring': gate(ALL, async () => (await import('./refactoring.ts')).checkRefactoring),
     'scss-standards': gate(UI, async () => (await import('./scss-standards.ts')).checkScssStandards),
@@ -102,8 +108,9 @@ export function gatesFor<TFamily extends PresetName>(family: TFamily): FamilyGat
 function gate<const TFamilies extends readonly PresetName[], TOptions>(
     families: TFamilies,
     load: () => Promise<Check<TOptions>>,
+    ...flag: VersionedFlag<TOptions>
 ): GateEntry<TFamilies, TOptions> {
-    return { families, load };
+    return { families, load, versioned: flag.length > 0 };
 }
 
 const isGateName = (name: string): name is GateName => Object.hasOwn(GATES, name);

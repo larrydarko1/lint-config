@@ -16,6 +16,15 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
 2. Give every release its own `## [version] - YYYY-MM-DD` heading, newest first. A heading that
    groups several versions (`## 1.4.0 – 1.4.9 - …`) becomes one for the last of them, with the
    range said in the text under it.
+3. Name the version scheme in the changelog's intro, beside the format: [Semantic
+   Versioning](https://semver.org/spec/v2.0.0.html) in an `electron`, `tauri`, `vs-extension` or
+   `library` project, [calendar versioning](https://calver.org/) in an `api`, `fullstack` or `spa`
+   one. In a calendar-versioned project, set every `package.json` `version` to the root's, in
+   `YYYY.M.PATCH` (or `0.0.0` before the first release).
+4. In a base project, say how its releases are numbered in `larry.config.ts`: `versioning: 'semver'`
+   if someone can stay on an old copy, `versioning: 'calver'` if everyone gets the latest.
+5. A script that calls `checkChangelog` or `checkPackageJson` itself passes the scheme:
+   `checkChangelog({ versioning: 'semver' })`.
 
 ### Added
 
@@ -25,6 +34,17 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
   an intro naming Keep a Changelog, then `## [Unreleased]`, then one `## [version] - YYYY-MM-DD`
   per release: a real date that isn't after today, no version twice, newest first. `larry init`
   writes one.
+- **Breaking:** each family fixes how its releases are numbered: semver for `electron`, `tauri`,
+  `vs-extension` and `library`, calendar versioning (`YYYY.M.PATCH`) for `api`, `fullstack` and
+  `spa`. A base project names its own with `versioning`, and must. The README's Versioning section
+  says why.
+- **Breaking:** the `changelog` gate checks that the intro names the scheme and that every release
+  is numbered by it. Under calendar versioning, a release's year and month are the ones in its date.
+- **Breaking:** the `package-json` gate holds the root's `version` to the scheme, and under calendar
+  versioning every workspace's to the root's. A semver version with a leading zero (`1.08.0`) now
+  fails too.
+- `larry init base` takes `--versioning semver` or `calver`, and asks for it at a terminal. The
+  changelog init writes names the project's scheme.
 
 ## [0.2.0] - 2026-11-19
 

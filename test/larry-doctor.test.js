@@ -130,7 +130,7 @@ test('NEGATIVE: a missing config file is named, and a UI family needs a Stylelin
 });
 
 test('a base project hears when package.json looks like a kind another family is for', (t) => {
-    const base = { 'larry.config.js': "export default { family: 'base', gates: {} };\n" };
+    const base = { 'larry.config.js': "export default { family: 'base', versioning: 'semver', gates: {} };\n" };
 
     const plain = doctor(project(t, base));
     assert.equal(plain.code, 0, plain.out);
@@ -152,7 +152,7 @@ test('a base project hears when package.json looks like a kind another family is
     const typed = doctor(
         project(t, {
             'larry.config.js': null,
-            'larry.config.ts': "export default { family: 'base', gates: {} };\n",
+            'larry.config.ts': "export default { family: 'base', versioning: 'semver', gates: {} };\n",
             'package.json': manifest({ dependencies: { electron: '^40.0.0' } }),
         }),
     );
@@ -317,7 +317,7 @@ test('NEGATIVE: hooks git does not run, a missing hook, and a prepare that does 
 
 test('at a terminal the symbols, commands and summary are coloured, and the text is what a pipe gets', (t) => {
     const root = project(t, {
-        'larry.config.js': "export default { family: 'base', gates: {} };\n",
+        'larry.config.js': "export default { family: 'base', versioning: 'semver', gates: {} };\n",
         'package.json': manifest({ dependencies: { vue: '^3.5.0', electron: '^40.0.0' }, devDependencies: {} }),
     });
     const plain = doctor(root);

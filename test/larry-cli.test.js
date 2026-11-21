@@ -120,6 +120,53 @@ test('a family that does not exist is a usage error', (t) => {
     assert.match(result.err, /family is "cli", not one of api, /);
 });
 
+test('a base config names its versioning, and no other family may', (t) => {
+    const missing = larry(repo(t, configFile({ family: 'base', gates: {} })), 'check');
+    assert.equal(missing.code, 2);
+    assert.match(
+        missing.err,
+        /a base project names how its releases are numbered: versioning: 'semver' or 'calver'\. semver/,
+    );
+    const unknown = larry(repo(t, configFile({ family: 'base', versioning: 'romver', gates: {} })), 'check');
+    assert.match(unknown.err, /versioning: 'semver' or 'calver', not "romver"/);
+
+    const fixed = larry(repo(t, configFile({ ...LIBRARY, versioning: 'calver' })), 'check');
+    assert.equal(fixed.code, 2);
+    assert.match(fixed.err, /versioning is for the base family\. A library project's releases are numbered by semver/);
+    assert.equal(fixed.out, '');
+});
+
+test("the loaded config carries the family's scheme, or the one a base project names", async (t) => {
+    const scheme = async (config) => (await loadConfig(repo(t, configFile(config)))).versioning;
+    assert.equal(await scheme(LIBRARY), 'semver');
+    assert.equal(await scheme({ family: 'tauri', gates: {} }), 'semver');
+    assert.equal(await scheme({ family: 'spa', gates: {} }), 'calver');
+    assert.equal(await scheme({ family: 'fullstack', gates: {} }), 'calver');
+    assert.equal(await scheme({ family: 'base', versioning: 'calver', gates: {} }), 'calver');
+});
+
+test('larry check gives the changelog gate the scheme from the config', (t) => {
+    const changelog = (link) =>
+        `# Changelog\n\nThe format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [it](${link}).\n\n## [Unreleased]\n`;
+    const files = { 'CHANGELOG.md': changelog('https://calver.org/') };
+
+    const runsChangelog = { ...LIBRARY, gates: { ...LIBRARY.gates, changelog: {} } };
+    const library = larry(repo(t, { ...configFile(runsChangelog), ...files }), 'check', 'changelog');
+    assert.equal(library.code, 1);
+    assert.match(
+        library.err,
+        /the intro names calendar versioning, but this project's releases are numbered by Semantic Versioning/,
+    );
+
+    const base = larry(
+        repo(t, { ...configFile({ family: 'base', versioning: 'calver', gates: {} }), ...files }),
+        'check',
+        'changelog',
+    );
+    assert.equal(base.code, 0, base.out);
+    assert.match(base.out, /numbered by calendar versioning/);
+});
+
 test('a TypeScript config is loaded with its types stripped, from any subdirectory', (t) => {
     const root = repo(t, {
         'larry.config.ts': [

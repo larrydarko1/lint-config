@@ -67,11 +67,21 @@ defineConfig({
     },
 });
 
-// The base family runs only the gates every family runs.
+// The base family runs only the gates every family runs, and names how its releases are numbered.
+defineConfig({ family: 'base', versioning: 'calver', gates: REQUIRED });
+
+// @ts-expect-error -- base is for no one kind of project, so it has no scheme to fall back on.
 defineConfig({ family: 'base', gates: REQUIRED });
+
+// @ts-expect-error -- not a scheme.
+defineConfig({ family: 'base', versioning: 'romver', gates: REQUIRED });
+
+// @ts-expect-error -- a library is pinned in its consumers' manifests, so its family fixes semver.
+defineConfig({ family: 'library', versioning: 'calver', gates: REQUIRED });
 
 defineConfig({
     family: 'base',
+    versioning: 'semver',
     gates: {
         ...REQUIRED,
         // @ts-expect-error -- the base family assumes no test runner, so it does not run testing.
@@ -90,5 +100,17 @@ defineConfig({
         'duplication': { scan: ['src'], ceilings: { typescript: 2 } },
         'licenses': { distribution: 'closed' },
         'publish': { skip: 'Private until 1.0, so there is no tarball to check yet.' },
+    },
+});
+
+// The README's base example under Versioning, as written there.
+defineConfig({
+    family: 'base',
+    // 'semver' if someone can stay on an old copy, 'calver' if everyone gets the latest.
+    versioning: 'calver',
+    gates: {
+        'code-style': { scan: ['src'] },
+        'duplication': { scan: ['src'], ceilings: { typescript: 2 } },
+        'licenses': { distribution: 'open' },
     },
 });

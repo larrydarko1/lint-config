@@ -9,6 +9,7 @@ import path from 'node:path';
 
 import { FULLSTACK_WORKSPACES, type BasePaths, type PresetName } from '../eslint/presets.ts';
 import { isRecord, readJson, stringAt } from '../gates/lib/json.ts';
+import { CALVER_VERSION, FAMILY_VERSIONING, UNRELEASED_VERSION, type Versioning } from '../gates/lib/versioning.ts';
 import { CANONICAL_ORDER } from '../gates/package-json.ts';
 import { FORMATTED, prettify } from './format.ts';
 import {
@@ -28,6 +29,8 @@ export type InitOptions = {
     distribution: Distribution;
     /** Where a base project's source runs. Null for every other family, which knows. */
     runtime: Runtime | null;
+    /** How a base project's releases are numbered. Null for every other family, which fixes it. */
+    versioning: Versioning | null;
 };
 
 type InitResult = {
@@ -52,7 +55,7 @@ const RUNS_CHECK = /\bnpm run check(?![\w:.-])|\blarry check\b/;
  * @returns What was written, kept and added, and what is left to do.
  */
 export async function init(root: string, options: InitOptions): Promise<InitResult> {
-    const { family, distribution, runtime } = options;
+    const { family, distribution, runtime, versioning } = options;
     const manifestPath = path.join(root, 'package.json');
     const manifest = readManifest(root);
     const scripts = isRecord(manifest['scripts']) ? manifest['scripts'] : {};
@@ -68,6 +71,8 @@ export async function init(root: string, options: InitOptions): Promise<InitResu
     if (family === 'base' && runtime === null) {
         throw new Error('the base family needs a runtime: where its source runs.');
     }
+    const scheme = family === 'base' ? versioning : FAMILY_VERSIONING[family];
+    if (scheme === null) throw new Error('the base family needs a versioning scheme: how its releases are numbered.');
     const { scan, sources } = sourceFolders(root, family, manifest);
     const engines = isRecord(manifest['engines']) ? manifest['engines'] : {};
     // CI installs the floor engines.node declares, which `pipeline` holds it to.
@@ -76,6 +81,7 @@ export async function init(root: string, options: InitOptions): Promise<InitResu
     const files = scaffoldFiles({
         family,
         distribution,
+        versioning: scheme,
         scan,
         sources,
         ciScripts,
@@ -116,7 +122,7 @@ export async function init(root: string, options: InitOptions): Promise<InitResu
     }
     if (updated !== manifest) fs.writeFileSync(manifestPath, await prettify('package.json', JSON.stringify(updated)));
 
-    result.next.push(...nextSteps(root, family, manifest, result));
+    result.next.push(...nextSteps(root, { family, versioning: scheme }, manifest, result));
     return result;
 }
 
@@ -172,11 +178,28 @@ function basePaths(root: string, sources: string[], runtime: Runtime): BasePaths
     };
 }
 
-function nextSteps(root: string, family: PresetName, manifest: Manifest, result: InitResult): string[] {
+function nextSteps(
+    root: string,
+    project: { family: PresetName; versioning: Versioning },
+    manifest: Manifest,
+    result: InitResult,
+): string[] {
+    const { family, versioning } = project;
     const next: string[] = [];
     if (manifest['type'] !== 'module') {
         next.push(
             'package.json has no `"type": "module"`. The config files are ES modules, so set it, after moving any CommonJS file to .cjs.',
+        );
+    }
+    const version = stringAt(manifest, 'version');
+    if (
+        versioning === 'calver' &&
+        version !== undefined &&
+        version !== UNRELEASED_VERSION &&
+        !CALVER_VERSION.test(version)
+    ) {
+        next.push(
+            `package.json's version is ${version}, and this project's releases are numbered by calendar: set it to ${UNRELEASED_VERSION} until the first release, then \`YYYY.M.PATCH\` for the month it ships.`,
         );
     }
     const workflow = path.join(root, '.github/workflows/ci.yml');

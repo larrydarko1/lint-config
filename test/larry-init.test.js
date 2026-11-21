@@ -48,8 +48,8 @@ const larry = (cwd, ...args) => {
 
 const read = (root, rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
-/** What init needs besides the distribution: the base family's runtime, which no file says. */
-const runtimeFor = (family) => (family === 'base' ? ['--runtime', 'node'] : []);
+/** What init needs besides the distribution: the base family's runtime and versioning, which no file says. */
+const runtimeFor = (family) => (family === 'base' ? ['--runtime', 'node', '--versioning', 'semver'] : []);
 
 /** larry.config.ts with its imports pointed at this checkout's source, so Node can load it from a temp repo. */
 const loadable = (root) => {
@@ -103,6 +103,61 @@ test('the base family needs --runtime, no other family takes it, and an unknown 
     assert.deepEqual(fs.readdirSync(root).sort(), ['.git', 'package.json']);
 });
 
+test('the base family needs --versioning, and every other family is told its scheme is fixed', (t) => {
+    const root = repo(t);
+    const base = larry(root, 'init', 'base', '--distribution', 'open', '--runtime', 'node');
+    assert.equal(base.code, 2);
+    assert.match(base.err, /the base family needs --versioning semver or --versioning calver/);
+    assert.equal(
+        larry(root, 'init', 'base', '--distribution', 'open', '--runtime', 'node', '--versioning', 'romver').code,
+        2,
+    );
+
+    const tauri = larry(root, 'init', 'tauri', '--distribution', 'open', '--versioning', 'calver');
+    assert.equal(tauri.code, 2);
+    assert.match(tauri.err, /--versioning is for the base family; the tauri family's releases are numbered by semver/);
+    const unnamed = larry(root, 'init', '--distribution', 'open', '--versioning', 'calver');
+    assert.equal(unnamed.code, 2);
+    assert.match(
+        unnamed.err,
+        /--versioning is for the base family: name it, as in `larry init base --versioning calver`/,
+    );
+    assert.deepEqual(fs.readdirSync(root).sort(), ['.git', 'package.json']);
+});
+
+test("the changelog init writes names the family's scheme, and a base project's config names its own", (t) => {
+    const spa = repo(t);
+    assert.equal(larry(spa, 'init', 'spa', '--distribution', 'closed').code, 0);
+    assert.match(read(spa, 'CHANGELOG.md'), /\[calendar versioning\]\(https:\/\/calver\.org\/\)/);
+    assert.doesNotMatch(read(spa, 'larry.config.ts'), /versioning/);
+
+    const library = repo(t);
+    assert.equal(larry(library, 'init', 'library', '--distribution', 'open').code, 0);
+    assert.match(
+        read(library, 'CHANGELOG.md'),
+        /\[Semantic Versioning\]\(https:\/\/semver\.org\/spec\/v2\.0\.0\.html\)/,
+    );
+
+    const base = repo(t);
+    assert.equal(
+        larry(base, 'init', 'base', '--distribution', 'open', '--runtime', 'node', '--versioning', 'calver').code,
+        0,
+    );
+    assert.match(read(base, 'larry.config.ts'), /family: 'base',\n {4}versioning: 'calver',/);
+    assert.match(read(base, 'CHANGELOG.md'), /calver\.org/);
+});
+
+test('a calendar-versioned project whose package.json says 1.0.0 is told to start at 0.0.0', (t) => {
+    const root = repo(t);
+    const result = larry(root, 'init', 'fullstack', '--distribution', 'closed');
+    assert.equal(result.code, 0, result.err);
+    assert.match(result.out, /package\.json's version is 1\.0\.0, .* set it to 0\.0\.0 until the first release/);
+    assert.doesNotMatch(
+        larry(repo(t), 'init', 'library', '--distribution', 'open').out,
+        /0\.0\.0 until the first release/,
+    );
+});
+
 test('init with no package.json says to run npm init', (t) => {
     const result = larry(repo(t, { 'package.json': null }), 'init', 'library', '--distribution', 'open');
     assert.equal(result.code, 2);
@@ -137,7 +192,7 @@ test('a fresh spa gets every config file, the hooks, CI and the scripts, and say
     }
     assert.equal(fs.statSync(path.join(root, '.husky/pre-commit')).mode & 0o111, 0o111, 'hooks are executable');
     assert.deepEqual(
-        inspectChangelog({ root }),
+        inspectChangelog({ root, versioning: 'calver' }),
         { problems: [], releases: 0 },
         'the changelog it writes passes its gate',
     );
@@ -181,7 +236,7 @@ test('a fresh spa gets every config file, the hooks, CI and the scripts, and say
 
 test('a base project gets the folders init found written out, since the family assumes none', (t) => {
     const root = repo(t, { 'src/index.ts': 'export {};\n', 'tests/index.test.ts': '', 'scripts/release.ts': '' });
-    const result = larry(root, 'init', 'base', '--distribution=open', '--runtime=node');
+    const result = larry(root, 'init', 'base', '--distribution=open', '--runtime=node', '--versioning=semver');
     assert.equal(result.code, 0, result.err);
 
     const eslint = read(root, 'eslint.config.js');
@@ -201,19 +256,28 @@ test('a base project gets the folders init found written out, since the family a
 
 test("a base project's runtime decides which globals its source gets, and the scripts and tests stay in Node", (t) => {
     const browser = repo(t, { 'src/index.ts': 'export {};\n' });
-    assert.equal(larry(browser, 'init', 'base', '--distribution', 'open', '--runtime', 'browser').code, 0);
+    assert.equal(
+        larry(browser, 'init', 'base', '--distribution', 'open', '--runtime', 'browser', '--versioning', 'semver').code,
+        0,
+    );
     assert.match(read(browser, 'eslint.config.js'), /browser: \['src\/\*\*\/\*\.ts'\],/);
     assert.match(read(browser, 'eslint.config.js'), /node: \['\*\*\/\*\.\{test,spec\}\.ts'\],/);
 
     const both = repo(t, { 'src/index.ts': 'export {};\n' });
-    assert.equal(larry(both, 'init', 'base', '--distribution', 'open', '--runtime', 'both').code, 0);
+    assert.equal(
+        larry(both, 'init', 'base', '--distribution', 'open', '--runtime', 'both', '--versioning', 'semver').code,
+        0,
+    );
     assert.match(read(both, 'eslint.config.js'), /browser: \[\],/);
     assert.match(read(both, 'eslint.config.js'), /nodeAndBrowser: \['src\/\*\*\/\*\.ts'\],/);
 });
 
 test("the base project's eslint.config.js loads, and holds what it names to the repository", async (t) => {
     const root = repo(t, { 'src/index.ts': 'export {};\n', 'test/index.test.ts': '' });
-    assert.equal(larry(root, 'init', 'base', '--distribution', 'open', '--runtime', 'node').code, 0);
+    assert.equal(
+        larry(root, 'init', 'base', '--distribution', 'open', '--runtime', 'node', '--versioning', 'semver').code,
+        0,
+    );
     const file = path.join(root, 'eslint.config.js');
     fs.writeFileSync(
         file,

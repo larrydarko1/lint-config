@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url';
 import { CONFIG_FILES } from '../config.ts';
 import { FAMILIES, isFamily, type PresetName } from '../eslint/presets.ts';
 import { isRecord } from '../gates/lib/json.ts';
+import { FAMILY_VERSIONING, VERSIONINGS, isVersioning, type Versioning } from '../gates/lib/versioning.ts';
 import { GATES, gatesFor, type GateName } from '../gates/registry.ts';
 import { renamedOptionProblems } from './renames.ts';
 
@@ -18,6 +19,8 @@ export type LoadedConfig = {
     /** The config's file name, relative to the root. */
     file: string;
     family: PresetName;
+    /** How releases are numbered: the family's scheme, or the one a base project names. */
+    versioning: Versioning;
     /** The options for each configured gate. A gate the family runs that is not here runs on its defaults. */
     options: Map<GateName, Record<string, unknown>>;
     /** Each skipped gate, with its reason. */
@@ -53,14 +56,14 @@ export const isGate = (name: string): name is GateName => Object.hasOwn(GATES, n
 /**
  * @param config What the config file default-exports.
  * @param file The file's name, for the messages.
- * @returns The family, and each gate's options or reason for skipping it.
+ * @returns The family, its release scheme, and each gate's options or reason for skipping it.
  * @throws When anything is wrong, listing every problem rather than the first.
  */
 function validateConfig(config: unknown, file: string): Omit<LoadedConfig, 'file'> {
     if (!isRecord(config)) {
         throw new Error(`${file} must default-export the config: \`export default defineConfig({ family, gates })\`.`);
     }
-    const { family, gates = {} } = config;
+    const { family, gates = {}, versioning } = config;
     if (!isFamily(family)) {
         throw new Error(`${file}: family is ${JSON.stringify(family)}, not one of ${FAMILIES.join(', ')}.`);
     }
@@ -68,6 +71,16 @@ function validateConfig(config: unknown, file: string): Omit<LoadedConfig, 'file
 
     const runs: readonly string[] = gatesFor(family);
     const problems: string[] = [];
+    const scheme = family === 'base' ? versioning : FAMILY_VERSIONING[family];
+    if (family !== 'base' && versioning !== undefined) {
+        problems.push(
+            `versioning is for the base family. A ${family} project's releases are numbered by ${FAMILY_VERSIONING[family]}, which its family fixes: remove the line.`,
+        );
+    } else if (!isVersioning(scheme)) {
+        problems.push(
+            `a base project names how its releases are numbered: versioning: ${VERSIONINGS.map((v) => `'${v}'`).join(' or ')}${versioning === undefined ? '' : `, not ${JSON.stringify(versioning)}`}. semver if someone can stay on an old copy, calver if everyone gets the latest.`,
+        );
+    }
     const options = new Map<GateName, Record<string, unknown>>();
     const skipped = new Map<GateName, string>();
 
@@ -90,6 +103,8 @@ function validateConfig(config: unknown, file: string): Omit<LoadedConfig, 'file
         }
     }
 
-    if (problems.length > 0) throw new Error(`${file}:\n${problems.map((p) => `  • ${p}`).join('\n')}`);
-    return { family, options, skipped };
+    if (problems.length > 0 || !isVersioning(scheme)) {
+        throw new Error(`${file}:\n${problems.map((p) => `  • ${p}`).join('\n')}`);
+    }
+    return { family, versioning: scheme, options, skipped };
 }
