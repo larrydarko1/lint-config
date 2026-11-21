@@ -33,7 +33,7 @@ const GOOD = { name: 'app', version: '1.2.3', description: 'a thing', license: '
 const REQUIRED = ['name', 'version', 'description', 'license', 'private', 'type'];
 
 const run = (t, files, options = {}) =>
-    inspectPackageJson({ root: tree(t, files), rootRequired: REQUIRED, ...options });
+    inspectPackageJson({ root: tree(t, files), rootRequired: REQUIRED, versioning: 'semver', ...options });
 const whats = (result) => result.problems.map((p) => p.what).join(' | ');
 
 test('a clean manifest has no problems', (t) => {
@@ -76,6 +76,35 @@ test('a non-semver version fails on the root manifest', (t) => {
 test('a prerelease version is semver', (t) => {
     const result = run(t, { 'package.json': manifest({ ...GOOD, version: '1.2.3-rc.1' }) });
     assert.equal(result.problems.length, 0, whats(result));
+});
+
+test('a semver number has no leading zeros', (t) => {
+    const result = run(t, { 'package.json': manifest({ ...GOOD, version: '2026.08.0' }) });
+    assert.match(whats(result), /`version` \("2026\.08\.0"\) is not semver/);
+});
+
+test('under calver the root is YYYY.M.PATCH, or 0.0.0 before the first release', (t) => {
+    const version = (v) => run(t, { 'package.json': manifest({ ...GOOD, version: v }) }, { versioning: 'calver' });
+    for (const v of ['2026.11.0', '2026.1.12', '0.0.0']) assert.equal(whats(version(v)), '', v);
+    for (const v of ['1.2.3', '2026.08.0', '2026.11']) {
+        assert.equal(whats(version(v)), `\`version\` ("${v}") is not a calendar version`, v);
+    }
+});
+
+test("under calver every workspace's version is the root's; under semver each keeps its own", (t) => {
+    const files = {
+        'package.json': manifest({ ...GOOD, version: '2026.11.0', workspaces: ['api', 'web', 'tools'] }),
+        'api/package.json': manifest({ name: 'api', version: '2026.8.0', private: true }),
+        'web/package.json': manifest({ name: 'web', version: '2026.11.0', private: true }),
+        // A workspace may leave the version out: there is nothing to disagree.
+        'tools/package.json': manifest({ name: 'tools', private: true }),
+    };
+    const result = run(t, files, { versioning: 'calver' });
+    assert.equal(whats(result), '`version` ("2026.8.0") is not the root\'s ("2026.11.0")');
+    assert.equal(result.problems[0].file, 'api/package.json');
+
+    const semver = run(t, { ...files, 'package.json': manifest({ ...GOOD, workspaces: ['api', 'web', 'tools'] }) });
+    assert.equal(whats(semver), '');
 });
 
 // ── workspaces ──────────────────────────────────────────────────────────────

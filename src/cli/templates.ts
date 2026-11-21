@@ -5,6 +5,7 @@
  */
 import { standardsName } from '../eslint/family.ts';
 import type { BasePaths, PresetName } from '../eslint/presets.ts';
+import { SCHEMES, type Versioning } from '../gates/lib/versioning.ts';
 import { gatesFor } from '../gates/registry.ts';
 import { SELF_NAME } from '../toolchain.ts';
 
@@ -16,6 +17,8 @@ export type Runtime = 'node' | 'browser' | 'both';
 type Scaffold = {
     family: PresetName;
     distribution: Distribution;
+    /** How releases are numbered: the family's scheme, or the one a base project chose. */
+    versioning: Versioning;
     /** What code-style reads: the source and test folders. */
     scan: string[];
     /** What duplication reads: the source folders only, since tests repeat their fixtures on purpose. */
@@ -127,7 +130,7 @@ export function scaffoldFiles(scaffold: Scaffold): Record<string, string> {
             '',
             'All notable changes to this project are documented here.',
             '',
-            'The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).',
+            ...changelogIntro(scaffold.versioning),
             '',
             '## [Unreleased]',
         ),
@@ -143,6 +146,23 @@ export function unconfiguredGates(family: PresetName): [string, string][] {
         const needs = NEEDS[name];
         return needs === undefined ? [] : [[name, needs] as [string, string]];
     });
+}
+
+/** The changelog's intro: the format, and what a version number promises under the project's scheme. */
+function changelogIntro(versioning: Versioning): string[] {
+    const { name, url } = SCHEMES[versioning];
+    if (versioning === 'semver') {
+        return [
+            'The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this',
+            `project adheres to [${name}](${url}).`,
+        ];
+    }
+    return [
+        'The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and',
+        `versions follow [${name}](${url}) as \`YYYY.M.PATCH\`: the year and month a release`,
+        'ships, then how many releases came before it that month. A release that needs something',
+        'done to upgrade opens with `### Upgrading`.',
+    ];
 }
 
 function larryConfig(scaffold: Scaffold): string {
@@ -166,6 +186,7 @@ function larryConfig(scaffold: Scaffold): string {
         '',
         'export default defineConfig({',
         `    family: '${family}',`,
+        ...(family === 'base' ? [`    versioning: '${scaffold.versioning}',`] : []),
         '    gates: {',
         ...configured.map(([name, options]) => `        '${name}': ${options},`),
         ...(skipped.length > 0

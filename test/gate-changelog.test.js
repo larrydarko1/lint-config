@@ -14,7 +14,8 @@ import { checkChangelog, inspectChangelog } from '../src/gates/changelog.ts';
 const INTRO = [
     '# Changelog',
     '',
-    'The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).',
+    'The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this',
+    'project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).',
     '',
 ];
 
@@ -40,7 +41,8 @@ const project = (t, files) => {
     return root;
 };
 
-const changelog = (t, lines) => inspectChangelog({ root: project(t, { 'CHANGELOG.md': lines.join('\n') }) });
+const changelog = (t, lines, versioning = 'semver') =>
+    inspectChangelog({ root: project(t, { 'CHANGELOG.md': lines.join('\n') }), versioning });
 
 const whats = (result) => result.problems.map((problem) => problem.what);
 
@@ -65,9 +67,56 @@ test('a Keep a Changelog file passes, pre-releases included, and its releases ar
     assert.deepEqual(changelog(t, VALID), { problems: [], releases: 3 });
 });
 
-test('a dated version (CalVer) is a version', (t) => {
-    const result = changelog(t, [...INTRO, '## [Unreleased]', '', '## [2026.10.2] - 2026-10-20', '']);
-    assert.deepEqual(result, { problems: [], releases: 1 });
+const CALVER_INTRO = [
+    '# Changelog',
+    '',
+    'The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and',
+    'versions follow [calendar versioning](https://calver.org/) as `YYYY.M.PATCH`.',
+    '',
+];
+
+/** A calendar-versioned changelog with one release. */
+const calver = (t, heading) => changelog(t, [...CALVER_INTRO, '## [Unreleased]', '', heading, ''], 'calver');
+
+test('a calendar version passes when it names the month its release shipped', (t) => {
+    assert.deepEqual(calver(t, '## [2026.10.2] - 2026-10-20'), { problems: [], releases: 1 });
+});
+
+test('the intro names the version scheme, and the wrong one is named as such', (t) => {
+    const unnamed = changelog(t, [INTRO[0], INTRO[1], INTRO[2], '', ...VALID.slice(INTRO.length)]);
+    assert.deepEqual(whats(unnamed), ['the intro does not name the version scheme']);
+
+    const other = changelog(t, [...CALVER_INTRO, ...VALID.slice(INTRO.length)]);
+    assert.deepEqual(whats(other), [
+        "the intro names calendar versioning, but this project's releases are numbered by Semantic Versioning",
+    ]);
+    assert.match(other.problems[0].why, /\[Semantic Versioning\]\(https:\/\/semver\.org\/spec\/v2\.0\.0\.html\)/);
+
+    const flipped = changelog(t, [...INTRO, '## [Unreleased]', ''], 'calver');
+    assert.deepEqual(whats(flipped), [
+        "the intro names Semantic Versioning, but this project's releases are numbered by calendar versioning",
+    ]);
+});
+
+test('under semver, a release number is MAJOR.MINOR.PATCH with no leading zeros', (t) => {
+    const release = (version) => changelog(t, [...INTRO, '## [Unreleased]', '', `## [${version}] - 2026-03-10`, '']);
+    for (const version of ['1.4.2', '0.1.0-beta.3', '2.0.0+build.7']) assert.deepEqual(whats(release(version)), []);
+    for (const version of ['1.4', '01.4.2', '2026.08.0']) {
+        assert.deepEqual(whats(release(version)), [`${version} is not a semantic version`], version);
+    }
+});
+
+test('under calver, a release number is YYYY.M.PATCH, the month with no leading zero', (t) => {
+    for (const version of ['1.4.2', '2026.03.0', '2026.3', '2026.13.0', '2026.3.0-beta.1']) {
+        const result = calver(t, `## [${version}] - 2026-03-10`);
+        assert.deepEqual(whats(result), [`${version} is not a calendar version`], version);
+    }
+});
+
+test("under calver, a release's year and month are the ones in its date", (t) => {
+    assert.deepEqual(whats(calver(t, '## [2026.11.0] - 2026-10-08')), ['2026.11.0 is dated 2026-10-08']);
+    assert.deepEqual(whats(calver(t, '## [2025.10.0] - 2026-10-08')), ['2025.10.0 is dated 2026-10-08']);
+    assert.match(calver(t, '## [2026.11.0] - 2026-10-08').problems[0].why, /is 2026\.10\.PATCH/);
 });
 
 test('an empty [Unreleased] at the top is all a new project needs', (t) => {
@@ -75,7 +124,7 @@ test('an empty [Unreleased] at the top is all a new project needs', (t) => {
 });
 
 test('no changelog fails, and says what to write', (t) => {
-    const result = inspectChangelog({ root: project(t, { 'README.md': '# A project\n' }) });
+    const result = inspectChangelog({ root: project(t, { 'README.md': '# A project\n' }), versioning: 'semver' });
     assert.equal(result.releases, null);
     assert.deepEqual(
         result.problems.map(({ file, what }) => [file, what]),
@@ -86,7 +135,7 @@ test('no changelog fails, and says what to write', (t) => {
 
 test('a changelog under another name is told to move, not that there is none', (t) => {
     for (const name of ['changelog.md', 'CHANGES.md', 'HISTORY.md']) {
-        const result = inspectChangelog({ root: project(t, { [name]: VALID.join('\n') }) });
+        const result = inspectChangelog({ root: project(t, { [name]: VALID.join('\n') }), versioning: 'semver' });
         assert.deepEqual(whats(result), [`the changelog is named ${name}`], name);
         assert.equal(result.problems[0].file, name);
     }
@@ -99,12 +148,19 @@ test('the title is `# Changelog`', (t) => {
 });
 
 test('the intro names the format with a link to keepachangelog.com', (t) => {
-    const unnamed = changelog(t, ['# Changelog', '', 'Everything that changed.', '', ...VALID.slice(INTRO.length)]);
+    const unnamed = changelog(t, [
+        '# Changelog',
+        '',
+        'Everything that changed.',
+        INTRO[3],
+        '',
+        ...VALID.slice(INTRO.length),
+    ]);
     assert.deepEqual(whats(unnamed), ['the intro does not name the format']);
 
-    // Below the first section, the link no longer tells a reader what they are reading.
-    const late = changelog(t, ['# Changelog', '', '## [Unreleased]', '', INTRO[2], '']);
-    assert.deepEqual(whats(late), ['the intro does not name the format']);
+    // Below the first section, the links no longer tell a reader what they are reading.
+    const late = changelog(t, ['# Changelog', '', '## [Unreleased]', '', INTRO[2], INTRO[3], '']);
+    assert.deepEqual(whats(late), ['the intro does not name the format', 'the intro does not name the version scheme']);
 });
 
 test('[Unreleased] comes first, and only once', (t) => {
@@ -197,12 +253,14 @@ test('a heading inside a fenced code block is quoted, not a section', (t) => {
 
 test('checkChangelog reports each problem and fails the run', (t) => {
     const root = project(t, { 'CHANGELOG.md': [...INTRO, '## [1.0.0]', ''].join('\n') });
-    const failed = capture(() => checkChangelog({ root }));
+    const failed = capture(() => checkChangelog({ root, versioning: 'semver' }));
     assert.equal(failed.failed, true);
     assert.match(failed.out, /not `## \[Unreleased\]`/);
     assert.match(failed.out, /is not `## \[version\] - YYYY-MM-DD`/);
 
-    const passed = capture(() => checkChangelog({ root: project(t, { 'CHANGELOG.md': VALID.join('\n') }) }));
+    const passed = capture(() =>
+        checkChangelog({ root: project(t, { 'CHANGELOG.md': VALID.join('\n') }), versioning: 'semver' }),
+    );
     assert.equal(passed.failed, false);
     assert.match(passed.out, /Changelog OK — CHANGELOG\.md opens with \[Unreleased\], then 3 releases, newest first/);
 });

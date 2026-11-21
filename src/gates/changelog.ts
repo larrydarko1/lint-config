@@ -1,8 +1,9 @@
 /**
  * The repo's CHANGELOG.md, in the Keep a Changelog shape: `# Changelog`, an intro that
- * names the format, `## [Unreleased]` first, then one `## [version] - YYYY-MM-DD` per
- * release, newest first. What is in each release is for a reader to judge; the shape is
- * what lets a bump move `[Unreleased]` under a new heading without anyone re-reading it.
+ * names the format and the version scheme, `## [Unreleased]` first, then one
+ * `## [version] - YYYY-MM-DD` per release, newest first, each version in the project's
+ * scheme. What is in each release is for a reader to judge; the shape is what lets a bump
+ * move `[Unreleased]` under a new heading without anyone re-reading it.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,10 +11,13 @@ import path from 'node:path';
 import { stripMarkdownCode } from './lib/markdown.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { CALVER_VERSION, SCHEMES, SEMVER_VERSION, type Versioning } from './lib/versioning.ts';
 
 export type ChangelogOptions = {
     /** Repository root. Defaults to the repo this runs in. */
     root?: string;
+    /** How releases are numbered. `larry check` gives the family's, or the one a base project names. */
+    versioning: Versioning;
 };
 
 type ChangelogInspection = {
@@ -36,8 +40,9 @@ const RELEASE = /^## \[(\d[0-9A-Za-z.+-]*)\] - (\d{4})-(\d{2})-(\d{2})$/;
 
 const FORMAT_LINK = '](https://keepachangelog.com/';
 
-export function inspectChangelog(options: ChangelogOptions = {}): ChangelogInspection {
-    const { root = REPO_ROOT } = options;
+export function inspectChangelog(options: ChangelogOptions): ChangelogInspection {
+    const { root = REPO_ROOT, versioning } = options;
+    const scheme = SCHEMES[versioning];
     const { problems, fail } = collectFailures();
 
     const names = fs.readdirSync(root);
@@ -69,11 +74,22 @@ export function inspectChangelog(options: ChangelogOptions = {}): ChangelogInspe
         text.startsWith('## ') ? [{ text: text.trimEnd(), line: i + 1 }] : [],
     );
     const introEnd = headings[0] === undefined ? lines.length : headings[0].line - 1;
-    if (!lines.slice(0, introEnd).some((line) => line.includes(FORMAT_LINK))) {
+    const intro = lines.slice(0, introEnd);
+    if (!intro.some((line) => line.includes(FORMAT_LINK))) {
         fail(
             FILE,
             'the intro does not name the format',
             'A reader meets `[Unreleased]` and Added/Changed/Fixed without being told what they mean. Say above the first section that the format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).',
+        );
+    }
+    if (!intro.some((line) => line.includes(scheme.link))) {
+        const other = Object.values(SCHEMES).find((s) => s !== scheme && intro.some((line) => line.includes(s.link)));
+        fail(
+            FILE,
+            other === undefined
+                ? 'the intro does not name the version scheme'
+                : `the intro names ${other.name}, but this project's releases are numbered by ${scheme.name}`,
+            `A reader needs to know what a number promises before they upgrade to it. Say beside the format that versions follow [${scheme.name}](${scheme.url}).`,
         );
     }
 
@@ -122,6 +138,8 @@ export function inspectChangelog(options: ChangelogOptions = {}): ChangelogInspe
                 'A heading is written when the release ships, so its date is the day it did, never one ahead.',
             );
         }
+        const misnumbered = numberingProblem(versioning, version, { year, month, date });
+        if (misnumbered !== null) fail(at(heading.line), ...misnumbered);
         if (seen.has(version)) {
             fail(
                 at(heading.line),
@@ -143,17 +161,43 @@ export function inspectChangelog(options: ChangelogOptions = {}): ChangelogInspe
     return { problems, releases };
 }
 
-export function checkChangelog(options: ChangelogOptions = {}): void {
+export function checkChangelog(options: ChangelogOptions): void {
     const report = createGateReport({ name: 'Changelog' });
     const { problems, releases } = inspectChangelog(options);
 
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
     report.done({
-        summary: `Changelog OK — ${FILE} opens with [Unreleased], then ${plural(releases ?? 0, 'release')}, newest first, each with its date.`,
+        summary: `Changelog OK — ${FILE} opens with [Unreleased], then ${plural(releases ?? 0, 'release')}, newest first, each with its date and numbered by ${SCHEMES[options.versioning].name}.`,
         notMachineChecked:
             'whether every notable change has an entry, whether an entry says what changed for the reader rather than what the commit did, and whether a release that breaks something says how to upgrade.',
     });
+}
+
+/**
+ * What is wrong with a release's number under the project's scheme, as `[what, why]`, or null.
+ * A calendar version names the month it shipped, so it has to agree with the heading's date.
+ */
+function numberingProblem(
+    versioning: Versioning,
+    version: string,
+    shipped: { year: string; month: string; date: string },
+): [string, string] | null {
+    const { name, shape } = SCHEMES[versioning];
+    if (versioning === 'semver') {
+        if (SEMVER_VERSION.test(version)) return null;
+        return [`${version} is not a semantic version`, `This project's releases are numbered by ${name}: ${shape}.`];
+    }
+    const match = CALVER_VERSION.exec(version);
+    if (match === null) {
+        return [`${version} is not a calendar version`, `This project's releases are numbered by ${name}: ${shape}.`];
+    }
+    const { year, month, date } = shipped;
+    if (match[1] === year && Number(match[2]) === Number(month)) return null;
+    return [
+        `${version} is dated ${date}`,
+        `A calendar version is the year and month its release shipped, so one dated ${date} is ${year}.${Number(month)}.PATCH. Correct whichever of the two is wrong.`,
+    ];
 }
 
 function isCalendarDate(year: number, month: number, day: number): boolean {

@@ -55,7 +55,7 @@ const ask = async (root, given, answers) => {
     });
     const code = await initInteractively(
         root,
-        { family: undefined, distribution: undefined, runtime: undefined, ...given },
+        { family: undefined, distribution: undefined, runtime: undefined, versioning: undefined, ...given },
         { input, output },
     );
     return { code, screen, unanswered: pending.map(([question]) => question) };
@@ -63,25 +63,28 @@ const ask = async (root, given, answers) => {
 
 const read = (root, rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
-test("init asks for the family, the distribution and a base project's runtime, and writes the answers", async (t) => {
+test("init asks for the family, the distribution and a base project's runtime and versioning, and writes the answers", async (t) => {
     const root = repo(t, { 'src/index.ts': 'export {};\n' });
     const result = await ask(root, {}, [
         // The family list starts on api; base is last.
         ['What kind of project is this?', DOWN.repeat(7) + ENTER],
         ["Is the app's own source published?", DOWN + ENTER],
         ['Where does the source run?', DOWN + ENTER],
+        ['Can someone stay on an old release?', DOWN + ENTER],
     ]);
     assert.equal(result.code, 0, result.screen);
     assert.deepEqual(result.unanswered, []);
 
     assert.match(read(root, 'larry.config.ts'), /family: 'base'/);
     assert.match(read(root, 'larry.config.ts'), /distribution: 'open'/);
+    assert.match(read(root, 'larry.config.ts'), /versioning: 'calver'/);
+    assert.match(read(root, 'CHANGELOG.md'), /\[calendar versioning\]\(https:\/\/calver\.org\/\) as `YYYY\.M\.PATCH`/);
     assert.match(read(root, 'eslint.config.js'), /browser: \['src\/\*\*\/\*\.ts'\],/);
     assert.match(result.screen, /base: \d+ files written/);
     assert.match(result.screen, /\+ larry\.config\.ts/);
     assert.match(
         result.screen,
-        /To skip the questions next time: npx larry init base --distribution open --runtime browser/,
+        /To skip the questions next time: npx larry init base --distribution open --runtime browser --versioning calver/,
     );
 });
 
@@ -98,11 +101,14 @@ test('the family question starts on the one package.json points at', async (t) =
     assert.match(read(root, 'larry.config.ts'), /distribution: 'closed'/);
 });
 
-test('what the command line gave is not asked again, and only base is asked where it runs', async (t) => {
+test('what the command line gave is not asked again, and only base is asked where it runs and how it is versioned', async (t) => {
     const root = repo(t);
     const result = await ask(root, { family: 'library' }, [["Is the app's own source published?", ENTER]]);
     assert.equal(result.code, 0, result.screen);
-    assert.doesNotMatch(result.screen, /What kind of project is this\?|Where does the source run\?/);
+    assert.doesNotMatch(
+        result.screen,
+        /What kind of project is this\?|Where does the source run\?|Can someone stay on an old release\?/,
+    );
     assert.match(result.screen, /npx larry init library --distribution closed/);
 
     const given = repo(t);

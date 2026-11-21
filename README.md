@@ -61,17 +61,19 @@ npx larry doctor                           # checks the install
 ```
 
 The base family also needs `--runtime node`, `browser` or `both`, since nothing in the repository
-says where its source runs: `npx larry init base --distribution open --runtime node`.
+says where its source runs, and `--versioning semver` or `calver`, since no family decides how its
+releases are numbered (see [Versioning](#versioning)):
+`npx larry init base --distribution open --runtime node --versioning semver`.
 
 At a terminal, `npx larry init` on its own asks for each of these: the family (starting on the one
 package.json points at, such as spa for a project that depends on Vue), the distribution and, for
-base, the runtime. A flag that is given is not asked again. When it finishes it prints the command
+base, the runtime and the versioning. A flag that is given is not asked again. When it finishes it prints the command
 that skips the questions. In CI or a pipe nothing is asked: a missing option is a usage error, as
 it is above. Stopping at a question writes nothing and exits 130.
 
 `larry init` writes what the sections below describe: each tool's config file, the git hooks,
 `larry.config.ts`, a CI workflow that `pipeline` accepts, `.jscpd.json`, `.prettierignore`, a
-`.gitignore` and a `CHANGELOG.md` with only `[Unreleased]`. It adds the `prepare`, `lint`, `format:check`, `check` and `ci:check` scripts, and
+`.gitignore` and a `CHANGELOG.md` whose intro names the project's version scheme, with only `[Unreleased]`. It adds the `prepare`, `lint`, `format:check`, `check` and `ci:check` scripts, and
 `engines.node`. `ci:check` and the workflow also run `typecheck` and `test` when the project has
 those scripts. A file or script that already exists is left as it is, so running init again only
 fills in what is missing, and it is safe in a project that is partly set up. It never sets
@@ -702,7 +704,7 @@ its source roots, its services, and exceptions it has approved, each with a stat
 | Gate                       | Family                   | Checks                                                                             |
 | -------------------------- | ------------------------ | ---------------------------------------------------------------------------------- |
 | `audit`                    | all                      | `npm audit`, with a reviewed allowlist that expires                                |
-| `changelog`                | all                      | CHANGELOG.md in the Keep a Changelog shape: `[Unreleased]` first, dated releases   |
+| `changelog`                | all                      | CHANGELOG.md in the Keep a Changelog shape, each version in the project's scheme   |
 | `code-style`               | all                      | file names and length, headers, SFC block order, stale baselines; Rust headers     |
 | `contrast`                 | all with a UI            | every text token clears AA on every background, in every theme; no dimmed text     |
 | `dead-code`                | all                      | unused code and dependencies, undeclared imports, import cycles (knip)             |
@@ -711,7 +713,7 @@ its source roots, its services, and exceptions it has approved, each with a stat
 | `html-standards`           | all with a UI            | `index.html`: shell, CSP, entry module, remote resources, reduced motion           |
 | `i18n`                     | all with a UI            | two-letter locale files; plurals, placeholders and arrays agree; options           |
 | `licenses`                 | all                      | every production dependency's licence suits an `open` or `closed` app              |
-| `package-json`             | all                      | manifest fields, version ranges, and the toolchain rule below                      |
+| `package-json`             | all                      | manifest fields, the version's scheme, ranges, and the toolchain rule below        |
 | `pipeline`                 | all                      | every gate runs in CI; timeouts, permissions, SHA-pinned actions, …                |
 | `refactoring`              | all                      | no deferral markers; no todo.md or Claude Code config committed; its local layout  |
 | `scss-standards`           | all with a UI            | the entry, Vite injection, theme parity, self-hosted fonts                         |
@@ -875,13 +877,20 @@ works this way:
 - There is no `CLAUDE.local.md`: its lines go in `CLAUDE.md`, so each rule has one place.
 
 `changelog` reads `CHANGELOG.md` at the repo root. It opens with `# Changelog` and an intro that
-links [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), then `## [Unreleased]`, once, then
-one `## [version] - YYYY-MM-DD` per release: the version without a `v` (a dated one such as
-`2026.10.2` is fine), a real day that isn't after today, no version twice, newest first. A
-heading inside a fenced code block is quoted, not read. `larry init` writes one with only
-`[Unreleased]`. A changelog under another name (`changelog.md`, `CHANGES.md`) is told to move.
+links [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project's version scheme
+([semver.org](https://semver.org/spec/v2.0.0.html) or [calver.org](https://calver.org/), see
+[Versioning](#versioning)), then `## [Unreleased]`, once, then one `## [version] - YYYY-MM-DD` per
+release: the version without a `v` and in the project's scheme, a real day that isn't after today,
+no version twice, newest first. Under calver a release's year and month are the ones in its date,
+so a `2026.11.0` dated in October fails. A heading inside a fenced code block is quoted, not read.
+`larry init` writes one with only `[Unreleased]`, under an intro for the project's scheme. A changelog under another name (`changelog.md`, `CHANGES.md`) is told to move.
 What goes in each section is for its reader; the shape is what lets a bump move `[Unreleased]`
 under the new version without anyone re-reading the file.
+
+`package-json` holds the root's `version` to the scheme too: semver, or under calver
+`YYYY.M.PATCH`, with `0.0.0` until the first release, when there is no month to name yet. Under
+calver every workspace that has a `version` has the root's. A deployed project ships as one
+release, so one number names all of it, and the bump commit sets it in every `package.json`.
 
 `dead-code` takes the same list as `publicApi` in a library: `checkDeadCode({ publicApi: packageEntries() })`.
 A published package's exports are used outside the repository, so with it the gate reports neither
@@ -894,6 +903,60 @@ Don't list `html` there, because jscpd rejects it.
 `gates/lib/repo-root`, `gates/lib/strip-comments`, `gates/lib/source`, `gates/lib/files`,
 `gates/lib/report`, `gates/lib/swallowed-errors` and `gates/lib/rust` are the helpers the gates are built from, and
 they are exported for your own gates.
+
+### Versioning
+
+**Each family fixes how its releases are numbered**, from one question: can someone be running
+an old copy?
+
+| Family                              | Old copies?                             | Versioning                     |
+| ----------------------------------- | --------------------------------------- | ------------------------------ |
+| `electron`, `tauri`, `vs-extension` | Yes, until they update                  | semver: `MAJOR.MINOR.PATCH`    |
+| `library`                           | Yes, pinned in someone's `package.json` | semver                         |
+| `api`, `fullstack`, `spa`           | No, everyone gets the deployed one      | calver: `YYYY.M.PATCH`         |
+| `base`                              | Only the project knows                  | the project names it, required |
+
+The number tells its reader what they need to decide. Someone on 2.1.0 of an installed app has to
+know, before they update, that 3.0.0 changes something they rely on, and the first number warns
+them. Nobody can stay on an old version of a website, so a major number there would never mean
+anything, and the version says how recent a release is instead: the year and month it shipped,
+then how many releases came before it that month (`2026.11.0`, then `2026.11.1`). The month has no
+leading zero and there are always three numbers, so npm still reads it as a valid semver version.
+What a calendar-versioned release asks of whoever runs it goes in its changelog, under
+`### Upgrading`.
+
+The scheme is fixed rather than an option because outside base, the other one is only ever a
+mistake:
+
+- **An installed app can't take a calendar version.** Tauri requires semver, and Windows Installer,
+  which builds the `.msi`, caps the first two numbers at 255, so `2026` is not a version it accepts.
+- **A library on calendar versions breaks its consumers' ranges.** `^2026.11.0` accepts
+  `2026.12.0`, because npm reads the first number as where a breaking change goes, and a calendar
+  version never moves it for that reason.
+- **A web app on semver works**, but projects of one kind would then number their releases two
+  ways, and its major number would still never mean anything.
+
+Base is for a kind of project none of the families describes, so only its author knows whether
+old copies run. A base project names its scheme, and since there is no family default to fall back
+on, leaving it out is an error, as leaving out its paths is in `eslint.config.js`:
+
+```ts
+export default defineConfig({
+    family: 'base',
+    // 'semver' if someone can stay on an old copy, 'calver' if everyone gets the latest.
+    versioning: 'calver',
+    gates: {
+        'code-style': { scan: ['src'] },
+        'duplication': { scan: ['src'], ceilings: { typescript: 2 } },
+        'licenses': { distribution: 'open' },
+    },
+});
+```
+
+`versioning` on any other family is a type error in the editor, and `larry check` refuses it.
+`larry check` gives the scheme to the two gates that read it, `changelog` and `package-json`
+(see above), so a gate run from a script of its own takes it as an option:
+`checkChangelog({ versioning: 'semver' })`.
 
 ## Response schemas
 

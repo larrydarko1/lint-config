@@ -5,13 +5,17 @@
  * error, and a gate with a required option cannot be left out.
  */
 import type { PresetName } from './eslint/presets.ts';
+import type { Versioning } from './gates/lib/versioning.ts';
 import type { FamilyGate, GateName, GateOptions } from './gates/registry.ts';
 
 /** A gate the project does not run, and why. The reason prints each time `larry check` skips it. */
 export type SkippedGate = { skip: string };
 
-/** `root` is where the config sits; a gate is never pointed somewhere else from it. */
-type ConfiguredOptions<TName extends GateName> = Omit<GateOptions<TName>, 'root'>;
+/**
+ * `root` is where the config sits; a gate is never pointed somewhere else from it. `versioning`
+ * comes from the config's top level, so one scheme reaches every gate that reads it.
+ */
+type ConfiguredOptions<TName extends GateName> = Omit<GateOptions<TName>, 'root' | 'versioning'>;
 
 /** A gate with no required option may be left out, and then runs on its defaults. */
 type Optional<TName extends GateName> =
@@ -25,17 +29,33 @@ export type GatesConfig<TFamily extends PresetName> = {
         ConfiguredOptions<TName> | SkippedGate;
 };
 
+/** Every family but base numbers its releases by the scheme what it ships needs, so only base names one. */
+type VersioningConfig<TFamily extends PresetName> = TFamily extends 'base'
+    ? {
+          /** How releases are numbered: `semver` if someone can stay on an old copy, `calver` if everyone gets the latest. */
+          versioning: Versioning;
+      }
+    : {
+          /** Fixed by the family: semver for apps, extensions and libraries, calver for web apps and APIs. */
+          versioning?: never;
+      };
+
 export type LarryConfig<TFamily extends PresetName = PresetName> = {
     /** Which family's gates `larry check` runs: the same name as the ESLint preset. */
     family: TFamily;
     /** Each gate's options, keyed by its name in the README's gate table. */
     gates: GatesConfig<TFamily>;
-};
+} & VersioningConfig<TFamily>;
 
 /** Where `larry` looks for the config, in this order, at the repository root. Node strips a `.ts` config's types itself. */
 export const CONFIG_FILES = ['larry.config.ts', 'larry.config.js'];
 
-/** Types `larry.config.ts`. It returns the config as given; `larry check` validates it again when it runs. */
-export function defineConfig<TFamily extends PresetName>(config: LarryConfig<TFamily>): LarryConfig<TFamily> {
+/**
+ * Types `larry.config.ts`. It returns the config as given; `larry check` validates it again when it runs.
+ * The family is read from `family` alone, so gates typed for another family cannot widen it.
+ */
+export function defineConfig<TFamily extends PresetName>(
+    config: { family: TFamily } & LarryConfig<NoInfer<TFamily>>,
+): LarryConfig<TFamily> {
     return config;
 }
