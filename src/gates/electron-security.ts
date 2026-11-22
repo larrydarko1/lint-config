@@ -145,7 +145,7 @@ const REGEX_ESCAPE = /\.replace(?:All)?\(\s*\/\[\.\*\+\?\^\$\{\}\(\)\|\[\\\]\\\\
 const SCHEME_GUARD = /startsWith\(\s*['"`]https?:|protocol\s*[!=]==?\s*['"`]https?:|\/\^https/;
 
 /** A containment check, recognised by name — see the header. */
-const BOUNDARY_CHECK = /\b(?:isInsideBoundary|isInside|withinRoot)\s*\(|path\.relative\(|startsWith\(\s*root\b/;
+const BOUNDARY_CHECK = /\b(?:(?:is|resolve)Inside(?:Boundary)?|withinRoot)\s*\(|path\.relative\(|startsWith\(\s*root\b/;
 
 /** The Electron calls that switch certificate checking off, however they are spelled. */
 const TLS_OVERRIDES = [

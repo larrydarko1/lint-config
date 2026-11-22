@@ -399,6 +399,20 @@ test('a scheme handler with no boundary check fails', (t) => {
     assert.ok(has(whats(root), 'the `app://` handler does not check that the path is inside its root'));
 });
 
+test('an async check that follows symlinks counts as a boundary check', (t) => {
+    const check = `return resolveInsideBoundary(filePath, root).then(
+            (resolved) => net.fetch(resolved),
+            () => new Response('Forbidden', { status: 403 }),
+        );`;
+    const swapped = MAIN.replace(
+        /if \(!isInsideBoundary\(filePath, root\)\) \{[\s\S]*?return net\.fetch\(filePath\);/,
+        check,
+    );
+    assert.notEqual(swapped, MAIN);
+    const list = whats(tree(t, { 'src/main/index.ts': swapped }));
+    assert.ok(!has(list, /`app:\/\/` handler/));
+});
+
 test('a scheme handler that never refuses with 403 fails', (t) => {
     const root = tree(t, main('status: 403', 'status: 200'));
     assert.ok(has(whats(root), 'the `app://` handler never returns 403'));
