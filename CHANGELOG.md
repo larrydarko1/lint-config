@@ -56,6 +56,9 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
 
 ### Fixed
 
+- `electron-security` accepts `resolveInsideBoundary()` (or `resolveInside()`) as a custom protocol's
+  boundary check. A check that follows symlinks has to read the disk, so it is async, and the
+  `is…` names the gate knew are kept for pure functions.
 - **Breaking:** `refactoring`'s extra file names to leave unread can be set in `larry.config.ts`.
   The option is called `skipFiles` now: as `skip`, the config took it for skipping the gate, and
   refused it as a skip with no reason.
