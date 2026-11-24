@@ -720,7 +720,7 @@ its source roots, its services, and exceptions it has approved, each with a stat
 | `scss-standards`           | all with a UI            | the entry, Vite injection, theme parity, self-hosted fonts                         |
 | `secrets`                  | all                      | no keys, tokens, env files or keystores in anything git would commit               |
 | `testing`                  | all but base and library | suite layout, `.only`/`.skip`, coverage ratchet, E2E server-error wiring           |
-| `tsconfigs`                | all                      | compiler flags stay at the standard                                                |
+| `tsconfigs`                | all                      | compiler flags stay at the standard; one ES year; Vite builds at the browser floor |
 | `electron-security`        | electron                 | `webPreferences`, navigation, permissions, `v-html`, TLS overrides                 |
 | `error-handling/electron`  | electron                 | IPC handlers contain failures, process backstops, cleanup on quit                  |
 | `ipc-standards`            | electron                 | channels, docs and preload agree; the renderer uses every bridge member            |

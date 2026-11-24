@@ -19,11 +19,26 @@ const tree = (t, files) => {
 
 const strictBase = () => ({ compilerOptions: { ...BASE_FLAGS } });
 
+// Written out, not imported: moving the year or the floor has to change these too.
+const ES_YEAR = 'ES2025';
+const BROWSER_FLOOR = [
+    'chrome >= 136',
+    'edge >= 136',
+    'firefox >= 134',
+    'safari >= 26',
+    'ios_saf >= 26',
+    'and_chr >= 136',
+    'and_ff >= 134',
+];
+
+/** A project's own options: on the year, with `types` scoped. */
+const own = (extra = {}) => ({ target: ES_YEAR, lib: [ES_YEAR], types: [], ...extra });
+
 /** A repo that passes everything, so a case only has to break one thing. */
 const good = (overrides = {}) => ({
     'package.json': { scripts: { typecheck: 'tsc -p app/tsconfig.json' } },
     'tsconfig.base.json': strictBase(),
-    'app/tsconfig.json': { extends: '../tsconfig.base.json', compilerOptions: { types: [] } },
+    'app/tsconfig.json': { extends: '../tsconfig.base.json', compilerOptions: own() },
     ...overrides,
 });
 
@@ -46,7 +61,7 @@ test('a missing base is the one fatal problem', (t) => {
 
 // ── 1. extends ──────────────────────────────────────────────────────────────
 test('a project that does not extend the base fails', (t) => {
-    const result = run(t, good({ 'app/tsconfig.json': { compilerOptions: { types: [] } } }));
+    const result = run(t, good({ 'app/tsconfig.json': { compilerOptions: own() } }));
     assert.match(whats(result), /does not extend tsconfig\.base\.json/);
 });
 
@@ -56,7 +71,7 @@ test('the base listed before a preset fails, because later entries win', (t) => 
         good({
             'app/tsconfig.json': {
                 extends: ['../tsconfig.base.json', './preset.json'],
-                compilerOptions: { types: [] },
+                compilerOptions: own(),
             },
             'app/preset.json': { compilerOptions: {} },
         }),
@@ -70,7 +85,7 @@ test('the base listed last is fine', (t) => {
         good({
             'app/tsconfig.json': {
                 extends: ['./preset.json', '../tsconfig.base.json'],
-                compilerOptions: { types: [] },
+                compilerOptions: own(),
             },
             'app/preset.json': { compilerOptions: {} },
         }),
@@ -81,7 +96,7 @@ test('the base listed last is fine', (t) => {
 test('an `extends` that resolves to nothing is reported as unresolved, not as absent', (t) => {
     const result = run(
         t,
-        good({ 'app/tsconfig.json': { extends: '../../tsconfig.base.json', compilerOptions: { types: [] } } }),
+        good({ 'app/tsconfig.json': { extends: '../../tsconfig.base.json', compilerOptions: own() } }),
     );
     assert.match(whats(result), /does not resolve to tsconfig\.base\.json/);
 });
@@ -110,7 +125,7 @@ test('an environmental setting in the base fails', (t) => {
 
 test('a tsconfig tsc cannot read is reported, not walked into a crash', (t) => {
     for (const project of [
-        { extends: 5, compilerOptions: { types: [] } },
+        { extends: 5, compilerOptions: own() },
         { extends: '../tsconfig.base.json', compilerOptions: 'x' },
     ]) {
         const result = run(t, good({ 'app/tsconfig.json': project }));
@@ -136,7 +151,7 @@ test('weakening a base flag with no reason fails', (t) => {
         t,
         good({
             'app/tsconfig.json':
-                '{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        "types": [],\n        "noUnusedLocals": false\n    }\n}\n',
+                '{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        "target": "ES2025", "lib": ["ES2025"],\n        "types": [],\n        "noUnusedLocals": false\n    }\n}\n',
         }),
     );
     assert.match(whats(result), /overrides `noUnusedLocals: false` with no reason/);
@@ -147,7 +162,7 @@ test('a reason on the line above clears the override', (t) => {
         t,
         good({
             'app/tsconfig.json':
-                '{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        "types": [],\n        // generated code trips this; remove once the generator is replaced\n        "noUnusedLocals": false\n    }\n}\n',
+                '{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        "target": "ES2025", "lib": ["ES2025"],\n        "types": [],\n        // generated code trips this; remove once the generator is replaced\n        "noUnusedLocals": false\n    }\n}\n',
         }),
     );
     assert.equal(result.problems.length, 0, whats(result));
@@ -158,7 +173,7 @@ test('a trailing reason on the same line clears the override', (t) => {
         t,
         good({
             'app/tsconfig.json':
-                '{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        "types": [],\n        "noUnusedLocals": false // generated code trips this\n    }\n}\n',
+                '{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        "target": "ES2025", "lib": ["ES2025"],\n        "types": [],\n        "noUnusedLocals": false // generated code trips this\n    }\n}\n',
         }),
     );
     assert.equal(result.problems.length, 0, whats(result));
@@ -168,7 +183,7 @@ test('a section divider above the flag is a label, not a reason', (t) => {
     const result = run(
         t,
         good({
-            'app/tsconfig.json': `{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        "types": [],\n        /* ${SECTIONS[3]} */\n        "noUnusedLocals": false\n    }\n}\n`,
+            'app/tsconfig.json': `{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        "target": "ES2025", "lib": ["ES2025"],\n        "types": [],\n        /* ${SECTIONS[3]} */\n        "noUnusedLocals": false\n    }\n}\n`,
         }),
     );
     assert.match(whats(result), /overrides `noUnusedLocals: false` with no reason/);
@@ -180,47 +195,74 @@ test('matching the base value is not an override', (t) => {
         good({
             'app/tsconfig.json': {
                 extends: '../tsconfig.base.json',
-                compilerOptions: { types: [], noUnusedLocals: true },
+                compilerOptions: own({ noUnusedLocals: true }),
             },
         }),
     );
     assert.equal(result.problems.length, 0, whats(result));
 });
 
-// ── 4. target and lib agree ─────────────────────────────────────────────────
-test('a target with no lib fails', (t) => {
-    const result = run(
-        t,
-        good({
-            'app/tsconfig.json': { extends: '../tsconfig.base.json', compilerOptions: { types: [], target: 'ES2023' } },
-        }),
-    );
-    assert.match(whats(result), /sets `target: "ES2023"` with no `lib`/);
+// ── 4. one ES year, stated in the repo ──────────────────────────────────────
+const project = (compilerOptions, extendsFrom = '../tsconfig.base.json') =>
+    good({ 'app/tsconfig.json': { extends: extendsFrom, compilerOptions } });
+
+test('a project with no target or lib fails on each', (t) => {
+    const result = run(t, project({ types: [] }));
+    assert.match(whats(result), /does not set `target`/);
+    assert.match(whats(result), /does not set `lib`/);
 });
 
-test('a target and lib naming different ES years fails', (t) => {
+test("a published preset's year does not count: it moves on the preset's upgrade", (t) => {
     const result = run(
         t,
         good({
             'app/tsconfig.json': {
-                extends: '../tsconfig.base.json',
-                compilerOptions: { types: [], target: 'ES2023', lib: ['ES2020'] },
+                extends: ['@vue/tsconfig/tsconfig.dom.json', '../tsconfig.base.json'],
+                compilerOptions: { types: [] },
             },
+            'node_modules/@vue/tsconfig/tsconfig.dom.json': { compilerOptions: { target: 'ESNext', lib: ['ES2022'] } },
         }),
     );
-    assert.match(whats(result), /targets ES2023 but its lib starts at ES2020/);
+    assert.match(whats(result), /does not set `target`/);
+    assert.match(whats(result), /does not set `lib`/);
 });
 
-test('a target and lib that agree pass, whatever the casing', (t) => {
+test('a year inherited from a local config counts', (t) => {
     const result = run(
         t,
         good({
-            'app/tsconfig.json': {
-                extends: '../tsconfig.base.json',
-                compilerOptions: { types: [], target: 'ES2023', lib: ['es2023', 'DOM'] },
-            },
+            'app/tsconfig.json': { extends: ['./env.json', '../tsconfig.base.json'], compilerOptions: { types: [] } },
+            'app/env.json': { compilerOptions: { target: ES_YEAR, lib: [ES_YEAR, 'DOM'] } },
         }),
     );
+    assert.equal(result.problems.length, 0, whats(result));
+});
+
+test('an earlier year fails on target and on lib', (t) => {
+    const result = run(t, project(own({ target: 'ES2024', lib: ['ES2024'] })));
+    assert.match(whats(result), new RegExp(`targets ES2024, not ${ES_YEAR}`));
+    assert.match(whats(result), new RegExp(`has a lib starting at ES2024, not ${ES_YEAR}`));
+});
+
+test('a target and lib of different years fail, whichever is off', (t) => {
+    assert.match(whats(run(t, project(own({ lib: ['ES2022', 'DOM'] })))), /has a lib starting at ES2022/);
+    assert.match(whats(run(t, project(own({ target: 'ESNext' })))), /targets ESNext/);
+    assert.match(whats(run(t, project(own({ target: 5 })))), /targets 5/);
+    assert.match(whats(run(t, project(own({ lib: [] })))), /has a lib starting at nothing/);
+});
+
+test('a lib entry past the year fails, a smaller one passes', (t) => {
+    assert.match(
+        whats(run(t, project(own({ lib: [ES_YEAR, 'ESNext.Disposable'] })))),
+        /has the lib entry ESNext\.Disposable/,
+    );
+    assert.match(whats(run(t, project(own({ lib: [ES_YEAR, 'ES2099.Array'] })))), /has the lib entry ES2099\.Array/);
+    const result = run(t, project(own({ lib: [ES_YEAR, 'ES2020.Intl', 'DOM', 'DOM.Iterable'] })));
+    assert.equal(result.problems.length, 0, whats(result));
+});
+
+test('the year passes in either casing', (t) => {
+    const result = run(t, project(own({ target: ES_YEAR.toLowerCase(), lib: [ES_YEAR.toLowerCase(), 'dom'] })));
     assert.equal(result.problems.length, 0, whats(result));
 });
 
@@ -248,7 +290,7 @@ test('a nodeTyped project declaring exactly ["node"] passes', (t) => {
     const result = run(
         t,
         good({
-            'app/tsconfig.json': { extends: '../tsconfig.base.json', compilerOptions: { types: ['node'] } },
+            'app/tsconfig.json': { extends: '../tsconfig.base.json', compilerOptions: own({ types: ['node'] }) },
         }),
         { nodeTyped: ['app/tsconfig.json'] },
     );
@@ -261,7 +303,7 @@ test("`node` in a browser project's types fails", (t) => {
         t,
         good({
             'app/tsconfig.json':
-                '{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        "types": ["node"]\n    }\n}\n',
+                '{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        "target": "ES2025", "lib": ["ES2025"],\n        "types": ["node"]\n    }\n}\n',
         }),
         { browserProjects: ['app/tsconfig.json'] },
     );
@@ -273,7 +315,7 @@ test('a reason next to `types` clears it — the rule-3 idiom', (t) => {
         t,
         good({
             'app/tsconfig.json':
-                '{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        // the shared package is consumed as source and its env config reads process.env\n        "types": ["node"]\n    }\n}\n',
+                '{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        "target": "ES2025", "lib": ["ES2025"],\n        // the shared package is consumed as source and its env config reads process.env\n        "types": ["node"]\n    }\n}\n',
         }),
         { browserProjects: ['app/tsconfig.json'] },
     );
@@ -286,7 +328,7 @@ test('a non-browser lib in a browser project fails', (t) => {
         good({
             'app/tsconfig.json': {
                 extends: '../tsconfig.base.json',
-                compilerOptions: { types: [], target: 'ES2023', lib: ['ES2023', 'WebWorker', 'ScriptHost'] },
+                compilerOptions: own({ lib: [ES_YEAR, 'WebWorker', 'ScriptHost'] }),
             },
         }),
         { browserProjects: ['app/tsconfig.json'] },
@@ -300,7 +342,7 @@ test('ES and DOM libs pass', (t) => {
         good({
             'app/tsconfig.json': {
                 extends: '../tsconfig.base.json',
-                compilerOptions: { types: [], target: 'ES2023', lib: ['ES2023', 'DOM', 'DOM.Iterable'] },
+                compilerOptions: own({ lib: [ES_YEAR, 'DOM', 'DOM.Iterable'] }),
             },
         }),
         { browserProjects: ['app/tsconfig.json'] },
@@ -409,7 +451,7 @@ test('a project no script points a compiler at fails', (t) => {
         t,
         good({
             'package.json': { scripts: { typecheck: 'tsc -p app/tsconfig.json' } },
-            'orphan/tsconfig.json': { extends: '../tsconfig.base.json', compilerOptions: { types: [] } },
+            'orphan/tsconfig.json': { extends: '../tsconfig.base.json', compilerOptions: own() },
         }),
     );
     assert.match(whats(result), /orphan\/tsconfig\.json.*|is not reached by any typecheck script/);
@@ -424,7 +466,7 @@ test('build mode follows references, so a referenced project is reached', (t) =>
         'package.json': { scripts: { typecheck: 'tsc -b app/tsconfig.json' } },
         'tsconfig.base.json': strictBase(),
         'app/tsconfig.json': { files: [], references: [{ path: './tsconfig.app.json' }] },
-        'app/tsconfig.app.json': { extends: '../tsconfig.base.json', compilerOptions: { types: [] } },
+        'app/tsconfig.app.json': { extends: '../tsconfig.base.json', compilerOptions: own() },
     });
     assert.equal(result.problems.length, 0, whats(result));
 });
@@ -433,7 +475,7 @@ test('a bare `tsc` reaches the tsconfig.json beside its manifest', (t) => {
     const result = run(t, {
         'package.json': { scripts: { typecheck: 'tsc --noEmit' } },
         'tsconfig.base.json': strictBase(),
-        'tsconfig.json': { extends: './tsconfig.base.json', compilerOptions: { types: [] } },
+        'tsconfig.json': { extends: './tsconfig.base.json', compilerOptions: own() },
     });
     assert.equal(result.problems.length, 0, whats(result));
 });
@@ -448,7 +490,7 @@ test('a workspace script is read too', (t) => {
         'package.json': { workspaces: ['app'], scripts: {} },
         'tsconfig.base.json': strictBase(),
         'app/package.json': { scripts: { typecheck: 'tsc -p tsconfig.json' } },
-        'app/tsconfig.json': { extends: '../tsconfig.base.json', compilerOptions: { types: [] } },
+        'app/tsconfig.json': { extends: '../tsconfig.base.json', compilerOptions: own() },
     });
     assert.equal(result.problems.length, 0, whats(result));
 });
@@ -464,7 +506,7 @@ test('a solution file named with -p fails', (t) => {
         'package.json': { scripts: { typecheck: 'tsc -p app/tsconfig.json' } },
         'tsconfig.base.json': strictBase(),
         'app/tsconfig.json': { files: [], references: [{ path: './tsconfig.app.json' }] },
-        'app/tsconfig.app.json': { extends: '../tsconfig.base.json', compilerOptions: { types: [] } },
+        'app/tsconfig.app.json': { extends: '../tsconfig.base.json', compilerOptions: own() },
     });
     assert.match(whats(result), /is a solution file run without `-b`/);
 });
@@ -475,7 +517,7 @@ test('an unknown section divider fails', (t) => {
         t,
         good({
             'app/tsconfig.json':
-                '{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        /* Miscellaneous */\n        "types": []\n    }\n}\n',
+                '{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        "target": "ES2025", "lib": ["ES2025"],\n        /* Miscellaneous */\n        "types": []\n    }\n}\n',
         }),
     );
     assert.match(whats(result), /unknown section divider "Miscellaneous"/);
@@ -485,7 +527,7 @@ test('section dividers out of order fail', (t) => {
     const result = run(
         t,
         good({
-            'app/tsconfig.json': `{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        /* ${SECTIONS[2]} */\n        "types": [],\n        /* ${SECTIONS[0]} */\n        "tsBuildInfoFile": "x"\n    }\n}\n`,
+            'app/tsconfig.json': `{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        "target": "ES2025", "lib": ["ES2025"],\n        /* ${SECTIONS[2]} */\n        "types": [],\n        /* ${SECTIONS[0]} */\n        "tsBuildInfoFile": "x"\n    }\n}\n`,
         }),
     );
     assert.match(whats(result), /is out of order/);
@@ -495,7 +537,7 @@ test('section dividers in order pass, and a trailing reason is allowed', (t) => 
     const result = run(
         t,
         good({
-            'app/tsconfig.json': `{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        /* ${SECTIONS[0]} — where the build info goes */\n        "tsBuildInfoFile": "x",\n        /* ${SECTIONS[2]} */\n        "types": []\n    }\n}\n`,
+            'app/tsconfig.json': `{\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": {\n        "target": "ES2025", "lib": ["ES2025"],\n        /* ${SECTIONS[0]} — where the build info goes */\n        "tsBuildInfoFile": "x",\n        /* ${SECTIONS[2]} */\n        "types": []\n    }\n}\n`,
         }),
     );
     assert.equal(result.problems.length, 0, whats(result));
@@ -512,7 +554,7 @@ test('comments in a config are fine', (t) => {
         t,
         good({
             'app/tsconfig.json':
-                '{\n    // the app\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": { "types": [] }\n}\n',
+                '{\n    // the app\n    "extends": "../tsconfig.base.json",\n    "compilerOptions": { "target": "ES2025", "lib": ["ES2025"], "types": [] }\n}\n',
         }),
     );
     assert.equal(result.problems.length, 0, whats(result));
@@ -536,4 +578,80 @@ test('`ignore` adds to the skipped directories rather than replacing them', (t) 
         { ignore: ['android'] },
     );
     assert.equal(result.problems.length, 0, whats(result));
+});
+
+// ── 10. a Vite build ships the year, to the floor ───────────────────────────
+const year = ES_YEAR.toLowerCase();
+const viteApp = (config, manifest = { browserslist: BROWSER_FLOOR }) =>
+    good({ 'web/vite.config.ts': config, 'web/package.json': manifest });
+
+test('a Vite build on the year, with the floor beside it, passes', (t) => {
+    for (const config of [
+        `import { defineConfig } from 'vite';\nexport default defineConfig({ build: { target: '${year}' } });\n`,
+        `export default defineConfig(({ mode }) => ({ build: { target: '${year}' }, oxc: { target: '${year}' } }));\n`,
+        `export default defineConfig(() => {\n    const port = 1;\n    return { server: { port }, build: { target: "${year}" } };\n});\n`,
+        `const config = { build: { target: '${year}' } } satisfies UserConfig;\nexport default config;\n`,
+        `export default { 'build': { 'target': '${year}' } };\n`,
+    ]) {
+        const result = run(t, viteApp(config));
+        assert.equal(result.problems.length, 0, `${config}\n${whats(result)}`);
+        assert.deepEqual(result.viteBuilds, ['web/vite.config.ts']);
+    }
+});
+
+test('a Vite build with no build.target fails: the default moves with Vite', (t) => {
+    const result = run(t, viteApp(`export default defineConfig({ plugins: [] });\n`));
+    assert.match(whats(result), /does not set `build\.target`/);
+});
+
+test('a target in a comment or a variable named for it does not count', (t) => {
+    const result = run(
+        t,
+        viteApp(
+            `const target = '${year}';\n// build: { target: '${year}' }\nexport default defineConfig({ build: {} });\n`,
+        ),
+    );
+    assert.match(whats(result), /does not set `build\.target`/);
+});
+
+test('a build.target off the year fails, a browser list included', (t) => {
+    for (const target of [`'es2020'`, `'esnext'`, `['${year}', 'safari14']`, `'baseline-widely-available'`]) {
+        const result = run(t, viteApp(`export default defineConfig({ build: { target: ${target} } });\n`));
+        assert.match(whats(result), /sets `build\.target` to/, target);
+    }
+});
+
+test('an oxc.target off the year fails', (t) => {
+    const result = run(
+        t,
+        viteApp(`export default defineConfig({ oxc: { target: 'es2020' }, build: { target: '${year}' } });\n`),
+    );
+    assert.match(whats(result), /sets `oxc\.target` to 'es2020'/);
+});
+
+test('a config the gate cannot find an object in fails rather than passing', (t) => {
+    const result = run(t, viteApp(`export default mergeConfig;\n`));
+    assert.match(whats(result), /exports no config object/);
+});
+
+test('the browser floor is read from the nearest package.json', (t) => {
+    const config = `export default defineConfig({ build: { target: '${year}' } });\n`;
+    const missing = run(t, viteApp(config, {}));
+    assert.match(whats(missing), /declares no `browserslist` for the build in web\/vite\.config\.ts/);
+    assert.equal(missing.problems[0]?.file, 'web/package.json');
+
+    const old = run(t, viteApp(config, { browserslist: ['defaults', 'Safari >= 14'] }));
+    assert.match(whats(old), /declares `browserslist` \["defaults","Safari >= 14"\], not the floor/);
+
+    const files = viteApp(config);
+    delete files['web/package.json'];
+    files['package.json'] = { ...files['package.json'], browserslist: BROWSER_FLOOR };
+    const atRoot = run(t, files);
+    assert.equal(atRoot.problems.length, 0, whats(atRoot));
+});
+
+test('an electron-vite config is not a browser build', (t) => {
+    const result = run(t, good({ 'electron.vite.config.ts': 'export default defineConfig({});\n' }));
+    assert.equal(result.problems.length, 0, whats(result));
+    assert.deepEqual(result.viteBuilds, []);
 });
