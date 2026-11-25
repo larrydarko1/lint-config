@@ -356,7 +356,7 @@ test('CI installs the floor of engines.node: the one declared, else the family d
     assert.equal(nodeOf(declared), '25');
     assert.deepEqual(enginesOf(declared), { node: '>=25' }, 'a declared range is kept');
 
-    for (const family of ['electron', 'library']) {
+    for (const family of ['electron', 'library', 'vs-extension']) {
         const root = repo(t);
         assert.equal(larry(root, 'init', family, '--distribution', 'open').code, 0, family);
         assert.equal(nodeOf(root), '24', family);

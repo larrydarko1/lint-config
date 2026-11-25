@@ -8,38 +8,46 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-25
+
 ### Upgrading
 
-1. If the project has no `CHANGELOG.md`, add one: `# Changelog`, a line saying the format is based
+Run each step, then `npm run ci:check` at the end. Lint before and after the upgrade and read the
+difference: most of it comes from the brace style.
+
+1. Install it: `npm i -D @larrydarko/lint-config@0.3.0`.
+2. If the project has no `CHANGELOG.md`, add one: `# Changelog`, a line saying the format is based
    on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), then `## [Unreleased]`. Rename one
    kept under another name (`changelog.md`, `CHANGES.md`) with `git mv`.
-2. Give every release its own `## [version] - YYYY-MM-DD` heading, newest first. A heading that
+3. Give every release its own `## [version] - YYYY-MM-DD` heading, newest first. A heading that
    groups several versions (`## 1.4.0 – 1.4.9 - …`) becomes one for the last of them, with the
    range said in the text under it.
-3. Name the version scheme in the changelog's intro, beside the format: [Semantic
+4. Name the version scheme in the changelog's intro, beside the format: [Semantic
    Versioning](https://semver.org/spec/v2.0.0.html) in an `electron`, `tauri`, `vs-extension` or
    `library` project, [calendar versioning](https://calver.org/) in an `api`, `fullstack` or `spa`
    one. In a calendar-versioned project, set every `package.json` `version` to the root's, in
    `YYYY.M.PATCH` (or `0.0.0` before the first release).
-4. In a base project, say how its releases are numbered in `larry.config.ts`: `versioning: 'semver'`
+5. In a base project, say how its releases are numbered in `larry.config.ts`: `versioning: 'semver'`
    if someone can stay on an old copy, `versioning: 'calver'` if everyone gets the latest.
-5. A script that calls `checkChangelog` or `checkPackageJson` itself passes the scheme:
+6. A script that calls `checkChangelog` or `checkPackageJson` itself passes the scheme:
    `checkChangelog({ versioning: 'semver' })`.
-6. Run `npx larry check`. If it names an option a gate does not take, remove that line from
+7. Run `npx larry check`. If it names an option a gate does not take, remove that line from
    `larry.config.ts`, or fix its spelling. Before, such an option was ignored without a word, so
    the gate ran on its default.
-7. Rename `refactoring`'s `skip` option to `skipFiles`: `npx larry upgrade` does it in
+8. Rename `refactoring`'s `skip` option to `skipFiles`: `npx larry upgrade` does it in
    `larry.config.ts`, and a script that calls `checkRefactoring` itself renames it by hand.
-8. Put every tsconfig on ES2025: each project config sets `"target": "ES2025"` and a `lib` that
+9. Put every tsconfig on ES2025: each project config sets `"target": "ES2025"` and a `lib` that
    starts with `"ES2025"`. A config extending `@vue/tsconfig` sets both itself, because the preset
    types ES2022: `"lib": ["ES2025", "DOM", "DOM.Iterable"]` for a browser or renderer program. Run
    the typecheck after.
-9. In each `vite.config.*`, set `build: { target: 'es2025' }`, and set an `oxc.target` to the same
-   or remove it. In the `package.json` beside it (or the nearest one above), set `"browserslist"`
-   to `["chrome >= 136", "edge >= 136", "firefox >= 134", "safari >= 26", "ios_saf >= 26",
+10. In each `vite.config.*`, set `build: { target: 'es2025' }`, and set an `oxc.target` to the same
+    or remove it. In the `package.json` beside it (or the nearest one above), set `"browserslist"`
+    to `["chrome >= 136", "edge >= 136", "firefox >= 134", "safari >= 26", "ios_saf >= 26",
 "and_chr >= 136", "and_ff >= 134"]`. This raises the oldest browser the app supports to the
-   first of each that runs all of ES2025. Build, and launch the app in the oldest browser you can.
-   An `electron.vite.config.*` needs nothing: electron-vite targets the Electron it builds for.
+    first of each that runs all of ES2025. Build, and launch the app in the oldest browser you can.
+    An `electron.vite.config.*` needs nothing: electron-vite targets the Electron it builds for.
+11. In a `vs-extension` project that `larry init` set up, lower `engines.node` to `">=24"` and each
+    workflow's `node-version` to `24`.
 
 ### Added
 
@@ -63,14 +71,17 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
 - **Breaking:** `larry check` refuses a gate option the gate does not take, such as one a release
   removed (`refactoring`'s `tracker`) or a misspelt one, and lists the options it does take. It
   used to pass the option to the gate, which never read it.
+- **Breaking:** `tsconfigs` reads every `vite.config.*` as a build for a browser: `build.target`
+  is `'es2025'`, an `oxc.target` matches it, and the nearest `package.json` declares the browser
+  floor as its `browserslist`. Vite's own default target moves with each Vite release.
+
+### Changed
+
 - **Breaking:** `tsconfigs` holds every project to one ES year, ES2025, the newest that Node 24,
   Electron, the VS Code extension host and the browser floor all run in full. Each project sets
   its `target` and the first entry of its `lib` to it in the repo's own configs, since a published
   preset's year moves when the preset is upgraded, and no `lib` entry reaches past it. This
   replaces the rule that only made a declared `target` match its `lib`.
-- **Breaking:** `tsconfigs` reads every `vite.config.*` as a build for a browser: `build.target`
-  is `'es2025'`, an `oxc.target` matches it, and the nearest `package.json` declares the browser
-  floor as its `browserslist`. Vite's own default target moves with each Vite release.
 
 ### Fixed
 
@@ -80,6 +91,8 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
 - **Breaking:** `refactoring`'s extra file names to leave unread can be set in `larry.config.ts`.
   The option is called `skipFiles` now: as `skip`, the config took it for skipping the gate, and
   refused it as a skip with no reason.
+- `larry init vs-extension` writes `engines.node` as `>=24` and has CI install Node 24, the Node
+  VS Code runs extensions on. It wrote 26, so CI tested on a newer Node than the extension ran on.
 
 ## [0.2.0] - 2026-11-19
 
@@ -176,6 +189,7 @@ The first stable release, after eleven pre-releases (0.1.0-beta.0 to 0.1.0-beta.
 - Every tool and plugin is a dependency pinned to an exact version, so projects don't install
   their own. Node 24 or later.
 
-[Unreleased]: https://github.com/larrydarko1/lint-config/compare/0.2.0...HEAD
+[Unreleased]: https://github.com/larrydarko1/lint-config/compare/0.3.0...HEAD
+[0.3.0]: https://github.com/larrydarko1/lint-config/compare/0.2.0...0.3.0
 [0.2.0]: https://github.com/larrydarko1/lint-config/compare/0.1.0...0.2.0
 [0.1.0]: https://github.com/larrydarko1/lint-config/releases/tag/0.1.0
