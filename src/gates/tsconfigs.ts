@@ -4,17 +4,19 @@
  *   1. Every project extends the base (resolved, not just spelled).
  *   2. The base holds every checking flag and no environmental setting.
  *   3. Weakening a base flag needs a reason on the line (or just above).
- *   4. A declared target names the same ES year as its lib.
+ *   4. Every project states its `target` and `lib` in this repo, both at `ES_YEAR`.
  *   5. Every project declares `types`.
  *   6. Named projects: services typed `["node"]`; browser projects without Node, in
  *      config and in source (tests exempt); source-only packages never emit.
  *   7. Every project config is reached by a typecheck script.
  *   8. A solution file only runs in build mode.
  *   9. Section dividers come from the known set, in order.
+ *  10. A Vite build targets `ES_YEAR`, and its package names the `BROWSER_FLOOR`.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { checkProjectYear, checkViteBuild, ES_YEAR, VITE_CONFIG } from './lib/es-year.ts';
 import { walkFiles } from './lib/files.ts';
 import { recordAt, stringsAt } from './lib/json.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
@@ -49,6 +51,8 @@ type TsconfigsInspection = {
     problems: GateFailure[];
     /** Every config that checks code: not the base, not a solution file. */
     projects: string[];
+    /** Every `vite.config.*`, each a build for a browser. */
+    viteBuilds: string[];
     /** How many checking flags the base was held to. */
     flagCount: number;
 };
@@ -113,6 +117,8 @@ export const SECTIONS: string[] = [
     'Library & Syntax',
 ];
 
+const TSCONFIG = /^tsconfig(\..+)?\.json$/;
+
 /** Build output carries tsconfigs that are nobody's to edit. Add to it with `ignore`. */
 const DEFAULT_IGNORED = ['node_modules', 'out', 'dist', 'dist-electron', 'coverage'];
 
@@ -149,7 +155,7 @@ export function inspectTsconfigs({
     const ignored = new Set([...DEFAULT_IGNORED, ...ignore]);
     const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
 
-    const configs = new Map(listConfigs('.').map((rel) => [rel, parse(rel)]));
+    const configs = new Map(listFiles('.', TSCONFIG).map((rel) => [rel, parse(rel)]));
     const baseConfig = configs.get(base);
 
     if (baseConfig === undefined) {
@@ -158,7 +164,7 @@ export function inspectTsconfigs({
             'is missing',
             'It is the one file that decides what is checked. Every other rule here is about whether a project honours it.',
         );
-        return { problems, projects: [], flagCount: Object.keys(baseFlags).length };
+        return { problems, projects: [], viteBuilds: [], flagCount: Object.keys(baseFlags).length };
     }
 
     /** Configs that actually check code: not the base, not a `files: []` solution file. */
@@ -235,26 +241,8 @@ export function inspectTsconfigs({
         }
     }
 
-    // ── 4. A declared target names the same ES year as its lib ──────────────
-    for (const [rel, cfg] of projects) {
-        const { target } = cfg.own;
-        if (target === undefined) continue;
-        const lib = cfg.own['lib'] === undefined ? undefined : stringsAt(cfg.own, 'lib');
-        const targetText = typeof target === 'string' ? target : JSON.stringify(target);
-        if (lib === undefined) {
-            fail(
-                rel,
-                `sets \`target: "${targetText}"\` with no \`lib\``,
-                'Without one the library surface is inferred from the target, which is fine until the target moves and nothing says the two are meant to agree. State it.',
-            );
-        } else if (lib[0]?.toLowerCase() !== targetText.toLowerCase()) {
-            fail(
-                rel,
-                `targets ${targetText} but its lib starts at ${lib[0]}`,
-                'A lib behind the target types the old standard library while the emit uses the new syntax; a lib ahead of it types methods the runtime floor does not have. The first lib entry is the ES year and must match.',
-            );
-        }
-    }
+    // ── 4. Every project is on the one ES year, stated in this repo ─────────
+    for (const [rel, cfg] of projects) checkProjectYear(rel, cfg.options, fail);
 
     // ── 5. Every project declares `types` ───────────────────────────────────
     // The default is every hoisted `@types/*` package, not none.
@@ -386,15 +374,24 @@ export function inspectTsconfigs({
         }
     }
 
-    return { problems, projects: projects.map(([rel]) => rel), flagCount: Object.keys(baseFlags).length };
+    // ── 10. A Vite build ships the ES year, to the browser floor ────────────
+    const viteBuilds = listFiles('.', VITE_CONFIG);
+    for (const rel of viteBuilds) checkViteBuild(root, rel, fail);
 
-    /** Every tsconfig in the repo, minus build output and dotted directories. */
-    function listConfigs(rel: string, out: string[] = []): string[] {
+    return {
+        problems,
+        projects: projects.map(([rel]) => rel),
+        viteBuilds,
+        flagCount: Object.keys(baseFlags).length,
+    };
+
+    /** Every file in the repo whose name matches, minus build output and dotted directories. */
+    function listFiles(rel: string, name: RegExp, out: string[] = []): string[] {
         for (const entry of fs.readdirSync(path.join(root, rel), { withFileTypes: true })) {
             if (ignored.has(entry.name) || entry.name.startsWith('.')) continue;
             const child = rel === '.' ? entry.name : `${rel}/${entry.name}`;
-            if (entry.isDirectory()) listConfigs(child, out);
-            else if (/^tsconfig(\..+)?\.json$/.test(entry.name)) out.push(child);
+            if (entry.isDirectory()) listFiles(child, name, out);
+            else if (name.test(entry.name)) out.push(child);
         }
         return out;
     }
@@ -560,13 +557,13 @@ export function inspectTsconfigs({
 /** Run the gate and print. */
 export function checkTsconfigs({ root = REPO_ROOT, ...rest }: TsconfigsOptions = {}): void {
     const report = createGateReport({ name: 'tsconfigs' });
-    const { problems, projects, flagCount } = inspectTsconfigs({ root, ...rest });
+    const { problems, projects, viteBuilds, flagCount } = inspectTsconfigs({ root, ...rest });
 
     for (const { file, what, why } of problems) report.fail(file, what, why);
 
     report.done({
-        summary: `${projects.length} projects, each extending the base last, ${flagCount} checking flags owned by the base and nothing environmental, every override explained, every target matched to its lib, every project scoping its own \`types\` and reached by a compiler.`,
+        summary: `${projects.length} projects, each extending the base last, ${flagCount} checking flags owned by the base and nothing environmental, every override explained, every project on ${ES_YEAR} and scoping its own \`types\` and reached by a compiler, ${viteBuilds.length} Vite builds targeting ${ES_YEAR} with the browser floor declared.`,
         notMachineChecked:
-            'Whether a target is the right one for its runtime, whether an override is still needed, or whether the browser floor the bundler enforces matches what the frontend typechecks against.',
+            'Whether an override is still needed, whether the Node an esbuild `target` names is the one its runtime ships, or whether a build outside Vite (electron-vite, esbuild) emits for the year.',
     });
 }

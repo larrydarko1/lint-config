@@ -9,8 +9,8 @@
         "noEmit": true,
 
         /* Target & Environment */
-        "target": "es2024",
-        "lib": ["es2024"],
+        "target": "es2025",
+        "lib": ["es2025"],
 
         /* Paths & Types */
         "types": ["node"],

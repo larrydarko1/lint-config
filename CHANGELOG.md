@@ -30,6 +30,16 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
    the gate ran on its default.
 7. Rename `refactoring`'s `skip` option to `skipFiles`: `npx larry upgrade` does it in
    `larry.config.ts`, and a script that calls `checkRefactoring` itself renames it by hand.
+8. Put every tsconfig on ES2025: each project config sets `"target": "ES2025"` and a `lib` that
+   starts with `"ES2025"`. A config extending `@vue/tsconfig` sets both itself, because the preset
+   types ES2022: `"lib": ["ES2025", "DOM", "DOM.Iterable"]` for a browser or renderer program. Run
+   the typecheck after.
+9. In each `vite.config.*`, set `build: { target: 'es2025' }`, and set an `oxc.target` to the same
+   or remove it. In the `package.json` beside it (or the nearest one above), set `"browserslist"`
+   to `["chrome >= 136", "edge >= 136", "firefox >= 134", "safari >= 26", "ios_saf >= 26",
+"and_chr >= 136", "and_ff >= 134"]`. This raises the oldest browser the app supports to the
+   first of each that runs all of ES2025. Build, and launch the app in the oldest browser you can.
+   An `electron.vite.config.*` needs nothing: electron-vite targets the Electron it builds for.
 
 ### Added
 
@@ -53,6 +63,14 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
 - **Breaking:** `larry check` refuses a gate option the gate does not take, such as one a release
   removed (`refactoring`'s `tracker`) or a misspelt one, and lists the options it does take. It
   used to pass the option to the gate, which never read it.
+- **Breaking:** `tsconfigs` holds every project to one ES year, ES2025, the newest that Node 24,
+  Electron, the VS Code extension host and the browser floor all run in full. Each project sets
+  its `target` and the first entry of its `lib` to it in the repo's own configs, since a published
+  preset's year moves when the preset is upgraded, and no `lib` entry reaches past it. This
+  replaces the rule that only made a declared `target` match its `lib`.
+- **Breaking:** `tsconfigs` reads every `vite.config.*` as a build for a browser: `build.target`
+  is `'es2025'`, an `oxc.target` matches it, and the nearest `package.json` declares the browser
+  floor as its `browserslist`. Vite's own default target moves with each Vite release.
 
 ### Fixed
 

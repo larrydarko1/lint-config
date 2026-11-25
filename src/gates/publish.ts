@@ -61,7 +61,7 @@ const CONSUMER_TSCONFIG = {
         noEmit: true,
         module: 'nodenext',
         moduleResolution: 'nodenext',
-        target: 'es2024',
+        target: 'es2025',
         skipLibCheck: false,
     },
     files: ['consumer.ts'],
