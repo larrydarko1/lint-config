@@ -58,12 +58,14 @@ const CHECKOUT = 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 const SETUP_NODE = 'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0';
 
 /**
- * The Node major a project with no engines.node is written for: the newest LTS, except two
+ * The Node major a project with no engines.node is written for: the newest LTS, except three
  * that cannot choose it. A library supports the oldest maintained LTS, so its consumers
  * need not move first; an electron app runs on the Node Electron bundles (24, as of
- * Electron 45). Raise each with the release that moves it.
+ * Electron 45), and an extension on the Node VS Code bundles (24.18, as of VS Code 1.134).
+ * Raise each with the release that moves it.
  */
-export const nodeMajorFor = (family: PresetName): number => (family === 'library' || family === 'electron' ? 24 : 26);
+export const nodeMajorFor = (family: PresetName): number =>
+    family === 'library' || family === 'electron' || family === 'vs-extension' ? 24 : 26;
 
 /** Every file init writes, keyed by its path from the repository root. */
 export function scaffoldFiles(scaffold: Scaffold): Record<string, string> {
