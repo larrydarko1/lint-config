@@ -25,6 +25,12 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
   every router's `/:id` shared one series; a mount's own `:param` arrived as its value, one series
   per record; and a 401 or 429 from a mount's middleware was labelled `unknown`.
 
+### Added
+
+- The `metrics` gate's `manifests` option may be left out while nothing is deployed. The rules
+  that read code still run, and the summary says the scrape chain went unchecked. A directory
+  that is configured but empty still fails.
+
 ## [0.3.0] - 2026-11-25
 
 ### Upgrading

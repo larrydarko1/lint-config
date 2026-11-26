@@ -227,6 +227,26 @@ test('an empty manifest directory fails rather than passing vacuously', (t) => {
     assert.deepEqual(whats(root), ['contains no manifests']);
 });
 
+test('with no manifest directory configured, the code is still graded', (t) => {
+    const files = good({
+        'api/src/index.ts': API_INDEX.replace('{ ping: 1 }, { timeoutMS: 5000 }', '{ ping: 1 }'),
+    });
+    for (const key of Object.keys(files)) {
+        if (key.startsWith('k8s/')) delete files[key];
+    }
+    const { problems, counts } = inspectMetrics({
+        ...OPTIONS,
+        root: tree(t, files),
+        manifests: undefined,
+        headlessServices: undefined,
+    });
+    assert.deepEqual(
+        problems.map((p) => p.what),
+        ['/healthz awaits a dependency with no timeout'],
+    );
+    assert.deepEqual(counts, { monitors: 0, services: 0, workloads: 0, crdKinds: [] });
+});
+
 test('kustomization.yaml is not read as a resource', (t) => {
     const root = tree(t, good({ 'k8s/kustomization.yaml': 'resources:\n  - worker/service.yaml\n' }));
     assert.deepEqual(whats(root), []);

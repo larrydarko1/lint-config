@@ -61,8 +61,12 @@ type Handler = {
 
 type MetricsInput = {
     root: string;
-    /** The manifest directory, walked recursively; `kustomization.yaml` is skipped. */
-    manifests: string;
+    /**
+     * The manifest directory, walked recursively; `kustomization.yaml` is skipped.
+     * Omit it only while nothing is deployed: rules 1–6, 8, 9, 12, 14 and 18 then
+     * have nothing to read, and the summary says the scrape chain went unchecked.
+     */
+    manifests?: string;
     /** The namespace Prometheus runs in. Defaults to `monitoring`. */
     monitoringNamespace?: string;
     /** The CI workflow that dry-runs the manifests. */
@@ -189,7 +193,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
 
     // ── Parse every manifest once ────────────────────────────────────────────
     const resources: Resource[] = [];
-    const files = walk(manifestDir)
+    const files = (manifestDir === undefined ? [] : walk(manifestDir))
         // kustomization.yaml is build input, not a cluster resource.
         .filter((rel) => /\.ya?ml$/.test(rel) && path.basename(rel) !== 'kustomization.yaml')
         .sort();
@@ -227,7 +231,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
         }
     }
 
-    if (resources.length === 0) {
+    if (manifestDir !== undefined && resources.length === 0) {
         fail(
             manifestDir,
             'contains no manifests',
@@ -248,7 +252,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
     // ── 1-3. ServiceMonitor → Service → pods ────────────────────────────────
     const scraped: ScrapeTarget[] = [];
 
-    if (monitors.length === 0) {
+    if (manifestDir !== undefined && monitors.length === 0) {
         fail(
             manifestDir,
             'declares no ServiceMonitor',
@@ -374,7 +378,8 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
         const service = services.find((candidate) => candidate.name === name);
         if (service === undefined) {
             fail(
-                manifestDir,
+                // Named in the options with no manifests to find it in
+                manifestDir ?? 'manifests',
                 `no Service named \`${name}\``,
                 'It is listed as scrape-only, so either it was renamed and this rule stopped applying to anything, or it is gone and nothing is being scraped.',
             );
@@ -691,10 +696,13 @@ export function checkMetrics({ root = REPO_ROOT, ...rest }: MetricsOptions): voi
 
     report.done({
         summary:
-            `${plural(counts.monitors, 'ServiceMonitor')} resolving through ${plural(counts.services, 'named Service port')} ` +
-            `to ${plural(counts.workloads, 'workload')}, each admitted from the monitoring namespace and scraped in step with the gauge refresh; ` +
-            `probes by httpGet only, ${LIVENESS_PATH} dependency-free and listening before slow init, no unbounded metric label, ` +
-            `and ${plural(counts.crdKinds.length, 'CRD kind')} registered for CI${counts.crdKinds.length > 0 ? ` (${counts.crdKinds.join(', ')})` : ''}.`,
+            rest.manifests === undefined
+                ? `No manifests configured, so the scrape chain and the probes were not checked; ` +
+                  `${LIVENESS_PATH} dependency-free and listening before slow init, a bounded ${READINESS_PATH}, no unbounded metric label.`
+                : `${plural(counts.monitors, 'ServiceMonitor')} resolving through ${plural(counts.services, 'named Service port')} ` +
+                  `to ${plural(counts.workloads, 'workload')}, each admitted from the monitoring namespace and scraped in step with the gauge refresh; ` +
+                  `probes by httpGet only, ${LIVENESS_PATH} dependency-free and listening before slow init, no unbounded metric label, ` +
+                  `and ${plural(counts.crdKinds.length, 'CRD kind')} registered for CI${counts.crdKinds.length > 0 ? ` (${counts.crdKinds.join(', ')})` : ''}.`,
         notMachineChecked:
             'Whether a metric is worth collecting, whether the histogram buckets suit the real latency distribution, or whether an alert threshold is the right one. Nor whether Prometheus is deployed at all — this proves the chain is wired, not that anything is listening at the far end of it.',
     });
