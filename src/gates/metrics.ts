@@ -14,7 +14,7 @@
  *   14.  Queue consumers have no readiness probe.
  *   15.  Every kube-linter exclusion carries a reason.
  *   16.  No unbounded metric label.
- *   17.  The route label is a template, never the requested URL.
+ *   17.  The route label is looked up in the route table, never rebuilt from the request.
  *   18.  CI knows about every CRD the manifests use.
  */
 import fs from 'node:fs';
@@ -27,6 +27,7 @@ import { isRecord } from './lib/json.ts';
 import { isK8sDoc, type Container, type K8sDoc, type Labels, type ScrapeEndpoint } from './lib/k8s-docs.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { routeLabelProblems, type RouteLabel } from './lib/route-label.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
 export type MetricsOptions = Omit<MetricsInput, 'root'> & {
@@ -82,8 +83,8 @@ type MetricsInput = {
     ownWorkloads?: RegExp;
     /** Deployments that pull their work, and so must have no readiness probe. */
     queueConsumers?: RegExp;
-    /** The function that builds the route label, and the file holding it. */
-    routeLabel?: { file: string; fn: string };
+    /** The function that builds the route label, and the route lookup it calls. */
+    routeLabel?: RouteLabel;
     /** Services that exist only to be scraped, and so must be headless. */
     headlessServices?: string[];
     /** Extra unbounded label names, beyond the built-in list. */
@@ -633,40 +634,9 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
         }
     }
 
-    // ── 17. The route label is a template, never the requested URL ──────────
+    // ── 17. The route label is looked up in the route table ─────────────────
     if (routeLabel !== undefined && exists(routeLabel.file)) {
-        const source = code(routeLabel.file);
-        const fn = new RegExp(String.raw`function ${routeLabel.fn}\([\s\S]*?\n\}`).exec(source)?.[0];
-
-        if (fn === undefined) {
-            fail(
-                routeLabel.file,
-                `has no \`${routeLabel.fn}\` function`,
-                'The route label is the one metric label here with an unbounded failure mode, and this rule can no longer see how it is built.',
-            );
-        } else {
-            for (const raw of ['req.url', 'req.path', 'req.originalUrl'].filter((name) => fn.includes(name))) {
-                fail(
-                    routeLabel.file,
-                    `\`${routeLabel.fn}\` uses \`${raw}\``,
-                    'That is the REQUESTED url, not the route template, so /api/videos/abc and /api/videos/def become two series. Anyone spraying random paths can then mint unbounded series until Prometheus falls over. Build it from `req.baseUrl` + `req.route.path`.',
-                );
-            }
-            if (!fn.includes('req.baseUrl')) {
-                fail(
-                    routeLabel.file,
-                    `\`${routeLabel.fn}\` does not use \`req.baseUrl\``,
-                    "`req.route.path` alone is relative to the router's mount point, so every router's `/:id` collapses into ONE histogram — /api/videos/:id and /api/channels/:id share a series and the p95 becomes an average across unrelated endpoints. Nothing fails; the dashboards just render numbers that are quietly wrong.",
-                );
-            }
-            if (!/return\s+['"`]unknown['"`]/.test(fn)) {
-                fail(
-                    routeLabel.file,
-                    `\`${routeLabel.fn}\` has no \`unknown\` fallback`,
-                    'Unmatched 404s never reach a route handler and have no template. Without a single collapsed bucket for them they are labelled by whatever was requested, which is the unbounded-cardinality hole in a different disguise.',
-                );
-            }
-        }
+        problems.push(...routeLabelProblems(code(routeLabel.file), routeLabel));
     }
 
     // ── 18. CI knows about every CRD the manifests use ──────────────────────
