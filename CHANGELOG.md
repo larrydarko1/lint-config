@@ -8,6 +8,29 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
 
 ## [Unreleased]
 
+### Upgrading
+
+1. In a project whose `metrics` options set `routeLabel`, have that function look the route up
+   in the API's route table, by method and path, instead of joining `req.baseUrl` and
+   `req.route.path`. Pass the requested path (`req.originalUrl` without its query) only to that
+   lookup, return the template it gives, and keep a `return 'unknown'` for a request it does not
+   know. The gate looks for a call to `routeOf`; name another function with
+   `routeLabel: { …, lookup: 'findRoute' }`.
+
+### Changed
+
+- **Breaking:** the `metrics` gate requires the route label to come from the route table, and
+  refuses one built from `req.baseUrl`. That label was wrong on the requests that matter most: by
+  the time a refused request finishes, Express has left the router and reset `req.baseUrl`, so
+  every router's `/:id` shared one series; a mount's own `:param` arrived as its value, one series
+  per record; and a 401 or 429 from a mount's middleware was labelled `unknown`.
+
+### Added
+
+- The `metrics` gate's `manifests` option may be left out while nothing is deployed. The rules
+  that read code still run, and the summary says the scrape chain went unchecked. A directory
+  that is configured but empty still fails.
+
 ## [0.3.0] - 2026-11-25
 
 ### Upgrading

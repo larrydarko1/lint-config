@@ -21,7 +21,7 @@ export default defineConfig({
                 'src/gates/extension-manifest.ts': 403,
                 'src/gates/ipc-standards.ts': 485,
                 'src/gates/lib/rust.ts': 439,
-                'src/gates/metrics.ts': 723,
+                'src/gates/metrics.ts': 702,
                 'src/gates/pipeline.ts': 667,
                 'src/gates/scss-standards.ts': 469,
                 'src/gates/security-drift.ts': 935,

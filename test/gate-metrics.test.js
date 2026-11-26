@@ -120,8 +120,10 @@ const API_METRICS = `import { Histogram } from 'prom-client';
 export const httpDuration = new Histogram({ name: 'http_duration', help: 'latency', labelNames: ['route', 'method'] });
 
 export function routeLabel(req: Request): string {
+    const template = routeOf(req.method, req.originalUrl.split('?')[0] ?? '');
+    if (template !== undefined) return template.slice(template.indexOf(' ') + 1);
     if (req.route === undefined) return 'unknown';
-    return \`\${req.baseUrl}\${req.route.path}\`;
+    return req.route.path;
 }
 `;
 
@@ -223,6 +225,26 @@ test('an empty manifest directory fails rather than passing vacuously', (t) => {
     }
     const root = tree(t, files);
     assert.deepEqual(whats(root), ['contains no manifests']);
+});
+
+test('with no manifest directory configured, the code is still graded', (t) => {
+    const files = good({
+        'api/src/index.ts': API_INDEX.replace('{ ping: 1 }, { timeoutMS: 5000 }', '{ ping: 1 }'),
+    });
+    for (const key of Object.keys(files)) {
+        if (key.startsWith('k8s/')) delete files[key];
+    }
+    const { problems, counts } = inspectMetrics({
+        ...OPTIONS,
+        root: tree(t, files),
+        manifests: undefined,
+        headlessServices: undefined,
+    });
+    assert.deepEqual(
+        problems.map((p) => p.what),
+        ['/healthz awaits a dependency with no timeout'],
+    );
+    assert.deepEqual(counts, { monitors: 0, services: 0, workloads: 0, crdKinds: [] });
 });
 
 test('kustomization.yaml is not read as a resource', (t) => {
@@ -400,7 +422,7 @@ test('a module that registers nothing is not asked to serve anything', (t) => {
         t,
         good({
             'api/src/lib/metrics.ts':
-                'export function routeLabel(req: Request): string {\n    if (req.route === undefined) return "unknown";\n    return `${req.baseUrl}${req.route.path}`;\n}\n',
+                'export function routeLabel(req: Request): string {\n    if (routeOf(req.method, req.path) === undefined) return "unknown";\n    return req.route.path;\n}\n',
         }),
     );
     assert.deepEqual(whats(root), []);
@@ -634,37 +656,54 @@ test('a project can add its own unbounded label names', (t) => {
 
 // ─── 17. The route label ─────────────────────────────────────────────────────
 
+/** The fixture's metrics module with one line of `routeLabel` swapped. */
+const labelled = (line, replacement) => good({ 'api/src/lib/metrics.ts': API_METRICS.replace(line, replacement) });
+const LOOKUP_LINE = "const template = routeOf(req.method, req.originalUrl.split('?')[0] ?? '');";
+
 test('a route label built from req.url is reported', (t) => {
-    const root = tree(
-        t,
-        good({
-            'api/src/lib/metrics.ts': API_METRICS.replace(
-                'return `${req.baseUrl}${req.route.path}`;',
-                'return req.url;',
-            ),
-        }),
-    );
-    assert.match(whats(root).join(' '), /uses `req.url`/);
+    const root = tree(t, labelled('return req.route.path;', 'return req.url;'));
+    assert.match(whats(root).join(' '), /uses `req.url` outside `routeOf`/);
 });
 
-test('a route label without req.baseUrl is reported', (t) => {
+test('the requested path passed to the lookup is not reported', (t) => {
+    const root = tree(t, good());
+    assert.deepEqual(whats(root), []);
+});
+
+test('a route label that never looks the route up is reported', (t) => {
+    const root = tree(t, labelled(LOOKUP_LINE, 'const template = undefined;'));
+    assert.match(whats(root).join(' '), /does not look the route up with `routeOf`/);
+});
+
+test('a route label rebuilt from req.baseUrl is reported, lookup or not', (t) => {
+    const root = tree(t, labelled('return req.route.path;', 'return `${req.baseUrl}${req.route.path}`;'));
+    assert.deepEqual(whats(root), ['`routeLabel` uses `req.baseUrl`']);
+});
+
+test('a lookup the project names is the one looked for', (t) => {
+    const root = tree(t, labelled(LOOKUP_LINE, LOOKUP_LINE.replace('routeOf(', 'findRoute(')));
+    const lookup = { ...OPTIONS.routeLabel, lookup: 'findRoute' };
+    assert.deepEqual(whats(root, { routeLabel: lookup }), []);
+    assert.match(whats(root).join(' '), /does not look the route up with `routeOf`/);
+});
+
+test('a longer name ending in the lookup is not the lookup', (t) => {
+    const root = tree(t, labelled(LOOKUP_LINE, LOOKUP_LINE.replace('routeOf(', 'myrouteOf(')));
+    const found = whats(root).join(' ');
+    assert.match(found, /does not look the route up with `routeOf`/);
+    assert.match(found, /uses `req.originalUrl` outside `routeOf`/);
+});
+
+test('a requested path beside the lookup is reported, however many lookups there are', (t) => {
     const root = tree(
         t,
-        good({
-            'api/src/lib/metrics.ts': API_METRICS.replace(
-                'return `${req.baseUrl}${req.route.path}`;',
-                'return req.route.path;',
-            ),
-        }),
+        labelled('return req.route.path;', 'return routeOf(req.method, req.path) ?? req.originalUrl;'),
     );
-    assert.match(whats(root).join(' '), /does not use `req.baseUrl`/);
+    assert.match(whats(root).join(' '), /uses `req.originalUrl` outside `routeOf`/);
 });
 
 test('a route label with no unknown fallback is reported', (t) => {
-    const root = tree(
-        t,
-        good({ 'api/src/lib/metrics.ts': API_METRICS.replace("if (req.route === undefined) return 'unknown';", '') }),
-    );
+    const root = tree(t, labelled("if (req.route === undefined) return 'unknown';", ''));
     assert.match(whats(root).join(' '), /has no `unknown` fallback/);
 });
 
@@ -715,13 +754,9 @@ test('a missing workflow is reported with the kinds left unchecked', (t) => {
 
 // ─── Comments must not answer for the code ───────────────────────────────────
 
-test('a comment naming req.baseUrl does not satisfy the route-label rule', (t) => {
-    const commented = API_METRICS.replace(
-        'export function routeLabel(req: Request): string {',
-        'export function routeLabel(req: Request): string {\n    // req.baseUrl carries the mount point.',
-    ).replace('return `${req.baseUrl}${req.route.path}`;', 'return req.route.path;');
-    const root = tree(t, good({ 'api/src/lib/metrics.ts': commented }));
-    assert.match(whats(root).join(' '), /does not use `req.baseUrl`/);
+test('a comment naming the lookup does not satisfy the route-label rule', (t) => {
+    const root = tree(t, labelled(LOOKUP_LINE, `// ${LOOKUP_LINE}\n    const template = undefined;`));
+    assert.match(whats(root).join(' '), /does not look the route up with `routeOf`/);
 });
 
 test('a commented-out dependency in /livez is not a dependency', (t) => {

@@ -14,7 +14,7 @@
  *   14.  Queue consumers have no readiness probe.
  *   15.  Every kube-linter exclusion carries a reason.
  *   16.  No unbounded metric label.
- *   17.  The route label is a template, never the requested URL.
+ *   17.  The route label is looked up in the route table, never rebuilt from the request.
  *   18.  CI knows about every CRD the manifests use.
  */
 import fs from 'node:fs';
@@ -27,6 +27,7 @@ import { isRecord } from './lib/json.ts';
 import { isK8sDoc, type Container, type K8sDoc, type Labels, type ScrapeEndpoint } from './lib/k8s-docs.ts';
 import { REPO_ROOT } from './lib/repo-root.ts';
 import { collectFailures, createGateReport, plural, type GateFailure } from './lib/report.ts';
+import { routeLabelProblems, type RouteLabel } from './lib/route-label.ts';
 import { stripComments } from './lib/strip-comments.ts';
 
 export type MetricsOptions = Omit<MetricsInput, 'root'> & {
@@ -60,8 +61,12 @@ type Handler = {
 
 type MetricsInput = {
     root: string;
-    /** The manifest directory, walked recursively; `kustomization.yaml` is skipped. */
-    manifests: string;
+    /**
+     * The manifest directory, walked recursively; `kustomization.yaml` is skipped.
+     * Omit it only while nothing is deployed: rules 1–6, 8, 9, 12, 14 and 18 then
+     * have nothing to read, and the summary says the scrape chain went unchecked.
+     */
+    manifests?: string;
     /** The namespace Prometheus runs in. Defaults to `monitoring`. */
     monitoringNamespace?: string;
     /** The CI workflow that dry-runs the manifests. */
@@ -82,8 +87,8 @@ type MetricsInput = {
     ownWorkloads?: RegExp;
     /** Deployments that pull their work, and so must have no readiness probe. */
     queueConsumers?: RegExp;
-    /** The function that builds the route label, and the file holding it. */
-    routeLabel?: { file: string; fn: string };
+    /** The function that builds the route label, and the route lookup it calls. */
+    routeLabel?: RouteLabel;
     /** Services that exist only to be scraped, and so must be headless. */
     headlessServices?: string[];
     /** Extra unbounded label names, beyond the built-in list. */
@@ -188,7 +193,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
 
     // ── Parse every manifest once ────────────────────────────────────────────
     const resources: Resource[] = [];
-    const files = walk(manifestDir)
+    const files = (manifestDir === undefined ? [] : walk(manifestDir))
         // kustomization.yaml is build input, not a cluster resource.
         .filter((rel) => /\.ya?ml$/.test(rel) && path.basename(rel) !== 'kustomization.yaml')
         .sort();
@@ -226,7 +231,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
         }
     }
 
-    if (resources.length === 0) {
+    if (manifestDir !== undefined && resources.length === 0) {
         fail(
             manifestDir,
             'contains no manifests',
@@ -247,7 +252,7 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
     // ── 1-3. ServiceMonitor → Service → pods ────────────────────────────────
     const scraped: ScrapeTarget[] = [];
 
-    if (monitors.length === 0) {
+    if (manifestDir !== undefined && monitors.length === 0) {
         fail(
             manifestDir,
             'declares no ServiceMonitor',
@@ -373,7 +378,8 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
         const service = services.find((candidate) => candidate.name === name);
         if (service === undefined) {
             fail(
-                manifestDir,
+                // Named in the options with no manifests to find it in
+                manifestDir ?? 'manifests',
                 `no Service named \`${name}\``,
                 'It is listed as scrape-only, so either it was renamed and this rule stopped applying to anything, or it is gone and nothing is being scraped.',
             );
@@ -633,40 +639,9 @@ export function inspectMetrics(input: MetricsInput): MetricsInspection {
         }
     }
 
-    // ── 17. The route label is a template, never the requested URL ──────────
+    // ── 17. The route label is looked up in the route table ─────────────────
     if (routeLabel !== undefined && exists(routeLabel.file)) {
-        const source = code(routeLabel.file);
-        const fn = new RegExp(String.raw`function ${routeLabel.fn}\([\s\S]*?\n\}`).exec(source)?.[0];
-
-        if (fn === undefined) {
-            fail(
-                routeLabel.file,
-                `has no \`${routeLabel.fn}\` function`,
-                'The route label is the one metric label here with an unbounded failure mode, and this rule can no longer see how it is built.',
-            );
-        } else {
-            for (const raw of ['req.url', 'req.path', 'req.originalUrl'].filter((name) => fn.includes(name))) {
-                fail(
-                    routeLabel.file,
-                    `\`${routeLabel.fn}\` uses \`${raw}\``,
-                    'That is the REQUESTED url, not the route template, so /api/videos/abc and /api/videos/def become two series. Anyone spraying random paths can then mint unbounded series until Prometheus falls over. Build it from `req.baseUrl` + `req.route.path`.',
-                );
-            }
-            if (!fn.includes('req.baseUrl')) {
-                fail(
-                    routeLabel.file,
-                    `\`${routeLabel.fn}\` does not use \`req.baseUrl\``,
-                    "`req.route.path` alone is relative to the router's mount point, so every router's `/:id` collapses into ONE histogram — /api/videos/:id and /api/channels/:id share a series and the p95 becomes an average across unrelated endpoints. Nothing fails; the dashboards just render numbers that are quietly wrong.",
-                );
-            }
-            if (!/return\s+['"`]unknown['"`]/.test(fn)) {
-                fail(
-                    routeLabel.file,
-                    `\`${routeLabel.fn}\` has no \`unknown\` fallback`,
-                    'Unmatched 404s never reach a route handler and have no template. Without a single collapsed bucket for them they are labelled by whatever was requested, which is the unbounded-cardinality hole in a different disguise.',
-                );
-            }
-        }
+        problems.push(...routeLabelProblems(code(routeLabel.file), routeLabel));
     }
 
     // ── 18. CI knows about every CRD the manifests use ──────────────────────
@@ -721,10 +696,13 @@ export function checkMetrics({ root = REPO_ROOT, ...rest }: MetricsOptions): voi
 
     report.done({
         summary:
-            `${plural(counts.monitors, 'ServiceMonitor')} resolving through ${plural(counts.services, 'named Service port')} ` +
-            `to ${plural(counts.workloads, 'workload')}, each admitted from the monitoring namespace and scraped in step with the gauge refresh; ` +
-            `probes by httpGet only, ${LIVENESS_PATH} dependency-free and listening before slow init, no unbounded metric label, ` +
-            `and ${plural(counts.crdKinds.length, 'CRD kind')} registered for CI${counts.crdKinds.length > 0 ? ` (${counts.crdKinds.join(', ')})` : ''}.`,
+            rest.manifests === undefined
+                ? `No manifests configured, so the scrape chain and the probes were not checked; ` +
+                  `${LIVENESS_PATH} dependency-free and listening before slow init, a bounded ${READINESS_PATH}, no unbounded metric label.`
+                : `${plural(counts.monitors, 'ServiceMonitor')} resolving through ${plural(counts.services, 'named Service port')} ` +
+                  `to ${plural(counts.workloads, 'workload')}, each admitted from the monitoring namespace and scraped in step with the gauge refresh; ` +
+                  `probes by httpGet only, ${LIVENESS_PATH} dependency-free and listening before slow init, no unbounded metric label, ` +
+                  `and ${plural(counts.crdKinds.length, 'CRD kind')} registered for CI${counts.crdKinds.length > 0 ? ` (${counts.crdKinds.join(', ')})` : ''}.`,
         notMachineChecked:
             'Whether a metric is worth collecting, whether the histogram buckets suit the real latency distribution, or whether an alert threshold is the right one. Nor whether Prometheus is deployed at all — this proves the chain is wired, not that anything is listening at the far end of it.',
     });
