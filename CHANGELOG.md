@@ -8,6 +8,22 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-28
+
+### Upgrading
+
+Every earlier version is deprecated, so install this one whichever version you are on. Run each
+step, then `npm run ci:check` at the end.
+
+1. Install it: `npm i -D @larrydarko/lint-config@0.4.1`.
+2. Coming from 0.3.0 or older, follow the `### Upgrading` steps of each release you skipped,
+   oldest first, leaving out their install step. Those of 0.4.0 bring most of the work.
+3. Where an empty catch has `// eslint-disable-next-line larry/catch-reports -- <reason>` above
+   it, put that reason in a comment inside the catch, if it is not there already, and delete the
+   disable line: `catch { /* the file was already gone */ }`. ESLint warns about a disable line
+   left behind as unused, and `npx eslint --fix .` deletes it. A catch that does something, even
+   only log, keeps its disable line.
+
 ### Fixed
 
 - `larry/catch-reports` accepts an empty catch whose comment says why the failure is dropped
@@ -243,7 +259,8 @@ The first stable release, after eleven pre-releases (0.1.0-beta.0 to 0.1.0-beta.
 - Every tool and plugin is a dependency pinned to an exact version, so projects don't install
   their own. Node 24 or later.
 
-[Unreleased]: https://github.com/larrydarko1/lint-config/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/larrydarko1/lint-config/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/larrydarko1/lint-config/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/larrydarko1/lint-config/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/larrydarko1/lint-config/compare/0.2.0...v0.3.0
 [0.2.0]: https://github.com/larrydarko1/lint-config/compare/0.1.0...0.2.0
