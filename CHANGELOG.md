@@ -8,20 +8,25 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-28
+
 ### Upgrading
 
-1. In a project whose `metrics` options set `routeLabel`, have that function look the route up
+Run each step, then `npm run ci:check` at the end.
+
+1. Install it: `npm i -D @larrydarko/lint-config@0.4.0`.
+2. In a project whose `metrics` options set `routeLabel`, have that function look the route up
    in the API's route table, by method and path, instead of joining `req.baseUrl` and
    `req.route.path`. Pass the requested path (`req.originalUrl` without its query) only to that
    lookup, return the template it gives, and keep a `return 'unknown'` for a request it does not
    know. The gate looks for a call to `routeOf`; name another function with
    `routeLabel: { …, lookup: 'findRoute' }`.
-2. Move the notification module to `composables/ui/useNotifications.ts` under the app's source,
+3. Move the notification module to `composables/ui/useNotifications.ts` under the app's source,
    and update its imports. A composable for a notifications _feature_ (an inbox) that is also
    called `useNotifications` gets its own name, such as `useInbox`.
-3. Where `larry/notify-translated` names a `notify.error` call, translate the message in that
+4. Where `larry/notify-translated` names a `notify.error` call, translate the message in that
    call: `notify.error(t('errors.export_failed'))`, not a string built elsewhere and passed in.
-4. Where `larry/catch-reports` names a `catch`, show the failure (`notify.error(t(…))`, or the
+5. Where `larry/catch-reports` names a `catch`, show the failure (`notify.error(t(…))`, or the
    ref the template reads) or pass it on (`throw`, or return a value the caller checks). Where
    dropping it is safe, put `// eslint-disable-next-line larry/catch-reports -- <reason>` on the
    line above the `catch`. A comment inside the catch that already says why becomes that reason;
@@ -229,7 +234,8 @@ The first stable release, after eleven pre-releases (0.1.0-beta.0 to 0.1.0-beta.
 - Every tool and plugin is a dependency pinned to an exact version, so projects don't install
   their own. Node 24 or later.
 
-[Unreleased]: https://github.com/larrydarko1/lint-config/compare/0.3.0...HEAD
-[0.3.0]: https://github.com/larrydarko1/lint-config/compare/0.2.0...0.3.0
+[Unreleased]: https://github.com/larrydarko1/lint-config/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/larrydarko1/lint-config/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/larrydarko1/lint-config/compare/0.2.0...v0.3.0
 [0.2.0]: https://github.com/larrydarko1/lint-config/compare/0.1.0...0.2.0
 [0.1.0]: https://github.com/larrydarko1/lint-config/releases/tag/0.1.0
