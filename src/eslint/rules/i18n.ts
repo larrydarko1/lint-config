@@ -2,6 +2,8 @@ import vueI18n from '@intlify/eslint-plugin-vue-i18n';
 import type { ESLint, Linter } from 'eslint';
 import * as jsoncParser from 'jsonc-eslint-parser';
 
+import { UNIT_TESTS } from './vue.ts';
+
 export type I18nOptions = {
     /** The locale files as an ESLint glob. Defaults to the family's. */
     localeFiles?: string;
@@ -96,6 +98,12 @@ export const i18nStandards = (
                 '@intlify/vue-i18n/no-unknown-locale': noUnknownLocale,
                 '@intlify/vue-i18n/prefer-linked-key-with-paren': 'error',
             },
+        },
+        // A test calls the module with plain strings to check what it does with them.
+        {
+            files: layout.frontend,
+            ignores: UNIT_TESTS,
+            rules: { 'larry/notify-translated': 'error' },
         },
         {
             files: [localeFiles],

@@ -443,6 +443,9 @@
     "getter-return": [
         { "files": ["src/i18n/locales/en.json","eslint.config.js"], "entry": ["error",{"allowImplicit":false}] }
     ],
+    "larry/catch-reports": [
+        { "files": ["src/main.ts","src/App.vue"], "entry": "error" }
+    ],
     "larry/curly-inline": [
         { "files": "*", "entry": "error" }
     ],
@@ -450,6 +453,15 @@
         { "files": ["src/App.vue"], "entry": "error" }
     ],
     "larry/no-native-dialog": [
+        { "files": ["src/main.ts","src/App.vue","src/composables/__tests__/useClock.test.ts"], "entry": "error" }
+    ],
+    "larry/notification-center": [
+        { "files": ["src/App.vue"], "entry": "error" }
+    ],
+    "larry/notify-translated": [
+        { "files": ["src/main.ts","src/App.vue"], "entry": "error" }
+    ],
+    "larry/notify-usage": [
         { "files": ["src/main.ts","src/App.vue","src/composables/__tests__/useClock.test.ts"], "entry": "error" }
     ],
     "max-depth": [
