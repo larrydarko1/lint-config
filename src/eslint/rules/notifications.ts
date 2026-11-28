@@ -9,8 +9,8 @@
  * - `notification-center` — `<NotificationCenter>` appears once, in `App.vue`, outside every
  *   `v-if`, `v-show` and `v-for`. Whether it appears at all is the dead-code gate's: a module
  *   whose reader nothing imports is an unused export.
- * - `catch-reports` — a `catch` shows the failure, passes it on, or carries a disable comment
- *   saying why it does neither.
+ * - `catch-reports` — a `catch` shows the failure, passes it on, or says why it does neither:
+ *   a comment inside an empty one, a disable comment above any other.
  */
 import { AST_NODE_TYPES, type TSESLint } from '@typescript-eslint/utils';
 import type { AST, Rule } from 'eslint';

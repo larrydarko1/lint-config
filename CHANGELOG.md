@@ -8,6 +8,14 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
 
 ## [Unreleased]
 
+### Fixed
+
+- `larry/catch-reports` accepts an empty catch whose comment says why the failure is dropped
+  (`catch { /* the file was already gone */ }`), as `no-empty` and the error-handling gate already
+  ask. In 0.4.0 it wanted that reason in a disable comment above, which left an empty block both
+  of them refuse. A placeholder (`/* ignore */`) still fails, and a catch that only logs still
+  needs the disable comment.
+
 ## [0.4.0] - 2026-11-28
 
 ### Upgrading
@@ -29,8 +37,9 @@ Run each step, then `npm run ci:check` at the end.
 5. Where `larry/catch-reports` names a `catch`, show the failure (`notify.error(t(…))`, or the
    ref the template reads) or pass it on (`throw`, or return a value the caller checks). Where
    dropping it is safe, put `// eslint-disable-next-line larry/catch-reports -- <reason>` on the
-   line above the `catch`. A comment inside the catch that already says why becomes that reason;
-   `/* ignore */` says nothing, so write what makes it safe.
+   line above the `catch`. From 0.4.1, an empty catch gives its reason in a comment inside
+   instead, and one that already says why passes as it is; `/* ignore */` says nothing, so write
+   what makes it safe.
 
 ### Changed
 

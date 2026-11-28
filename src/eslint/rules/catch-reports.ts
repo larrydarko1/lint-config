@@ -4,6 +4,7 @@
  */
 import { AST_NODE_TYPES, TSESLint, type TSESTree } from '@typescript-eslint/utils';
 
+import { isPlaceholderReason } from '../../gates/lib/swallowed-errors.ts';
 import { isNotify, isTranslation, type Node, propertyName, resolve } from './notify-bindings.ts';
 
 /** Calls that record the failure in a collection the caller reads (a batch's rejected list). */
@@ -14,8 +15,9 @@ const { DefinitionType } = TSESLint.Scope;
 /**
  * A caught failure is shown (`notify`, a ref or a field the template reads, an `emit`),
  * passed on (`throw`, a returned value, a rejecting callback, a list the caller reads), or
- * silenced on purpose behind a disable comment that says why. Logging is none of these:
- * the user still sees nothing happen.
+ * silenced on purpose with a reason. An empty catch gives it in a comment inside, where
+ * `no-empty` and the error-handling gate already ask for it; any other catch gives it in a
+ * disable comment. Logging is none of these: the user still sees nothing happen.
  */
 export const catchReports: TSESLint.RuleModule<'silent'> = {
     meta: {
@@ -24,7 +26,7 @@ export const catchReports: TSESLint.RuleModule<'silent'> = {
         docs: { description: 'A caught failure is shown to the user or passed on, never only logged or dropped.' },
         schema: [],
         messages: {
-            silent: 'This catch neither shows the failure nor passes it on, so the user sees nothing happen. Show it where they are looking — `notify.error(t(…))`, or a ref the template reads — or `throw`/`return` it to a caller that does. If dropping it is safe, say why: `// eslint-disable-next-line larry/catch-reports -- <reason>`. A log line alone is for you, not for them.',
+            silent: 'This catch neither shows the failure nor passes it on, so the user sees nothing happen. Show it where they are looking — `notify.error(t(…))`, or a ref the template reads — or `throw`/`return` it to a caller that does. If dropping it is safe, say why: in an empty catch, a comment inside it (`catch { /* the file was already gone */ }`); otherwise `// eslint-disable-next-line larry/catch-reports -- <reason>` above it. A log line alone is for you, not for them.',
         },
     },
     create(context): TSESLint.RuleListener {
@@ -103,9 +105,22 @@ export const catchReports: TSESLint.RuleModule<'silent'> = {
             return handler === null || !contains(handler, def.name);
         };
 
+        /** An empty block whose comment says why the failure is dropped. `/* ignore *\/` says nothing. */
+        const explainedEmpty = (block: TSESTree.BlockStatement): boolean => {
+            if (block.body.length > 0) return false;
+            const reason = context.sourceCode
+                .getCommentsInside(block)
+                .filter((comment) => !/^\s*eslint/.test(comment.value))
+                .map((comment) => comment.value)
+                .join(' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            return !isPlaceholderReason(reason);
+        };
+
         const handles = (fn: TSESTree.ArrowFunctionExpression | TSESTree.FunctionExpression): boolean => {
             const { body } = fn;
-            if (body.type === AST_NODE_TYPES.BlockStatement) return reports(body);
+            if (body.type === AST_NODE_TYPES.BlockStatement) return explainedEmpty(body) || reports(body);
             // An expression body returns its value, unless the expression is a call made for what it does.
             if (isCall(body)) return reports(body);
             return !isUndefined(body);
@@ -113,7 +128,7 @@ export const catchReports: TSESLint.RuleModule<'silent'> = {
 
         return {
             CatchClause(node): void {
-                if (reports(node.body)) return;
+                if (explainedEmpty(node.body) || reports(node.body)) return;
                 context.report({ loc: { start: node.loc.start, end: node.body.loc.start }, messageId: 'silent' });
             },
             CallExpression(node): void {
