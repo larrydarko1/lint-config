@@ -494,6 +494,26 @@ whole-file exception at the very top.
   user is told through the app's notification function, and asked through its own dialog. A binding the module
   declares or imports under one of those names is not the browser's, and passes. On everything that runs in the
   Vue app, in every family.
+- `larry/notify-usage` — `notify` and `useNotifications` are imported from `@/composables/ui/useNotifications`
+  (under any `@/` prefix, so `@/renderer/…` too), and `notify` is called as `notify.error` or `notify.dismiss`,
+  nothing else. A module of that name anywhere else is refused, so a notifications feature (an inbox) takes a name
+  of its own. A `notify` the file declares, or imports from another module, is not the app's and passes. On
+  everything that runs in the Vue app, in every family.
+- `larry/notify-translated` — `notify.error`'s message is a call of vue-i18n's `t`, under whatever local name:
+  destructured from `useI18n()` or `i18n.global`, read off as `i18n.global.t`, or imported. A function the file
+  writes itself is not one. On with the i18n rules, so `i18n: false` turns it off; not in unit tests.
+- `larry/notification-center` — `<NotificationCenter>` appears in `App.vue` and no other component, once, outside
+  every `v-if`, `v-else`, `v-show` and `v-for`, so a failure can appear on every screen. Whether it appears at all
+  is left to `dead-code`: a notification module nothing renders leaves its reader an unused export.
+- `larry/catch-reports` — a `catch`, a `.catch(fn)` or `.then(onDone, fn)` shows the failure or passes it on.
+  Shown: a `notify` call, a write to a ref or a field (`error.value = …`), an `emit` from `defineEmits`. Passed on:
+  a `throw` that leaves the function, a returned value, a call of one of the function's parameters (`reject`), a
+  push into a list declared outside the catch. It follows a call into a function declared in the same file, where
+  only a `notify`, an `emit`, an escaping `throw` or a write of a translated message counts, and not the helper's
+  own catch blocks. A log call alone is neither. Where dropping a failure is safe, say why on the line above the
+  `catch`: `// eslint-disable-next-line larry/catch-reports -- the theme is already applied locally`. It does not
+  know which ref the template reads, so `loading.value = false` alone passes. On everything that runs in the Vue
+  app, in every family, outside unit tests.
 - `larry/no-tauri-outside-bridge` — `@tauri-apps/*` is imported in `src/bridge/` and nowhere else, types
   included, and nothing else reads `window.__TAURI__` or `__TAURI_INTERNALS__`, or tests for them with `in`. A local
   module whose path merely contains `tauri` passes. On the Tauri webview outside its bridge.

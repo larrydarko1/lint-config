@@ -10,6 +10,9 @@ export const aliasOnlyImportPatterns = [
     },
 ];
 
+/** A frontend's unit tests, beside the code it tests. */
+export const UNIT_TESTS = ['**/__tests__/**', '**/*.test.ts', '**/*.spec.ts'];
+
 export const noStoreLibraryPatterns = [
     bannedPackages(
         ['pinia', 'vuex'],
@@ -90,8 +93,12 @@ export const vueStandards = (layout: { vue: string[]; frontend: string[] }): Lin
             'vue/require-typed-ref': 'error',
             'vue/no-side-effects-in-computed-properties': 'error',
             'larry/no-native-dialog': 'error',
+            'larry/notify-usage': 'error',
         },
     },
+    // A test catches to assert on the failure; that is the test's way of showing it.
+    { files: layout.frontend, ignores: UNIT_TESTS, rules: { 'larry/catch-reports': 'error' } },
+    { files: layout.vue, rules: { 'larry/notification-center': 'error' } },
 ];
 
 /** Where the standard keeps icons, under each components glob: `src/**\/*.vue` → `src/components/icons/*.vue`. */

@@ -16,6 +16,16 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
    lookup, return the template it gives, and keep a `return 'unknown'` for a request it does not
    know. The gate looks for a call to `routeOf`; name another function with
    `routeLabel: { …, lookup: 'findRoute' }`.
+2. Move the notification module to `composables/ui/useNotifications.ts` under the app's source,
+   and update its imports. A composable for a notifications _feature_ (an inbox) that is also
+   called `useNotifications` gets its own name, such as `useInbox`.
+3. Where `larry/notify-translated` names a `notify.error` call, translate the message in that
+   call: `notify.error(t('errors.export_failed'))`, not a string built elsewhere and passed in.
+4. Where `larry/catch-reports` names a `catch`, show the failure (`notify.error(t(…))`, or the
+   ref the template reads) or pass it on (`throw`, or return a value the caller checks). Where
+   dropping it is safe, put `// eslint-disable-next-line larry/catch-reports -- <reason>` on the
+   line above the `catch`. A comment inside the catch that already says why becomes that reason;
+   `/* ignore */` says nothing, so write what makes it safe.
 
 ### Changed
 
@@ -27,6 +37,13 @@ Before 1.0, a minor version may break, and each one that does says how to upgrad
 
 ### Added
 
+- **Breaking:** four ESLint rules on everything that runs in the Vue app, in every family with
+  one. `larry/notify-usage`: `notify` comes from `@/composables/ui/useNotifications` and has
+  `error` and `dismiss`, nothing else. `larry/notify-translated`: `notify.error`'s message is a
+  `t(…)` call, in an app with i18n. `larry/notification-center`: `<NotificationCenter>` is
+  mounted once, in `App.vue`, outside every `v-if`, `v-show` and `v-for`. `larry/catch-reports`:
+  a `catch` shows the failure or passes it on, or a disable comment says why it does neither; a
+  catch that only logs leaves the user watching a button that did nothing.
 - The `metrics` gate's `manifests` option may be left out while nothing is deployed. The rules
   that read code still run, and the summary says the scrape chain went unchecked. A directory
   that is configured but empty still fails.
