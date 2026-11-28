@@ -153,10 +153,20 @@ tester.run('catch-reports', notificationRules['catch-reports'], {
         'load().catch((err) => { throw new LoadError(err); });',
         // A handler passed by name is the named function's business.
         'load().catch(onFailure);',
+        // An empty catch whose comment says why: the reason the error-handling gate asks for.
+        'try { await unlink(tmp); } catch { /* the file was already gone */ }',
+        'try { await unlink(tmp); } catch {\n    // the file was already gone\n}',
+        'load().catch(() => {\n    // the log is the channel that failed\n});',
     ],
     invalid: [
         { code: 'try { await save(); } catch {}', errors: silent },
         { code: 'try { await save(); } catch { /* ignore */ }', errors: silent },
+        { code: 'try { await save(); } catch { /* noop. */ }', errors: silent },
+        { code: 'load().catch(() => { /* ignore */ });', errors: silent },
+        // A disable comment inside gives no reason for the drop.
+        { code: 'try { await save(); } catch { /* eslint-disable-line no-empty */ }', errors: silent },
+        // A comment beside code that only logs is not an empty catch: the disable comment is the escape there.
+        { code: 'try { await save(); } catch (err) { /* nothing to show */ console.error(err); }', errors: silent },
         { code: 'try { await save(); } catch (err) { console.error(err); }', errors: silent },
         { code: 'try { await save(); } catch (err) { logger.warn({ err }, "save failed"); }', errors: silent },
         { code: 'async function f() { try { await save(); } catch { return; } }', errors: silent },
@@ -223,7 +233,7 @@ vueTester.run('catch-reports in a component', notificationRules['catch-reports']
     ],
     invalid: [
         {
-            code: '<script setup lang="ts">\nasync function remove(): Promise<void> { try { await api.delete(id); } catch { /* handled in template */ } }\n</script>',
+            code: '<script setup lang="ts">\nasync function remove(): Promise<void> { try { await api.delete(id); } catch { /* ignore */ } }\n</script>',
             errors: silent,
         },
     ],
